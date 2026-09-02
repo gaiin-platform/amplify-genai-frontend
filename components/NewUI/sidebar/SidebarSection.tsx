@@ -1,13 +1,14 @@
 /**
  * SidebarSection — a labelled section heading (e.g. "Pinned", "Recents").
  * Sentence-case, no uppercase, --text-muted at 12px.
- * Optional right slot for sort/filter icon.
+ * Optional right slot for sort/filter icons, kept right-aligned.
  *
  * Optional collapse/expand (fully backward-compatible — existing callers that
  * do not pass these new props continue to work identically):
  *
- *   isCollapsible  — when true, renders a chevron and clicking the heading row
- *                    toggles the collapsed/expanded state
+ *   isCollapsible  — when true, the label and the chevron immediately after it
+ *                    form one button that toggles the collapsed/expanded state.
+ *                    The chevron rotates: down = expanded, right = collapsed.
  *   storageKey     — localStorage key for persisting collapsed state across
  *                    reloads; when absent, state is local and non-persisted
  *   children       — when provided, rendered inside the collapsible body
@@ -17,7 +18,7 @@
  * When reduced motion is preferred, max-height changes instantly (no transition).
  */
 import React, { useState } from 'react';
-import { IconChevronDown, IconChevronRight } from '@tabler/icons-react';
+import { IconChevronDown } from '@tabler/icons-react';
 
 interface SidebarSectionProps {
   label: string;
@@ -65,56 +66,38 @@ export const SidebarSection: React.FC<SidebarSectionProps> = ({
 
   return (
     <div className={className}>
-      {/* ── Heading row — clickable when isCollapsible ── */}
-      <div
-        className={`flex items-center justify-between px-[10px] pt-[18px] pb-[4px]${isCollapsible ? ' cursor-pointer' : ''}`}
-        onClick={isCollapsible ? handleToggle : undefined}
-        // Accessibility: treat heading as a button when collapsible
-        role={isCollapsible ? 'button' : undefined}
-        aria-expanded={isCollapsible ? !isCollapsed : undefined}
-        aria-label={isCollapsible ? `${isCollapsed ? 'Expand' : 'Collapse'} ${label} section` : undefined}
-        tabIndex={isCollapsible ? 0 : undefined}
-        onKeyDown={
-          isCollapsible
-            ? (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  handleToggle();
-                }
-              }
-            : undefined
-        }
-      >
-        <span className="text-[12px] font-normal text-[--text-muted] leading-none select-none">
-          {label}
-        </span>
-
-        <div className="flex items-center gap-1">
-          {/* Right slot — stop propagation so inner buttons don't trigger toggle */}
-          {rightSlot && (
-            <span
-              className="flex-shrink-0 text-[--text-muted]"
-              onClick={(e) => isCollapsible && e.stopPropagation()}
-            >
-              {rightSlot}
+      {/* ── Heading row — label + chevron toggle on the left, icons on the right ── */}
+      <div className="flex items-center justify-between px-[10px] pt-[18px] pb-[4px]">
+        {isCollapsible ? (
+          <button
+            type="button"
+            onClick={handleToggle}
+            aria-expanded={!isCollapsed}
+            aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${label} section`}
+            className="flex items-center gap-1 min-w-0 rounded-[4px] text-[--text-muted] hover:text-[--text-primary] transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+          >
+            <span className="text-[12px] font-normal leading-none select-none truncate">
+              {label}
             </span>
-          )}
+            <IconChevronDown
+              size={14}
+              aria-hidden="true"
+              className="flex-shrink-0 motion-safe:transition-transform motion-safe:duration-150"
+              style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+            />
+          </button>
+        ) : (
+          <span className="text-[12px] font-normal text-[--text-muted] leading-none select-none truncate">
+            {label}
+          </span>
+        )}
 
-          {/* Chevron — only when collapsible */}
-          {isCollapsible && (
-            isCollapsed
-              ? <IconChevronRight
-                  size={14}
-                  style={{ color: 'var(--text-muted)', flexShrink: 0 }}
-                  aria-hidden="true"
-                />
-              : <IconChevronDown
-                  size={14}
-                  style={{ color: 'var(--text-muted)', flexShrink: 0 }}
-                  aria-hidden="true"
-                />
-          )}
-        </div>
+        {/* Right slot — icon buttons, always right-aligned */}
+        {rightSlot && (
+          <div className="flex items-center gap-1 flex-shrink-0 text-[--text-muted]">
+            {rightSlot}
+          </div>
+        )}
       </div>
 
       {/* ── Collapsible body — only rendered when children are provided ──

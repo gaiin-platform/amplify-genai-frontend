@@ -15,15 +15,15 @@
  *   760-1099px: collapsed icon rail (60px)  [TODO: Phase 4]
  *   <760px: off-canvas drawer               [TODO: Phase 4]
  */
-import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import {
   IconMessage2,
   IconSparkles,
   IconLayoutGridAdd,
   IconClock,
   IconPlus,
-  IconArrowsSort,
-  IconLayoutList,
+  IconArrowUpRight,
+  IconAdjustmentsHorizontal,
   IconBooks,
   IconAdjustments,
   IconLayoutSidebarLeftExpand,
@@ -49,6 +49,16 @@ import { SidebarSection } from './SidebarSection';
 import { ConversationRow } from './ConversationRow';
 import { AccountMenu } from './AccountMenu';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
+import { FilterMenu } from '@/components/NewUI/shared/FilterMenu';
+import {
+  CHAT_FILTER_DEFAULTS,
+  ChatSortMode,
+  applyChatFilters,
+  buildChatFilterGroups,
+  compareConversationsByMode,
+  countActiveChatFilters,
+  isPinnedConv,
+} from '@/components/NewUI/shared/chatFilters';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import {
   SidebarVisibility,
@@ -60,6 +70,9 @@ import {
 // elsewhere in the old UI) into the freshly-mounted NewScheduledTasksView — mirrors the
 // Pending-Message Bridge Pattern used by NewHome → ConversationViewShell.
 const PENDING_SCHEDULED_TASK_KEY = 'amplify_pending_scheduled_task';
+
+// Recents filter/sort selections, persisted so they survive navigation and reload.
+const CHAT_FILTERS_KEY = 'amplify_sidebar_chat_filters';
 
 // ── Sidebar resize constants ──────────────────────────────────────────────
 // Drag handle on right edge lets users resize the sidebar between MIN and MAX.
@@ -233,6 +246,29 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       return DEFAULT_SIDEBAR_VISIBILITY;
     }
   });
+
+  // ── Recents filter/sort selections ────────────────────────────────────────
+  // Same filter vocabulary as the Chats and tasks view (shared/chatFilters),
+  // persisted so the choice survives navigation and reload.
+  const [chatFilters, setChatFilters] = useState<Record<string, string>>(() => {
+    if (typeof window === 'undefined') return { ...CHAT_FILTER_DEFAULTS };
+    try {
+      const stored = localStorage.getItem(CHAT_FILTERS_KEY);
+      return stored
+        ? { ...CHAT_FILTER_DEFAULTS, ...JSON.parse(stored) }
+        : { ...CHAT_FILTER_DEFAULTS };
+    } catch {
+      return { ...CHAT_FILTER_DEFAULTS };
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(CHAT_FILTERS_KEY, JSON.stringify(chatFilters));
+    } catch {
+      // Non-fatal: filters simply won't persist if storage is unavailable.
+    }
+  }, [chatFilters]);
 
   const conversationsRef = useRef(conversations);
   useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
@@ -453,22 +489,51 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // Only pass chat-type folders to the grouping function (never 'prompt' or 'workflow' folders)
   const chatFolders = folders.filter((f: any) => !f.type || f.type === 'chat');
 
+  // ── Recents filters (same vocabulary as the Chats and tasks view) ─────────
+  // "Pinned only" is not offered here: the sidebar already surfaces pinned chats
+  // as their own section, so the option would only empty out Recents.
+  const chatFilterGroups = useMemo(
+    () => buildChatFilterGroups(conversations, { includePinned: false, includeSort: true }),
+    [conversations]
+  );
+
+  const sortMode = (chatFilters.sort ?? CHAT_FILTER_DEFAULTS.sort) as ChatSortMode;
+  // Sorting never removes rows, so it must not turn the empty state into
+  // "no chats match your filters" — count only the narrowing groups here.
+  const narrowingFilterCount = countActiveChatFilters(
+    chatFilters,
+    chatFilterGroups.filter((g) => g.id !== 'sort')
+  );
+
   // Filter conversations by search — show ALL conversations (they all have date-based folderIds)
-  const filteredConversations = searchTerm
+  const searchedConversations = searchTerm
     ? conversations.filter((c) =>
         c.name.toLowerCase().includes(searchTerm.toLowerCase())
       )
     : conversations;
 
+  const filteredConversations = useMemo(
+    () => applyChatFilters(searchedConversations, chatFilters, chatFilterGroups),
+    [searchedConversations, chatFilters, chatFilterGroups]
+  );
+
   const { today, yesterday, previous } = groupConversationsByTime(filteredConversations, chatFolders, archiveDays);
 
-  // Pinned conversations — check both data.pinned (new storage) and top-level cast (legacy).
-  // TODO: once `pinned?: boolean` is added to the Conversation type, simplify to c.pinned.
-  const isPinnedConv = (c: Conversation) => !!(c.data?.pinned) || !!(c as any).pinned;
   const pinned = filteredConversations.filter(isPinnedConv);
   const unpinned_today = today.filter((c) => !isPinnedConv(c));
   const unpinned_yesterday = yesterday.filter((c) => !isPinnedConv(c));
   const unpinned_previous = previous.filter((c) => !isPinnedConv(c));
+
+  // Time buckets only make sense for "Last activity". Any other sort collapses the
+  // Recents list into one flat, explicitly ordered list.
+  const unpinned_flat = useMemo(
+    () =>
+      [...unpinned_today, ...unpinned_yesterday, ...unpinned_previous].sort(
+        compareConversationsByMode(sortMode)
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [unpinned_today, unpinned_yesterday, unpinned_previous, sortMode]
+  );
 
   const navItems = [
     {
@@ -745,16 +810,22 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             storageKey="amplify_sidebar_recents_collapsed"
             rightSlot={
               <div className="flex items-center gap-1">
-                <IconButton size="sm" title="Sort conversations">
-                  <IconArrowsSort size={13} />
-                </IconButton>
                 <IconButton
                   size="sm"
-                  title="View all chats"
+                  title="Open chats and tasks"
                   onClick={() => dispatch({ field: 'page', value: 'chats' as any })}
                 >
-                  <IconLayoutList size={13} />
+                  <IconArrowUpRight size={13} />
                 </IconButton>
+                <FilterMenu
+                  variant="icon"
+                  label="Filter chats"
+                  icon={<IconAdjustmentsHorizontal size={13} />}
+                  groups={chatFilterGroups}
+                  value={chatFilters}
+                  defaults={CHAT_FILTER_DEFAULTS}
+                  onChange={setChatFilters}
+                />
               </div>
             }
           >
@@ -771,28 +842,39 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
               </div>
             )}
 
-            {/* Today — hide "New Conversation" entries that have no messages (placeholder convs) */}
-            {renderConversationGroup(
-              unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0),
-              unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0).length > 0 &&
-              (unpinned_yesterday.length > 0 || unpinned_previous.length > 0) ? 'Today' : undefined
+            {sortMode === 'recent' ? (
+              <>
+                {/* Today — hide "New Conversation" entries that have no messages (placeholder convs) */}
+                {renderConversationGroup(
+                  unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0),
+                  unpinned_today.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0).length > 0 &&
+                  (unpinned_yesterday.length > 0 || unpinned_previous.length > 0) ? 'Today' : undefined
+                )}
+
+                {/* Yesterday */}
+                {renderConversationGroup(unpinned_yesterday, 'Yesterday')}
+
+                {/* Previous N days — label matches the archive window */}
+                {renderConversationGroup(
+                  unpinned_previous,
+                  unpinned_previous.length > 0
+                    ? (archiveDays > 0 ? `Previous ${archiveDays} days` : 'Older')
+                    : undefined
+                )}
+              </>
+            ) : (
+              /* Explicit sort — one flat list, no time buckets */
+              renderConversationGroup(
+                unpinned_flat.filter(c => c.name !== 'New Conversation' || c.messages?.length > 0)
+              )
             )}
 
-            {/* Yesterday */}
-            {renderConversationGroup(unpinned_yesterday, 'Yesterday')}
-
-            {/* Previous N days — label matches the archive window */}
-            {renderConversationGroup(
-              unpinned_previous,
-              unpinned_previous.length > 0
-                ? (archiveDays > 0 ? `Previous ${archiveDays} days` : 'Older')
-                : undefined
-            )}
-
-            {/* Empty state — only when not loading and nothing visible after archive filter */}
+            {/* Empty state — only when not loading and nothing visible after filters/archive */}
             {!syncingConversations && (unpinned_today.length + unpinned_yesterday.length + unpinned_previous.length + pinned.length) === 0 && (
               <div className="px-[10px] py-8 text-center text-[13px] text-[--text-muted]">
-                No conversations yet
+                {narrowingFilterCount > 0 || searchTerm
+                  ? 'No chats match your filters'
+                  : 'No conversations yet'}
               </div>
             )}
           </SidebarSection>

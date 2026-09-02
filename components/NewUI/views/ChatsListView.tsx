@@ -45,7 +45,6 @@ import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
 import {
     isLocalConversation,
-    isRemoteConversation,
     saveConversations,
     deleteConversationCleanUp,
 } from '@/utils/app/conversation';
@@ -62,8 +61,17 @@ import { savePrompts } from '@/utils/app/prompts';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
-import { FilterMenu, FilterGroupSpec } from '@/components/NewUI/shared/FilterMenu';
-import { isAssistant } from '@/utils/app/assistants';
+import { FilterMenu } from '@/components/NewUI/shared/FilterMenu';
+import {
+    CHAT_FILTER_DEFAULTS,
+    ChatSortKey,
+    applyChatFilters,
+    buildChatFilterGroups,
+    compareConversations,
+    conversationAssistantName,
+    countActiveChatFilters,
+    isPinnedConv,
+} from '@/components/NewUI/shared/chatFilters';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -85,37 +93,8 @@ function relativeDate(isoString?: string | number): string {
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-/**
- * Pinned state lives in `conversation.data.pinned` — same detection as
- * NewSidebar/ConversationRow so the two views always agree.
- * TODO: once `pinned?: boolean` exists on the Conversation type, simplify to c.pinned.
- */
-function isPinnedConv(c: Conversation): boolean {
-    return !!(c.data?.pinned) || !!(c as any).pinned;
-}
-
-/**
- * A conversation's assistant, when it can be determined.
- * Only local conversations carry `promptTemplate` — remoteForConversationHistory()
- * strips it from cloud-stored conversations, so this returns null for those. The
- * Assistant column/filter is therefore only surfaced when at least one
- * conversation in the list actually resolves a name.
- */
-function conversationAssistantName(c: Conversation): string | null {
-    const template = c.promptTemplate;
-    if (!template || !isAssistant(template)) return null;
-    return template.data?.assistant?.definition?.name ?? null;
-}
-
-// ── Sorting / filtering ───────────────────────────────────────────────────────
-
-type ChatSortKey = 'name' | 'assistant' | 'date';
-
-const FILTER_DEFAULTS: Record<string, string> = {
-    pinned: 'all',
-    storage: 'all',
-    assistant: 'all',
-};
+// Filter vocabulary, pinned detection and comparators live in shared/chatFilters
+// so this view and the sidebar Recents list stay in agreement.
 
 /** Reserved width of the hover-action cell: 4 × 28px buttons + 3 × 4px gaps. */
 const ACTION_CELL_WIDTH = 124;
@@ -171,7 +150,7 @@ export const ChatsListView: React.FC = () => {
         key: 'date',
         direction: 'desc',
     });
-    const [filters, setFilters] = useState<Record<string, string>>({ ...FILTER_DEFAULTS });
+    const [filters, setFilters] = useState<Record<string, string>>({ ...CHAT_FILTER_DEFAULTS });
 
     // ── Tab state ──────────────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState<ChatTab>('mine');
@@ -227,57 +206,11 @@ export const ChatsListView: React.FC = () => {
     }, [activeTab, sharedItems, sharedLoading, fetchSharedItems]);
 
     // ── "My Chats" tab — which filter groups are meaningful for this list ───
-    // A group is only offered when it can actually discriminate; that way the
+    // Groups that cannot discriminate over the current list are not offered, so the
     // Assistant filter never appears (and so can never mislead) in cloud-only mode.
-    const hasRemote = useMemo(
-        () => conversations.some(isRemoteConversation),
-        [conversations]
-    );
-    const hasAssistantConvs = useMemo(
-        () => conversations.some((c) => !!conversationAssistantName(c)),
-        [conversations]
-    );
-
-    const filterGroups = useMemo<FilterGroupSpec[]>(() => {
-        const groups: FilterGroupSpec[] = [
-            {
-                id: 'pinned',
-                label: 'Show',
-                options: [
-                    { id: 'all', label: 'All chats' },
-                    { id: 'pinned', label: 'Pinned only' },
-                ],
-            },
-        ];
-        if (hasRemote) {
-            groups.push({
-                id: 'storage',
-                label: 'Storage',
-                options: [
-                    { id: 'all', label: 'All' },
-                    { id: 'cloud', label: 'Cloud' },
-                    { id: 'local', label: 'Local' },
-                ],
-            });
-        }
-        if (hasAssistantConvs) {
-            groups.push({
-                id: 'assistant',
-                label: 'Assistant',
-                options: [
-                    { id: 'all', label: 'All' },
-                    { id: 'with', label: 'With assistant' },
-                    { id: 'without', label: 'No assistant' },
-                ],
-            });
-        }
-        return groups;
-    }, [hasRemote, hasAssistantConvs]);
-
-    const activeFilterCount = filterGroups.reduce(
-        (n, g) => ((filters[g.id] ?? FILTER_DEFAULTS[g.id]) !== FILTER_DEFAULTS[g.id] ? n + 1 : n),
-        0
-    );
+    const filterGroups = useMemo(() => buildChatFilterGroups(conversations), [conversations]);
+    const hasAssistantConvs = filterGroups.some((g) => g.id === 'assistant');
+    const activeFilterCount = countActiveChatFilters(filters, filterGroups);
 
     const toggleSort = (key: ChatSortKey) => {
         setSort((current) =>
@@ -288,7 +221,7 @@ export const ChatsListView: React.FC = () => {
     };
 
     const clearNarrowing = () => {
-        setFilters({ ...FILTER_DEFAULTS });
+        setFilters({ ...CHAT_FILTER_DEFAULTS });
         setSearch('');
     };
 
@@ -297,23 +230,7 @@ export const ChatsListView: React.FC = () => {
     // conversations, decompressed message content (remote conversations are not
     // searchable by content — same limitation as classic UI).
     const filteredMine = useMemo(() => {
-        let list = conversations;
-
-        if (filters.pinned === 'pinned') {
-            list = list.filter(isPinnedConv);
-        }
-        if (hasRemote && filters.storage && filters.storage !== 'all') {
-            list = list.filter((c) =>
-                filters.storage === 'cloud' ? isRemoteConversation(c) : isLocalConversation(c)
-            );
-        }
-        if (hasAssistantConvs && filters.assistant && filters.assistant !== 'all') {
-            list = list.filter((c) =>
-                filters.assistant === 'with'
-                    ? !!conversationAssistantName(c)
-                    : !conversationAssistantName(c)
-            );
-        }
+        let list = applyChatFilters(conversations, filters, filterGroups);
 
         const q = search.trim().toLowerCase();
         if (q) {
@@ -330,32 +247,8 @@ export const ChatsListView: React.FC = () => {
 
         // Same comparator shape as NewLibraryView's sortedData: primary key, then
         // a stable name tie-break.
-        const direction = sort.direction === 'asc' ? 1 : -1;
-        return [...list].sort((a, b) => {
-            let comparison = 0;
-            if (sort.key === 'name') {
-                comparison = a.name.localeCompare(b.name, undefined, {
-                    numeric: true,
-                    sensitivity: 'base',
-                });
-            } else if (sort.key === 'assistant') {
-                const aName = conversationAssistantName(a) ?? '';
-                const bName = conversationAssistantName(b) ?? '';
-                // Conversations without an assistant always sort last
-                if (!aName !== !bName) return aName ? -1 : 1;
-                comparison = aName.localeCompare(bName, undefined, {
-                    numeric: true,
-                    sensitivity: 'base',
-                });
-            } else {
-                comparison =
-                    (a.date ? Date.parse(a.date) || 0 : 0) - (b.date ? Date.parse(b.date) || 0 : 0);
-            }
-            return comparison === 0
-                ? a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
-                : comparison * direction;
-        });
-    }, [conversations, filters, hasRemote, hasAssistantConvs, search, sort]);
+        return [...list].sort(compareConversations(sort.key, sort.direction));
+    }, [conversations, filters, filterGroups, search, sort]);
 
     // ── "Shared with Me" tab — filter ─────────────────────────────────────
     const filteredShared = useMemo(() => {
@@ -494,7 +387,7 @@ export const ChatsListView: React.FC = () => {
                         <FilterMenu
                             groups={filterGroups}
                             value={filters}
-                            defaults={FILTER_DEFAULTS}
+                            defaults={CHAT_FILTER_DEFAULTS}
                             onChange={setFilters}
                         />
                     )}
