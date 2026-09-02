@@ -36,8 +36,6 @@ import {
     IconFileCode,
     IconFileSpreadsheet,
     IconMovie,
-    IconChevronDown,
-    IconSelector,
     IconAlertCircle,
     IconCheckbox,
     IconSquare,
@@ -61,6 +59,7 @@ import type { AttachedDocument } from '@/types/attacheddocument';
 import AttachmentPreview from '@/components/NewUI/shared/AttachmentPreview';
 import ConfirmDialog from '@/components/NewUI/shared/ConfirmDialog';
 import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
+import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
 import { UIAttachment } from '@/components/NewUI/shared/attachmentTypes';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -519,16 +518,7 @@ const FileRow: React.FC<FileRowProps> = ({
     );
 };
 
-// ── Column header ─────────────────────────────────────────────────────────────
-
-const ColumnHeader: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = '' }) => (
-    <span
-        className={`text-[11px] font-semibold uppercase tracking-wider ${className}`}
-        style={{ color: 'var(--text-muted)' }}
-    >
-        {children}
-    </span>
-);
+// Column headers are rendered by the shared SortableHeader component.
 
 type LibrarySortKey = 'name' | 'type' | 'createdAt' | 'status';
 
@@ -735,20 +725,13 @@ export const NewLibraryView: React.FC = () => {
     };
 
     const sortableHeader = (label: string, key: LibrarySortKey) => (
-        <button
-            type="button"
-            onClick={() => toggleSort(key)}
-            className="inline-flex items-center gap-1 uppercase tracking-wider hover:opacity-100"
-            style={{ color: sort.key === key ? 'var(--text-secondary)' : 'var(--text-muted)' }}
-            aria-label={`Sort by ${label}${sort.key === key ? ', currently ' + sort.direction : ''}`}
-        >
-            {label}
-            {sort.key === key ? (
-                <IconChevronDown size={12} style={{ transform: sort.direction === 'asc' ? 'rotate(180deg)' : undefined }} />
-            ) : (
-                <IconSelector size={12} className="opacity-50" />
-            )}
-        </button>
+        <SortableHeader
+            label={label}
+            sortKey={key}
+            activeKey={sort.key}
+            direction={sort.direction}
+            onSort={toggleSort}
+        />
     );
 
     // Fetch signed URLs so image files can use their type tile as a thumbnail.
@@ -1228,16 +1211,16 @@ export const NewLibraryView: React.FC = () => {
                 {isDeleteMode && <div className="w-5 flex-shrink-0" />}
                 <div className="w-9 flex-shrink-0" />
                 <div className="flex-1">
-                    <ColumnHeader>{sortableHeader('Name', 'name')}</ColumnHeader>
+                    {sortableHeader('Name', 'name')}
                 </div>
                 <div className="hidden sm:block w-[80px] text-right flex-shrink-0">
-                    <ColumnHeader>{sortableHeader('Type', 'type')}</ColumnHeader>
+                    {sortableHeader('Type', 'type')}
                 </div>
                 <div className="hidden md:block w-[90px] text-right flex-shrink-0">
-                    <ColumnHeader>{sortableHeader('Date', 'createdAt')}</ColumnHeader>
+                    {sortableHeader('Date', 'createdAt')}
                 </div>
                 <div className="w-[100px] text-right flex-shrink-0">
-                    <ColumnHeader>{sortableHeader('Status', 'status')}</ColumnHeader>
+                    {sortableHeader('Status', 'status')}
                 </div>
                 {/* Actions spacer */}
                 <div className="flex-shrink-0" style={{ width: SORT_ACTION_WIDTH }} />
