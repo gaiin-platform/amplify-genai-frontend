@@ -1032,7 +1032,9 @@
 ───────────────────────────────────────────────────────────────────────────── */
 
 /* Hide the raw text when markdown is rendered in its place */
-[data-new-ui="true"] .user-message.new-ui-has-markdown #userMessage {
+[data-new-ui="true"]
+  .user-message.new-ui-has-markdown:has(.new-ui-user-markdown)
+  #userMessage {
   display: none !important;
 }
 

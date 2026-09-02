@@ -140,6 +140,27 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
     sendViaServiceRef.current = sendViaService;
   }, [sendViaService]);
 
+  // Freshest conversation for the [] -deps tryInject closure and its retries,
+  // which would otherwise keep reading the mount-time value.
+  const conversationRef = useRef(selectedConversation);
+  conversationRef.current = selectedConversation;
+
+  /**
+   * Set when we send a message that was ALREADY in the transcript (the optimistic
+   * first prompt NewHome seeds into the new conversation). The anchoring effects
+   * below key on "a user message we have not anchored to yet"; without this they
+   * would treat such a message as pre-existing history and never freeze
+   * Chat.tsx's scroll-to-bottom-spacer, which blanks the view.
+   *
+   * Carries the conversation id rather than being cleared after one read, so it
+   * reads the same on React StrictMode's second (dev-only) effect invocation and
+   * still stops applying once the user switches to another conversation.
+   */
+  const optimisticSendRef = useRef<{
+    messageId: string;
+    conversationId: string;
+  } | null>(null);
+
   const hasFiredRef = useRef(false);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
@@ -253,10 +274,37 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
           ? sessionStorage.getItem('amplify_pending_message')
           : null;
 
-      if (!pendingMessage) {
+      // ── Optimistic first message (Phase 66) ────────────────────────────────
+      // NewHome seeds the new conversation with the user message itself for
+      // docs-with-keys sends, so Chat.tsx's first commit already paints the
+      // prompt instead of the (new-UI-hidden) empty-conversation panel. When
+      // that message is the one sitting in state, we send THAT message with
+      // deleteCount:1 — handleSend pops the last message and re-appends this
+      // one, so the transcript keeps exactly one copy and never blanks.
+      const pendingMessageId =
+        typeof window !== 'undefined'
+          ? sessionStorage.getItem('amplify_pending_message_id')
+          : null;
+      const conversation = conversationRef.current;
+      const messagesInState = conversation?.messages ?? [];
+      const lastInState = messagesInState[messagesInState.length - 1];
+      const optimistic =
+        pendingMessageId &&
+        lastInState?.id === pendingMessageId &&
+        lastInState.role === 'user'
+          ? lastInState
+          : null;
+
+      // Nothing to send yet. `optimistic` covers attachment-only sends, where
+      // NewHome writes no amplify_pending_message because there is no text.
+      if (!pendingMessage && !optimistic) {
         timer = setTimeout(tryInject, 150);
         return;
       }
+
+      // The text to send. Falls back to the seeded message's own content so an
+      // attachment-only send (no amplify_pending_message) still works.
+      const pendingText = pendingMessage ?? optimistic?.content ?? '';
 
       // ── Read shared context keys ─────────────────────────────────────────
       const pendingWebSearch = sessionStorage.getItem('amplify_pending_web_search') === 'true';
@@ -278,11 +326,11 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
       // Helper: apply web-search preferences onto the new conversation
       const applyWebSearch = () => {
-        if (pendingWebSearch && selectedConversation) {
-          handleUpdateConversation(selectedConversation, {
+        if (pendingWebSearch && conversation) {
+          handleUpdateConversation(conversation, {
             key: 'data',
             value: {
-              ...selectedConversation.data,
+              ...conversation.data,
               webSearchEnabled: true,
               skills: pendingSkills,
               skillSelectionMode: 'auto',
@@ -295,6 +343,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       // Helper: clean up all pending sessionStorage keys
       const clearPending = () => {
         sessionStorage.removeItem('amplify_pending_message');
+        sessionStorage.removeItem('amplify_pending_message_id');
         sessionStorage.removeItem('amplify_pending_docs');
         sessionStorage.removeItem('amplify_pending_model_id');
         sessionStorage.removeItem('amplify_pending_effort');
@@ -303,31 +352,36 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       };
 
       // ── PATH A: pending docs with S3 keys ──────────────────────────────────
-      if (docsWithKeys.length > 0 && selectedConversation) {
+      if (docsWithKeys.length > 0 && conversation) {
         hasFiredRef.current = true;
         applyWebSearch();
         clearPending();
 
-        // Build the message
-        let msg = newMessage({
-          role: 'user',
-          content: pendingMessage,
-          type: MessageType.PROMPT,
-          data: {
-            enableWebSearch: pendingWebSearch,
-            skills: pendingSkills,
-            skillSelectionMode: 'auto',
-            // Pre-populate dataSources so the useSendService fallback path
-            // (message.data.dataSources) also carries the docs in case
-            // request.documents is not processed for some reason.
-            dataSources: docsWithKeys.map((d) => ({
-              id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
-              type: d.type,
-              name: d.name || '',
-              metadata: d.metadata || {},
-            })),
-          },
-        });
+        // Reuse the optimistic message already rendered in the transcript when
+        // there is one (copied, not mutated — it belongs to home state), else
+        // build a fresh one. Both carry the same shape; the only difference is
+        // deleteCount below.
+        let msg = optimistic
+          ? { ...optimistic, data: { ...(optimistic.data ?? {}) } }
+          : newMessage({
+              role: 'user',
+              content: pendingText,
+              type: MessageType.PROMPT,
+              data: {
+                enableWebSearch: pendingWebSearch,
+                skills: pendingSkills,
+                skillSelectionMode: 'auto',
+                // Pre-populate dataSources so the useSendService fallback path
+                // (message.data.dataSources) also carries the docs in case
+                // request.documents is not processed for some reason.
+                dataSources: docsWithKeys.map((d) => ({
+                  id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
+                  type: d.type,
+                  name: d.name || '',
+                  metadata: d.metadata || {},
+                })),
+              },
+            });
 
         // Apply the active assistant to the message (mirrors ChatInput.tsx:758)
         msg = setAssistantInMsg(msg, selectedAssistant ?? DEFAULT_ASSISTANT);
@@ -339,7 +393,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
             assistantName: selectedAssistant.definition?.name,
             assistantId: selectedAssistant.definition?.assistantId,
             groupId: selectedAssistant.definition?.groupId,
-            groupType: selectedConversation.groupType,
+            groupType: conversation.groupType,
           };
         }
 
@@ -349,12 +403,26 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
         const request: ChatRequest = {
           message: msg,
-          deleteCount: 0,
+          // deleteCount:1 pops the optimistic copy of THIS message before
+          // handleSend re-appends it (useChatSendService.ts:183-189), so the
+          // transcript ends up with exactly one user message — the one that has
+          // been on screen since the view switched.
+          deleteCount: optimistic ? 1 : 0,
           documents: docsWithKeys,
           plugins,
-          conversationId: selectedConversation.id,
+          conversationId: conversation.id,
           ...(assistantOptions ? { options: assistantOptions } : {}),
         };
+
+        // Record the optimistic send so the scroll-anchoring effects below know
+        // this prompt still needs anchoring (they otherwise treat a message that
+        // was already in state at mount as pre-existing history).
+        if (optimistic) {
+          optimisticSendRef.current = {
+            messageId: msg.id,
+            conversationId: conversation.id,
+          };
+        }
 
         // Fire the send. sendViaServiceRef always holds the freshest closure
         // (updated via the effect above) so it reads current selectedConversation.
@@ -374,7 +442,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         clearPending();
 
         setTimeout(() => {
-          setNativeValue(textarea, pendingMessage);
+          setNativeValue(textarea, pendingText);
           setTimeout(() => {
             sendBtn.click();
           }, 80);
@@ -590,7 +658,16 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
     [applyRoom],
   );
 
-  /** Park the newest user prompt at ANCHOR_TOP_OFFSET from the container top. */
+  /**
+   * Park the newest user prompt at ANCHOR_TOP_OFFSET from the container top.
+   *
+   * Retries on ANIMATION FRAMES, not on a 50ms timer. Chat.tsx schedules its own
+   * `messagesEndRef.scrollIntoView(true)` 50ms after a user message is added
+   * (Chat.tsx ~L1065) — that scroll parks the viewport on the 300px bottom
+   * spacer, i.e. shows blank. Whoever gets there first wins, so retrying every
+   * ~16ms rather than every 50ms is what lets the freeze land before that
+   * scroll. Same ~1s total budget (60 frames).
+   */
   const anchorNewPrompt = useCallback(() => {
     let attempts = 0;
 
@@ -598,7 +675,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       const container = getContainer();
       const sentinel = container ? getSentinel(container) : null;
       if (!container || !sentinel || !shellRef.current) {
-        if (attempts++ < 20) setTimeout(run, 50);
+        if (attempts++ < 60) requestAnimationFrame(run);
         return;
       }
 
@@ -609,10 +686,12 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       applyRoom(0);
       void container.scrollHeight;
 
-      // The just-sent message may not have mounted yet — retry briefly.
+      // The just-sent message may not have mounted yet — retry briefly. The
+      // freeze above is already in place, so the viewport cannot drift while we
+      // wait for it.
       const anchorTarget = measureAnchorTarget(container);
       if (anchorTarget === null) {
-        if (attempts++ < 20) setTimeout(run, 50);
+        if (attempts++ < 60) requestAnimationFrame(run);
         return;
       }
 
@@ -639,6 +718,27 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
     measureAnchorTarget,
     computeRoom,
   ]);
+
+  // ── Optimistic first prompt: freeze + anchor at MOUNT ─────────────────────
+  //
+  // For a docs-with-keys first send, the prompt is in the transcript from the
+  // shell's very first commit (NewHome seeded it), so Chat.tsx's own
+  // "user message was added → scrollIntoView(true) in 50ms" effect is already
+  // armed before `messageIsStreaming` has flipped. That scroll aligns the 300px
+  // bottom spacer to the top of the scroller — a blank screen. Waiting for the
+  // streaming-driven anchor below would be a race against it, so anchor now:
+  // `anchorNewPrompt` freezes the sentinel first thing, which makes that scroll
+  // (and every other Chat.tsx scroll) inert.
+  //
+  // Runs after the pending-message bridge effect above, which is what sets
+  // optimisticSendRef — effects fire in declaration order.
+  useEffect(() => {
+    if (!optimisticSendRef.current) return;
+    anchorNewPrompt();
+    // Deliberately mount-only: the send this covers happens once, in the bridge
+    // effect above. The streaming-driven effect below re-anchors afterwards.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Anchor when a message is actually SENT, and hand scrolling back to Chat.tsx
   // when the response finishes.
@@ -771,7 +871,21 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   // must not treat the newly-opened conversation's existing last prompt as
   // something to anchor to (which would scroll the view on mere navigation).
   // Seeding anchoredMessageIdRef marks whatever is already there as "handled".
+  //
+  // EXCEPTION — optimistic first prompt: that message IS in state at mount, but
+  // it is being sent right now, not opened as history. Seeding it here would (a)
+  // release the freeze the mount-anchor effect above just installed and (b) tell
+  // the streaming-driven anchor it has nothing to do, handing the viewport back
+  // to Chat.tsx's scroll-to-spacer — the blank screen this all exists to avoid.
   useEffect(() => {
+    if (
+      optimisticSendRef.current &&
+      optimisticSendRef.current.conversationId === selectedConversation?.id
+    ) {
+      prevStreamingRef.current = false;
+      anchoredMessageIdRef.current = null;
+      return;
+    }
     releaseScroll();
     applyRoom(0);
     prevStreamingRef.current = false;

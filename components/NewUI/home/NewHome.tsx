@@ -43,6 +43,7 @@ import {
 } from '@/components/NewUI/shared/attachmentTypes';
 import { getFileDownloadUrl } from '@/services/fileService';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
+import { newMessage, MessageType, type Message } from '@/types/chat';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 
@@ -311,6 +312,10 @@ export const NewHome: React.FC = () => {
     const trimmed = markdown.trim();
     const readyAttachments = uiAttachments.filter((a) => a.status !== 'failed');
     if (!trimmed && readyAttachments.length === 0) return;
+    // Docs whose S3 upload finished (doc.key set by handleFile's onSetKey).
+    // Same filter ConversationViewShell's PATH A applies, so both sides agree
+    // on whether this send travels with documents.
+    const docsWithKeys = attachedDocs.filter((d) => !!d.key);
     if (typeof window !== 'undefined') {
       if (trimmed) sessionStorage.setItem('amplify_pending_message', trimmed);
       if (attachedDocs.length > 0)
@@ -323,12 +328,67 @@ export const NewHome: React.FC = () => {
       if (selectedSkillIds.length > 0)
         sessionStorage.setItem('amplify_pending_skills', JSON.stringify(selectedSkillIds));
     }
+    // ── Optimistic first message (Phase 66) ─────────────────────────────────
+    //
+    // BUG: sending a prompt WITH an attachment as the very first message left
+    // the chat view blank for ~1s before the prompt appeared.
+    //
+    // ROOT CAUSE: Chat.tsx renders the transcript ONLY when
+    // selectedConversation.messages.length > 0; at 0 messages it renders the
+    // old empty-conversation panel (#overflowScroll), which the new UI hides
+    // (conversation-view.css "Phase 38 Bug 2"). So for as long as the new
+    // conversation has no messages, the chat area is *genuinely empty* — the
+    // blank window is exactly the gap between this view switch and the user
+    // message landing in state. Text-only sends go through
+    // ConversationViewShell PATH B, which waits for ChatInput's DOM and then
+    // clicks send, so Chat is already mounted and the message lands almost
+    // with the switch. Attachment sends take PATH A, which fires
+    // useSendService().handleSend() from the shell's *mount* effect — the
+    // message can only land a full render of the freshly-keyed Chat tree
+    // later, and that render is what the user sees as a blank chat.
+    //
+    // FIX: put the user message into the conversation at creation time, in the
+    // same batched update as the view switch, so Chat's first commit already
+    // paints the prompt and its attachment cards. The shell then sends this
+    // exact message with deleteCount:1 (pop + re-append the same id), so the
+    // transcript never shows a duplicate and never blanks.
+    //
+    // Only for docs-with-keys sends: those are the ones taking PATH A. Text-only
+    // sends keep their existing (already fast) PATH B behaviour untouched.
+    let optimisticMessage: Message | null = null;
+    if (typeof window !== 'undefined' && docsWithKeys.length > 0) {
+      const seeded: Message = newMessage({
+        role: 'user',
+        content: trimmed,
+        type: MessageType.PROMPT,
+        data: {
+          enableWebSearch: webSearchEnabled,
+          skills: selectedSkillIds,
+          skillSelectionMode: 'auto',
+          dataSources: docsWithKeys.map((d) => ({
+            id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
+            type: d.type,
+            name: d.name || '',
+            metadata: d.metadata || {},
+          })),
+        },
+      });
+      optimisticMessage = seeded;
+      // The shell matches this id against the last message in state to know the
+      // prompt is already rendered and must be sent with deleteCount:1.
+      sessionStorage.setItem('amplify_pending_message_id', seeded.id);
+    } else if (typeof window !== 'undefined') {
+      // No seeded message this time — make sure an id left over from an
+      // abandoned send can never be matched against a later conversation.
+      sessionStorage.removeItem('amplify_pending_message_id');
+    }
     // Bug fix (Phase 27): tell home.tsx a send is already in flight for the
     // about-to-be-created conversation, so it doesn't flash NewHome/landing
     // page again during the ~150-300ms window before ConversationViewShell's
     // pending-message bridge actually injects the text + clicks send (during
     // which selectedConversation.messages.length is genuinely still 0). See
     // NEW_UI_DOCS.md §12 Phase 27 and home.tsx's pendingNewConversationSend.
+    // Still needed for the text-only path, which has no optimistic message.
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('amplifyNewConversationSendPending'));
     }
@@ -336,6 +396,7 @@ export const NewHome: React.FC = () => {
       ...(selectedModelId && availableModels[selectedModelId]
         ? { model: availableModels[selectedModelId] }
         : {}),
+      ...(optimisticMessage ? { messages: [optimisticMessage] } : {}),
     });
     composerRef.current?.clear();
     setHasContent(false);
