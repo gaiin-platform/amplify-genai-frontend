@@ -46,7 +46,9 @@ import { getFileDownloadUrl } from '@/services/fileService';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { newMessage, MessageType, type Message } from '@/types/chat';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
+import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 
 export const NewHome: React.FC = () => {
   const {
@@ -55,11 +57,10 @@ export const NewHome: React.FC = () => {
     dispatch,
   } = useContext(HomeContext);
 
-  // Active assistant (non-default) name for chip display
-  const activeAssistantName =
-    selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id
-      ? selectedAssistant.definition?.name
-      : undefined;
+  // Active assistant (non-default) for chip display and for handing off to the
+  // conversation this landing page is about to create.
+  const activeAssistant = isRealAssistant(selectedAssistant) ? selectedAssistant : null;
+  const activeAssistantName = activeAssistant?.definition?.name;
 
   const composerRef = useRef<RichComposerHandle>(null);
   const [hasContent, setHasContent] = useState(false);
@@ -381,7 +382,13 @@ export const NewHome: React.FC = () => {
           })),
         },
       });
-      optimisticMessage = seeded;
+      // Stamp the active assistant onto the seeded message. The shell re-applies
+      // it before sending, but the copy that lands in state at creation time is
+      // also what `useConversationAssistant` derives the chip from — without this
+      // the brand-new conversation looks assistant-less for one render.
+      optimisticMessage = activeAssistant
+        ? setAssistantInMsg(seeded, activeAssistant)
+        : seeded;
       // The shell matches this id against the last message in state to know the
       // prompt is already rendered and must be sent with deleteCount:1.
       sessionStorage.setItem('amplify_pending_message_id', seeded.id);
@@ -405,6 +412,11 @@ export const NewHome: React.FC = () => {
         ? { model: availableModels[selectedModelId] }
         : {}),
       ...(optimisticMessage ? { messages: [optimisticMessage] } : {}),
+      // MUST be passed: handleNewConversation unconditionally dispatches
+      // `selectedAssistant = paramAssistant ?? DEFAULT_ASSISTANT`, so omitting it
+      // silently detaches the assistant the user tagged on this composer — the
+      // chip disappeared and the first message was sent as a plain chat.
+      ...(activeAssistant ? { assistant: activeAssistant } : {}),
     });
     composerRef.current?.clear();
     setHasContent(false);

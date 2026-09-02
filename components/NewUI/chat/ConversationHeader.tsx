@@ -16,15 +16,19 @@ import {
   IconSparkles,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
-import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 
 export const ConversationHeader: React.FC = () => {
   const {
-    state: { selectedConversation, selectedAssistant, lightMode },
+    state: { selectedConversation, lightMode },
     handleUpdateConversation,
   } = useContext(HomeContext);
+
+  // Resolved per-conversation assistant — survives the first send and a reload,
+  // unlike the global `selectedAssistant` field. See useConversationAssistant.
+  const { assistantName } = useConversationAssistant();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -36,9 +40,6 @@ export const ConversationHeader: React.FC = () => {
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   const title = selectedConversation?.name ?? 'New Conversation';
-  const hasAssistant =
-    selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id;
-  const assistantName = hasAssistant ? selectedAssistant.definition?.name : null;
 
   // Close menu on outside click
   useEffect(() => {
@@ -172,15 +173,18 @@ export const ConversationHeader: React.FC = () => {
           </button>
         )}
 
-        {/* Assistant chip */}
-        {hasAssistant && assistantName && (
+        {/* Assistant tag — the conversation is answered by this assistant.
+            Accent-tinted so it reads as an active attachment, not a filter. */}
+        {assistantName && (
           <div
-            className="flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[12px] flex-shrink-0"
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] text-[12px] flex-shrink-0"
             style={{
-              background: 'var(--bg-raised)',
-              color: 'var(--text-secondary)',
-              border: '1px solid var(--border-subtle)',
+              background: 'color-mix(in srgb, var(--accent) 12%, var(--bg-raised))',
+              color: 'var(--text-primary)',
+              border: '1px solid color-mix(in srgb, var(--accent) 34%, var(--border-subtle))',
             }}
+            title={`Replies in this chat come from the “${assistantName}” assistant`}
+            aria-label={`Assistant in use: ${assistantName}`}
           >
             <IconSparkles size={13} style={{ color: 'var(--accent)' }} />
             <span className="truncate max-w-[20ch]">{assistantName}</span>

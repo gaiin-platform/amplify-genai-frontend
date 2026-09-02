@@ -69,6 +69,7 @@ import { UploadPendingIndicator } from './UploadPendingIndicator';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
+import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 // For the direct-send path (pasted images with S3 keys)
 import { handleFile } from '@/components/Chat/AttachFile';
 import type { AttachedDocument } from '@/types/attacheddocument';
@@ -118,7 +119,6 @@ export const ConversationComposer: React.FC = () => {
   const {
     state: {
       selectedConversation,
-      selectedAssistant,
       availableModels,
       defaultModelId,
       featureFlags,
@@ -126,7 +126,6 @@ export const ConversationComposer: React.FC = () => {
       chatEndpoint,
       messageIsStreaming,
     },
-    dispatch,
     handleUpdateConversation,
   } = useContext(HomeContext);
 
@@ -173,10 +172,16 @@ export const ConversationComposer: React.FC = () => {
     selectedConversation?.data?.skills ?? [],
   );
 
-  const activeAssistantName =
-    selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id
-      ? selectedAssistant.definition?.name
-      : undefined;
+  // ── Assistant attached to THIS conversation ───────────────────────────────
+  // Resolved rather than read straight off `selectedAssistant`: home state's
+  // assistant field is global and gets reset by handleNewConversation /
+  // handleSelectConversation, so after the first send the chip used to vanish
+  // and follow-ups were sent with no assistant. See useConversationAssistant.
+  const {
+    assistant: activeAssistant,
+    assistantName: activeAssistantName,
+    detach: detachAssistant,
+  } = useConversationAssistant();
 
   // ── Auto-grow textarea ─────────────────────────────────────────────────────
   const adjustHeight = useCallback(() => {
@@ -442,14 +447,14 @@ export const ConversationComposer: React.FC = () => {
         })),
       },
     });
-    msg = setAssistantInMsg(msg, selectedAssistant ?? DEFAULT_ASSISTANT);
+    msg = setAssistantInMsg(msg, activeAssistant ?? DEFAULT_ASSISTANT);
 
     let assistantOptions: Record<string, unknown> | undefined;
-    if (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id) {
+    if (activeAssistant) {
       assistantOptions = {
-        assistantName: selectedAssistant.definition?.name,
-        assistantId: selectedAssistant.definition?.assistantId,
-        groupId: selectedAssistant.definition?.groupId,
+        assistantName: activeAssistant.definition?.name,
+        assistantId: activeAssistant.definition?.assistantId,
+        groupId: activeAssistant.definition?.groupId,
         groupType: selectedConversation.groupType,
       };
     }
@@ -467,7 +472,7 @@ export const ConversationComposer: React.FC = () => {
     };
 
     sendViaServiceRef.current(request, () => false);
-  }, [pendingUploadState, selectedConversation, selectedAssistant, featureFlags]);
+  }, [pendingUploadState, selectedConversation, activeAssistant, featureFlags]);
 
   // ── Set data-upload-pending on the shell ─────────────────────────────────
   // Drives the asterisk pulse animation in conversation-view.css when a
@@ -597,14 +602,14 @@ export const ConversationComposer: React.FC = () => {
           })),
         },
       });
-      msg = setAssistantInMsg(msg, selectedAssistant ?? DEFAULT_ASSISTANT);
+      msg = setAssistantInMsg(msg, activeAssistant ?? DEFAULT_ASSISTANT);
 
       let assistantOptions: Record<string, unknown> | undefined;
-      if (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id) {
+      if (activeAssistant) {
         assistantOptions = {
-          assistantName: selectedAssistant.definition?.name,
-          assistantId: selectedAssistant.definition?.assistantId,
-          groupId: selectedAssistant.definition?.groupId,
+          assistantName: activeAssistant.definition?.name,
+          assistantId: activeAssistant.definition?.assistantId,
+          groupId: activeAssistant.definition?.groupId,
           groupType: selectedConversation.groupType,
         };
       }
@@ -647,7 +652,7 @@ export const ConversationComposer: React.FC = () => {
     uiAttachments,
     messageIsStreaming,
     selectedConversation,
-    selectedAssistant,
+    activeAssistant,
     selectedModelId,
     availableModels,
     webSearchEnabled,
@@ -1034,7 +1039,7 @@ export const ConversationComposer: React.FC = () => {
                 selectedSkillIds={selectedSkillIds}
                 onRemoveSkills={() => setSelectedSkillIds([])}
                 assistantName={activeAssistantName}
-                onRemoveAssistant={() => dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
+                onRemoveAssistant={detachAssistant}
               />
             </div>
 

@@ -511,7 +511,9 @@ const AssistantCardBody: React.FC<{ info: AssistantCardInfo }> = ({ info }) => (
 
     {info.description && <InfoCardText>{info.description}</InfoCardText>}
 
-    {info.instructions && <InfoCardItalic>Instructions: {info.instructions}</InfoCardItalic>}
+    {/* One interpolated string — InfoCardItalic clamps by character count, so it
+        types its children as `string` and cannot take a split child array. */}
+    {info.instructions && <InfoCardItalic>{`Instructions: ${info.instructions}`}</InfoCardItalic>}
   </>
 );
 
@@ -832,17 +834,22 @@ export const AttachMenuChips: React.FC<{
   }
 
   if (assistantName && onRemoveAssistant) {
+    // Accent-tinted, unlike the neutral toggle chips: this one stays put for the
+    // whole conversation (see useConversationAssistant) and marks *who* is
+    // answering, so it should read as a tag on the chat rather than a filter.
     chips.push(
       <div
         key="assistant"
         className="flex items-center gap-1 pl-2 rounded-[6px] text-[12.5px] flex-shrink-0"
         style={{
           height: 26,
-          background: 'var(--bg-active)',
+          background: 'color-mix(in srgb, var(--accent) 12%, var(--bg-active))',
           color: 'var(--text-primary)',
+          boxShadow: 'inset 0 0 0 1px color-mix(in srgb, var(--accent) 34%, transparent)',
         }}
+        title={`Replies in this chat come from the “${assistantName}” assistant`}
       >
-        <IconRobot size={14} style={{ color: 'var(--text-secondary)' }} />
+        <IconRobot size={14} style={{ color: 'var(--accent)' }} />
         <span className="max-w-[120px] truncate">{assistantName}</span>
         <button
           type="button"
@@ -851,7 +858,7 @@ export const AttachMenuChips: React.FC<{
           style={{ color: 'var(--text-muted)' }}
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
-          aria-label="Remove assistant"
+          aria-label={`Remove assistant ${assistantName}`}
         >
           <IconX size={12} />
         </button>
