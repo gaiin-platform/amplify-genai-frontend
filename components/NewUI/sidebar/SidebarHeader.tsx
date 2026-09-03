@@ -1,6 +1,6 @@
 /**
  * SidebarHeader — top row of the new sidebar.
- * Height 48px: [icon2.png Amplify wordmark] [collapse button] [search button]
+ * Height 48px: [amplify-logo.png Amplify wordmark] [collapse button] [search button]
  */
 import React from 'react';
 import Image from 'next/image';
@@ -20,7 +20,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
     <div className="flex items-center justify-between h-[48px] px-[14px] flex-shrink-0">
       {/* Wordmark */}
       <div className="flex items-center gap-2 select-none">
-        <Image src="/icon2.png" alt="Amplify" width={24} height={24} style={{ borderRadius: 4 }} />
+        <Image src="/amplify-logo.png" alt="Amplify" width={24} height={24} style={{ borderRadius: 4 }} />
         <span
           className="text-[20px] text-[--text-primary] tracking-[-0.01em]"
           style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}

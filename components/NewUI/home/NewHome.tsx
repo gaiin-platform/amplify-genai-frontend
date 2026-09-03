@@ -479,7 +479,7 @@ export const NewHome: React.FC = () => {
       >
         {/* Greeting */}
         <div className="flex items-center gap-3 mb-8 justify-center">
-          <Image src="/icon2.png" alt="Amplify" width={40} height={40} style={{ borderRadius: 6 }} />
+          <Image src="/amplify-logo.png" alt="Amplify" width={40} height={40} style={{ borderRadius: 6 }} />
           <h1
             className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
             style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}

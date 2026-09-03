@@ -14,6 +14,7 @@
  *   and forwards to the new-UI target group.
  */
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { saveUserSettings, fetchUserSettings } from '@/services/settingsService';
 
 export const UI_PREF_KEY = 'amplify_new_ui_preference';
@@ -108,14 +109,9 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
         `}
         style={{ transformOrigin: 'center' }}
       >
-        {/* Accent mark */}
+        {/* Wordmark */}
         <div className="flex items-center gap-2 mb-6">
-          <span
-            className="text-[22px] leading-none"
-            style={{ color: 'var(--accent)' }}
-          >
-            ✳
-          </span>
+          <Image src="/amplify-logo.png" alt="Amplify" width={28} height={28} style={{ borderRadius: 4 }} />
           <span
             className="text-[22px] text-[--text-primary] tracking-[-0.01em]"
             style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
