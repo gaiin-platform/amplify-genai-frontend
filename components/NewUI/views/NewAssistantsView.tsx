@@ -1090,7 +1090,7 @@ export const NewAssistantsView: React.FC = () => {
         },
         {
             id: 'group',
-            label: syncingPrompts ? 'Loading Teams…' : 'Teams',
+            label: syncingPrompts ? 'Loading Groups…' : 'Groups',
             icon: syncingPrompts
                 ? <IconLoader2 size={15} className="animate-spin" />
                 : <IconUsers size={15} />,

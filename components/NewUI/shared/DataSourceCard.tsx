@@ -73,6 +73,16 @@ export interface DataSourceCardProps {
     onCancelUpload?: () => void;
     /** Retry affordance for the error state. Omit to hide the Retry button. */
     onRetry?: () => void;
+    /**
+     * Called when the user clicks the card body (not the ×/Retry buttons).
+     * Only fires when status is 'ready'. Use for e.g. download-on-click.
+     */
+    onClick?: () => void;
+    /**
+     * When true, overlays the icon slot with a spinner and changes the subtitle
+     * to "Preparing download…" to signal an async download operation.
+     */
+    downloading?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -192,21 +202,25 @@ export const DataSourceCard: React.FC<DataSourceCardProps> = ({
     onRemove,
     onCancelUpload,
     onRetry,
+    onClick,
+    downloading = false,
 }) => {
-    const busy = status === 'uploading' || status === 'processing';
-    const isError = status === 'error';
-    const determinate = status === 'uploading' && typeof progress === 'number';
+    const busy = (status === 'uploading' || status === 'processing') && !downloading;
+    const isError = status === 'error' && !downloading;
+    const determinate = status === 'uploading' && typeof progress === 'number' && !downloading;
 
     const descriptor = resolveDataSourceType(name, type);
     const displayName = name || 'Untitled document';
 
-    const subtitle = isError
-        ? error || 'Something went wrong'
-        : status === 'processing'
-            ? 'Processing…'
-            : status === 'uploading'
-                ? 'Uploading…'
-                : descriptor.label;
+    const subtitle = downloading
+        ? 'Preparing download…'
+        : isError
+            ? error || 'Something went wrong'
+            : status === 'processing'
+                ? 'Processing…'
+                : status === 'uploading'
+                    ? 'Uploading…'
+                    : descriptor.label;
 
     // While a file is in flight the × cancels the upload rather than removing a
     // half-written source; with no cancel handler it is simply disabled.
@@ -221,6 +235,13 @@ export const DataSourceCard: React.FC<DataSourceCardProps> = ({
         >
             <div
                 title={displayName}
+                role={onClick && status === 'ready' ? 'button' : undefined}
+                tabIndex={onClick && status === 'ready' ? 0 : undefined}
+                aria-label={onClick && status === 'ready' ? `Download ${displayName}` : undefined}
+                onClick={onClick && status === 'ready' ? onClick : undefined}
+                onKeyDown={onClick && status === 'ready' ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); }
+                } : undefined}
                 style={{
                     boxSizing: 'border-box',
                     height: CARD_HEIGHT,
@@ -232,11 +253,13 @@ export const DataSourceCard: React.FC<DataSourceCardProps> = ({
                     // One visible step off the surrounding surface. Never varies by state.
                     background: 'var(--bg-card)',
                     border: '1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent)',
+                    cursor: onClick && status === 'ready' ? 'pointer' : undefined,
+                    outline: 'none',
                 }}
             >
                 {/* ── Icon slot — the only thing that changes between states ── */}
                 <div
-                    className={`nui-ds-slot${busy ? ' nui-ds-slot--busy' : ''}`}
+                    className={`nui-ds-slot${(busy || downloading) ? ' nui-ds-slot--busy' : ''}`}
                     style={{
                         position: 'relative',
                         width: 40,
@@ -247,7 +270,7 @@ export const DataSourceCard: React.FC<DataSourceCardProps> = ({
                     }}
                 >
                     {/* Spinner / progress ring */}
-                    <div className="nui-ds-layer" style={{ opacity: busy ? 1 : 0 }} aria-hidden="true">
+                    <div className="nui-ds-layer" style={{ opacity: (busy || downloading) ? 1 : 0 }} aria-hidden="true">
                         {determinate
                             ? <DeterminateRing value={progress as number} />
                             : <span className="nui-ds-spinner" />}
@@ -256,7 +279,7 @@ export const DataSourceCard: React.FC<DataSourceCardProps> = ({
                     {/* File-type icon */}
                     <div
                         className="nui-ds-layer"
-                        style={{ opacity: status === 'ready' ? 1 : 0, color: descriptor.color }}
+                        style={{ opacity: status === 'ready' && !downloading ? 1 : 0, color: descriptor.color }}
                         aria-hidden="true"
                     >
                         {descriptor.icon}

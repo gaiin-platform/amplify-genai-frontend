@@ -27,9 +27,11 @@
 import React, {
     useState,
     useRef,
+    useCallback,
     useContext,
     useEffect,
 } from 'react';
+import ReactDOM from 'react-dom';
 import {
     IconLock,
     IconShare,
@@ -44,6 +46,9 @@ import {
     IconBrain,
     IconPlugConnected,
     IconTemplate,
+    IconLoader2,
+    IconCheck,
+    IconX,
 } from '@tabler/icons-react';
 import { AssistantWorkflowSelector } from '@/components/AssistantWorkflows/AssistantWorkflowSelector';
 import { useSession } from 'next-auth/react';
@@ -52,19 +57,23 @@ import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell
 import { ModelPicker, EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { Prompt } from '@/types/prompt';
-import { MessageType } from '@/types/chat';
+import { MessageType, newMessage } from '@/types/chat';
+import { DefaultModels } from '@/types/model';
 import { Group, GroupAccessType } from '@/types/groups';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { DriveFilesDataSources } from '@/types/integrations';
 import { SkillReference, SkillSelectionMode } from '@/types/skill';
-import { createAssistant, addAssistantPath } from '@/services/assistantService';
+import { createAssistant, addAssistantPath, lookupAssistant } from '@/services/assistantService';
+import { getFileDownloadUrl } from '@/services/fileService';
+import { Filter } from 'bad-words';
 import { createAstAdminGroup, updateGroupMembers } from '@/services/groupsService';
 import { getAgentTools } from '@/services/agentService';
 import { getOpsForUser } from '@/services/opsService';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { createAssistantPrompt, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { getUserIdentifier } from '@/utils/app/data';
+import { promptForData } from '@/utils/app/llm';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import { getSettings } from '@/utils/app/settings';
 import { opLanguageOptionsMap } from '@/types/op';
@@ -201,12 +210,30 @@ const API_OPTION_FLAGS: Flag[] = [
     { label: 'Allow Assistant to Use API Capabilities', key: 'IncludeApiInstr', defaultValue: false },
 ];
 
-// ── Slug validation (copied exactly from NewAssistantTypeSelector.tsx) ─────────
+// ── Slug validation ────────────────────────────────────────────────────────────
+
+/** System-reserved path terms that users cannot use. */
+const SLUG_SYSTEM_TERMS = [
+    'admin', 'system', 'login', 'signin', 'signup', 'register',
+    'auth', 'authenticate', 'reset', 'password', 'billing', 'payment',
+];
 
 function validateSlug(value: string): string {
     if (!value.trim()) return 'URL path is required';
     if (!/^[a-z0-9-]+$/.test(value)) return 'Only lowercase letters, numbers, and hyphens allowed';
+    if (value.length < 3) return 'Minimum 3 characters';
     if (value.length > 40) return 'Maximum 40 characters';
+    return '';
+}
+
+/** Returns an error string if the slug contains a restricted system term. */
+function checkSlugSystemTerms(value: string): string {
+    const lower = value.toLowerCase();
+    for (const term of SLUG_SYSTEM_TERMS) {
+        if (lower === term || lower.startsWith(term + '-') || lower.endsWith('-' + term)) {
+            return `Path contains a restricted system term: "${term}"`;
+        }
+    }
     return '';
 }
 
@@ -469,6 +496,220 @@ const SectionDivider: React.FC<{ label?: string }> = ({ label }) => (
     </div>
 );
 
+// ── GroupMemberInput ───────────────────────────────────────────────────────────
+// Autocomplete chip input for adding group members from the user pool.
+
+interface GroupMemberInputProps {
+    selected: string[];
+    onChange: (emails: string[]) => void;
+    allEmails: string[];
+    currentUserEmail?: string;
+}
+
+const GroupMemberInput: React.FC<GroupMemberInputProps> = ({
+    selected,
+    onChange,
+    allEmails,
+    currentUserEmail,
+}) => {
+    const [input, setInput] = useState('');
+    const [showSuggestions, setShowSuggestions] = useState(false);
+    const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
+    const inputRef = useRef<HTMLInputElement>(null);
+    const listRef = useRef<HTMLDivElement>(null);
+
+    const available = allEmails.filter(
+        (e) => e !== currentUserEmail && !selected.includes(e)
+    );
+
+    const suggestions = input.trim()
+        ? available.filter((e) => e.toLowerCase().includes(input.toLowerCase()))
+        : available.slice(0, 8);
+
+    const addMember = (email: string) => {
+        const trimmed = email.trim();
+        if (trimmed && !selected.includes(trimmed)) {
+            onChange([...selected, trimmed]);
+        }
+        setInput('');
+        setShowSuggestions(false);
+        inputRef.current?.focus();
+    };
+
+    const removeMember = (email: string) => {
+        onChange(selected.filter((e) => e !== email));
+    };
+
+    // Compute dropdown position from the input element's bounding rect.
+    // Uses position:fixed so it escapes any overflow:hidden ancestors.
+    const updateDropdownPos = useCallback(() => {
+        if (inputRef.current) {
+            const rect = inputRef.current.getBoundingClientRect();
+            setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+        }
+    }, []);
+
+    // Close dropdown on outside click
+    useEffect(() => {
+        const handler = (e: MouseEvent) => {
+            if (
+                !inputRef.current?.contains(e.target as Node) &&
+                !listRef.current?.contains(e.target as Node)
+            ) {
+                setShowSuggestions(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, []);
+
+    return (
+        <div style={{ position: 'relative' }}>
+            {/* Selected member chips */}
+            {selected.length > 0 && (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
+                    {selected.map((email) => (
+                        <span
+                            key={email}
+                            style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 4,
+                                padding: '2px 6px 2px 8px',
+                                borderRadius: 20,
+                                background: 'color-mix(in srgb, var(--accent) 12%, var(--bg-raised))',
+                                border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
+                                fontSize: 12,
+                                color: 'var(--text-primary)',
+                                maxWidth: 220,
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            }}
+                        >
+                            {email}
+                            <button
+                                type="button"
+                                onClick={() => removeMember(email)}
+                                aria-label={`Remove ${email}`}
+                                style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    background: 'none',
+                                    border: 'none',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                    color: 'var(--text-muted)',
+                                    lineHeight: 0,
+                                    flexShrink: 0,
+                                }}
+                            >
+                                <IconX size={11} />
+                            </button>
+                        </span>
+                    ))}
+                </div>
+            )}
+
+            {/* Text input */}
+            <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => {
+                    setInput(e.target.value);
+                    updateDropdownPos();
+                    setShowSuggestions(true);
+                }}
+                onFocus={() => {
+                    updateDropdownPos();
+                    setShowSuggestions(true);
+                }}
+                onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const exact = available.find(
+                            (em) => em.toLowerCase() === input.toLowerCase()
+                        );
+                        if (exact) {
+                            addMember(exact);
+                        } else if (input.includes('@')) {
+                            addMember(input.trim());
+                        } else if (suggestions.length > 0) {
+                            addMember(suggestions[0]);
+                        }
+                    } else if (e.key === 'Backspace' && !input && selected.length > 0) {
+                        removeMember(selected[selected.length - 1]);
+                    } else if (e.key === 'Escape') {
+                        setShowSuggestions(false);
+                    }
+                }}
+                placeholder={selected.length === 0 ? 'Search or type an email…' : 'Add more members…'}
+                autoComplete="off"
+                style={{ ...fieldStyle, fontSize: 12 }}
+            />
+
+            {/* Suggestions dropdown — portalled to document.body so overflow:hidden ancestors don't clip it */}
+            {showSuggestions && suggestions.length > 0 && dropdownPos && typeof document !== 'undefined' && ReactDOM.createPortal(
+                <div
+                    ref={listRef}
+                    role="listbox"
+                    aria-label="User suggestions"
+                    style={{
+                        position: 'fixed',
+                        top: dropdownPos.top,
+                        left: dropdownPos.left,
+                        width: dropdownPos.width,
+                        background: 'var(--bg-raised)',
+                        border: '1px solid var(--border-subtle)',
+                        borderRadius: 8,
+                        boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+                        zIndex: 9999,
+                        overflow: 'hidden',
+                        maxHeight: 200,
+                        overflowY: 'auto',
+                        fontFamily: 'Inter, ui-sans-serif, sans-serif',
+                    }}
+                >
+                    {suggestions.map((email) => (
+                        <button
+                            key={email}
+                            role="option"
+                            aria-selected={false}
+                            type="button"
+                            onMouseDown={(e) => {
+                                e.preventDefault(); // prevent input blur before selection
+                                addMember(email);
+                            }}
+                            style={{
+                                display: 'block',
+                                width: '100%',
+                                textAlign: 'left',
+                                padding: '8px 12px',
+                                fontSize: 13,
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                color: 'var(--text-primary)',
+                                fontFamily: 'inherit',
+                            }}
+                            onMouseEnter={(e) => {
+                                (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                            }}
+                            onMouseLeave={(e) => {
+                                (e.currentTarget as HTMLElement).style.background = 'none';
+                            }}
+                        >
+                            {email}
+                        </button>
+                    ))}
+                </div>,
+                document.body
+            )}
+        </div>
+    );
+};
+
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalProps> = ({
@@ -490,9 +731,11 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             // stats event and honour the same RAG setting as picked files.
             statsService,
             ragOn,
+            defaultAccount,
         },
         dispatch: homeDispatch,
         setLoadingMessage,
+        getDefaultModel,
     } = useContext(HomeContext);
 
     const { data: session } = useSession();
@@ -513,15 +756,20 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
     // Managed URL sub-state
     const [subOption, setSubOption] = useState<ManagedSubOption>('public');
-    const [emails, setEmails] = useState('');
+    const [emailList, setEmailList] = useState<string[]>([]);
     const [slug, setSlug] = useState('');
     const [slugError, setSlugError] = useState('');
 
-    // Team sub-state
+    // Group (Team) sub-state
     const [teamMode, setTeamMode] = useState<TeamMode>('existing');
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroupId ?? null);
     const [newTeamName, setNewTeamName] = useState('');
-    const [newTeamMembers, setNewTeamMembers] = useState('');
+    const [selectedMemberEmails, setSelectedMemberEmails] = useState<string[]>([]);
+
+    // Slug availability check state
+    const [isCheckingSlug, setIsCheckingSlug] = useState(false);
+    const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
+    const [slugCheckMessage, setSlugCheckMessage] = useState('');
 
     // ── Section B: core form fields ───────────────────────────────────────
     const [name, setName] = useState('');
@@ -606,6 +854,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const [isEmailTagAvailable, setIsEmailTagAvailable] = useState(false);
     const [isCheckingEmailTag, setIsCheckingEmailTag] = useState(false);
 
+    // ── Download state ────────────────────────────────────────────────────
+    /** id of the data source currently being downloaded (fetching presigned URL) */
+    const [downloadingId, setDownloadingId] = useState<string | null>(null);
+
     // ── Save / loading state ──────────────────────────────────────────────
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
@@ -687,11 +939,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         const astPath = def.astPath ?? ((def.data as any)?.astPath as string | undefined);
         if (astPath) {
             setSlug(astPath);
+            // Existing path is already registered — mark it as available without re-checking
+            setSlugAvailable(true);
+            setSlugCheckMessage('Current path');
             const astPathData = (def.data as any)?.astPathData;
             if (astPathData?.isPublic === false) {
                 setSubOption('specific');
                 const accessToUsers = astPathData?.accessTo?.users;
-                if (Array.isArray(accessToUsers)) setEmails(accessToUsers.join(', '));
+                if (Array.isArray(accessToUsers)) setEmailList(accessToUsers);
             } else {
                 setSubOption('public');
             }
@@ -747,6 +1002,130 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         const clean = raw.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40);
         setSlug(clean);
         setSlugError(validateSlug(clean));
+        // Reset availability check whenever the value changes
+        setSlugAvailable(null);
+        setSlugCheckMessage('');
+    };
+
+    // ── Slug availability check on blur (profanity + uniqueness) ─────────
+    const handleSlugBlur = async () => {
+        if (!slug || slugError) return; // nothing to check or format is invalid
+
+        // Check system-reserved terms first (instant, no network)
+        const systemErr = checkSlugSystemTerms(slug);
+        if (systemErr) {
+            setSlugError(systemErr);
+            setSlugAvailable(false);
+            return;
+        }
+
+        // Profanity / appropriateness check — matches AssistantPathEditor logic:
+        // Start the LLM check asynchronously, then fall back to bad-words if needed.
+        const checkPathIsAppropriate = async (path: string): Promise<boolean> => {
+            if (chatEndpoint) {
+                try {
+                    const prompt = 'Analyze if the provided url path contains any inappropriate words, phrases, or characters. The standard of appropriateness is the same as the content of a PG-13 movie. Your response should be only YES or NO in all caps.';
+                    const messages = [newMessage({
+                        role: 'user',
+                        content: `Is the following path appropriate for a public assistant path: ${path} \n Respond with either YES or NO in all caps`,
+                        type: MessageType.PROMPT,
+                    })];
+                    const response = await promptForData(
+                        chatEndpoint,
+                        messages,
+                        getDefaultModel(DefaultModels.CHEAPEST),
+                        prompt,
+                        defaultAccount,
+                        statsService,
+                        20,
+                    );
+                    if (response) {
+                        // "YES" means appropriate; "NO" means inappropriate
+                        return response.includes('YES') || !response.includes('NO');
+                    }
+                } catch {
+                    // Fall through to bad-words
+                }
+            }
+            // Fallback: local bad-words filter
+            try {
+                const filter = new Filter();
+                return !filter.isProfane(path);
+            } catch {
+                return true; // assume appropriate if filter fails
+            }
+        };
+
+        const isAppropriate = await checkPathIsAppropriate(slug);
+        if (!isAppropriate) {
+            setSlugError('Path contains inappropriate content. Please choose a different path.');
+            setSlugAvailable(false);
+            return;
+        }
+
+        // Availability check via the assistant lookup service
+        setIsCheckingSlug(true);
+        setSlugAvailable(null);
+        setSlugCheckMessage('');
+        try {
+            const result = await lookupAssistant(slug);
+            if (result.success) {
+                // Path is already registered — check if it belongs to this assistant (edit mode)
+                const existingDef = editingAssistant?.data?.assistant?.definition as AssistantDefinition | undefined;
+                const existingAssistantId = existingDef?.assistantId;
+                if (existingAssistantId && result.assistantId === existingAssistantId) {
+                    setSlugAvailable(true);
+                    setSlugCheckMessage('Current path');
+                } else {
+                    setSlugError('Path is already in use by another assistant');
+                    setSlugAvailable(false);
+                }
+            } else {
+                // Not found → path is available
+                setSlugAvailable(true);
+                setSlugCheckMessage('Available');
+            }
+        } catch {
+            setSlugCheckMessage('Could not verify — check your connection');
+        } finally {
+            setIsCheckingSlug(false);
+        }
+    };
+
+    // ── Attachment download handler ───────────────────────────────────────
+    /**
+     * Called when the user clicks a ready data-source card in the editor.
+     * Website sources open directly; S3 files get a presigned download URL
+     * and open in a new tab.
+     */
+    const handleDataSourceDownload = async (ds: AttachedDocument) => {
+        if (dataSourceStatus(ds) !== 'ready') return;
+
+        // Website-type sources: open the URL directly (no async work needed)
+        if ((ds.type ?? '').startsWith('website/')) {
+            const url = ds.id.startsWith('http') ? ds.id : `https://${ds.id}`;
+            window.open(url, '_blank', 'noopener,noreferrer');
+            return;
+        }
+
+        // S3 files: show spinner on the card while fetching the presigned URL
+        setDownloadingId(ds.id);
+        const key = (ds as any).key || ds.id.replace(/^s3:\/\//, '');
+        if (!key) {
+            setDownloadingId(null);
+            return;
+        }
+        try {
+            const groupId = editingAssistant?.groupId ?? undefined;
+            const result = await getFileDownloadUrl(key, groupId);
+            if (result.success && result.downloadUrl) {
+                window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+            }
+        } catch (err) {
+            console.error('Failed to get download URL for data source:', err);
+        } finally {
+            setDownloadingId(null);
+        }
     };
 
     // ── Data source handlers ──────────────────────────────────────────────
@@ -917,6 +1296,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         if (accessType === 'managed') {
             if (!featureFlags.assistantPathPublishing) return false;
             if (!!validateSlug(slug)) return false;
+            if (isCheckingSlug) return false;
+            // Require the path to be verified as available before saving
+            if (slug && slugAvailable !== true) return false;
         }
         if (accessType === 'collaborative') {
             if (teamMode === 'existing') {
@@ -952,17 +1334,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             throw new Error('Failed to create team. Please try again.');
         }
 
-        if (newTeamMembers.trim()) {
-            const memberEmails = newTeamMembers
-                .split(',')
-                .map((e: string) => e.trim())
-                .filter(Boolean);
-
+        if (selectedMemberEmails.length > 0) {
             const members: Record<string, string> = {};
             if (userIdentifier) {
                 members[userIdentifier] = GroupAccessType.ADMIN;
             }
-            memberEmails.forEach((email: string) => {
+            selectedMemberEmails.forEach((email: string) => {
                 const username =
                     Object.keys(amplifyUsers).find(
                         (k) => (amplifyUsers as Record<string, string>)[k] === email
@@ -1123,10 +1500,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                               isPublic: false,
                               accessTo: {
                                   amplifyGroups: [],
-                                  users: emails
-                                      .split(',')
-                                      .map((e) => e.trim())
-                                      .filter(Boolean),
+                                  users: emailList,
                               },
                           };
 
@@ -1240,7 +1614,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     ...(hasGroupAccess ? [{
                         value: 'collaborative' as const,
                         icon: <IconUsers size={18} />,
-                        title: 'Team assistant',
+                        title: 'Group assistant',
                         description: 'Multiple people can edit and manage this assistant',
                     }] : []),
                 ];
@@ -1392,17 +1766,16 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                     paddingLeft: 26,
                                                 }}
                                             >
-                                                <div style={{ overflow: 'hidden' }}>
+                                                <div style={{ overflow: 'visible' }}>
                                                     <div style={{ paddingBottom: 4 }}>
                                                         <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                                                            Email addresses (comma-separated)
+                                                            Who has access
                                                         </label>
-                                                        <textarea
-                                                            value={emails}
-                                                            onChange={(e) => setEmails(e.target.value)}
-                                                            rows={2}
-                                                            placeholder="user@example.com, another@example.com"
-                                                            style={{ ...fieldStyle, fontSize: 12, resize: 'none' }}
+                                                        <GroupMemberInput
+                                                            selected={emailList}
+                                                            onChange={setEmailList}
+                                                            allEmails={Object.values(amplifyUsers as Record<string, string>)}
+                                                            currentUserEmail={session?.user?.email ?? undefined}
                                                         />
                                                     </div>
                                                 </div>
@@ -1428,24 +1801,66 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                 <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
                                                     URL path{subOption === 'public' ? <span style={{ color: '#e05252' }}> *</span> : null}
                                                 </label>
-                                                <input
-                                                    type="text"
-                                                    value={slug}
-                                                    onChange={(e) => handleSlugChange(e.target.value)}
-                                                    placeholder="my-assistant"
-                                                    maxLength={40}
-                                                    style={{
-                                                        ...fieldStyle,
-                                                        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                                                        fontSize: 13,
-                                                        borderColor: slugError ? '#e05252' : 'var(--border-subtle)',
-                                                    }}
-                                                />
+                                                <div style={{ position: 'relative' }}>
+                                                    <input
+                                                        type="text"
+                                                        value={slug}
+                                                        onChange={(e) => handleSlugChange(e.target.value)}
+                                                        onBlur={handleSlugBlur}
+                                                        placeholder="my-assistant"
+                                                        maxLength={40}
+                                                        style={{
+                                                            ...fieldStyle,
+                                                            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                                                            fontSize: 13,
+                                                            paddingRight: 34,
+                                                            borderColor: slugError
+                                                                ? '#e05252'
+                                                                : slugAvailable === true
+                                                                    ? '#3aa764'
+                                                                    : 'var(--border-subtle)',
+                                                        }}
+                                                    />
+                                                    {/* Inline status icon */}
+                                                    {slug && (
+                                                        <span
+                                                            style={{
+                                                                position: 'absolute',
+                                                                right: 10,
+                                                                top: '50%',
+                                                                transform: 'translateY(-50%)',
+                                                                lineHeight: 0,
+                                                                pointerEvents: 'none',
+                                                            }}
+                                                        >
+                                                            {isCheckingSlug ? (
+                                                                <IconLoader2
+                                                                    size={14}
+                                                                    className="animate-spin"
+                                                                    style={{ color: 'var(--text-muted)' }}
+                                                                />
+                                                            ) : slugAvailable === true ? (
+                                                                <IconCheck size={14} style={{ color: '#3aa764' }} />
+                                                            ) : slugError ? (
+                                                                <IconAlertTriangle size={14} style={{ color: '#e05252' }} />
+                                                            ) : null}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {/* Status messages below the input */}
                                                 {slugError ? (
                                                     <p style={{ fontSize: 11, color: '#e05252', margin: '4px 0 0' }}>{slugError}</p>
-                                                ) : slug ? (
+                                                ) : isCheckingSlug ? (
                                                     <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                                                        Will be available at /assistants/{slug}
+                                                        Checking availability…
+                                                    </p>
+                                                ) : slugAvailable === true ? (
+                                                    <p style={{ fontSize: 11, color: '#3aa764', margin: '4px 0 0' }}>
+                                                        {slugCheckMessage} — will be at /assistants/{slug}
+                                                    </p>
+                                                ) : slug && !slugError && slugAvailable === null ? (
+                                                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                                                        Click away to verify path availability
                                                     </p>
                                                 ) : null}
                                             </div>
@@ -1483,7 +1898,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                             transition: 'all 120ms ease',
                                                         }}
                                                     >
-                                                        {mode === 'existing' ? 'Use existing team' : 'Create new team'}
+                                                        {mode === 'existing' ? 'Use existing group' : 'Create new group'}
                                                     </button>
                                                 ))}
                                             </div>
@@ -1512,7 +1927,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                             onChange={(e) => setSelectedGroupId(e.target.value || null)}
                                                             style={fieldStyle}
                                                         >
-                                                            <option value="">Choose a team…</option>
+                                                            <option value="">Choose a group…</option>
                                                             {adminGroups.map((g: Group) => (
                                                                 <option key={g.id} value={g.id}>{g.name}</option>
                                                             ))}
@@ -1521,34 +1936,33 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                 </>
                                             )}
 
-                                            {/* New team */}
+                                            {/* New group */}
                                             {teamMode === 'new' && (
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                                                     <div>
                                                         <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                                                            Team name <span style={{ color: '#e05252' }}>*</span>
+                                                            Group name <span style={{ color: '#e05252' }}>*</span>
                                                         </label>
                                                         <input
                                                             type="text"
                                                             value={newTeamName}
                                                             onChange={(e) => setNewTeamName(e.target.value)}
-                                                            placeholder="e.g. Research Team"
+                                                            placeholder="e.g. Research Group"
                                                             maxLength={80}
                                                             style={fieldStyle}
                                                         />
                                                     </div>
                                                     <div>
                                                         <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                                                            Add members (comma-separated emails, optional)
+                                                            Add members (optional)
                                                         </label>
-                                                        <textarea
-                                                            value={newTeamMembers}
-                                                            onChange={(e) => setNewTeamMembers(e.target.value)}
-                                                            rows={2}
-                                                            placeholder="alice@example.com, bob@example.com"
-                                                            style={{ ...fieldStyle, resize: 'none' }}
+                                                        <GroupMemberInput
+                                                            selected={selectedMemberEmails}
+                                                            onChange={setSelectedMemberEmails}
+                                                            allEmails={Object.values(amplifyUsers as Record<string, string>)}
+                                                            currentUserEmail={session?.user?.email ?? undefined}
                                                         />
-                                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0' }}>
                                                             Members will be added with editor access. You will be the admin.
                                                         </p>
                                                     </div>
@@ -1741,6 +2155,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                             onRemove={() => removeDataSource(ds)}
                                             onCancelUpload={() => removeDataSource(ds)}
                                             onRetry={isWebsiteDs(ds) ? undefined : () => retryDataSource(ds)}
+                                            onClick={status === 'ready' && !downloadingId ? () => handleDataSourceDownload(ds) : undefined}
+                                            downloading={downloadingId === ds.id}
                                         />
                                     );
                                 })}
