@@ -36,6 +36,7 @@ import { NewUITranscriptAttachmentsLayer } from './NewUITranscriptAttachmentsLay
 import { NewUITranscriptPastedTextLayer } from './NewUITranscriptPastedTextLayer';
 import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import HomeContext from '@/pages/api/home/home.context';
+import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 // Imports for the direct-send path (pending docs with S3 keys)
 import { useSendService, type ChatRequest } from '@/hooks/useChatSendService';
@@ -128,6 +129,17 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
     state: { messageIsStreaming, selectedConversation, featureFlags, selectedAssistant },
     handleUpdateConversation,
   } = useContext(HomeContext);
+
+  /**
+   * Filled in by ConversationComposer with its file intake. Dropping anywhere in
+   * the chat pane (transcript included) attaches to the composer, which is where
+   * the user would have to put the file anyway.
+   */
+  const composerAttachFilesRef = useRef<((files: File[]) => void) | null>(null);
+  const { active: isFileDragOver, dropHandlers } = useFileDropTarget({
+    onFiles: (files) => composerAttachFilesRef.current?.(files),
+    disabled: !featureFlags.uploadDocuments,
+  });
 
   // ── Direct-send service (for pending docs path) ───────────────────────────
   // useSendService is the same hook Chat.tsx uses. We call it here so that
@@ -1107,15 +1119,24 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         // ends above the composer, regardless of the composer's height.
         paddingTop: HEADER_H,
       }}
+      {...dropHandlers}
     >
       {/* Chat fills the entire shell — CSS handles height:100% on .chatcontainer */}
       <Chat stopConversationRef={stopConversationRef} />
+
+      {/* Drop anywhere in the pane → attaches to the composer below */}
+      {isFileDragOver && (
+        <FileDropOverlay
+          label="Drop files to attach"
+          hint="They'll be added to your next message"
+        />
+      )}
 
       {/* Header overlay — hides Chat's own sticky header via CSS */}
       <ConversationHeader />
 
       {/* Composer overlay — position:absolute at bottom (handled inside ConversationComposer) */}
-      <ConversationComposer />
+      <ConversationComposer attachFilesRef={composerAttachFilesRef} />
 
       {/* Jump-to-latest button — centered on the message column, above the composer */}
       <div

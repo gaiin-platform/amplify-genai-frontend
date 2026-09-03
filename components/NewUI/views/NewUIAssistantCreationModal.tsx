@@ -80,7 +80,12 @@ import {
     DataSourceCardGrid,
     DataSourceCardStatus,
 } from '@/components/NewUI/shared/DataSourceCard';
-import { DataSourceSelector } from '@/components/DataSources/DataSourceSelector';
+import {
+    DataSourceLibraryPicker,
+    PickedLibraryFile,
+} from '@/components/NewUI/shared/DataSourceLibraryPicker';
+import { FileDropZone } from '@/components/NewUI/shared/FileDropZone';
+import { processDragDropFiles } from '@/utils/fileHandler';
 import { WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
 import AssistantDriveDataSources, { DriveRescanSchedule } from '@/components/Promptbar/components/AssistantModalComponents/AssistantDriveDataSources';
 import { SkillsSection } from '@/components/Skills';
@@ -480,6 +485,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             availableModels,
             selectedAssistant,
             chatEndpoint,
+            // Needed by the drag-and-drop path so dropped files log the same
+            // stats event and honour the same RAG setting as picked files.
+            statsService,
+            ragOn,
         },
         dispatch: homeDispatch,
         setLoadingMessage,
@@ -526,10 +535,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // ── Data sources state ────────────────────────────────────────────────
     const [dataSources, setDataSources] = useState<AttachedDocument[]>([]);
     const [documentState, setDocumentState] = useState<{ [key: string]: number }>({});
-    /** Which data-source input panel is open: null = none, 'upload' | 'website' | 'drive' */
-    const [activeDataSourceMethod, setActiveDataSourceMethod] = useState<'upload' | 'website' | 'drive' | null>(null);
-    /** Secondary toggle — shows the library picker inside the upload panel */
-    const [showLibraryPicker, setShowLibraryPicker] = useState(false);
+    /** Which data-source input panel is open: null = none. 'library' browses already-uploaded files. */
+    const [activeDataSourceMethod, setActiveDataSourceMethod] = useState<'upload' | 'library' | 'website' | 'drive' | null>(null);
     const [websiteUrls, setWebsiteUrls] = useState<any[]>([]);
     /** id → failure reason. Drives the card's error state (icon + subtitle only). */
     const [dataSourceErrors, setDataSourceErrors] = useState<{ [key: string]: string }>({});
@@ -775,6 +782,55 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const onSetAbortController = (doc: AttachedDocument, abort: any) => {
         abortUploadRef.current[doc.id] =
             typeof abort === 'function' ? abort : () => abort?.abort?.();
+    };
+
+    /**
+     * Files dropped onto the Data Sources section. Runs the same validation,
+     * ZIP expansion and upload pipeline as the paperclip button — only the
+     * gesture differs, so a dropped file and a picked file are indistinguishable
+     * once attached.
+     */
+    const handleDroppedFiles = (files: File[]) => {
+        if (!featureFlags.uploadDocuments) return;
+        processDragDropFiles(files, {
+            disallowedExtensions: COMMON_DISALLOWED_FILE_EXTENSIONS,
+            onAttach,
+            onUploadProgress,
+            onSetKey,
+            onSetMetadata,
+            onSetAbortController,
+            statsService,
+            featureFlags,
+            ragOn,
+            uploadDocuments: featureFlags.uploadDocuments,
+            groupId: undefined,
+            props: {},
+        });
+    };
+
+    /**
+     * Library picks are already uploaded, so they land complete (progress 100).
+     * Shape matches what the save step expects: raw S3 key in `id`, no `key`.
+     */
+    const addLibraryFiles = (picked: PickedLibraryFile[]) => {
+        const fresh = picked.filter((file) => !dataSources.some((ds) => ds.id === file.id));
+        if (fresh.length === 0) return;
+        setDataSources((prev) => [
+            ...prev,
+            ...fresh.map((file) => ({
+                id: file.id,
+                name: file.name,
+                raw: null,
+                type: file.type,
+                data: '',
+                metadata: file.metadata,
+            })) as AttachedDocument[],
+        ]);
+        setDocumentState((prev) => {
+            const next = { ...prev };
+            fresh.forEach((file) => { next[file.id] = 100; });
+            return next;
+        });
     };
 
     // ── Data source card helpers ──────────────────────────────────────────
@@ -1626,8 +1682,17 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     )}
                 </div>
 
-                {/* ── Data Sources (unified) ───────────────────────────────── */}
-                <div style={fieldGroupStyle}>
+                {/* ── Data Sources (unified) ─────────────────────────────────
+                    The whole section is a drop target, so a file can be dragged
+                    in without first opening the "From your computer" panel. */}
+                <FileDropZone
+                    onFiles={handleDroppedFiles}
+                    disabled={!featureFlags.uploadDocuments}
+                    label="Drop files to attach to this assistant"
+                    hint="They upload straight into the data sources below"
+                    variant="inset"
+                    style={fieldGroupStyle}
+                >
                     <label style={labelStyle}>Data Sources</label>
 
                     {/* Info banner */}
@@ -1685,27 +1750,25 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     {/* ── Method selector row ──────────────────────────────── */}
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
 
-                        {/* Button helper — shared style for the three method buttons */}
+                        {/* Button helper — shared style for the method buttons */}
                         {(
                             [
                                 { key: 'upload', label: 'From your computer', icon: <IconUpload size={15} /> },
+                                { key: 'library', label: 'From library', icon: <IconFiles size={15} /> },
                                 ...(featureFlags.websiteUrls
                                     ? [{ key: 'website', label: 'Website URL', icon: <IconWorldWww size={15} /> }]
                                     : []),
                                 ...(featureFlags.integrations && accessType !== 'collaborative'
                                     ? [{ key: 'drive', label: 'OneDrive / SharePoint', icon: <IconCloudUpload size={15} /> }]
                                     : []),
-                            ] as { key: 'upload' | 'website' | 'drive'; label: string; icon: React.ReactNode }[]
+                            ] as { key: 'upload' | 'library' | 'website' | 'drive'; label: string; icon: React.ReactNode }[]
                         ).map(({ key, label, icon }) => {
                             const active = activeDataSourceMethod === key;
                             return (
                                 <button
                                     key={key}
                                     aria-pressed={active}
-                                    onClick={() => {
-                                        setActiveDataSourceMethod(active ? null : key);
-                                        if (key !== 'upload') setShowLibraryPicker(false);
-                                    }}
+                                    onClick={() => setActiveDataSourceMethod(active ? null : key)}
                                     style={{
                                         display: 'inline-flex',
                                         alignItems: 'center',
@@ -1746,19 +1809,36 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
                     {/* ── Active method panel ──────────────────────────────── */}
 
-                    {/* Upload from computer */}
+                    {/* Upload from computer — click "Choose files" or drop files here */}
                     {activeDataSourceMethod === 'upload' && (
                         <div
                             style={{
-                                border: '1px solid var(--border-subtle)',
+                                border: '1px dashed var(--border-subtle)',
                                 borderRadius: 10,
-                                padding: '12px 14px',
+                                padding: '16px 14px',
                                 marginBottom: 12,
                                 background: 'var(--bg-app)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                gap: 4,
                             }}
                         >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-                                {/* AttachFile renders its own icon button (paperclip) */}
+                            {/* AttachFile renders its own old-UI paperclip button; we only
+                                want its hidden <input>, so clip the whole thing and drive
+                                the input from the "Choose files" button below. Clipped
+                                rather than display:none so the programmatic .click() that
+                                opens the OS file dialog keeps working. */}
+                            <span
+                                style={{
+                                    position: 'absolute',
+                                    width: 1,
+                                    height: 1,
+                                    overflow: 'hidden',
+                                    clip: 'rect(0 0 0 0)',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
                                 <AttachFile
                                     id={ATTACH_FILE_INPUT_ID}
                                     groupId={undefined}
@@ -1770,56 +1850,43 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                     onSetAbortController={onSetAbortController}
                                     disableRag={false}
                                 />
-                                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Upload a file</span>
-                                <div style={{ flex: 1 }} />
-                                {/* Library picker toggle */}
-                                <button
-                                    style={{
-                                        display: 'inline-flex',
-                                        alignItems: 'center',
-                                        gap: 5,
-                                        background: 'none',
-                                        border: '1px solid var(--border-subtle)',
-                                        borderRadius: 7,
-                                        padding: '4px 10px',
-                                        cursor: 'pointer',
-                                        color: 'var(--text-secondary)',
-                                        fontSize: 12,
-                                        fontFamily: 'inherit',
-                                    }}
-                                    onClick={(e) => {
-                                        e.preventDefault();
-                                        setShowLibraryPicker((v) => !v);
-                                    }}
-                                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-muted)'; }}
-                                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)'; }}
-                                >
-                                    <IconFiles size={13} />
-                                    Browse library
-                                </button>
-                            </div>
-
-                            {/* Library picker panel */}
-                            {showLibraryPicker && (
-                                <DataSourceSelector
-                                    disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                    minWidth="100%"
-                                    onDataSourceSelected={(d) => {
-                                        const doc = {
-                                            id: d.id,
-                                            name: d.name || '',
-                                            raw: null,
-                                            type: d.type || '',
-                                            data: '',
-                                            metadata: d.metadata,
-                                        };
-                                        setDataSources([...dataSources, doc as any]);
-                                        setDocumentState({ ...documentState, [d.id]: 100 });
-                                    }}
-                                    onClose={() => setShowLibraryPicker(false)}
-                                />
-                            )}
+                            </span>
+                            <IconUpload size={20} style={{ color: 'var(--text-muted)' }} />
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    (document.querySelector('#' + ATTACH_FILE_INPUT_ID) as HTMLInputElement | null)?.click();
+                                }}
+                                style={{
+                                    border: 'none',
+                                    background: 'transparent',
+                                    color: 'var(--accent)',
+                                    fontSize: 13,
+                                    fontWeight: 500,
+                                    fontFamily: 'inherit',
+                                    cursor: 'pointer',
+                                    padding: 0,
+                                }}
+                            >
+                                Choose files
+                            </button>
+                            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                or drag and drop them anywhere in this section
+                            </span>
                         </div>
+                    )}
+
+                    {/* Browse already-uploaded files (new-UI library picker) */}
+                    {activeDataSourceMethod === 'library' && (
+                        <DataSourceLibraryPicker
+                            attachedIds={dataSources.map((ds) => ds.id)}
+                            onSelect={(picked) => {
+                                addLibraryFiles(picked);
+                                setActiveDataSourceMethod(null);
+                            }}
+                            onClose={() => setActiveDataSourceMethod(null)}
+                        />
                     )}
 
                     {/* Website URL */}
@@ -1882,7 +1949,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         </div>
                     )}
 
-                </div>
+                </FileDropZone>
 
                 {/* ── Capabilities: Skills · Tools & APIs · Workflow Template ── */}
                 {((featureFlags.skills && !!chatEndpoint) || featureFlags.integrations || featureFlags.assistantWorkflows) && (

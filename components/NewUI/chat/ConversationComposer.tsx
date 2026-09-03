@@ -20,14 +20,14 @@
  * Toolbar right:  ModelPicker  mic  send/voice slot
  *
  * ── Two-phase send (Task 14) ─────────────────────────────────────────────────
- * When images are still uploading at send time the composer immediately clears
+ * When attachments are still uploading at send time the composer immediately clears
  * the text field (visual confirmation that Send was received) but defers the
  * actual API call until every S3 upload resolves.  While waiting, an ambient
  * UploadPendingIndicator appears inside the card, the bottom brand-mark pulses,
  * and the user can cancel at any time (message text is restored on cancel).
  *
  * Three paths:
- *   DEFERRED: uploading images present → store PendingUploadSend, show indicator
+ *   DEFERRED: uploading attachments present → store PendingUploadSend, show indicator
  *             handleDocSetKey feeds newDocs, useEffect fires when remainingCount=0
  *   PATH A:   all docs already have S3 keys → call useSendService directly
  *   PATH B:   text only → inject into ChatInput + click #sendMessage
@@ -36,7 +36,7 @@
  *   A 90-second stall timeout marks stuck uploads as status:'failed'.
  *   AttachmentCard shows a Retry button (via onRetry prop) on failed cards.
  *   Retry cancels the pending send (restoring message text), removes the failed
- *   card, and re-uploads via addImageToRail.
+ *   card, and re-uploads via addFileToRail.
  */
 import React, {
   useCallback,
@@ -72,6 +72,9 @@ import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webS
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 // For the direct-send path (pasted images with S3 keys)
 import { handleFile } from '@/components/Chat/AttachFile';
+import toast from 'react-hot-toast';
+import { getFileExtension, processDragDropFiles, validateFile } from '@/utils/fileHandler';
+import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import type { AttachedDocument } from '@/types/attacheddocument';
 import { useSendService, type ChatRequest } from '@/hooks/useChatSendService';
 import { newMessage, MessageType } from '@/types/chat';
@@ -115,7 +118,18 @@ interface PendingUploadSend {
 /** How long an upload may stall (no key callback) before we mark it failed. */
 const UPLOAD_STALL_TIMEOUT_MS = 90_000;
 
-export const ConversationComposer: React.FC = () => {
+export interface ConversationComposerProps {
+  /**
+   * Filled in by the composer with a "take these files" callback, so the chat
+   * pane's drop zone (ConversationViewShell) can hand off dropped files without
+   * the shell needing to know anything about the upload pipeline.
+   */
+  attachFilesRef?: React.MutableRefObject<((files: File[]) => void) | null>;
+}
+
+export const ConversationComposer: React.FC<ConversationComposerProps> = ({
+  attachFilesRef,
+}) => {
   const {
     state: {
       selectedConversation,
@@ -125,6 +139,7 @@ export const ConversationComposer: React.FC = () => {
       ragOn,
       chatEndpoint,
       messageIsStreaming,
+      statsService,
     },
     handleUpdateConversation,
   } = useContext(HomeContext);
@@ -139,9 +154,11 @@ export const ConversationComposer: React.FC = () => {
   // ── Local state ────────────────────────────────────────────────────────────
   const [text, setText] = useState('');
   // Tracks AttachedDocument objects for pasted images (mirroring NewHome).
-  // These are populated by handleFile callbacks inside addImageToRail.
+  // These are populated by handleFile callbacks inside addFileToRail.
   const [attachedDocs, setAttachedDocs] = useState<AttachedDocument[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  /** The composer's own file picker — see the AttachMenu onAddFiles comment. */
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<{ focus: () => void }>({
     focus: () => textareaRef.current?.focus(),
   });
@@ -335,7 +352,7 @@ export const ConversationComposer: React.FC = () => {
   // auto-fire useEffect below.
   const pendingUploadSendRef = useRef<PendingUploadSend | null>(null);
   // React state for the UI indicator and the auto-fire useEffect.
-  // { done: N } = N of the originally-uploading images have completed.
+  // { done: N } = N of the originally-uploading attachments have completed.
   const [pendingUploadState, setPendingUploadState] = useState<{
     done: number;
     total: number;
@@ -506,21 +523,22 @@ export const ConversationComposer: React.FC = () => {
   // ── Send — bridge into Chat's hidden ChatInput ────────────────────────────
   //
   // Three paths:
-  //   DEFERRED: uploading images present → store pending state, return early
+  //   DEFERRED: uploading attachments present → store pending state, return early
   //   A) attachedDocs have S3 keys → call useSendService directly with docs
   //   B) no docs with keys → inject text + click #sendMessage (existing path)
   //
   const handleSend = useCallback(() => {
     const hasText = text.trim().length > 0;
     const docsWithKeys = attachedDocs.filter((d) => !!d.key);
-    const uploadingImages = uiAttachments.filter(
-      (a) => a.kind === 'image' && a.status === 'uploading',
-    );
+    // Any kind of attachment can be mid-upload now that documents (not just
+    // pasted images) land in the rail — filtering by kind here would let a
+    // still-uploading PDF be silently dropped from the send.
+    const uploadingAttachments = uiAttachments.filter((a) => a.status === 'uploading');
     const pastedAttachmentsEarly = uiAttachments.filter((a) => a.kind === 'paste');
     const hasContentToSend =
       hasText ||
       docsWithKeys.length > 0 ||
-      uploadingImages.length > 0 ||
+      uploadingAttachments.length > 0 ||
       pastedAttachmentsEarly.length > 0;
 
     if (!hasContentToSend) return;
@@ -557,20 +575,20 @@ export const ConversationComposer: React.FC = () => {
     setText('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
 
-    // ── DEFERRED SEND: images still uploading ──────────────────────────────
-    if (uploadingImages.length > 0) {
+    // ── DEFERRED SEND: attachments still uploading ─────────────────────────
+    if (uploadingAttachments.length > 0) {
       pendingUploadSendRef.current = {
         msgText,
         pastedAttachments: [...pastedAttachments],
         readyDocs: [...docsWithKeys],
         newDocs: [],
-        remainingCount: uploadingImages.length,
+        remainingCount: uploadingAttachments.length,
         webSearchEnabled,
         selectedSkillIds,
       };
       // pendingUploadState.done tracks how many of the originally-uploading
-      // images have since completed (starts at 0).
-      setPendingUploadState({ done: 0, total: uploadingImages.length });
+      // attachments have since completed (starts at 0).
+      setPendingUploadState({ done: 0, total: uploadingAttachments.length });
       return;
     }
 
@@ -709,7 +727,12 @@ export const ConversationComposer: React.FC = () => {
   };
 
   /**
-   * Add an image File to the rail.
+   * Add a File to the rail — image, document, spreadsheet, anything.
+   *
+   * Images additionally get an object-URL thumbnail; everything else renders as
+   * AttachmentCard's file variant (name + extension badge). Both kinds ride the
+   * same upload pipeline and are sent identically, because handleSend only cares
+   * that a doc ended up with an S3 key.
    *
    * Two things happen simultaneously:
    *   1. An object-URL thumbnail is created and a UIAttachment card is shown
@@ -728,32 +751,40 @@ export const ConversationComposer: React.FC = () => {
    * the doc has no key — the image will not be sent to the backend, which
    * is intentional (same limitation as the old UI).
    */
-  const addImageToRail = useCallback(
+  const addFileToRail = useCallback(
     (file: File) => {
-      if (!file.type.startsWith('image/')) return;
       try {
-        const url = URL.createObjectURL(file);
+        const isImage = file.type.startsWith('image/');
+        const url = isImage ? URL.createObjectURL(file) : undefined;
 
         // Use a sentinel value; the real id comes from handleFile's uuidv4.
         // The wrappedAttach callback below overwrites the UIAttachment once
         // the real id is known (by replacing the sentinel entry).
-        const sentinelId = `img-pending-${Date.now()}`;
-        thumbUrlsRef.current[sentinelId] = url;
+        // The random suffix matters: dropping several files at once would
+        // otherwise mint the same Date.now() sentinel for all of them.
+        const sentinelId = `att-pending-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        if (url) thumbUrlsRef.current[sentinelId] = url;
         originalFilesRef.current[sentinelId] = file;
 
-        // Show placeholder card immediately
+        // Show placeholder card immediately. createUIAttachmentFromDoc derives
+        // kind/ext/mime/previewState, so an image and a PDF stay consistent with
+        // how the same file is rendered after a round-trip through the service.
         setUIAttachments((prev) => [
           ...prev,
           {
-            id: sentinelId,
-            kind: 'image' as const,
+            ...createUIAttachmentFromDoc(
+              {
+                id: sentinelId,
+                name: file.name || 'pasted-image.png',
+                type: file.type,
+                raw: '',
+                data: null,
+                size: file.size,
+              } as AttachedDocument,
+              0,
+              url,
+            ),
             status: featureFlags.uploadDocuments ? ('uploading' as const) : ('ready' as const),
-            name: file.name || 'pasted-image.png',
-            ext: null,
-            bytes: file.size,
-            mime: file.type,
-            thumbUrl: url,
-            previewState: 'available' as const,
           },
         ]);
 
@@ -764,7 +795,7 @@ export const ConversationComposer: React.FC = () => {
           if (!intercepted) {
             intercepted = true;
             // Transfer thumb URL + original file ref from sentinel to real doc id
-            thumbUrlsRef.current[doc.id] = url;
+            if (url) thumbUrlsRef.current[doc.id] = url;
             delete thumbUrlsRef.current[sentinelId];
             originalFilesRef.current[doc.id] = file;
             delete originalFilesRef.current[sentinelId];
@@ -853,7 +884,7 @@ export const ConversationComposer: React.FC = () => {
 
   // ── handleRetryAttachment ─────────────────────────────────────────────────
   // Cancels any pending deferred send (restoring message text), removes the
-  // failed card, and re-submits the original file via addImageToRail.
+  // failed card, and re-submits the original file via addFileToRail.
   const handleRetryAttachment = useCallback(
     (id: string) => {
       const file = originalFilesRef.current[id];
@@ -861,13 +892,82 @@ export const ConversationComposer: React.FC = () => {
       // Restore message text before cancelling so the user doesn't lose their work
       handleCancelPendingSend();
       handleRemoveAttachment(id);
-      addImageToRail(file);
+      addFileToRail(file);
     },
     // handleCancelPendingSend and handleRemoveAttachment are defined above;
-    // addImageToRail is a stable useCallback. All three read refs, not captured state.
+    // addFileToRail is a stable useCallback. All three read refs, not captured state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [addImageToRail],
+    [addFileToRail],
   );
+
+  /**
+   * Intake for a batch of files the user chose or dropped.
+   *
+   * Validation lives here rather than in addFileToRail because paste-of-an-image
+   * can't produce a disallowed extension, while a file picker and a drop can.
+   * A .zip is expanded by the shared processor, which attaches each member file
+   * individually — those arrive through wrappedAttachFromDoc, which mints their
+   * cards, since there is no local File to build a card from up front.
+   */
+  const attachFiles = useCallback(
+    (files: File[]) => {
+      if (!files.length) return;
+      if (!featureFlags.uploadDocuments) return;
+
+      files.forEach((file) => {
+        if (getFileExtension(file.name) === 'zip') {
+          processDragDropFiles([file], {
+            disallowedExtensions: COMMON_DISALLOWED_FILE_EXTENSIONS,
+            onAttach: (doc: AttachedDocument) => {
+              // ZIP members have no local File — build the card from the doc.
+              setUIAttachments((prev) => [...prev, createUIAttachmentFromDoc(doc, 0)]);
+              addDocCallback(doc);
+            },
+            onUploadProgress: handleDocUploadProgress,
+            onSetKey: handleDocSetKey,
+            onSetMetadata: handleDocSetMetadata,
+            onSetAbortController: () => {},
+            statsService,
+            featureFlags,
+            ragOn,
+            uploadDocuments: featureFlags.uploadDocuments,
+            groupId: undefined,
+            props: {},
+          });
+          return;
+        }
+
+        const validation = validateFile(file, {
+          disallowedExtensions: COMMON_DISALLOWED_FILE_EXTENSIONS,
+        });
+        if (!validation.isValid) {
+          toast.error(validation.errorMessage || `${file.name} can't be attached.`);
+          return;
+        }
+        statsService.attachFileEvent(file, featureFlags.uploadDocuments);
+        addFileToRail(file);
+      });
+    },
+    [
+      addDocCallback,
+      addFileToRail,
+      featureFlags,
+      handleDocSetKey,
+      handleDocSetMetadata,
+      handleDocUploadProgress,
+      ragOn,
+      statsService,
+    ],
+  );
+
+  // Publish the intake so ConversationViewShell's pane-wide drop zone can use it.
+  useEffect(() => {
+    if (!attachFilesRef) return;
+    attachFilesRef.current = attachFiles;
+    return () => {
+      attachFilesRef.current = null;
+    };
+  }, [attachFilesRef, attachFiles]);
 
   // Large-paste interception in the plain textarea (spec §6)
   const handleTextareaPaste = useCallback(
@@ -878,7 +978,7 @@ export const ConversationComposer: React.FC = () => {
       if (imageItem) {
         e.preventDefault();
         const file = imageItem.getAsFile();
-        if (file) addImageToRail(file);
+        if (file) addFileToRail(file);
         return;
       }
 
@@ -890,13 +990,13 @@ export const ConversationComposer: React.FC = () => {
       }
       // Smaller pastes fall through to the default textarea behaviour
     },
-    [addImageToRail],
+    [addFileToRail],
   );
 
   // canSend:
   //   — Send button visible when there's text OR any non-failed attachment
   //   — Blocked while streaming or a deferred send is already in flight
-  //   — No longer blocked by uploading images (two-phase send handles that)
+  //   — No longer blocked by uploading attachments (two-phase send handles that)
   const hasContent =
     text.trim().length > 0 || uiAttachments.some((a) => a.status !== 'failed');
   const canSend =
@@ -948,6 +1048,21 @@ export const ConversationComposer: React.FC = () => {
               onCancel={handleCancelPendingSend}
             />
           )}
+
+          {/* Hidden picker driven by AttachMenu → "Add files". Shares the exact
+              intake used by drag-and-drop so both produce the same cards. */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden="true"
+            onChange={(e) => {
+              if (e.target.files?.length) attachFiles(Array.from(e.target.files));
+              e.target.value = '';
+            }}
+          />
 
           {/* ── Band 1: Attachment rail (collapses to 0 when empty) ── */}
           <AttachmentRail
@@ -1005,13 +1120,11 @@ export const ConversationComposer: React.FC = () => {
                 isNewChat={false}
                 plugins={activeLandingPlugins}
                 onAddFiles={() => {
-                  const input = document.getElementById('__attachFile') as HTMLInputElement | null;
-                  if (input) input.click();
-                  else {
-                    // Fallback: trigger ChatInput's upload button
-                    const uploadBtn = document.getElementById('uploadFile') as HTMLButtonElement | null;
-                    uploadBtn?.click();
-                  }
+                  // Use the composer's own input, not ChatInput's hidden
+                  // `#__attachFile`: files attached there land in ChatInput's
+                  // state, which produces no card in this UI and is dropped by
+                  // handleSend PATH A whenever the composer holds its own docs.
+                  fileInputRef.current?.click();
                 }}
                 onAddFromLibrary={() => {
                   const viewFilesBtn = document.getElementById('viewFiles') as HTMLButtonElement | null;

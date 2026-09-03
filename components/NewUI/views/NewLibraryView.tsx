@@ -61,35 +61,13 @@ import ConfirmDialog from '@/components/NewUI/shared/ConfirmDialog';
 import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
 import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
 import { UIAttachment } from '@/components/NewUI/shared/attachmentTypes';
+import {
+    LIBRARY_SORT_INDEX, buildLibraryQuery, isAssistantRecord, libraryTypeLabel, sanitizePageKey,
+} from '@/components/NewUI/shared/libraryQuery';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-/**
- * Strip a pagination cursor down to the attributes DynamoDB accepts as an
- * ExclusiveStartKey for the index this query runs against.
- *
- * The files API synthesises the cursor itself whenever a query carries filters
- * (the library always filters assistant records out), and that synthesised
- * cursor carries extra attributes — notably `type`, sometimes null. DynamoDB
- * rejects a start key containing attributes outside the table/index key
- * schema, which surfaces to the client as a 502. Sending only
- * `{id, createdBy, <sort key>}` keeps every page request valid.
- */
-function sanitizePageKey(pageKey: PageKey | null | undefined, sortIndex: string): PageKey | null {
-    if (!pageKey) return null;
-    const source = pageKey as unknown as Record<string, unknown>;
-    // Table primary key (id) + index partition key (createdBy) + index sort key.
-    const allowed = Array.from(new Set(['id', 'createdBy', sortIndex || 'createdAt']));
-    const cleaned: Record<string, unknown> = {};
-    for (const attr of allowed) {
-        const value = source[attr];
-        if (typeof value === 'string' && value.length > 0) cleaned[attr] = value;
-    }
-    // DynamoDB requires the complete key: every allowed attribute must be present,
-    // otherwise the cursor is unusable and the query should start from the top.
-    if (allowed.some((attr) => !cleaned[attr])) return null;
-    return cleaned as unknown as PageKey;
-}
+// sanitizePageKey / buildLibraryQuery live in shared/libraryQuery.ts so the
+// assistant editor's library picker lists the same records the same way.
 
 function formatDate(isoString: string): string {
     try {
@@ -591,23 +569,12 @@ export const NewLibraryView: React.FC = () => {
 
         try {
             const pageKeyIndex = newPageIndex - 1;
-            const SORT_INDEX = 'createdAt';
-            const pageKey = pageKeyIndex >= 0
-                ? sanitizePageKey(keys[pageKeyIndex], SORT_INDEX)
-                : null;
-
-            const query: FileQuery = {
+            const SORT_INDEX = LIBRARY_SORT_INDEX;
+            const query: FileQuery = buildLibraryQuery({
                 pageSize: PAGE_SIZE,
-                sortIndex: SORT_INDEX,
-                forwardScan: false, // newest first (desc=true → forwardScan=false)
-                filters: [{
-                    attribute: 'data.type',
-                    operator: 'not_startsWith',
-                    value: 'assistant',
-                }],
-            };
-            if (pageKey) query.pageKey = pageKey;
-            if (newSearch.trim()) query.namePrefix = newSearch.trim();
+                search: newSearch,
+                pageKey: pageKeyIndex >= 0 ? keys[pageKeyIndex] : null,
+            });
 
             const result = await queryUserFiles(query, null);
 
@@ -617,11 +584,8 @@ export const NewLibraryView: React.FC = () => {
             }
 
             const items: (FileRecord & { commonType?: string })[] = (result.data.items || [])
-                .filter((f: FileRecord) => !(f?.data?.type && f.data.type.startsWith('assistant')))
-                .map((f: FileRecord) => ({
-                    ...f,
-                    commonType: mimeTypeToCommonName[f.type] || (f.type ? f.type.slice(0, 15) : 'Unknown'),
-                }));
+                .filter((f: FileRecord) => !isAssistantRecord(f))
+                .map((f: FileRecord) => ({ ...f, commonType: libraryTypeLabel(f) }));
 
             setData(items);
 

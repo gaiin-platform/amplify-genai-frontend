@@ -25,9 +25,13 @@ import {
   IconArrowUp,
   IconMicrophone,
 } from '@tabler/icons-react';
+import toast from 'react-hot-toast';
 import HomeContext from '@/pages/api/home/home.context';
 import { RichComposer, type RichComposerHandle } from '@/components/NewUI/shared/RichComposer';
 import { handleFile } from '@/components/Chat/AttachFile';
+import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
+import { getFileExtension, processDragDropFiles, validateFile } from '@/utils/fileHandler';
+import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { AttachMenu, AttachMenuChips } from '@/components/NewUI/shared/AttachMenu';
@@ -52,7 +56,10 @@ import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssist
 
 export const NewHome: React.FC = () => {
   const {
-    state: { availableModels, defaultModelId, featureFlags, ragOn, chatEndpoint, selectedAssistant },
+    state: {
+      availableModels, defaultModelId, featureFlags, ragOn, chatEndpoint, selectedAssistant,
+      statsService,
+    },
     handleNewConversation,
     dispatch,
   } = useContext(HomeContext);
@@ -292,11 +299,53 @@ export const NewHome: React.FC = () => {
     );
   }, [addDocument, handleUploadProgress, handleSetKey, handleSetMetadata, featureFlags.uploadDocuments, ragOn]);
 
+  /**
+   * Intake for a batch of files, from the picker or from a drop onto the pane.
+   * Validates first so an unsupported file is refused with a reason instead of
+   * silently failing during upload; .zip is expanded into its member files.
+   */
+  const intakeFiles = useCallback((files: File[]) => {
+    files.forEach((file) => {
+      if (getFileExtension(file.name) === 'zip') {
+        processDragDropFiles([file], {
+          disallowedExtensions: COMMON_DISALLOWED_FILE_EXTENSIONS,
+          onAttach: addDocument,
+          onUploadProgress: handleUploadProgress,
+          onSetKey: handleSetKey,
+          onSetMetadata: handleSetMetadata,
+          onSetAbortController: () => {},
+          statsService,
+          featureFlags,
+          ragOn,
+          uploadDocuments: featureFlags.uploadDocuments ?? false,
+          groupId: undefined,
+          props: {},
+        });
+        return;
+      }
+      const validation = validateFile(file, {
+        disallowedExtensions: COMMON_DISALLOWED_FILE_EXTENSIONS,
+      });
+      if (!validation.isValid) {
+        toast.error(validation.errorMessage || `${file.name} can't be attached.`);
+        return;
+      }
+      statsService.attachFileEvent(file, featureFlags.uploadDocuments ?? false);
+      addFileToRail(file);
+    });
+  }, [addDocument, addFileToRail, featureFlags, handleSetKey, handleSetMetadata,
+      handleUploadProgress, ragOn, statsService]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
-    Array.from(e.target.files).forEach((file) => addFileToRail(file));
+    intakeFiles(Array.from(e.target.files));
     e.target.value = '';
   };
+
+  const { active: isFileDragOver, dropHandlers } = useFileDropTarget({
+    onFiles: intakeFiles,
+    disabled: !featureFlags.uploadDocuments,
+  });
 
   // Large-paste → attachment card (spec §6)
   const handleLargePaste = useCallback((text: string) => {
@@ -461,7 +510,16 @@ export const NewHome: React.FC = () => {
     <div
       className="relative flex-1 flex flex-col items-center justify-start bg-[--bg-app] overflow-hidden"
       style={{ fontFamily: 'Inter, sans-serif' }}
+      {...dropHandlers}
     >
+      {/* Drop anywhere on the landing pane → attaches to the composer */}
+      {isFileDragOver && (
+        <FileDropOverlay
+          label="Drop files to attach"
+          hint="They'll be added to your first message"
+        />
+      )}
+
       {/* Hidden file input */}
       <input
         ref={fileInputRef}
