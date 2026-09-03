@@ -3803,6 +3803,46 @@ PromptStatus) — but PromptStatus doesn't mount until an assistant message exis
 rule created the blank window Phase 65 had to fix. **When adding a "hide the duplicate"
 rule, verify the element you're deferring to is actually mounted at that moment.**
 
+### 🛑 A 0-message conversation renders NOTHING in the new UI (Phase 66)
+
+`Chat.tsx` only renders the transcript when `selectedConversation.messages.length > 0`.
+At 0 messages it renders the old empty-conversation panel `#overflowScroll`, which
+`conversation-view.css` hides ("Phase 38 Bug 2"). **So the chat area is genuinely blank for
+as long as the new conversation has no messages** — `pendingNewConversationSend` keeps the
+*chat view* on screen through that window, but there is nothing in it to see.
+
+That made the two first-send paths in `ConversationViewShell` behave very differently:
+
+| Path | When it sends | Blank window |
+|------|---------------|--------------|
+| B — text only | after `#messageChatInputText` + `#sendMessage` exist, +80/+80ms | ~160ms, Chat already mounted |
+| A — docs with S3 keys | from the shell's **mount effect**, before Chat's transcript DOM exists | a full render of the freshly-keyed Chat tree → visibly ~1s |
+
+**Fix (Phase 66):** `NewHome.handleSend` builds the user message itself and passes it to
+`handleNewConversation({ messages: [msg] })`, so the prompt is in state in the *same batched
+update as the view switch* and Chat's first commit paints it. The shell matches
+`amplify_pending_message_id` against the last message in state and sends that same message
+with **`deleteCount: 1`** — `handleSend` pops it and re-appends it
+(`useChatSendService.ts:183-189`), so the transcript holds exactly one copy throughout.
+Only the docs path is seeded; text-only keeps PATH B untouched.
+
+Two coupled traps this created, both handled in `ConversationViewShell`:
+
+1. **Anchoring must not treat the seeded message as history.** The conversation-change effect
+   seeds `anchoredMessageIdRef = lastUserMessageId` and calls `releaseScroll()`. With a seeded
+   prompt that would mark the prompt as "already anchored" and release the freeze, handing the
+   viewport to Chat.tsx's `messagesEndRef.scrollIntoView(true)` (fires 50ms after a user
+   message is added) — which aligns the 300px bottom spacer to the top, i.e. blank again.
+   `optimisticSendRef` carries `{messageId, conversationId}` so that effect can skip its reset;
+   it is keyed on the conversation id rather than cleared after one read, because **StrictMode
+   double-invokes mount effects in dev** and a one-shot flag would be consumed by the first
+   invocation and mis-handled by the second.
+2. **Freeze at mount, not on `messageIsStreaming`.** The seeded prompt is on screen before
+   streaming flips, so Chat's 50ms scroll is already armed. A mount effect calls
+   `anchorNewPrompt()` (which freezes the sentinel before measuring anything), and the retry
+   loop now uses `requestAnimationFrame` (~16ms, 60 attempts) instead of `setTimeout(50)` so
+   the freeze reliably lands before that scroll.
+
 ### Shared-id/shared-class CSS scoping gotcha (Phase 28)
 Several protected components under `components/Chat/ChatContentBlocks/` reuse the SAME id or class
 across many unrelated call sites — most notably `ExpansionComponent.tsx`, which hardcodes

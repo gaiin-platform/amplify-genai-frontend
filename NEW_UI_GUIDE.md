@@ -49,6 +49,8 @@ Defined in `styles/globals.css`. Always use these — never hardcode hex values.
 --bg-hover        /* row hover background */
 --bg-active       /* selected / pressed state */
 --bg-composer     /* chat input card background */
+--bg-card         /* card surface that must stay distinct from --bg-raised
+                     (e.g. file cards inside a modal panel) */
 
 /* Borders */
 --border-subtle             /* default border color */
@@ -58,6 +60,12 @@ Defined in `styles/globals.css`. Always use these — never hardcode hex values.
 --text-primary    /* body text, headings */
 --text-secondary  /* labels, secondary info */
 --text-muted      /* timestamps, placeholders, captions only */
+--text-error      /* failure reasons — text only, never a fill */
+
+/* File-type icon hues — semantic, non-interactive. Icons only. */
+--file-icon-pdf   /* red   — PDF */
+--file-icon-doc   /* blue  — Word / docs / web sources */
+--file-icon-sheet /* green — spreadsheets / CSV */
 
 /* Accent — blue, ALL interactive elements */
 --accent          /* #3b82f6 light / #006FEE dark */
@@ -85,6 +93,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewUIShareModal.tsx` | Share conversation/assistant modal |
 | `NewUIUserMessageMarkdownLayer.tsx` | Portal-based markdown render inside user bubbles |
 | `NewUITranscriptAttachmentsLayer.tsx` | Moves post-send attachment cards into a sibling surface above user bubbles |
+| `NewUITranscriptPastedTextLayer.tsx` | Renders sent `data.largeTextBlocks` pastes as `shared/AttachmentCard` chips in the transcript rail; opens `shared/AttachmentPreview` on click |
+| `NewUITranscriptPreviewLayer.tsx` | Suppresses the classic `ImageModal` and mirrors post-send attachment previews into `shared/AttachmentPreview` (same component as the composer) |
 | `UploadPendingIndicator.tsx` | Thin progress bar shown while uploads are in flight |
 
 ### `home/`
@@ -117,10 +127,19 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `AttachMenu.tsx` | ⊕ attach menu (files, library, skills, web search toggle) |
 | `AttachmentRail.tsx` | Pre-send attachment card strip above the composer textarea |
 | `AttachmentCard.tsx` | Individual attachment with upload progress and retry |
+| `DataSourceCard.tsx` | 76px file card + `DataSourceCardGrid` (2-col ≥640px, 12px gap) for attached data sources. State shows only in the 40px icon slot (spinner → file-type icon cross-fade) and the subtitle — the card surface never changes color |
+| `DataSourceLibraryPicker.tsx` | Inline multi-select picker for already-uploaded library files. Emits `{id, name, type, metadata}` with **no `key`** — the assistant save step prefixes a keyless source with `s3://` |
+| `FileDropZone.tsx` | Drag-and-drop file intake: `useFileDropTarget` (handlers + active flag for an existing root element), `FileDropOverlay`, and the `FileDropZone` wrapper. Only reacts to `Files` drags; depth-counted dragenter/leave |
+| `libraryQuery.ts` | Shared library query vocabulary — `sanitizePageKey` (DynamoDB cursor rules; unsanitized page keys 502), `buildLibraryQuery`, `isAssistantRecord`, `libraryTypeLabel`. Used by NewLibraryView + the picker. No React imports |
 | `AttachmentPreview.tsx` | Full-screen attachment preview with nav and focus trap |
 | `RichComposer.tsx` | Textarea with paste/image capture handlers |
 | `Badge.tsx` | Small status badge |
+| `SortableHeader.tsx` | Column header that toggles sort; chevron when active, selector icon when not. Used by Library + Chats lists |
+| `FilterMenu.tsx` | Filter popover — radio groups, Clear all; `variant='toolbar'` (labelled button + count badge) or `'icon'` (ghost icon button + dot). Portalled and positioned from the trigger rect, so it survives overflow-hidden/scrolling ancestors |
+| `chatFilters.ts` | Shared conversation filter/sort vocabulary (pinned, storage, assistant + comparators). Used by ChatsListView and the sidebar Recents section. No React imports |
 | `sidebarVisibility.ts` | Shared type + key for sidebar item visibility state |
+| `useConversationAssistant.ts` | Resolves the assistant attached to the selected conversation (explicit pick → `promptTemplate` → transcript stamps), re-attaches it to `selectedAssistant` once per conversation so follow-up sends stay routed, and exposes `detach()`. Use this instead of reading `selectedAssistant` directly — that field is global and gets reset by `handleNewConversation`/`handleSelectConversation` |
+| `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
 ### `sidebar/`
 | File | Purpose |
@@ -132,6 +151,13 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `SidebarHeader.tsx` | Sidebar top row (logo + new chat button) |
 | `AccountMenu.tsx` | Account popover (role="menu", focus-on-open) |
 | `SettingsModal.tsx` | Sidebar entry point that opens NewSettingsModal |
+
+### `views/assistant/` (new subfolder)
+| File | Purpose |
+|------|---------|
+| `assistantDraftContract.ts` | Zod-validated contract for AI-produced draft patches. Exports `parseAssistantDraftPatch`, `filterDraftPatch`, `safeChangesToApply`. No React, no service imports. |
+| `NewWebsiteSourceInput.tsx` | Data Sources → Website URL panel. Replaces `DataSources/WebsiteURLInput` with the same `onAddURL(url, isSitemap, maxPages?, exclusions?)` contract; Single page / Sitemap segmented control. Still defers to the old (portalled, unstyled) `SitemapUrlSelectionModal` for sitemap URL picking |
+| `DriveSourcesPanel.tsx` | Data Sources → OneDrive/SharePoint wrapper. Auto-clicks the old `ExpansionComponent` toggle once (scoped to the wrapper, never `document`) and owns the `[data-new-ui-drive]` CSS scope. Sets `data-drive-expanded` only when the content is really open, so the hide-the-toggle rule can't strand the panel |
 
 ### `views/`
 | File | Purpose |
@@ -189,7 +215,13 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
    `!important`, Chrome picks the *later-in-file* one regardless of specificity. Avoid
    `!important` on global scrollbar rules; use it only on the specific container rule.
 
-10. **Scrollbar auto-hide pattern:** Remove `::webkit-scrollbar { width }` from containers
+10. **Never route new-UI file attachments through ChatInput's hidden `#__attachFile`.**
+    The old dock is `display:none` in the new UI, so files attached there render no
+    card, and `ConversationComposer.handleSend`'s direct-send path (PATH A) ignores
+    them whenever the composer holds its own docs. Use the composer's `attachFiles`
+    intake (picker, paste, and drag-and-drop all share it).
+
+11. **Scrollbar auto-hide pattern:** Remove `::webkit-scrollbar { width }` from containers
     that should use OS overlay scrollbars. The `data-scrolling="true"` idle-timer in
     `ConversationViewShell.tsx` provides progressive-enhancement visibility control for
     Windows/Linux (the timer is 700ms, constant `SCROLLBAR_IDLE_MS`).

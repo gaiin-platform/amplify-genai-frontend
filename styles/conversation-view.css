@@ -4021,3 +4021,225 @@
 [data-new-ui="true"] .enhanced-chat-message.user-message.new-ui-paste-only #chatHover {
   display: none !important;
 }
+
+/* ═════════════════════════════════════════════════════════════════════════════
+   ASSISTANT EDITOR — OneDrive / SharePoint panel  [data-new-ui-drive]
+
+   Scope owner: components/NewUI/views/assistant/DriveSourcesPanel.tsx.
+
+   AssistantDriveDataSources (components/Promptbar/**, off-limits) renders three
+   nested old-UI layers: ExpansionComponent → IntegrationTabs (ActiveTabs) →
+   DataSourcesTableScrollingIntegrations (MantineReactTable). Every rule below is
+   scoped to [data-new-ui-drive] because the ids and classes involved
+   (#expandComponent, #tabName, .integration-card, .bg-white …) are shared with a
+   dozen other components — see NEW_UI_GUIDE standing rule 8.
+   ═════════════════════════════════════════════════════════════════════════════ */
+
+[data-new-ui-drive] {
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+/* ── Accordion: the panel is already revealed by the "OneDrive / SharePoint"
+   method button, so its own toggle is redundant. Hidden only once the content
+   is confirmed open (DriveSourcesPanel sets the attribute), so a failed
+   auto-open can still be recovered by clicking. ────────────────────────────── */
+[data-new-ui-drive][data-drive-expanded="true"] #expandComponent {
+  display: none !important;
+}
+
+/* ExpansionComponent wraps its content in an indented, left-bordered div. */
+[data-new-ui-drive] #expandComponent + div {
+  margin: 0 !important;
+  padding: 0 !important;
+  border-left: none !important;
+}
+
+/* The panel squashes itself vertically (scale-y-90), which blurs text. */
+[data-new-ui-drive] .transform.scale-y-90 {
+  transform: none !important;
+}
+
+/* ── Surfaces → tokens ─────────────────────────────────────────────────────── */
+[data-new-ui-drive] .bg-white,
+[data-new-ui-drive] .bg-\[\#ffffff\],
+[data-new-ui-drive] .dark\:bg-\[\#343541\],
+[data-new-ui-drive] .dark\:bg-\[\#40414F\],
+[data-new-ui-drive] .dark\:bg-\[\#2d2d3a\],
+[data-new-ui-drive] .dark\:bg-gray-800 {
+  background-color: var(--bg-app) !important;
+}
+
+[data-new-ui-drive] .bg-\[\#e5e7eb\],
+[data-new-ui-drive] .bg-neutral-100,
+[data-new-ui-drive] .bg-gray-50,
+[data-new-ui-drive] .dark\:bg-gray-700,
+[data-new-ui-drive] .dark\:bg-\[\#2b2c36\] {
+  background-color: var(--bg-raised) !important;
+}
+
+[data-new-ui-drive] .rounded-xl,
+[data-new-ui-drive] .rounded-lg {
+  border-radius: 10px !important;
+}
+
+[data-new-ui-drive] .border,
+[data-new-ui-drive] .border-b-2,
+[data-new-ui-drive] .border-gray-200,
+[data-new-ui-drive] .border-gray-300,
+[data-new-ui-drive] .dark\:border-gray-600,
+[data-new-ui-drive] .dark\:border-\[\#454652\],
+[data-new-ui-drive] .dark\:border-white\/40 {
+  border-color: var(--border-subtle) !important;
+}
+
+/* ── Text → tokens ─────────────────────────────────────────────────────────── */
+[data-new-ui-drive] .text-black,
+[data-new-ui-drive] .text-gray-900,
+[data-new-ui-drive] .dark\:text-white,
+[data-new-ui-drive] .dark\:text-neutral-200 {
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui-drive] .text-gray-700,
+[data-new-ui-drive] .text-gray-600,
+[data-new-ui-drive] .dark\:text-gray-300 {
+  color: var(--text-secondary) !important;
+}
+
+[data-new-ui-drive] .text-gray-500,
+[data-new-ui-drive] .text-gray-400,
+[data-new-ui-drive] .dark\:text-gray-400 {
+  color: var(--text-muted) !important;
+}
+
+/* ── Form controls ─────────────────────────────────────────────────────────── */
+[data-new-ui-drive] select,
+[data-new-ui-drive] input[type="text"],
+[data-new-ui-drive] input[type="number"],
+[data-new-ui-drive] input[type="search"] {
+  background-color: var(--bg-raised) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+}
+
+[data-new-ui-drive] select:focus,
+[data-new-ui-drive] input:focus {
+  border-color: var(--accent) !important;
+  outline: none !important;
+}
+
+/* ── Status / destructive accents: text-only, no tinted panels ─────────────── */
+[data-new-ui-drive] .bg-red-50,
+[data-new-ui-drive] .dark\:bg-red-900\/20,
+[data-new-ui-drive] .bg-blue-50,
+[data-new-ui-drive] .dark\:bg-blue-900\/20 {
+  background-color: transparent !important;
+}
+
+[data-new-ui-drive] .text-red-500,
+[data-new-ui-drive] .text-red-600,
+[data-new-ui-drive] .text-red-700,
+[data-new-ui-drive] .dark\:text-red-300,
+[data-new-ui-drive] .dark\:text-red-400 {
+  color: var(--text-error) !important;
+}
+
+[data-new-ui-drive] .border-red-200,
+[data-new-ui-drive] .dark\:border-red-800 {
+  border-color: color-mix(in srgb, var(--text-error) 40%, transparent) !important;
+}
+
+[data-new-ui-drive] .text-blue-500,
+[data-new-ui-drive] .text-blue-600,
+[data-new-ui-drive] .dark\:text-blue-400 {
+  color: var(--accent) !important;
+}
+
+/* ── ActiveTabs strip (provider tabs): flatten gradients, glow and scale ───── */
+[data-new-ui-drive] #SettingsIntegrationsTab > div:first-child {
+  background: transparent !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+  min-height: 40px !important;
+  gap: 4px;
+}
+
+[data-new-ui-drive] #SettingsIntegrationsTab > div:first-child > button {
+  transform: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  border-radius: 8px 8px 0 0 !important;
+  padding: 8px 14px !important;
+  color: var(--text-secondary) !important;
+}
+
+[data-new-ui-drive] #SettingsIntegrationsTab > div:first-child > button > span:first-child {
+  background: none !important;
+  opacity: 0 !important;
+}
+
+[data-new-ui-drive] #SettingsIntegrationsTab > div:first-child > button > span > h3,
+[data-new-ui-drive] #tabName {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+}
+
+[data-new-ui-drive] #SettingsIntegrationsTab > div:first-child > button > span:nth-child(2) {
+  background-color: var(--accent) !important;
+  box-shadow: none !important;
+}
+
+[data-new-ui-drive] #SettingsIntegrationsTab > div:nth-child(2) {
+  padding: 12px 0 0 !important;
+}
+
+/* ── Integration cards (connect / disconnect rows) ─────────────────────────── */
+[data-new-ui-drive] .integration-card {
+  background: var(--bg-raised) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+[data-new-ui-drive] .integration-name {
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui-drive] .integration-description {
+  color: var(--text-muted) !important;
+}
+
+[data-new-ui-drive] .integration-action-button {
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+
+/* ── Mantine file browser ──────────────────────────────────────────────────── */
+[data-new-ui-drive] [class*="mantine-Paper-root"],
+[data-new-ui-drive] [class*="mantine-Table"],
+[data-new-ui-drive] [class*="mantine-ScrollArea"] {
+  background-color: var(--bg-app) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-new-ui-drive] thead th,
+[data-new-ui-drive] [class*="mantine-Table-thead"] th {
+  background-color: var(--bg-raised) !important;
+  color: var(--text-secondary) !important;
+  font-size: 12px !important;
+  text-transform: none !important;
+  letter-spacing: normal !important;
+  border-bottom: 1px solid var(--border-subtle) !important;
+}
+
+[data-new-ui-drive] tbody td {
+  color: var(--text-primary) !important;
+  font-size: 12.5px !important;
+  border-color: var(--border-subtle) !important;
+}
+
+[data-new-ui-drive] tbody tr:hover td {
+  background-color: var(--bg-hover) !important;
+}

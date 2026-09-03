@@ -74,6 +74,8 @@ import { AssistantEmailEvents } from '@/components/Promptbar/components/Assistan
 import { addEventTemplate } from '@/services/emailEventService';
 import { formatEmailEventTemplate, safeEmailEventTag } from '@/utils/app/assistantEmailEvents';
 import { isWebsiteDs } from '@/components/DataSources/WebsiteURLInput';
+import { NewWebsiteSourceInput } from '@/components/NewUI/views/assistant/NewWebsiteSourceInput';
+import { DriveSourcesPanel } from '@/components/NewUI/views/assistant/DriveSourcesPanel';
 import { AttachFile } from '@/components/Chat/AttachFile';
 import {
     DataSourceCard,
@@ -86,7 +88,6 @@ import {
 } from '@/components/NewUI/shared/DataSourceLibraryPicker';
 import { FileDropZone } from '@/components/NewUI/shared/FileDropZone';
 import { processDragDropFiles } from '@/utils/fileHandler';
-import { WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
 import AssistantDriveDataSources, { DriveRescanSchedule } from '@/components/Promptbar/components/AssistantModalComponents/AssistantDriveDataSources';
 import { SkillsSection } from '@/components/Skills';
 import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
@@ -1889,54 +1890,39 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         />
                     )}
 
-                    {/* Website URL */}
+                    {/* Website URL — new-UI panel, same onAddURL contract */}
                     {activeDataSourceMethod === 'website' && featureFlags.websiteUrls && (
-                        <div
-                            style={{
-                                border: '1px solid var(--border-subtle)',
-                                borderRadius: 10,
-                                padding: '12px 14px',
-                                marginBottom: 12,
-                                background: 'var(--bg-app)',
+                        <NewWebsiteSourceInput
+                            onAddURL={(url, isSitemap, maxPages, exclusions) => {
+                                const webType = isSitemap ? 'website/sitemap' : 'website/url';
+                                const websiteSource = {
+                                    id: url,
+                                    name: url,
+                                    type: webType,
+                                    metadata: {
+                                        scanFrequency: null,
+                                        sourceUrl: url,
+                                        isSitemap: isSitemap,
+                                        ...(maxPages !== undefined && { maxPages }),
+                                        ...(exclusions && { exclusions }),
+                                    },
+                                };
+                                setDataSources((prev) => [...prev, websiteSource as any]);
+                                setDocumentState((prev) => ({ ...prev, [url]: 100 }));
+                                setWebsiteUrls((prev) => [
+                                    ...prev,
+                                    { url, type: webType, lastScanned: null, ...websiteSource.metadata },
+                                ]);
                             }}
-                        >
-                            <WebsiteURLInput
-                                onAddURL={(url, isSitemap, maxPages, exclusions) => {
-                                    const webType = isSitemap ? 'website/sitemap' : 'website/url';
-                                    const websiteSource = {
-                                        id: url,
-                                        name: url,
-                                        type: webType,
-                                        metadata: {
-                                            scanFrequency: null,
-                                            sourceUrl: url,
-                                            isSitemap: isSitemap,
-                                            ...(maxPages !== undefined && { maxPages }),
-                                            ...(exclusions && { exclusions }),
-                                        },
-                                    };
-                                    setDataSources([...dataSources, websiteSource as any]);
-                                    setDocumentState({ ...documentState, [url]: 100 });
-                                    setWebsiteUrls([
-                                        ...websiteUrls,
-                                        { url, type: webType, lastScanned: null, ...websiteSource.metadata },
-                                    ]);
-                                }}
-                            />
-                        </div>
+                        />
                     )}
 
-                    {/* OneDrive / SharePoint */}
+                    {/* OneDrive / SharePoint — old-UI component (integration OAuth +
+                        Mantine file browser). Kept as-is and restyled through
+                        [data-new-ui-drive] rules in conversation-view.css; the
+                        DriveSourcesPanel wrapper also auto-opens its accordion. */}
                     {activeDataSourceMethod === 'drive' && featureFlags.integrations && accessType !== 'collaborative' && (
-                        <div
-                            style={{
-                                border: '1px solid var(--border-subtle)',
-                                borderRadius: 10,
-                                padding: '12px 14px',
-                                marginBottom: 12,
-                                background: 'var(--bg-app)',
-                            }}
-                        >
+                        <DriveSourcesPanel>
                             <AssistantDriveDataSources
                                 initAssistantDefintion={emptyDefinitionForDrive}
                                 selectedDataSources={integrationDataSources ?? {}}
@@ -1946,7 +1932,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                 onRescanScheduleChange={setDriveRescanSchedule}
                                 disableEdit={false}
                             />
-                        </div>
+                        </DriveSourcesPanel>
                     )}
 
                 </FileDropZone>

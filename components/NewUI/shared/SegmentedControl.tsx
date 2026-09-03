@@ -59,6 +59,9 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
       {items.map((item) => (
         <button
           key={item.id}
+          // Without this a segment inside a <form> is a submit button, so
+          // switching tabs would submit the form.
+          type="button"
           role="tab"
           aria-selected={item.id === value}
           onClick={() => onChange(item.id)}
