@@ -19,6 +19,9 @@
   --bg-raised:     #f2f2f0;
   --bg-hover:      #ebebeb;
   --bg-active:     #e2e2e0;
+  /* Card surface that must stay visibly distinct from --bg-raised (e.g. file
+     cards inside a modal, whose panel is already --bg-raised). */
+  --bg-card:       #eaeae8;
   --border-subtle: #e5e5e4;
   /* Composer-specific surfaces (chat input card) */
   --bg-composer:             #ffffff;
@@ -39,6 +42,14 @@
   --accent:    #3b82f6;
   --accent-fg: #ffffff;
 
+  /* Error text (failure reasons, invalid input). Not an interactive accent. */
+  --text-error: #B42318;
+
+  /* File-type icon hues — semantic, non-interactive. Used by DataSourceCard. */
+  --file-icon-pdf:   #C0392B;
+  --file-icon-doc:   #2563EB;
+  --file-icon-sheet: #15803D;
+
   /* Geometry */
   --radius-row:    8px;
   --radius-button: 10px;
@@ -55,6 +66,7 @@
   --bg-raised:     #30302E;
   --bg-hover:      #2F2E2C;
   --bg-active:     #3A3A38;
+  --bg-card:       #3A3A37;
   --border-subtle: #363635;
   /* Composer-specific surfaces (chat input card) */
   --bg-composer:             #20201f;
@@ -69,6 +81,12 @@
 
   --accent:    #006FEE;
   --accent-fg: #ffffff;
+
+  --text-error: #F97066;
+
+  --file-icon-pdf:   #F08076;
+  --file-icon-doc:   #7AA7F5;
+  --file-icon-sheet: #6FCF97;
 }
 
 /* ── Attachment card: upload spinner ── */

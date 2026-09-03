@@ -75,12 +75,28 @@ import { addEventTemplate } from '@/services/emailEventService';
 import { formatEmailEventTemplate, safeEmailEventTag } from '@/utils/app/assistantEmailEvents';
 import { isWebsiteDs } from '@/components/DataSources/WebsiteURLInput';
 import { AttachFile } from '@/components/Chat/AttachFile';
-import { FileList } from '@/components/Chat/FileList';
+import {
+    DataSourceCard,
+    DataSourceCardGrid,
+    DataSourceCardStatus,
+} from '@/components/NewUI/shared/DataSourceCard';
 import { DataSourceSelector } from '@/components/DataSources/DataSourceSelector';
 import { WebsiteURLInput } from '@/components/DataSources/WebsiteURLInput';
 import AssistantDriveDataSources, { DriveRescanSchedule } from '@/components/Promptbar/components/AssistantModalComponents/AssistantDriveDataSources';
 import { SkillsSection } from '@/components/Skills';
 import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+
+/** id of AttachFile's hidden <input type="file"> — reused by the card Retry action. */
+const ATTACH_FILE_INPUT_ID = '__attachFile_newui_assistant';
+
+/**
+ * How long a data source may sit without forward progress before its card flips
+ * to the error state. AttachFile polls the content-ready endpoint for up to 120s
+ * and reports nothing while it does, so this must sit comfortably above that.
+ */
+const UPLOAD_STALL_MS = 150_000;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -515,6 +531,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     /** Secondary toggle — shows the library picker inside the upload panel */
     const [showLibraryPicker, setShowLibraryPicker] = useState(false);
     const [websiteUrls, setWebsiteUrls] = useState<any[]>([]);
+    /** id → failure reason. Drives the card's error state (icon + subtitle only). */
+    const [dataSourceErrors, setDataSourceErrors] = useState<{ [key: string]: string }>({});
+    /** id → cancel closure handed back by AttachFile for in-flight uploads. */
+    const abortUploadRef = useRef<{ [key: string]: (() => void) | undefined }>({});
     const [integrationDataSources, setIntegrationDataSources] = useState<DriveFilesDataSources | undefined>(undefined);
     const [driveRescanSchedule, setDriveRescanSchedule] = useState<DriveRescanSchedule | null>(null);
 
@@ -607,8 +627,18 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             setEnforcedModelId(enforcedModel);
         }
 
-        // Data sources (existing S3 keys — pre-loaded; new uploads handled by upload UI)
-        if (Array.isArray(def.dataSources)) setDataSources(def.dataSources as AttachedDocument[]);
+        // Data sources (existing S3 keys — pre-loaded; new uploads handled by upload UI).
+        // Already-saved sources are complete, so seed them at 100 or their cards
+        // would spin forever waiting on an upload that already happened.
+        if (Array.isArray(def.dataSources)) {
+            const existing = def.dataSources as AttachedDocument[];
+            setDataSources(existing);
+            setDocumentState((prev) => {
+                const next = { ...prev };
+                existing.forEach((ds) => { next[ds.id] = 100; });
+                return next;
+            });
+        }
 
         // Website URLs
         const wUrls = (def.data as any)?.websiteUrls;
@@ -711,12 +741,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         setSlugError(validateSlug(clean));
     };
 
-    // ── Data source handlers (copied from AssistantModal) ─────────────────
+    // ── Data source handlers ──────────────────────────────────────────────
+    // These must produce NEW state objects: the card for a file has to appear
+    // the instant it is selected (before the server knows about it), and its
+    // progress ring has to tick — neither happens if we mutate in place.
     const onAttach = (doc: AttachedDocument) => {
-        setDataSources((prev) => {
-            prev.push(doc as any);
-            return prev;
-        });
+        setDataSources((prev) => [...prev, doc as any]);
     };
     const onSetMetadata = (doc: AttachedDocument, metadata: any) => {
         setDataSources((prev) =>
@@ -729,11 +759,100 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         );
     };
     const onUploadProgress = (doc: AttachedDocument, progress: number) => {
-        setDocumentState((prev) => {
-            prev[doc.id] = progress;
-            return prev;
+        setDocumentState((prev) => ({ ...prev, [doc.id]: progress }));
+        // Any forward progress clears a previously flagged stall.
+        setDataSourceErrors((prev) => {
+            if (!(doc.id in prev)) return prev;
+            const next = { ...prev };
+            delete next[doc.id];
+            return next;
         });
     };
+    /**
+     * AttachFile hands back a cancel closure (typed as AbortController, actually
+     * a function) so an in-flight upload can be aborted from the card's ×.
+     */
+    const onSetAbortController = (doc: AttachedDocument, abort: any) => {
+        abortUploadRef.current[doc.id] =
+            typeof abort === 'function' ? abort : () => abort?.abort?.();
+    };
+
+    // ── Data source card helpers ──────────────────────────────────────────
+    /** Uploading → 0–94, Processing → 95 (server extract), Ready → 100. */
+    const dataSourceStatus = (ds: AttachedDocument): DataSourceCardStatus => {
+        if (dataSourceErrors[ds.id]) return 'error';
+        const progress = documentState[ds.id];
+        if (progress === 100) return 'ready';
+        if (typeof progress === 'number' && progress >= 95) return 'processing';
+        return 'uploading';
+    };
+
+    /**
+     * True while any attached source is still uploading or being processed.
+     * Keyed off dataSources rather than documentState so a file selected a
+     * moment ago (no progress entry yet) also blocks save. Sources flagged as
+     * failed are excluded — they never reach 100 and would wedge the modal.
+     */
+    const hasPendingUploads = () =>
+        dataSources.some(
+            (ds) => (documentState[ds.id] ?? 0) < 100 && !dataSourceErrors[ds.id]
+        );
+
+    const removeDataSource = (ds: AttachedDocument) => {
+        abortUploadRef.current[ds.id]?.();
+        delete abortUploadRef.current[ds.id];
+        setDataSources((prev) => prev.filter((x) => x.id !== ds.id));
+        setDocumentState((prev) => {
+            const next = { ...prev };
+            delete next[ds.id];
+            return next;
+        });
+        setDataSourceErrors((prev) => {
+            const next = { ...prev };
+            delete next[ds.id];
+            return next;
+        });
+        if (isWebsiteDs(ds)) {
+            setWebsiteUrls((prev: any[]) => prev.filter((u: any) => u.url !== ds.id));
+        }
+    };
+
+    /** Drop the failed source and reopen the file picker so it can be re-added. */
+    const retryDataSource = (ds: AttachedDocument) => {
+        removeDataSource(ds);
+        // The hidden <input> only exists while the upload panel is open, so open
+        // it first and click once React has committed that render.
+        setActiveDataSourceMethod('upload');
+        const clickWhenMounted = (attempt = 0) => {
+            const input = document.querySelector('#' + ATTACH_FILE_INPUT_ID) as HTMLInputElement | null;
+            if (input) input.click();
+            else if (attempt < 10) setTimeout(() => clickWhenMounted(attempt + 1), 30);
+        };
+        requestAnimationFrame(() => clickWhenMounted());
+    };
+
+    /**
+     * Stall watchdog. The upload pipeline reports failures with an alert() and no
+     * callback, so a broken upload otherwise leaves a card spinning forever.
+     * Every progress update re-runs this effect and restarts the timers, making
+     * this a "no forward progress for UPLOAD_STALL_MS" check.
+     */
+    useEffect(() => {
+        const pending = dataSources.filter(
+            (ds) => (documentState[ds.id] ?? 0) < 100 && !dataSourceErrors[ds.id]
+        );
+        if (pending.length === 0) return;
+
+        const timers = pending.map((ds) =>
+            setTimeout(() => {
+                setDataSourceErrors((prev) => ({
+                    ...prev,
+                    [ds.id]: 'Upload didn’t finish',
+                }));
+            }, UPLOAD_STALL_MS)
+        );
+        return () => timers.forEach(clearTimeout);
+    }, [dataSources, documentState, dataSourceErrors]);
 
     // ── Save-enabled logic ─────────────────────────────────────────────────
     const canSave = (): boolean => {
@@ -751,8 +870,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             }
         }
         // Prevent save while files are uploading
-        const isUploading = Object.values(documentState).some((x) => x < 100);
-        if (isUploading) return false;
+        if (hasPendingUploads()) return false;
         return true;
     };
 
@@ -813,8 +931,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         setSaveError('');
 
         // Check uploads
-        const isUploading = Object.values(documentState).some((x) => x < 100);
-        if (isUploading) {
+        if (hasPendingUploads()) {
             setSaveError('Please wait for all data sources to finish uploading.');
             return;
         }
@@ -1529,6 +1646,42 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         After saving, allow a few minutes for data sources to take effect.
                     </div>
 
+                    {/* ── Attached file cards ──────────────────────────────────
+                        Sits above the add-source controls and keeps each card in
+                        a stable grid slot from selection through ready, so state
+                        changes never reflow the list. */}
+                    {dataSources.length > 0 && (
+                        <div style={{ marginBottom: 14 }}>
+                            {/* 12px clearance: the card's × overlaps 8px above its top edge */}
+                            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Attached ({dataSources.length})
+                            </p>
+                            <DataSourceCardGrid label="Attached data sources">
+                                {dataSources.map((ds) => {
+                                    const status = dataSourceStatus(ds);
+                                    const progress = documentState[ds.id];
+                                    return (
+                                        <DataSourceCard
+                                            key={ds.id}
+                                            name={ds.name}
+                                            type={ds.type}
+                                            status={status}
+                                            progress={
+                                                status === 'uploading' && typeof progress === 'number'
+                                                    ? progress
+                                                    : undefined
+                                            }
+                                            error={dataSourceErrors[ds.id]}
+                                            onRemove={() => removeDataSource(ds)}
+                                            onCancelUpload={() => removeDataSource(ds)}
+                                            onRetry={isWebsiteDs(ds) ? undefined : () => retryDataSource(ds)}
+                                        />
+                                    );
+                                })}
+                            </DataSourceCardGrid>
+                        </div>
+                    )}
+
                     {/* ── Method selector row ──────────────────────────────── */}
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
 
@@ -1607,13 +1760,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                                 {/* AttachFile renders its own icon button (paperclip) */}
                                 <AttachFile
-                                    id="__attachFile_newui_assistant"
+                                    id={ATTACH_FILE_INPUT_ID}
                                     groupId={undefined}
                                     disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                     onAttach={onAttach}
                                     onSetMetadata={onSetMetadata}
                                     onSetKey={onSetKey}
                                     onUploadProgress={onUploadProgress}
+                                    onSetAbortController={onSetAbortController}
                                     disableRag={false}
                                 />
                                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Upload a file</span>
@@ -1728,28 +1882,6 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         </div>
                     )}
 
-                    {/* ── Unified attached-items list ──────────────────────── */}
-                    {dataSources.length > 0 && (
-                        <div style={{ marginTop: 4 }}>
-                            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Attached ({dataSources.length})
-                            </p>
-                            <FileList
-                                documents={dataSources}
-                                documentStates={documentState}
-                                setDocuments={(docs) => setDataSources(docs as any[])}
-                                allowRemoval={true}
-                                onCancelUpload={(ds: AttachedDocument) => {
-                                    const updatedDocState = { ...documentState };
-                                    delete updatedDocState[ds.id];
-                                    setDocumentState(updatedDocState);
-                                    if (isWebsiteDs(ds)) {
-                                        setWebsiteUrls(websiteUrls.filter((u: any) => u.url !== ds.id));
-                                    }
-                                }}
-                            />
-                        </div>
-                    )}
                 </div>
 
                 {/* ── Capabilities: Skills · Tools & APIs · Workflow Template ── */}
