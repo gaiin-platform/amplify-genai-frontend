@@ -15,6 +15,7 @@
 import { Conversation } from '@/types/chat';
 import { isLocalConversation, isRemoteConversation } from '@/utils/app/conversation';
 import { isAssistant } from '@/utils/app/assistants';
+import { isPlaceholderAssistantName } from '@/components/NewUI/shared/assistantIdentity';
 // Type-only import: keeps this module free of any React/runtime dependency.
 import type { FilterGroupSpec } from '@/components/NewUI/shared/FilterMenu';
 
@@ -79,7 +80,12 @@ export function isBlankPlaceholderConversation(c: Conversation): boolean {
 export function conversationAssistantName(c: Conversation): string | null {
     const template = c.promptTemplate;
     if (!template || !isAssistant(template)) return null;
-    return template.data?.assistant?.definition?.name ?? null;
+    const definition = template.data?.assistant?.definition;
+    // "default" / "Standard Conversation" mean *no* assistant — showing either in
+    // the Assistant column (or letting it satisfy "With assistant") would report a
+    // plain chat as an assistant chat. See shared/assistantIdentity.ts.
+    if (isPlaceholderAssistantName(definition?.name, definition?.assistantId)) return null;
+    return definition?.name ?? null;
 }
 
 interface BuildGroupsOptions {

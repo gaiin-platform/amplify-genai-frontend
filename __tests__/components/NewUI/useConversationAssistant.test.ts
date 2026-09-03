@@ -109,6 +109,76 @@ describe('deriveConversationAssistant', () => {
     expect(derived).toBeNull();
   });
 
+  // The backend's built-in fallback assistant is literally named "default"
+  // (amplify-lambda-js/assistants/assistants.js), so EVERY plain send streams
+  // currentAssistant: "default" back. Treating that as an assistant showed a
+  // phantom chip on assistant-less chats and sent options.assistantId='default'.
+  it('ignores the backend fallback "default" state name', () => {
+    const derived = deriveConversationAssistant(
+      conversation([userMsg(), replyMsg('default', 'default')]),
+      [],
+      [],
+    );
+    expect(derived).toBeNull();
+  });
+
+  it('ignores a "default" state name with no assistant id at all', () => {
+    const derived = deriveConversationAssistant(
+      conversation([userMsg(), replyMsg('default')]),
+      [],
+      [],
+    );
+    expect(derived).toBeNull();
+  });
+
+  // Old-UI AssistantSelectModal dispatches { id: 'amplify', assistantId: '' }
+  // for its "Standard Conversation" row; setAssistant() compares against
+  // DEFAULT_ASSISTANT by reference, so that look-alike is stamped on the message
+  // and would otherwise be derived forever after.
+  it('ignores a placeholder stamped onto a user message', () => {
+    const derived = deriveConversationAssistant(
+      conversation([userMsg({ name: 'Standard Conversation', assistantId: '' }), replyMsg()]),
+      [],
+      [],
+    );
+    expect(derived).toBeNull();
+  });
+
+  it('skips a placeholder stamp and keeps scanning for a real assistant', () => {
+    const derived = deriveConversationAssistant(
+      conversation([
+        userMsg({ name: 'Grant Helper', assistantId: 'ast/123' }),
+        replyMsg('Grant Helper', 'ast/123'),
+        userMsg({ name: 'Standard Conversation', assistantId: '' }),
+      ]),
+      [],
+      [],
+    );
+    expect(derived?.definition.name).toBe('Grant Helper');
+  });
+
+  // Only the placeholder *pair* is rejected — a real assistant a user chose to
+  // name "Default" still has a server-issued id and must survive.
+  it('keeps a real assistant that happens to be named "Default"', () => {
+    const derived = deriveConversationAssistant(
+      conversation([userMsg({ name: 'Default', assistantId: 'ast/999' })]),
+      [],
+      [],
+    );
+    expect(derived?.definition.name).toBe('Default');
+    expect(derived?.definition.assistantId).toBe('ast/999');
+  });
+
+  it('ignores a placeholder promptTemplate on an empty conversation', () => {
+    const prompt = assistantPrompt('Standard Conversation', '');
+    const derived = deriveConversationAssistant(
+      conversation([], { promptTemplate: prompt }),
+      [prompt],
+      [],
+    );
+    expect(derived).toBeNull();
+  });
+
   it('lets the newest turn win when the assistant changed mid-conversation', () => {
     const derived = deriveConversationAssistant(
       conversation([

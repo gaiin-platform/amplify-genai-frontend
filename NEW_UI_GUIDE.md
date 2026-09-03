@@ -131,6 +131,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `DataSourceLibraryPicker.tsx` | Inline multi-select picker for already-uploaded library files. Emits `{id, name, type, metadata}` with **no `key`** — the assistant save step prefixes a keyless source with `s3://` |
 | `FileDropZone.tsx` | Drag-and-drop file intake: `useFileDropTarget` (handlers + active flag for an existing root element), `FileDropOverlay`, and the `FileDropZone` wrapper. Only reacts to `Files` drags; depth-counted dragenter/leave |
 | `libraryQuery.ts` | Shared library query vocabulary — `sanitizePageKey` (DynamoDB cursor rules; unsanitized page keys 502), `buildLibraryQuery`, `isAssistantRecord`, `libraryTypeLabel`. Used by NewLibraryView + the picker. No React imports |
+| `assistantIdentity.ts` | Shared "is this really an assistant?" vocabulary — `PLACEHOLDER_ASSISTANT_NAMES`, `isPlaceholderAssistantName`. Rejects the backend's `"default"` fallback and the old-UI `"Standard Conversation"` look-alike, both of which mean *no* assistant. No React imports |
 | `AttachmentPreview.tsx` | Full-screen attachment preview with nav and focus trap |
 | `RichComposer.tsx` | Textarea with paste/image capture handlers |
 | `Badge.tsx` | Small status badge |
@@ -138,7 +139,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `FilterMenu.tsx` | Filter popover — radio groups, Clear all; `variant='toolbar'` (labelled button + count badge) or `'icon'` (ghost icon button + dot). Portalled and positioned from the trigger rect, so it survives overflow-hidden/scrolling ancestors |
 | `chatFilters.ts` | Shared conversation filter/sort vocabulary (pinned, storage, assistant + comparators). Used by ChatsListView and the sidebar Recents section. No React imports |
 | `sidebarVisibility.ts` | Shared type + key for sidebar item visibility state |
-| `useConversationAssistant.ts` | Resolves the assistant attached to the selected conversation (explicit pick → `promptTemplate` → transcript stamps), re-attaches it to `selectedAssistant` once per conversation so follow-up sends stay routed, and exposes `detach()`. Use this instead of reading `selectedAssistant` directly — that field is global and gets reset by `handleNewConversation`/`handleSelectConversation` |
+| `useConversationAssistant.ts` | Resolves the assistant attached to the selected conversation (explicit pick → `promptTemplate` → transcript stamps), re-attaches it to `selectedAssistant` once per conversation so follow-up sends stay routed, and exposes `detach()`. Use this instead of reading `selectedAssistant` directly — that field is global and gets reset by `handleNewConversation`/`handleSelectConversation`. Test "is there an assistant?" with its `isRealAssistant`, never `id === DEFAULT_ASSISTANT.id` |
 | `useStableFeatureFlags.ts` | Read feature flags through this, never `state.featureFlags` directly. Falls back to a localStorage cache while `/feature_flags` is in flight or failed, and merges (rather than applies) the single-key `smartMessages` startup patch. No React-free exports: `resolveFeatureFlags`, `isFullFlagSet`, `PATCH_ONLY_FLAG_KEYS` |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
@@ -234,6 +235,16 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     `useStableFeatureFlags()`, never on `state.featureFlags` directly, or the gated
     element will blink out mid-load. If another call site starts dispatching a lone flag,
     add its key to `PATCH_ONLY_FLAG_KEYS`.
+
+13. **"No assistant" has three different representations, so never test for it with
+    `selectedAssistant.id === DEFAULT_ASSISTANT.id`.** The backend's fallback assistant is
+    named `"default"` and streams `data.state.currentAssistant = "default"` on *every* plain
+    send; the old-UI `AssistantSelectModal` dispatches `{ id: 'amplify', assistantId: '' }`
+    named `"Standard Conversation"`; and `utils/app/assistants#setAssistant` only strips the
+    canonical `DEFAULT_ASSISTANT` **by reference**, so a look-alike gets stamped onto the
+    transcript permanently. Use `isRealAssistant` (or `isPlaceholderAssistantName` in
+    React-free modules) — an id comparison alone shows a phantom assistant chip on plain
+    chats and sends an `options.assistantId` the backend cannot resolve.
 
 ---
 

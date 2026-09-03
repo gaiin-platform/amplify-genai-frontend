@@ -45,6 +45,7 @@ import { getActivePlugins } from '@/utils/app/plugin';
 import { getSettings } from '@/utils/app/settings';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import type { AttachedDocument } from '@/types/attacheddocument';
 
 interface ConversationViewShellProps {
@@ -406,16 +407,25 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
               },
             });
 
-        // Apply the active assistant to the message (mirrors ChatInput.tsx:758)
-        msg = setAssistantInMsg(msg, selectedAssistant ?? DEFAULT_ASSISTANT);
+        // Apply the active assistant to the message (mirrors ChatInput.tsx:758).
+        // `isRealAssistant`, not an id comparison: a placeholder look-alike
+        // ("default" / old-UI "Standard Conversation") has an id that is not
+        // DEFAULT_ASSISTANT.id, and `setAssistant` only strips the canonical
+        // DEFAULT_ASSISTANT *by reference* — so passing it through would stamp a
+        // phantom assistant onto the transcript permanently and send a bogus
+        // `options.assistantId` the backend cannot resolve.
+        const sendAssistant = isRealAssistant(selectedAssistant)
+          ? selectedAssistant
+          : DEFAULT_ASSISTANT;
+        msg = setAssistantInMsg(msg, sendAssistant);
 
         // Build assistant options for the ChatRequest (mirrors Chat.tsx routeMessage)
         let assistantOptions: Record<string, unknown> | undefined;
-        if (selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id) {
+        if (sendAssistant !== DEFAULT_ASSISTANT) {
           assistantOptions = {
-            assistantName: selectedAssistant.definition?.name,
-            assistantId: selectedAssistant.definition?.assistantId,
-            groupId: selectedAssistant.definition?.groupId,
+            assistantName: sendAssistant.definition?.name,
+            assistantId: sendAssistant.definition?.assistantId,
+            groupId: sendAssistant.definition?.groupId,
             groupType: conversation.groupType,
           };
         }

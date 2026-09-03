@@ -30,6 +30,10 @@
  *    from a previously-open conversation.
  * 3. DETACH — `detach()` removes the assistant and remembers that choice for the
  *    conversation, so step 2 cannot resurrect it from the transcript.
+ * 4. NORMALISE — placeholder "no assistant" values ("default" from the backend,
+ *    "Standard Conversation" from the old UI) are never treated as assistants,
+ *    and one sitting in the global `selectedAssistant` is reset to the canonical
+ *    `DEFAULT_ASSISTANT`. See `shared/assistantIdentity.ts`.
  *
  * Read-only with respect to old-UI files: it reads HomeContext state and
  * dispatches the same field the old UI already dispatches.
@@ -41,12 +45,21 @@ import { Assistant, AssistantProviderID, DEFAULT_ASSISTANT } from '@/types/assis
 import { Conversation, Message } from '@/types/chat';
 import { Prompt } from '@/types/prompt';
 import { LayeredAssistant } from '@/types/layeredAssistant';
+import { isPlaceholderAssistantName } from '@/components/NewUI/shared/assistantIdentity';
+
+export { isPlaceholderAssistantName };
 
 /** True when `assistant` is a real assistant rather than "Standard Conversation". */
 export const isRealAssistant = (
   assistant?: Assistant | null,
 ): assistant is Assistant =>
-  !!assistant && assistant.id !== DEFAULT_ASSISTANT.id && !!assistant.definition;
+  !!assistant &&
+  assistant.id !== DEFAULT_ASSISTANT.id &&
+  !!assistant.definition &&
+  !isPlaceholderAssistantName(
+    assistant.definition.name,
+    assistant.definition.assistantId,
+  );
 
 /**
  * Conversations the user has explicitly detached an assistant from (chip ✕).
@@ -155,7 +168,13 @@ export const deriveConversationAssistant = (
   // 1. Started from an assistant (gallery / prompt template).
   const templateAssistant: Assistant | undefined =
     conversation.promptTemplate?.data?.assistant;
-  if (templateAssistant?.definition) {
+  if (
+    templateAssistant?.definition &&
+    !isPlaceholderAssistantName(
+      templateAssistant.definition.name,
+      templateAssistant.definition.assistantId,
+    )
+  ) {
     return (
       lookupAssistant(
         prompts,
@@ -171,22 +190,25 @@ export const deriveConversationAssistant = (
   const oldest = Math.max(0, messages.length - ASSISTANT_SCAN_WINDOW);
   for (let i = messages.length - 1; i >= oldest; i--) {
     const m = messages[i];
+    // A placeholder stamp/state name is treated exactly like an unstamped
+    // message: skipped, so the scan keeps walking back rather than surfacing
+    // "default" / "Standard Conversation" as if it were an assistant.
     const stamped = m?.data?.assistant?.definition;
-    if (stamped?.name) {
+    if (stamped?.name && !isPlaceholderAssistantName(stamped.name, stamped.assistantId)) {
       return (
         lookupAssistant(prompts, layered, stamped.assistantId, stamped.name) ??
         syntheticAssistant(stamped.name, stamped.assistantId, stamped.uri)
       );
     }
     const streamed = m?.data?.state?.currentAssistant;
-    if (typeof streamed === 'string' && streamed && streamed !== DEFAULT_ASSISTANT.definition.name) {
+    const streamedId = m?.data?.state?.currentAssistantId;
+    if (
+      typeof streamed === 'string' &&
+      !isPlaceholderAssistantName(streamed, streamedId)
+    ) {
       return (
-        lookupAssistant(
-          prompts,
-          layered,
-          m?.data?.state?.currentAssistantId,
-          streamed,
-        ) ?? syntheticAssistant(streamed, m?.data?.state?.currentAssistantId)
+        lookupAssistant(prompts, layered, streamedId, streamed) ??
+        syntheticAssistant(streamed, streamedId)
       );
     }
   }
@@ -221,6 +243,23 @@ export const useConversationAssistant = (): ConversationAssistantState => {
   } = useContext(HomeContext);
 
   const explicit = isRealAssistant(selectedAssistant) ? selectedAssistant : null;
+
+  // A placeholder look-alike (old-UI "Standard Conversation" row → `{ id:
+  // 'amplify', assistantId: '' }`, or a synthetic built from the backend's
+  // `"default"`) is not a real assistant, but it still sits in the *global*
+  // `selectedAssistant` field where old-UI send paths read it: ChatInput's
+  // `hasRealAssistant` and ConversationViewShell's `assistantOptions` only
+  // compare against `DEFAULT_ASSISTANT.id`, and `setAssistant` compares by
+  // reference — so it would keep being stamped onto outgoing messages and sent
+  // as `options.assistantId`. Normalise it back to the canonical
+  // DEFAULT_ASSISTANT reference once. Self-terminating: after the dispatch,
+  // `selectedAssistant` *is* DEFAULT_ASSISTANT and the condition is false.
+  useEffect(() => {
+    if (!selectedAssistant) return;
+    if (selectedAssistant === DEFAULT_ASSISTANT) return;
+    if (isRealAssistant(selectedAssistant)) return;
+    dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+  }, [selectedAssistant, dispatch]);
 
   const allLayered: LayeredAssistant[] = useMemo(
     () => [

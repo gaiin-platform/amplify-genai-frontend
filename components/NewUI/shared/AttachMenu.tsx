@@ -55,6 +55,7 @@ import { PluginID, Plugin } from '@/types/plugin';
 import { getUserSkills } from '@/services/skillsService';
 import { Skill } from '@/types/skill';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
+import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { LayeredAssistant } from '@/types/layeredAssistant';
 import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
@@ -571,8 +572,10 @@ const AssistantSubmenu: React.FC<{
 
   const hasAny = filteredAssistants.length > 0 || filteredLayered.length > 0;
   const activeId = selectedAssistant?.id;
-  const isDefaultSelected =
-    !selectedAssistant || selectedAssistant.id === DEFAULT_ASSISTANT.id;
+  // isRealAssistant, not an id comparison: placeholder look-alikes ("default",
+  // old-UI "Standard Conversation") carry ids that are not DEFAULT_ASSISTANT.id
+  // and would otherwise leave this list with nothing checked.
+  const isDefaultSelected = !isRealAssistant(selectedAssistant);
 
   const rowStyle = (isActive: boolean): React.CSSProperties => ({
     height: 35,
@@ -916,7 +919,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     ...((groups ?? []) as any[]).flatMap((g: any) => g.layeredAssistants ?? []),
   ];
 
-  const isDefaultAssistant = !selectedAssistant || selectedAssistant.id === DEFAULT_ASSISTANT.id;
+  const isDefaultAssistant = !isRealAssistant(selectedAssistant);
 
   /**
    * Enforced-model id → human name, for the assistant hover card.
