@@ -139,6 +139,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `chatFilters.ts` | Shared conversation filter/sort vocabulary (pinned, storage, assistant + comparators). Used by ChatsListView and the sidebar Recents section. No React imports |
 | `sidebarVisibility.ts` | Shared type + key for sidebar item visibility state |
 | `useConversationAssistant.ts` | Resolves the assistant attached to the selected conversation (explicit pick → `promptTemplate` → transcript stamps), re-attaches it to `selectedAssistant` once per conversation so follow-up sends stay routed, and exposes `detach()`. Use this instead of reading `selectedAssistant` directly — that field is global and gets reset by `handleNewConversation`/`handleSelectConversation` |
+| `useStableFeatureFlags.ts` | Read feature flags through this, never `state.featureFlags` directly. Falls back to a localStorage cache while `/feature_flags` is in flight or failed, and merges (rather than applies) the single-key `smartMessages` startup patch. No React-free exports: `resolveFeatureFlags`, `isFullFlagSet`, `PATCH_ONLY_FLAG_KEYS` |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
 ### `sidebar/`
@@ -225,6 +226,14 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     that should use OS overlay scrollbars. The `data-scrolling="true"` idle-timer in
     `ConversationViewShell.tsx` provides progressive-enhancement visibility control for
     Windows/Linux (the timer is 700ms, constant `SCROLLBAR_IDLE_MS`).
+
+12. **`state.featureFlags` has more than one writer, and a non-empty value is not
+    necessarily a complete one.** `home.tsx` fires `fetchFeatureFlags()` and
+    `fetchUserAppConfigs()` concurrently; the latter dispatches
+    `{ smartMessages: bool }` as the *entire* flag state when it wins. Gate new UI on
+    `useStableFeatureFlags()`, never on `state.featureFlags` directly, or the gated
+    element will blink out mid-load. If another call site starts dispatching a lone flag,
+    add its key to `PATCH_ONLY_FLAG_KEYS`.
 
 ---
 
