@@ -50,7 +50,7 @@ import {
     IconCheck,
     IconX,
 } from '@tabler/icons-react';
-import { AssistantWorkflowSelector } from '@/components/AssistantWorkflows/AssistantWorkflowSelector';
+import { WorkflowTemplatePicker } from './assistant/WorkflowTemplatePicker';
 import { useSession } from 'next-auth/react';
 import HomeContext from '@/pages/api/home/home.context';
 import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
@@ -98,8 +98,9 @@ import {
 import { FileDropZone } from '@/components/NewUI/shared/FileDropZone';
 import { processDragDropFiles } from '@/utils/fileHandler';
 import { totalSelectionCount, asDriveSelection } from '@/components/NewUI/views/assistant/driveBrowserModel';
-import { SkillsSection } from '@/components/Skills';
-import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
+import { SkillsCapabilityPanel } from './assistant/SkillsCapabilityPanel';
+import { CapabilityCard } from './assistant/CapabilityCard';
+import { ToolsCapabilityPanel } from './assistant/ToolsCapabilityPanel';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -358,112 +359,6 @@ const fieldStyle: React.CSSProperties = {
     fontSize: 13,
     fontFamily: 'Inter, ui-sans-serif, sans-serif',
     outline: 'none',
-};
-
-// ── CapabilityCard ─────────────────────────────────────────────────────────────
-// Reusable collapsible card for Skills, Tools & APIs, and Workflow Templates.
-// Provides consistent new-UI chrome (CSS token borders/bg/color) wrapping old-UI
-// inner components that haven't been fully ported yet.
-
-interface CapabilityCardProps {
-    icon: React.ReactNode;
-    title: string;
-    /** Accent-tinted pill shown in the header when something is configured */
-    badge?: string;
-    children: React.ReactNode;
-}
-
-const CapabilityCard: React.FC<CapabilityCardProps> = ({ icon, title, badge, children }) => {
-    const [open, setOpen] = useState(false);
-
-    return (
-        <div
-            style={{
-                border: `1px solid ${open || badge ? 'color-mix(in srgb, var(--accent) 30%, var(--border-subtle))' : 'var(--border-subtle)'}`,
-                borderRadius: 10,
-                background: 'var(--bg-raised)',
-                overflow: 'hidden',
-                transition: 'border-color 140ms ease',
-            }}
-        >
-            {/* Clickable header row */}
-            <button
-                aria-expanded={open}
-                onClick={() => setOpen((v) => !v)}
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    width: '100%',
-                    padding: '12px 14px',
-                    background: 'none',
-                    border: 'none',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    outline: 'none',
-                    transition: 'background 100ms ease',
-                }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none'; }}
-            >
-                {/* Icon */}
-                <span style={{
-                    flexShrink: 0,
-                    lineHeight: 0,
-                    color: open || badge ? 'var(--accent)' : 'var(--text-secondary)',
-                    transition: 'color 140ms ease',
-                }}>
-                    {icon}
-                </span>
-
-                {/* Title */}
-                <span style={{ flex: 1, fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
-                    {title}
-                </span>
-
-                {/* Badge — only when something is configured */}
-                {badge && (
-                    <span style={{
-                        fontSize: 11,
-                        fontWeight: 500,
-                        color: 'var(--accent)',
-                        background: 'color-mix(in srgb, var(--accent) 12%, var(--bg-raised))',
-                        border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
-                        borderRadius: 20,
-                        padding: '2px 8px',
-                        whiteSpace: 'nowrap',
-                    }}>
-                        {badge}
-                    </span>
-                )}
-
-                {/* Chevron rotates 90° when open */}
-                <span style={{
-                    flexShrink: 0,
-                    lineHeight: 0,
-                    color: 'var(--text-muted)',
-                    transform: open ? 'rotate(90deg)' : 'none',
-                    transition: 'transform 180ms ease',
-                }}>
-                    <IconChevronRight size={16} stroke={2} />
-                </span>
-            </button>
-
-            {/* Content — max-height transition for smooth open/close */}
-            <div style={{
-                maxHeight: open ? 1400 : 0,
-                overflow: 'hidden',
-                transition: 'max-height 280ms ease-in-out',
-            }}>
-                <div style={{
-                    padding: '14px',
-                    borderTop: '1px solid var(--border-subtle)',
-                }}>
-                    {children}
-                </div>
-            </div>
-        </div>
-    );
 };
 
 // ── SectionDivider ─────────────────────────────────────────────────────────────
@@ -932,6 +827,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         if (Array.isArray(opInfo)) setApiInfo(opInfo);
         const builtIn = (def.data as any)?.builtInOperations;
         if (Array.isArray(builtIn)) setBuiltInAgentTools(builtIn);
+
+        // Workflow template.
+        // Without this the save below only writes workflowTemplateId when
+        // baseWorkflowTemplateId is truthy, so editing a workflow assistant saved
+        // opsLanguageVersion 'v4' (which IS hydrated, just below) with no template
+        // — silently dropping the workflow. AssistantModal.tsx:378 hydrates it too.
+        const workflowTemplate = (def.data as any)?.baseWorkflowTemplateId as string | undefined;
+        if (workflowTemplate) setBaseWorkflowTemplateId(workflowTemplate);
 
         // Advanced
         const opsVersion = (def.data as any)?.opsLanguageVersion as string | undefined;
@@ -2374,7 +2277,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                     title="Skills"
                                     badge={selectedSkills.length > 0 ? `${selectedSkills.length} selected` : undefined}
                                 >
-                                    <SkillsSection
+                                    <SkillsCapabilityPanel
                                         chatEndpoint={chatEndpoint}
                                         selectedSkills={selectedSkills}
                                         onSkillsChange={setSelectedSkills}
@@ -2396,26 +2299,21 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                     }
                                 >
                                     {/*
-                                     * flat={true} strips ApiIntegrationsPanel's own "Add Tools"
-                                     * toggle button so our CapabilityCard header is the only trigger.
+                                     * `apiInfo` is intentionally NOT passed: the old panel declared
+                                     * apiInfo/setApiInfo and never used them (custom APIs are
+                                     * hard-disabled). The state itself must stay — it is hydrated
+                                     * above and re-emitted as data.operations on save, so dropping it
+                                     * would silently delete that field on every edit.
                                      */}
-                                    <ApiIntegrationsPanel
+                                    <ToolsCapabilityPanel
                                         availableApis={availableApis}
                                         selectedApis={selectedApis}
                                         setSelectedApis={setSelectedApis}
-                                        apiInfo={apiInfo}
-                                        setApiInfo={setApiInfo}
                                         availableAgentTools={availableAgentTools}
                                         builtInAgentTools={builtInAgentTools}
                                         setBuiltInAgentTools={setBuiltInAgentTools}
-                                        allowConfiguration={true}
-                                        pythonFunctionOnSave={() => {
-                                            getOpsForUser().then((ops) => {
-                                                if (ops.success) filterOps(ops.data);
-                                            });
-                                        }}
-                                        disabled={false}
-                                        flat={true}
+                                        showAgentTools={!!featureFlags.agentTools}
+                                        allowConfiguration
                                     />
                                 </CapabilityCard>
                             )}
@@ -2428,15 +2326,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                     badge={baseWorkflowTemplateId ? 'Template selected' : undefined}
                                 >
                                     {/*
-                                     * AssistantWorkflowSelector manages its own template list fetch
-                                     * and renders a <select> dropdown with a "Base Assistant Workflow
-                                     * Template" label. Selecting a template sets baseWorkflowTemplateId
-                                     * which is written into def.data on save (forces opsLanguageVersion v4).
+                                     * Selecting a template sets baseWorkflowTemplateId, which is
+                                     * written into def.data on save and forces opsLanguageVersion v4.
                                      */}
-                                    <AssistantWorkflowSelector
+                                    <WorkflowTemplatePicker
                                         selectedTemplateId={baseWorkflowTemplateId}
                                         onTemplateChange={(id) => setBaseWorkflowTemplateId(id || undefined)}
-                                        disabled={false}
                                     />
                                 </CapabilityCard>
                             )}

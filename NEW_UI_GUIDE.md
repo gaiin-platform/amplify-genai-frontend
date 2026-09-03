@@ -142,6 +142,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `useConversationAssistant.ts` | Resolves the assistant attached to the selected conversation (explicit pick → `promptTemplate` → transcript stamps), re-attaches it to `selectedAssistant` once per conversation so follow-up sends stay routed, and exposes `detach()`. Use this instead of reading `selectedAssistant` directly — that field is global and gets reset by `handleNewConversation`/`handleSelectConversation`. Test "is there an assistant?" with its `isRealAssistant`, never `id === DEFAULT_ASSISTANT.id` |
 | `useStableFeatureFlags.ts` | Read feature flags through this, never `state.featureFlags` directly. Falls back to a localStorage cache while `/feature_flags` is in flight or failed, and merges (rather than applies) the single-key `smartMessages` startup patch. No React-free exports: `resolveFeatureFlags`, `isFullFlagSet`, `PATCH_ONLY_FLAG_KEYS` |
 | `integrationIcon.tsx` | `integrationIcon(id, size?)` — the `public/logos/integrations/*.svg` logo for an integration id (underscores → hyphens). Used by Settings → Connectors and the assistant editor's drive panel |
+| `SearchInput.tsx` | The 34px toolbar search field (`IconSearch` + input), with `fullWidth` for use inside a card and an optional `onClear`. Extracted from three verbatim copies. Does **not** cover the divergent fields in `ChatsListView`, `NewLibraryView`, `DataSourceLibraryPicker`, `DriveFileBrowser`, `AttachMenu` |
+| `useIntegrationConnections.ts` | Supported + connected integrations, OAuth popup connect, disconnect, for an optional `filter`. The one copy of that flow; `useDriveIntegrations` is a thin wrapper. Also exports `isConfigurationMessage` — an unconfigured backend answers with a *message*, not a failure worth alerting on |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
 ### `sidebar/`
@@ -164,7 +166,15 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `DriveFileBrowser.tsx` | One connected drive service's browser: breadcrumb above the table, one search field, one 40px header row, select-all with indeterminate state, rows capped on a whole-row boundary. Owns the folder trail + listing cache, so the panel must key it on the integration id |
 | `DriveFileRow.tsx` | One 46px browser row. Containers navigate, files select, Level 4 does neither; type comes from the leading icon plus a muted inline label, never a column |
 | `driveBrowserModel.ts` | Drive selection algebra — `normalizeDriveRecord`, `isContainer`, `applySelection` (the **only** mutator; one call per user action), `clearIntegration`, `selectionCounts`, `displaySize`. Ported from the old component so the saved `integrationDriveData` is unchanged. No React imports |
-| `useDriveIntegrations.ts` | Supported + connected drive integrations, OAuth popup connect, disconnect. Replaces rendering `IntegrationTabs` purely for its side effects |
+| `useDriveIntegrations.ts` | The drive-filtered view of `shared/useIntegrationConnections`. Replaces rendering `IntegrationTabs` purely for its side effects |
+| `CapabilityCard.tsx` | The collapsible card wrapping each Capabilities panel. Opens with `grid-template-rows: 0fr → 1fr`, **not** a `max-height` ceiling — the Tools panel outgrows any fixed one, and `overflow:hidden` made the excess unreachable. `visibility` (not the `hidden` attribute, which loses to an inline `display:grid`) keeps collapsed content out of the tab order |
+| `CapabilityRow.tsx` | The one selectable row for tools, ops, and skills — replaces `Agent/ToolItem` **and** `AssistantApi/ApiItem`, which differed only in their data adapter. Optional gear + `configurePanel`, optional collapsed `details` |
+| `toolSelectionModel.ts` | Tool selection algebra — `toggleComposite` (the only composite mutator; unticking keeps ops another ticked composite still needs), `inferSelectedComposites` (edit-mode seed, suppresses subset composites), `buildBindings`/`bindingsToDraft`/`withBindings`, `toOpRow`/`toAgentToolRow`, `matchesToolQuery`. No React imports |
+| `CompositeToolCard.tsx` | One task-based tool card (a named bundle of ops) + its per-op binding editors |
+| `ToolsCapabilityPanel.tsx` | Capabilities → Tools & APIs. Replaces the `ApiIntegrationsPanel` → `CompositeActionsPanel` / `AgentToolsSelector` / `ApiSelector` stack, and `opsSearchToggleButtons`. Task-based tools grouped by integration, then one merged browse list. Not-connected categories offer an **inline** OAuth Connect, because the old amber banner's `openSettingsTrigger` has no listener in the new UI |
+| `ParameterBindingEditor.tsx` | Per-parameter AI/Manual binding. Controlled and stateless — the draft lives in the panel, seeded from saved bindings |
+| `SkillsCapabilityPanel.tsx` | Capabilities → Skills. Replaces `Skills/SkillsSection`, dropping its duplicate accordion header and its purple accent. Still launches the old `SkillEditor` for creation, early-returned |
+| `WorkflowTemplatePicker.tsx` | Capabilities → Workflow Template. Replaces `AssistantWorkflows/AssistantWorkflowSelector`; still launches the old `AssistantWorkflowBuilder`, early-returned rather than permanently mounted |
 
 ### `views/`
 | File | Purpose |
@@ -281,6 +291,32 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     the first thing to break. When porting, take `unknown` and narrow with `typeof`, and cover
     the real payload shape in a test with an explicit cast: a fixture built from the `types/`
     interface cannot reproduce the bug.
+
+18. **An old-UI event bridge is not automatically a working one — check that a listener renders
+    in the new branch.** `Agent/CompositeActionsPanel` dispatches `openSettingsTrigger` for its
+    "Go to Integrations" link, but the only listener is `components/Layout/UserMenu.tsx`, which
+    `home.tsx` renders in the **classic** `else` branch. The link is therefore a dead click in
+    the new UI, and importing the component brought the dead click with it. The new-UI
+    equivalent is `openNewUISettingsSection` (listened for in `NewSidebar` and `NewHome`) — but
+    firing it from inside a modal stacks `NewSettingsModal` over `CreationModalShell` and hits
+    §14, so prefer doing the thing inline (`shared/useIntegrationConnections#connect`) over
+    navigating the user away from a half-filled form.
+
+19. **Hydration is part of the save contract: grep every `data.*` key the save writes for a
+    matching read.** `NewUIAssistantCreationModal` wrote `workflowTemplateId` only when
+    `baseWorkflowTemplateId` was truthy but never hydrated it, while it *did* hydrate
+    `opsLanguageVersion` — so editing a workflow assistant re-saved it as v4 with no template
+    and silently dropped the workflow. A write-without-read is invisible on create and only
+    destroys data on edit, so it survives manual testing easily. When porting a panel, diff its
+    keys against `AssistantModal.tsx`'s load, which hydrates more of them.
+
+20. **Selection state that a user ticks is not always safe to derive from what was saved.**
+    Composite tools nest — `draftEmail`'s ops are a strict subset of `sendEmail`'s, and six more
+    such pairs exist in `COMPOSITE_FUNCTION_CATEGORIES` — so deriving "which bundles are
+    checked?" from the flat op list on every render lights up the subset too, and unticking that
+    phantom strips ops out from under the real selection. Seed such state **once** from a
+    dedicated inference function that suppresses subsets (`inferSelectedComposites`), and keep
+    it out of the saved payload.
 
 ---
 
