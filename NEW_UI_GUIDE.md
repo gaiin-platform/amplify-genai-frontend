@@ -141,6 +141,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `sidebarVisibility.ts` | Shared type + key for sidebar item visibility state |
 | `useConversationAssistant.ts` | Resolves the assistant attached to the selected conversation (explicit pick → `promptTemplate` → transcript stamps), re-attaches it to `selectedAssistant` once per conversation so follow-up sends stay routed, and exposes `detach()`. Use this instead of reading `selectedAssistant` directly — that field is global and gets reset by `handleNewConversation`/`handleSelectConversation`. Test "is there an assistant?" with its `isRealAssistant`, never `id === DEFAULT_ASSISTANT.id` |
 | `useStableFeatureFlags.ts` | Read feature flags through this, never `state.featureFlags` directly. Falls back to a localStorage cache while `/feature_flags` is in flight or failed, and merges (rather than applies) the single-key `smartMessages` startup patch. No React-free exports: `resolveFeatureFlags`, `isFullFlagSet`, `PATCH_ONLY_FLAG_KEYS` |
+| `integrationIcon.tsx` | `integrationIcon(id, size?)` — the `public/logos/integrations/*.svg` logo for an integration id (underscores → hyphens). Used by Settings → Connectors and the assistant editor's drive panel |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
 ### `sidebar/`
@@ -159,7 +160,11 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 |------|---------|
 | `assistantDraftContract.ts` | Zod-validated contract for AI-produced draft patches. Exports `parseAssistantDraftPatch`, `filterDraftPatch`, `safeChangesToApply`. No React, no service imports. |
 | `NewWebsiteSourceInput.tsx` | Data Sources → Website URL panel. Replaces `DataSources/WebsiteURLInput` with the same `onAddURL(url, isSitemap, maxPages?, exclusions?)` contract; Single page / Sitemap segmented control. Still defers to the old (portalled, unstyled) `SitemapUrlSelectionModal` for sitemap URL picking |
-| `DriveSourcesPanel.tsx` | Data Sources → OneDrive/SharePoint wrapper. Auto-clicks the old `ExpansionComponent` toggle once (scoped to the wrapper, never `document`) and owns the `[data-new-ui-drive]` CSS scope. Sets `data-drive-expanded` only when the content is really open, so the hide-the-toggle rule can't strand the panel |
+| `DriveSourcesPanel.tsx` | Data Sources → OneDrive/SharePoint. Native replacement for the old `AssistantDriveDataSources` stack (which stays in place for the old editor). The connector rows **are** the service selector — no tab bar, no "Select Service" dropdown; active row gets a left accent bar. Disconnect is revealed on hover and never clears that service's selections |
+| `DriveFileBrowser.tsx` | One connected drive service's browser: breadcrumb above the table, one search field, one 40px header row, select-all with indeterminate state, rows capped on a whole-row boundary. Owns the folder trail + listing cache, so the panel must key it on the integration id |
+| `DriveFileRow.tsx` | One 46px browser row. Containers navigate, files select, Level 4 does neither; type comes from the leading icon plus a muted inline label, never a column |
+| `driveBrowserModel.ts` | Drive selection algebra — `normalizeDriveRecord`, `isContainer`, `applySelection` (the **only** mutator; one call per user action), `clearIntegration`, `selectionCounts`, `displaySize`. Ported from the old component so the saved `integrationDriveData` is unchanged. No React imports |
+| `useDriveIntegrations.ts` | Supported + connected drive integrations, OAuth popup connect, disconnect. Replaces rendering `IntegrationTabs` purely for its side effects |
 
 ### `views/`
 | File | Purpose |
@@ -245,6 +250,37 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     transcript permanently. Use `isRealAssistant` (or `isPlaceholderAssistantName` in
     React-free modules) — an id comparison alone shows a phantom assistant chip on plain
     chats and sends an `options.assistantId` the backend cannot resolve.
+
+14. **Capture-phase `document` Escape handlers stack, and `stopPropagation` does not
+    separate them.** `CreationModalShell` and `ConfirmDialog` both listen for Escape on
+    `document` in the capture phase; listeners on the *same node* are unaffected by
+    `stopPropagation`, so a nested dialog that only calls it dismisses itself **and** the modal
+    behind it, discarding the user's form. Nested dialogs must use
+    `e.stopImmediatePropagation()`.
+
+15. **A state updater must stay pure.** Toasts, path mirroring, and other side effects inside a
+    `setState(prev => …)` callback fire twice under StrictMode. Decide from the render-time value
+    outside the updater, then update.
+
+16. **An "is this still mounted?" ref must be re-armed in the effect body, never only by
+    `useRef(true)`.** `reactStrictMode` is on, so every component mounts → unmounts → remounts
+    and the cleanup fires once on the simulated unmount. `useEffect(() => () => { alive.current
+    = false; }, [])` therefore latches `false` permanently, and every guarded setter — including
+    the `setLoading(false)` that ends a skeleton state — is skipped for the life of the
+    component. Write `useEffect(() => { alive.current = true; return () => { alive.current =
+    false; }; }, [])` and declare it before the effect that loads, or prefer a per-request
+    sequence guard (`requestSeq` in `views/assistant/DriveFileBrowser.tsx`), which also
+    discards superseded responses rather than only post-unmount ones.
+
+17. **`types/` is read-only reference *and* is not always accurate about primitives.** It
+    describes some payload fields with the wrong type, and because it is off-limits (§2) the
+    coercion has to live in your code. `IntegrationFileRecord.size` is declared `string` but
+    Microsoft Graph sends a number of bytes; calling `.trim()` on it threw an unhandled
+    `TypeError`. Old-UI components often survive this by rendering the value straight into JSX,
+    where React coerces silently — so a new helper that calls a *string* method on a field is
+    the first thing to break. When porting, take `unknown` and narrow with `typeof`, and cover
+    the real payload shape in a test with an explicit cast: a fixture built from the `types/`
+    interface cannot reproduce the bug.
 
 ---
 

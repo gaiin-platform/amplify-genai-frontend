@@ -21,7 +21,6 @@
 
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { IconLoader2, IconCheck, IconX } from '@tabler/icons-react';
-import Image from 'next/image';
 import toast from 'react-hot-toast';
 import HomeContext from '@/pages/api/home/home.context';
 import {
@@ -37,26 +36,8 @@ import {
 } from '@/types/integrations';
 import { capitalize } from '@/utils/app/data';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
+import { integrationIcon } from '@/components/NewUI/shared/integrationIcon';
 import { ToolApiKeysTab } from '@/components/Settings/ToolApiKeysTab';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// translateIntegrationIcon — ported read-only from IntegrationsDialog.tsx
-// (DO NOT MODIFY IntegrationsDialog.tsx — we re-implement the same logic here
-//  so this section can render icons without importing from IntegrationsDialog)
-// ─────────────────────────────────────────────────────────────────────────────
-
-const intIcon = (integrationId: string): React.ReactNode => {
-  const logoFile = `${integrationId.replace(/_/g, '-')}.svg`;
-  return (
-    <Image
-      src={`/logos/integrations/${logoFile}`}
-      alt={`${integrationId} logo`}
-      width={24}
-      height={24}
-      style={{ width: 24, height: 24, objectFit: 'contain' }}
-    />
-  );
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Flat integration item (provider + integration)
@@ -384,7 +365,7 @@ export const NewConnectorsSection: FC = () => {
                     flexShrink: 0,
                     overflow: 'hidden',
                   }}>
-                    {intIcon(intg.id)}
+                    {integrationIcon(intg.id)}
                   </div>
 
                   {/* Info */}

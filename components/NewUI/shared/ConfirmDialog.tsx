@@ -81,7 +81,12 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onCancel(); }
+      // stopImmediatePropagation, not stopPropagation: sibling listeners on the
+      // same node still run after stopPropagation, and CreationModalShell also
+      // listens for Escape on document in the capture phase — so a plain
+      // stopPropagation here closes the dialog AND the modal behind it,
+      // discarding whatever the user had typed. See NEW_UI_GUIDE §5 rule 14.
+      if (e.key === 'Escape') { e.stopImmediatePropagation(); onCancel(); }
     };
     document.addEventListener('keydown', handler, true);
     return () => document.removeEventListener('keydown', handler, true);

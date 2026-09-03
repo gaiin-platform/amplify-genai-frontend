@@ -97,7 +97,7 @@ import {
 } from '@/components/NewUI/shared/DataSourceLibraryPicker';
 import { FileDropZone } from '@/components/NewUI/shared/FileDropZone';
 import { processDragDropFiles } from '@/utils/fileHandler';
-import AssistantDriveDataSources, { DriveRescanSchedule } from '@/components/Promptbar/components/AssistantModalComponents/AssistantDriveDataSources';
+import { totalSelectionCount, asDriveSelection } from '@/components/NewUI/views/assistant/driveBrowserModel';
 import { SkillsSection } from '@/components/Skills';
 import ApiIntegrationsPanel from '@/components/AssistantApi/ApiIntegrationsPanel';
 
@@ -792,7 +792,13 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     /** id → cancel closure handed back by AttachFile for in-flight uploads. */
     const abortUploadRef = useRef<{ [key: string]: (() => void) | undefined }>({});
     const [integrationDataSources, setIntegrationDataSources] = useState<DriveFilesDataSources | undefined>(undefined);
-    const [driveRescanSchedule, setDriveRescanSchedule] = useState<DriveRescanSchedule | null>(null);
+    /**
+     * The drive selection as it arrived from a saved assistant. Re-ticking a row
+     * that was already saved has to restore its captured file list and
+     * datasource pointers rather than blanking them, or the save step orphans
+     * the S3 objects behind them.
+     */
+    const initIntegrationDataSources = useRef<DriveFilesDataSources | undefined>(undefined);
 
     // ── Skills state ──────────────────────────────────────────────────────
     const [selectedSkills, setSelectedSkills] = useState<SkillReference[]>([]);
@@ -898,6 +904,16 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 existing.forEach((ds) => { next[ds.id] = 100; });
                 return next;
             });
+        }
+
+        // OneDrive / SharePoint selections.
+        // Without this the save below (which only writes integrationDriveData
+        // when it is truthy) drops every drive file the assistant had, and the
+        // panel shows nothing as selected.
+        const driveData = (def.data as any)?.integrationDriveData as DriveFilesDataSources | undefined;
+        if (driveData && Object.keys(driveData).length > 0) {
+            setIntegrationDataSources(driveData);
+            initIntegrationDataSources.current = driveData;
         }
 
         // Website URLs
@@ -1566,20 +1582,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         }
     };
 
-    // ── Empty definition for drive component (creation, no existing data) ──
-    const emptyDefinitionForDrive: AssistantDefinition = {
-        name: '',
-        description: '',
-        instructions: '',
-        disclaimer: '',
-        tools: [],
-        tags: [],
-        dataSources: [],
-        version: 1,
-        fileKeys: [],
-        provider: AssistantProviderID.AMPLIFY,
-        data: {} as any,
-    };
+    /** Folders + files picked from every drive service, for the method button. */
+    const driveSelectionCount = totalSelectionCount(asDriveSelection(integrationDataSources));
 
     // ── Render ─────────────────────────────────────────────────────────────
     return (
@@ -2175,8 +2179,17 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                 ...(featureFlags.websiteUrls
                                     ? [{ key: 'website', label: 'Website URL', icon: <IconWorldWww size={15} /> }]
                                     : []),
+                                // The count keeps drive picks visible once the
+                                // panel is collapsed — they are the one kind of
+                                // attachment that gets no card in the grid above.
                                 ...(featureFlags.integrations && accessType !== 'collaborative'
-                                    ? [{ key: 'drive', label: 'OneDrive / SharePoint', icon: <IconCloudUpload size={15} /> }]
+                                    ? [{
+                                        key: 'drive',
+                                        label: driveSelectionCount > 0
+                                            ? `OneDrive / SharePoint (${driveSelectionCount})`
+                                            : 'OneDrive / SharePoint',
+                                        icon: <IconCloudUpload size={15} />,
+                                    }]
                                     : []),
                             ] as { key: 'upload' | 'library' | 'website' | 'drive'; label: string; icon: React.ReactNode }[]
                         ).map(({ key, label, icon }) => {
@@ -2333,22 +2346,16 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         />
                     )}
 
-                    {/* OneDrive / SharePoint — old-UI component (integration OAuth +
-                        Mantine file browser). Kept as-is and restyled through
-                        [data-new-ui-drive] rules in conversation-view.css; the
-                        DriveSourcesPanel wrapper also auto-opens its accordion. */}
+                    {/* OneDrive / SharePoint — native new-UI panel (connector rows
+                        + file browser) over the same integration services the old
+                        AssistantDriveDataSources stack used. */}
                     {activeDataSourceMethod === 'drive' && featureFlags.integrations && accessType !== 'collaborative' && (
-                        <DriveSourcesPanel>
-                            <AssistantDriveDataSources
-                                initAssistantDefintion={emptyDefinitionForDrive}
-                                selectedDataSources={integrationDataSources ?? {}}
-                                onSelectedDataSourcesChange={setIntegrationDataSources}
-                                disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
-                                initRescanSchedule={driveRescanSchedule}
-                                onRescanScheduleChange={setDriveRescanSchedule}
-                                disableEdit={false}
-                            />
-                        </DriveSourcesPanel>
+                        <DriveSourcesPanel
+                            selection={integrationDataSources ?? {}}
+                            onChange={setIntegrationDataSources}
+                            initSelection={initIntegrationDataSources.current}
+                            disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
+                        />
                     )}
 
                 </FileDropZone>
