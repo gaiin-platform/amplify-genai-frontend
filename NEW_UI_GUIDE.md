@@ -143,6 +143,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `useStableFeatureFlags.ts` | Read feature flags through this, never `state.featureFlags` directly. Falls back to a localStorage cache while `/feature_flags` is in flight or failed, and merges (rather than applies) the single-key `smartMessages` startup patch. No React-free exports: `resolveFeatureFlags`, `isFullFlagSet`, `PATCH_ONLY_FLAG_KEYS` |
 | `integrationIcon.tsx` | `integrationIcon(id, size?)` — the `public/logos/integrations/*.svg` logo for an integration id (underscores → hyphens). Used by Settings → Connectors and the assistant editor's drive panel |
 | `SearchInput.tsx` | The 34px toolbar search field (`IconSearch` + input), with `fullWidth` for use inside a card and an optional `onClear`. Extracted from three verbatim copies. Does **not** cover the divergent fields in `ChatsListView`, `NewLibraryView`, `DataSourceLibraryPicker`, `DriveFileBrowser`, `AttachMenu` |
+| `EmailChipsInput.tsx` | The one people picker — chips + `amplifyUsers` autocomplete, portalled `position:fixed` dropdown. Used by the assistant editor (Specific people → *Who has access*, Team → *Add members*) and `chat/NewUIShareModal`. Uncontrolled input unless you pass `inputValue`/`onInputChange`; `onError` reports duplicate/malformed addresses. Escape closes only the dropdown (§14) |
+| `emailSuggestions.ts` | React-free vocabulary behind it — `normalizeEmailPool`/`buildEmailPool` (drop raw-UUID values, dedupe case-insensitively, sort), `rankEmailSuggestions` (prefix matches before substring), `resolveUsernameForEmail` (case-insensitive email→username for the share/group APIs), `splitEmailList`, `looksLikeEmail`. No React imports |
 | `useIntegrationConnections.ts` | Supported + connected integrations, OAuth popup connect, disconnect, for an optional `filter`. The one copy of that flow; `useDriveIntegrations` is a thin wrapper. Also exports `isConfigurationMessage` — an unconfigured backend answers with a *message*, not a failure worth alerting on |
 | `openAtLatest.ts` | The "open a conversation at its newest message" rule — `nextOpenAtLatestTop` plus its tolerance/frame budgets. Returns the scroll maximum to pin to, or `null` once the user scrolls up. Used by `ConversationViewShell`'s open-at-latest pin loop. No React, no DOM imports |
 | `uiPreferenceResolution.ts` | The stored new-vs-classic choice: `UI_PREF_KEY`, `getUIPreference`, `writeLocalUIPreference`, `resolveStoredUIPreference` (server beats localStorage; only `'ask'` may show the popup), and the `?uiPreference=reset` helpers. No React imports |
@@ -344,6 +346,16 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     that path costs no visible frame. `?uiPreference=reset` erases both stores and
     reloads to re-test the first run; clearing localStorage alone is not enough,
     because the server value is restored on the next load.
+
+23. **Anything that collects people uses `shared/EmailChipsInput` — do not write a second one.**
+    Every such field needs the same four behaviours out of `state.amplifyUsers`, and getting
+    any of them wrong is invisible until a share fails: values can be **raw UUIDs** (`home.tsx`
+    substitutes the key when a user has no mapped email) and must never be suggested;
+    suggestions must rank prefix matches before substring ones; the reverse
+    email→username lookup the share/group APIs need must be **case-insensitive** (a strict
+    `===` silently falls back to the raw address); and the dropdown must be portalled, because
+    every modal body that hosts one scrolls or clips. `shared/emailSuggestions.ts` holds that
+    logic React-free — reach for it, not for a local `Object.keys(amplifyUsers).find(…)`.
 
 ---
 

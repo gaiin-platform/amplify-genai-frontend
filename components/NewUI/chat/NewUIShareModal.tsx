@@ -4,8 +4,10 @@
  * Triggered by: ConversationHeader "Share" button, ConversationRow "Share" menu item.
  *
  * UX:
- *   1. Recipient email chips — Enter/comma/Tab confirms an address into a pill;
- *      Backspace removes the last chip; × removes a specific chip.
+ *   1. Recipient email chips with Amplify-user autocomplete — see
+ *      `shared/EmailChipsInput`. Enter/comma/Tab confirms an address into a pill
+ *      (or accepts the highlighted suggestion); Backspace removes the last chip;
+ *      × removes a specific chip.
  *   2. Optional personal message, max 500 chars with char counter.
  *   3. "Share →" calls shareItems() from shareService.
  *   4. Success: replaces form body with centered ✓ + "Conversation shared", auto-closes 1.5 s.
@@ -25,7 +27,7 @@
  * Location: components/NewUI/chat/NewUIShareModal.tsx
  */
 
-import React, { useContext, useEffect, useRef, useState } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { IconX, IconLoader2, IconCheck } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { shareItems } from '@/services/shareService';
@@ -33,6 +35,11 @@ import { createExport } from '@/utils/app/importExport';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
 import { isAssistant } from '@/utils/app/assistants';
+import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
+import {
+    looksLikeEmail,
+    resolveUsernameForEmail,
+} from '@/components/NewUI/shared/emailSuggestions';
 
 // ── Focus-trap selector ───────────────────────────────────────────────────────
 const FOCUSABLE_SEL = [
@@ -131,47 +138,13 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
         return () => document.removeEventListener('keydown', handleKeyDown, true);
     }, [onClose]);
 
-    // ── Add recipient chip ─────────────────────────────────────────────────
-    const addRecipient = (raw: string) => {
-        const trimmed = raw.trim().replace(/,/g, '').toLowerCase();
-        if (!trimmed) return;
-        if (!trimmed.includes('@')) {
-            setInputError('Please enter a valid email address');
-            return;
-        }
-        if (recipients.includes(trimmed)) {
-            setInputError('This email has already been added');
-            setRecipientInput('');
-            return;
-        }
-        setRecipients((prev) => [...prev, trimmed]);
-        setRecipientInput('');
-        setInputError('');
-    };
-
-    const removeRecipient = (email: string) => {
-        setRecipients((prev) => prev.filter((r) => r !== email));
-    };
-
-    // ── Input keydown handling ─────────────────────────────────────────────
-    const handleInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === 'Enter' || e.key === 'Tab') {
-            e.preventDefault();
-            addRecipient(recipientInput);
-            return;
-        }
-        if (e.key === ',') {
-            e.preventDefault();
-            addRecipient(recipientInput);
-            return;
-        }
-        if (e.key === 'Backspace' && recipientInput === '' && recipients.length > 0) {
-            setRecipients((prev) => prev.slice(0, -1));
-            return;
-        }
-        // Clear inline error on any other key
-        if (inputError) setInputError('');
-    };
+    // ── Suggestion pool exclusions ─────────────────────────────────────────
+    // Never suggest the person doing the sharing. `getUserIdentifier` may return
+    // a username rather than an address, so exclude both forms.
+    const selfIdentifiers = useMemo(
+        () => [sharedBy, session?.user?.email ?? ''].filter(Boolean) as string[],
+        [sharedBy, session?.user?.email],
+    );
 
     // ── Submit ─────────────────────────────────────────────────────────────
     const handleShare = async () => {
@@ -180,11 +153,14 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
         let finalRecipients = recipients;
 
         if (currentInput) {
-            if (!currentInput.includes('@')) {
+            if (!looksLikeEmail(currentInput)) {
                 setInputError('Please enter a valid email address');
                 return;
             }
-            finalRecipients = [...recipients, currentInput];
+            const isDuplicate = recipients.some(
+                (r) => r.toLowerCase() === currentInput,
+            );
+            finalRecipients = isDuplicate ? recipients : [...recipients, currentInput];
             setRecipients(finalRecipients);
             setRecipientInput('');
             setInputError('');
@@ -235,12 +211,9 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
         try {
 
             // Convert display emails back to usernames via the amplifyUsers map
-            const sharedWith = finalRecipients.map((email) => {
-                const username = Object.keys(amplifyUsers).find(
-                    (key) => amplifyUsers[key] === email
-                );
-                return username ?? email; // fall back to email if no mapping
-            });
+            const sharedWith = finalRecipients.map((email) =>
+                resolveUsernameForEmail(email, amplifyUsers),
+            );
 
             const result = await shareItems(sharedBy, sharedWith, message, sharedData);
 
@@ -262,7 +235,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
     // "Share →" is enabled when there's at least one confirmed chip OR the
     // input contains a valid email that would be confirmed on click.
     const canShare =
-        recipients.length > 0 || recipientInput.trim().includes('@');
+        recipients.length > 0 || looksLikeEmail(recipientInput);
     const msgLen = message.length;
 
     // ── Styles (inline; no Tailwind class needed for new-UI layout) ────────
@@ -433,106 +406,26 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                             <div>
                                 <label style={s.label}>Share with</label>
 
-                                {/* Chip + input container */}
-                                <div
-                                    style={{
-                                        minHeight: 42,
-                                        padding: '6px 10px',
-                                        borderRadius: 8,
-                                        border: `1px solid ${inputError ? '#e05252' : 'var(--border-subtle)'}`,
-                                        background: 'var(--bg-app)',
-                                        display: 'flex',
-                                        flexWrap: 'wrap',
-                                        gap: 6,
-                                        alignItems: 'center',
-                                        transition: 'border-color 120ms ease',
-                                        cursor: 'text',
+                                {/* Chips + autocomplete (shared/EmailChipsInput) */}
+                                <EmailChipsInput
+                                    selected={recipients}
+                                    onChange={setRecipients}
+                                    placeholder="Search or type an email…"
+                                    placeholderWithSelection="Add another address…"
+                                    fontSize={14}
+                                    inputValue={recipientInput}
+                                    onInputChange={(v) => {
+                                        setRecipientInput(v);
+                                        if (inputError) setInputError('');
                                     }}
-                                    onClick={() => inputRef.current?.focus()}
-                                >
-                                    {/* Chips */}
-                                    {recipients.map((email) => (
-                                        <span
-                                            key={email}
-                                            style={{
-                                                display: 'inline-flex',
-                                                alignItems: 'center',
-                                                gap: 4,
-                                                padding: '3px 6px 3px 10px',
-                                                borderRadius: 6,
-                                                background: 'var(--bg-active)',
-                                                color: 'var(--text-primary)',
-                                                fontSize: 13,
-                                                fontWeight: 500,
-                                                flexShrink: 0,
-                                            }}
-                                        >
-                                            {email}
-                                            <button
-                                                type="button"
-                                                aria-label={`Remove ${email}`}
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    removeRecipient(email);
-                                                }}
-                                                style={{
-                                                    display: 'flex',
-                                                    alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    width: 16,
-                                                    height: 16,
-                                                    borderRadius: 4,
-                                                    border: 'none',
-                                                    background: 'transparent',
-                                                    cursor: 'pointer',
-                                                    color: 'var(--text-muted)',
-                                                    padding: 0,
-                                                    fontFamily: 'inherit',
-                                                    flexShrink: 0,
-                                                    transition: 'color 100ms ease',
-                                                }}
-                                                onMouseEnter={(e) => {
-                                                    e.currentTarget.style.color =
-                                                        'var(--text-primary)';
-                                                }}
-                                                onMouseLeave={(e) => {
-                                                    e.currentTarget.style.color =
-                                                        'var(--text-muted)';
-                                                }}
-                                            >
-                                                <IconX size={11} stroke={2.5} />
-                                            </button>
-                                        </span>
-                                    ))}
-
-                                    {/* Text input */}
-                                    <input
-                                        ref={inputRef}
-                                        type="text"
-                                        value={recipientInput}
-                                        onChange={(e) => {
-                                            setRecipientInput(e.target.value);
-                                            if (inputError) setInputError('');
-                                        }}
-                                        onKeyDown={handleInputKeyDown}
-                                        placeholder={
-                                            recipients.length === 0
-                                                ? 'Enter an email address…'
-                                                : ''
-                                        }
-                                        style={{
-                                            flex: '1 1 120px',
-                                            minWidth: 120,
-                                            border: 'none',
-                                            background: 'transparent',
-                                            outline: 'none',
-                                            fontSize: 14,
-                                            color: 'var(--text-primary)',
-                                            fontFamily: 'inherit',
-                                            padding: 0,
-                                        }}
-                                    />
-                                </div>
+                                    onError={setInputError}
+                                    invalid={!!inputError}
+                                    excludeEmails={selfIdentifiers}
+                                    inputRef={inputRef}
+                                    inputId="share-recipient-input"
+                                    ariaLabel="Share with — email addresses"
+                                    disabled={isSharing}
+                                />
 
                                 {/* Hint / error */}
                                 {inputError ? (
@@ -553,7 +446,8 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                                             color: 'var(--text-muted)',
                                         }}
                                     >
-                                        Press Enter, comma, or Tab to add an address
+                                        Pick a suggestion, or press Enter, comma, or Tab to
+                                        add an address
                                     </p>
                                 )}
                             </div>

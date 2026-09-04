@@ -31,7 +31,6 @@ import React, {
     useContext,
     useEffect,
 } from 'react';
-import ReactDOM from 'react-dom';
 import {
     IconLock,
     IconShare,
@@ -79,6 +78,7 @@ import { getSettings } from '@/utils/app/settings';
 import { opLanguageOptionsMap } from '@/types/op';
 import { Flag } from '@/components/ReusableComponents/FlagsMap';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
 import { AssistantEmailEvents } from '@/components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents';
 import { addEventTemplate } from '@/services/emailEventService';
 import { formatEmailEventTemplate, safeEmailEventTag } from '@/utils/app/assistantEmailEvents';
@@ -390,220 +390,6 @@ const SectionDivider: React.FC<{ label?: string }> = ({ label }) => (
         {label && <div style={{ height: 1, flex: 1, background: 'var(--border-subtle)' }} />}
     </div>
 );
-
-// ── GroupMemberInput ───────────────────────────────────────────────────────────
-// Autocomplete chip input for adding group members from the user pool.
-
-interface GroupMemberInputProps {
-    selected: string[];
-    onChange: (emails: string[]) => void;
-    allEmails: string[];
-    currentUserEmail?: string;
-}
-
-const GroupMemberInput: React.FC<GroupMemberInputProps> = ({
-    selected,
-    onChange,
-    allEmails,
-    currentUserEmail,
-}) => {
-    const [input, setInput] = useState('');
-    const [showSuggestions, setShowSuggestions] = useState(false);
-    const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
-    const listRef = useRef<HTMLDivElement>(null);
-
-    const available = allEmails.filter(
-        (e) => e !== currentUserEmail && !selected.includes(e)
-    );
-
-    const suggestions = input.trim()
-        ? available.filter((e) => e.toLowerCase().includes(input.toLowerCase()))
-        : available.slice(0, 8);
-
-    const addMember = (email: string) => {
-        const trimmed = email.trim();
-        if (trimmed && !selected.includes(trimmed)) {
-            onChange([...selected, trimmed]);
-        }
-        setInput('');
-        setShowSuggestions(false);
-        inputRef.current?.focus();
-    };
-
-    const removeMember = (email: string) => {
-        onChange(selected.filter((e) => e !== email));
-    };
-
-    // Compute dropdown position from the input element's bounding rect.
-    // Uses position:fixed so it escapes any overflow:hidden ancestors.
-    const updateDropdownPos = useCallback(() => {
-        if (inputRef.current) {
-            const rect = inputRef.current.getBoundingClientRect();
-            setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-        }
-    }, []);
-
-    // Close dropdown on outside click
-    useEffect(() => {
-        const handler = (e: MouseEvent) => {
-            if (
-                !inputRef.current?.contains(e.target as Node) &&
-                !listRef.current?.contains(e.target as Node)
-            ) {
-                setShowSuggestions(false);
-            }
-        };
-        document.addEventListener('mousedown', handler);
-        return () => document.removeEventListener('mousedown', handler);
-    }, []);
-
-    return (
-        <div style={{ position: 'relative' }}>
-            {/* Selected member chips */}
-            {selected.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                    {selected.map((email) => (
-                        <span
-                            key={email}
-                            style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: 4,
-                                padding: '2px 6px 2px 8px',
-                                borderRadius: 20,
-                                background: 'color-mix(in srgb, var(--accent) 12%, var(--bg-raised))',
-                                border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)',
-                                fontSize: 12,
-                                color: 'var(--text-primary)',
-                                maxWidth: 220,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                                whiteSpace: 'nowrap',
-                            }}
-                        >
-                            {email}
-                            <button
-                                type="button"
-                                onClick={() => removeMember(email)}
-                                aria-label={`Remove ${email}`}
-                                style={{
-                                    display: 'inline-flex',
-                                    alignItems: 'center',
-                                    background: 'none',
-                                    border: 'none',
-                                    cursor: 'pointer',
-                                    padding: 0,
-                                    color: 'var(--text-muted)',
-                                    lineHeight: 0,
-                                    flexShrink: 0,
-                                }}
-                            >
-                                <IconX size={11} />
-                            </button>
-                        </span>
-                    ))}
-                </div>
-            )}
-
-            {/* Text input */}
-            <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => {
-                    setInput(e.target.value);
-                    updateDropdownPos();
-                    setShowSuggestions(true);
-                }}
-                onFocus={() => {
-                    updateDropdownPos();
-                    setShowSuggestions(true);
-                }}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const exact = available.find(
-                            (em) => em.toLowerCase() === input.toLowerCase()
-                        );
-                        if (exact) {
-                            addMember(exact);
-                        } else if (input.includes('@')) {
-                            addMember(input.trim());
-                        } else if (suggestions.length > 0) {
-                            addMember(suggestions[0]);
-                        }
-                    } else if (e.key === 'Backspace' && !input && selected.length > 0) {
-                        removeMember(selected[selected.length - 1]);
-                    } else if (e.key === 'Escape') {
-                        setShowSuggestions(false);
-                    }
-                }}
-                placeholder={selected.length === 0 ? 'Search or type an email…' : 'Add more members…'}
-                autoComplete="off"
-                style={{ ...fieldStyle, fontSize: 12 }}
-            />
-
-            {/* Suggestions dropdown — portalled to document.body so overflow:hidden ancestors don't clip it */}
-            {showSuggestions && suggestions.length > 0 && dropdownPos && typeof document !== 'undefined' && ReactDOM.createPortal(
-                <div
-                    ref={listRef}
-                    role="listbox"
-                    aria-label="User suggestions"
-                    style={{
-                        position: 'fixed',
-                        top: dropdownPos.top,
-                        left: dropdownPos.left,
-                        width: dropdownPos.width,
-                        background: 'var(--bg-raised)',
-                        border: '1px solid var(--border-subtle)',
-                        borderRadius: 8,
-                        boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
-                        zIndex: 9999,
-                        overflow: 'hidden',
-                        maxHeight: 200,
-                        overflowY: 'auto',
-                        fontFamily: 'Inter, ui-sans-serif, sans-serif',
-                    }}
-                >
-                    {suggestions.map((email) => (
-                        <button
-                            key={email}
-                            role="option"
-                            aria-selected={false}
-                            type="button"
-                            onMouseDown={(e) => {
-                                e.preventDefault(); // prevent input blur before selection
-                                addMember(email);
-                            }}
-                            style={{
-                                display: 'block',
-                                width: '100%',
-                                textAlign: 'left',
-                                padding: '8px 12px',
-                                fontSize: 13,
-                                background: 'none',
-                                border: 'none',
-                                cursor: 'pointer',
-                                color: 'var(--text-primary)',
-                                fontFamily: 'inherit',
-                            }}
-                            onMouseEnter={(e) => {
-                                (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-                            }}
-                            onMouseLeave={(e) => {
-                                (e.currentTarget as HTMLElement).style.background = 'none';
-                            }}
-                        >
-                            {email}
-                        </button>
-                    ))}
-                </div>,
-                document.body
-            )}
-        </div>
-    );
-};
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
@@ -1678,11 +1464,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                         <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
                                                             Who has access
                                                         </label>
-                                                        <GroupMemberInput
+                                                        <EmailChipsInput
                                                             selected={emailList}
                                                             onChange={setEmailList}
                                                             allEmails={Object.values(amplifyUsers as Record<string, string>)}
                                                             currentUserEmail={session?.user?.email ?? undefined}
+                                                            fontSize={12}
+                                                            inputId="assistant-access-emails"
+                                                            ariaLabel="Who has access — email addresses"
                                                         />
                                                     </div>
                                                 </div>
@@ -1863,11 +1652,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                         <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
                                                             Add members (optional)
                                                         </label>
-                                                        <GroupMemberInput
+                                                        <EmailChipsInput
                                                             selected={selectedMemberEmails}
                                                             onChange={setSelectedMemberEmails}
                                                             allEmails={Object.values(amplifyUsers as Record<string, string>)}
                                                             currentUserEmail={session?.user?.email ?? undefined}
+                                                            fontSize={12}
+                                                            inputId="new-group-members"
+                                                            ariaLabel="Group members — email addresses"
                                                         />
                                                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0' }}>
                                                             Members will be added with editor access. You will be the admin.
