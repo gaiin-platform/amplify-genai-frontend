@@ -144,6 +144,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `integrationIcon.tsx` | `integrationIcon(id, size?)` — the `public/logos/integrations/*.svg` logo for an integration id (underscores → hyphens). Used by Settings → Connectors and the assistant editor's drive panel |
 | `SearchInput.tsx` | The 34px toolbar search field (`IconSearch` + input), with `fullWidth` for use inside a card and an optional `onClear`. Extracted from three verbatim copies. Does **not** cover the divergent fields in `ChatsListView`, `NewLibraryView`, `DataSourceLibraryPicker`, `DriveFileBrowser`, `AttachMenu` |
 | `useIntegrationConnections.ts` | Supported + connected integrations, OAuth popup connect, disconnect, for an optional `filter`. The one copy of that flow; `useDriveIntegrations` is a thin wrapper. Also exports `isConfigurationMessage` — an unconfigured backend answers with a *message*, not a failure worth alerting on |
+| `openAtLatest.ts` | The "open a conversation at its newest message" rule — `nextOpenAtLatestTop` plus its tolerance/frame budgets. Returns the scroll maximum to pin to, or `null` once the user scrolls up. Used by `ConversationViewShell`'s open-at-latest pin loop. No React, no DOM imports |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
 ### `sidebar/`
@@ -317,6 +318,18 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     phantom strips ops out from under the real selection. Seed such state **once** from a
     dedicated inference function that suppresses subsets (`inferSelectedComposites`), and keep
     it out of the saved payload.
+
+21. **The chat shell REMOUNTS on every conversation switch, so anything living in DOM state
+    resets — scroll position included.** `home.tsx` renders it with
+    `key={selectedConversation.id}`, so `.chatcontainer` is a brand-new node at
+    `scrollTop = 0` and the transcript opens on message #1. Chat.tsx does not correct this
+    (its auto-scroll needs the message count to grow *and* the last message to be the
+    user's), so the new UI restores it — `ConversationViewShell`'s open-at-latest
+    `useLayoutEffect` + `shared/openAtLatest.ts`. Restore such state in a **layout** effect
+    (pre-paint, so nothing flashes) and re-assert it for a few frames, because transcript
+    height keeps growing after the first paint (images, highlighting, KaTeX) and a one-shot
+    scroll lands mid-conversation. Yield to the user the moment they scroll, and to
+    `anchorNewPrompt` whenever it has frozen the viewport.
 
 ---
 

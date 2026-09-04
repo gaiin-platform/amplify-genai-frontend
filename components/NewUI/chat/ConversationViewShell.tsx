@@ -22,6 +22,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -46,6 +47,11 @@ import { getSettings } from '@/utils/app/settings';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
+import {
+  nextOpenAtLatestTop,
+  OPEN_AT_LATEST_MAX_FRAMES,
+  OPEN_AT_LATEST_STABLE_FRAMES,
+} from '@/components/NewUI/shared/openAtLatest';
 import type { AttachedDocument } from '@/types/attacheddocument';
 
 interface ConversationViewShellProps {
@@ -928,6 +934,100 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
     // and defeat the anchor entirely.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversation?.id, releaseScroll, applyRoom]);
+
+  // ── Open a conversation at its NEWEST message, not its first ───────────────
+  //
+  // BUG: switching chats dropped the user at the start of the conversation.
+  //
+  // ROOT CAUSE: home.tsx renders this shell with `key={selectedConversation.id}`
+  // (~L1739), so a conversation switch REMOUNTS the shell and Chat.tsx with it.
+  // Scroll position is DOM state on `.chatcontainer`, so the fresh node starts at
+  // `scrollTop = 0` — message #1. Chat.tsx never corrects it: its auto-scroll
+  // (~L1045) requires the message count to GROW *and* the last message to be the
+  // user's, and opening history satisfies neither.
+  //
+  // WHY useLayoutEffect: the transcript is in the DOM in the same commit that
+  // mounts us, so scrolling here happens BEFORE the browser paints — the user
+  // never sees the top of the conversation flash by.
+  //
+  // WHY A LOOP, not one scroll: transcript height keeps growing after that first
+  // paint (images decoding, code-block highlighting, KaTeX, tables). A one-shot
+  // scroll would land mid-conversation as soon as anything below the fold grew.
+  // The loop re-pins per frame, stops as soon as height is stable
+  // (OPEN_AT_LATEST_STABLE_FRAMES) so the user isn't held at the bottom, and gives
+  // up after OPEN_AT_LATEST_MAX_FRAMES.
+  //
+  // WHO WINS: `nextOpenAtLatestTop` returns null the moment scrollTop moves up by
+  // more than the tolerance — a user scrolling up during the window keeps their
+  // position. And `frozenNodeRef` (set by anchorNewPrompt) ends the pin outright,
+  // because a just-sent prompt anchored below the header outranks "show the end".
+  useLayoutEffect(() => {
+    // No transcript to open at the end of — a brand-new conversation, or the
+    // 0×0 offscreen instance home.tsx mounts before the first send.
+    if (!selectedConversation?.messages?.length) return;
+
+    // A send from NewHome is about to be injected into this very mount (or is
+    // already streaming). The send-anchoring effects own the viewport for that;
+    // pinning to the bottom would fight them.
+    const hasPendingSend =
+      typeof window !== 'undefined' &&
+      (sessionStorage.getItem('amplify_pending_message') !== null ||
+        sessionStorage.getItem('amplify_pending_message_id') !== null);
+    if (hasPendingSend || messageIsStreaming) return;
+
+    let raf = 0;
+    let cancelled = false;
+    let frames = 0;
+    let stableFrames = 0;
+    let lastHeight = -1;
+    /** The scrollTop we left behind last frame — how we detect a user scroll. */
+    let lastAppliedTop: number | null = null;
+
+    const step = () => {
+      if (cancelled) return;
+
+      const container = getContainer();
+      if (!container) {
+        // Chat.tsx mounts `.chatcontainer` in this same commit, so this is only
+        // a safety net; retry within the same frame budget.
+        if (frames++ < OPEN_AT_LATEST_MAX_FRAMES) raf = requestAnimationFrame(step);
+        return;
+      }
+
+      // anchorNewPrompt has taken over (a prompt was sent while we were pinning).
+      if (frozenNodeRef.current) return;
+
+      const target = nextOpenAtLatestTop(container, lastAppliedTop);
+      if (target === null) return; // the user scrolled up — their position wins
+
+      if (Math.round(target) !== Math.round(container.scrollTop)) {
+        // Mark it as OUR scroll so the follow-the-output listener above doesn't
+        // read it as the user asking to follow, and so it can't be mistaken for
+        // user intent by anything else keyed on progScrollUntilRef.
+        progScrollUntilRef.current = Date.now() + PROG_SCROLL_GRACE_MS;
+        container.scrollTop = target;
+      }
+      lastAppliedTop = container.scrollTop;
+
+      stableFrames = container.scrollHeight === lastHeight ? stableFrames + 1 : 0;
+      lastHeight = container.scrollHeight;
+
+      if (stableFrames >= OPEN_AT_LATEST_STABLE_FRAMES) return;
+      if (frames++ >= OPEN_AT_LATEST_MAX_FRAMES) return;
+      raf = requestAnimationFrame(step);
+    };
+
+    // First pass synchronously — pre-paint, so there is no visible jump.
+    step();
+
+    return () => {
+      cancelled = true;
+      if (raf) cancelAnimationFrame(raf);
+    };
+    // Conversation identity only. Re-running on message changes would yank the
+    // viewport to the bottom mid-read every time a message arrived.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversation?.id, getContainer]);
 
   // Never leave a patched node behind on unmount.
   useEffect(() => releaseScroll, [releaseScroll]);
