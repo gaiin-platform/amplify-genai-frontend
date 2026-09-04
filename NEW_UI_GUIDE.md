@@ -145,6 +145,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `SearchInput.tsx` | The 34px toolbar search field (`IconSearch` + input), with `fullWidth` for use inside a card and an optional `onClear`. Extracted from three verbatim copies. Does **not** cover the divergent fields in `ChatsListView`, `NewLibraryView`, `DataSourceLibraryPicker`, `DriveFileBrowser`, `AttachMenu` |
 | `useIntegrationConnections.ts` | Supported + connected integrations, OAuth popup connect, disconnect, for an optional `filter`. The one copy of that flow; `useDriveIntegrations` is a thin wrapper. Also exports `isConfigurationMessage` — an unconfigured backend answers with a *message*, not a failure worth alerting on |
 | `openAtLatest.ts` | The "open a conversation at its newest message" rule — `nextOpenAtLatestTop` plus its tolerance/frame budgets. Returns the scroll maximum to pin to, or `null` once the user scrolls up. Used by `ConversationViewShell`'s open-at-latest pin loop. No React, no DOM imports |
+| `uiPreferenceResolution.ts` | The stored new-vs-classic choice: `UI_PREF_KEY`, `getUIPreference`, `writeLocalUIPreference`, `resolveStoredUIPreference` (server beats localStorage; only `'ask'` may show the popup), and the `?uiPreference=reset` helpers. No React imports |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
 ### `sidebar/`
@@ -330,6 +331,19 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     height keeps growing after the first paint (images, highlighting, KaTeX) and a one-shot
     scroll lands mid-conversation. Yield to the user the moment they scroll, and to
     `anchorNewPrompt` whenever it has frozen the viewport.
+
+22. **`uiPreference` starts `null` on every load, and `null` renders the *classic* layout.**
+    `home.tsx` seeds it from localStorage in a passive effect and from the server in
+    `fetchSettings()`, so the unresolved window is a window in which the old UI is on
+    screen and any component gated on `uiPreference === null` is mounted over it. Two
+    consequences: a first-run prompt gated that way flashes open and closes itself the
+    moment the server answers, and the old UI is briefly visible on any device whose
+    localStorage is empty. `UIPreferenceBanner` owns both — it resolves the stores
+    itself before rendering anything, holds an opaque cover (not `null`) while
+    resolving, and does the synchronous localStorage branch in a **layout** effect so
+    that path costs no visible frame. `?uiPreference=reset` erases both stores and
+    reloads to re-test the first run; clearing localStorage alone is not enough,
+    because the server value is restored on the next load.
 
 ---
 
