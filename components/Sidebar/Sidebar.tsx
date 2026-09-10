@@ -161,9 +161,9 @@ const Sidebar = <T,>({
 
         {/* Scroll area — always fills remaining space to bottom */}
         <div
-          className="relative w-[268px] enhanced-sidebar overflow-y-auto"
+          className="relative w-[268px] enhanced-sidebar overflow-y-auto overflow-x-hidden"
           id="sidebarScroll"
-          style={{ height: `calc(100vh - ${headerHeight*1.50}px)` }}
+          style={{ height: `calc(100vh - ${headerHeight*1.50}px)` , scrollbarWidth: 'thin'}}
         >
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             {items?.length > 0 && (

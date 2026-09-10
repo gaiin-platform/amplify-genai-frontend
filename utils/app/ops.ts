@@ -27,25 +27,20 @@ export const remoteOpHandler = (opDef:OpDef, chatEndpoint: string, model: Model,
     const defaultErrorMessage = opData.defaultErrorMessage;
     const includeMessage = opData.includeMessage;
     const includeConversation = opData.includeConversation;
-    const includeAccessToken = opData.includeAccessToken;
     const shouldConfirm = opData.shouldConfirm;
     const confirmationMessage = opData.confirmationMessage || "Do you want to allow the assistant to perform the specified operation?";
 
     return async (params:any) => {
         if(!shouldConfirm || confirm(confirmationMessage)){
 
-            const headers = {
-                "Content-Type": "application/json"
-            }
-            if (includeAccessToken){
-                console.log("Including access token");
-                // @ts-ignore
-                headers["Authorization"] = `Bearer ${session?.accessToken}` // Assuming the API Gateway/Lambda expects a Bearer token
-            }
-
+            // Note: ops execute through execOp (server-side requestOp proxy), which
+            // attaches the user's token server-side. The old opData.includeAccessToken
+            // flag referenced an undefined `session` and never worked, so it is ignored.
             const req:Record<string,any> = {
                 method,
-                headers
+                headers: {
+                    "Content-Type": "application/json"
+                }
             };
 
             const payload:Record<string,any> = {};

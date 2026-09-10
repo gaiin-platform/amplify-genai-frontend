@@ -10,20 +10,25 @@ export interface MetaHandler {
     shouldAbort: () => boolean;
 }
 
-export async function killRequest(endpoint: string, accessToken: string, requestId: string) {
-    const res = await fetch(endpoint, {
+// All chat traffic goes through the server-side proxy at /api/chat/proxy, which
+// attaches the Cognito access token from the JWT cookie. The token is never
+// exposed to client JS.
+export async function killRequest(requestId: string) {
+    const res = await fetch('/api/chat/proxy', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + accessToken,
         },
-        body:JSON.stringify({killSwitch:{requestId, value:true}}),
+        body: JSON.stringify({body: {killSwitch: {requestId, value: true}}}),
     });
 
     return res.status === 200;
 }
 
-export async function sendChatRequestWithDocuments(endpoint: string, accessToken: string, chatBody: ChatBody, abortSignal?: AbortSignal, metaHandler?: MetaHandler) {
+// `endpoint` is an optional override (e.g. an assistant-defined uri); the proxy
+// validates it against its allowlist. Pass the default chat endpoint or null to
+// use the server-configured CHAT_ENDPOINT.
+export async function sendChatRequestWithDocuments(endpoint: string | null, chatBody: ChatBody, abortSignal?: AbortSignal, metaHandler?: MetaHandler) {
 
     if (chatBody.response_format && chatBody.response_format.type === 'json_object') {
         if (!chatBody.messages.some(m => m.content.indexOf('json') > -1)) {
@@ -31,7 +36,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
         }
     }
 
-    const keysToExclude = ['messages', 'temperature', 'max_tokens', 'stream', 'dataSources'];
+    const keysToExclude = ['messages', 'temperature', 'max_tokens', 'stream', 'dataSources', 'codeInterpreterRecordId'];
     const vendorProps = Object.fromEntries(
         Object.entries(chatBody).filter(([key, _]) => !keysToExclude.includes(key))
     );
@@ -40,7 +45,7 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
     // Use the timzezone to get the user's local time
     const time = new Date().toLocaleString('en-US', {timeZone: timeZone});
 
-    let requestBody = {
+    let requestBody: any = {
         model: chatBody.model.id,
         temperature: chatBody.temperature,
         max_tokens: chatBody.maxTokens || 2048,
@@ -63,15 +68,20 @@ export async function sendChatRequestWithDocuments(endpoint: string, accessToken
         }
     }
 
+    // codeInterpreterRecordId must be a top-level field so the backend can
+    // locate the correct AgentCore session without digging through options.
+    if (chatBody.codeInterpreterRecordId) {
+        requestBody.codeInterpreterRecordId = chatBody.codeInterpreterRecordId;
+    }
+
     // console.log('sending chat request with dataSources', requestBody);
 
-    const body = JSON.stringify(requestBody);
+    const body = JSON.stringify({endpoint: endpoint || null, body: requestBody});
 
-    const res = await fetch(endpoint, {
+    const res = await fetch('/api/chat/proxy', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'Authorization': 'Bearer ' + accessToken,
         },
         signal: abortSignal,
         body,

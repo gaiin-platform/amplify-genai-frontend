@@ -106,9 +106,12 @@ const handleAddArtifactToConversation = async (key: string, index:number) => {
     // If using new pending artifacts pattern
     if (onAddPendingArtifact) {
         // Add to pending list immediately
+        // Derive artifactId from the key if the artifact object doesn't have it
+        // key format: "20251020/Fun_Animated_SVG:v1" → artifactId: "Fun_Animated_SVG:v1"
+        const resolvedArtifactId = artifact.artifactId || key.split('/').slice(1).join('/');
         const pendingArtifact: PendingArtifact = {
             key,
-            artifactId: artifact.artifactId,
+            artifactId: resolvedArtifactId,
             name: artifact.name,
             description: artifact.description,
             loadingState: 'loading'

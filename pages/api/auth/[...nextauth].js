@@ -6,7 +6,7 @@ import { decodeJwt } from "jose";
 export const authOptions = {
     // Configure one or more authentication providers
     session: {
-        maxAge: 59 * 60
+        maxAge: 3 * 60 * 60 // 3 hours - client-side inactivity tracker handles 1-hour timeout
     },
     providers: [
         CognitoProvider({
@@ -28,7 +28,7 @@ export const authOptions = {
             return true;
         },
         async jwt({ token, profile, account }) {
-            const SESSION_MAX_AGE_MS = 59 * 60 * 1000;
+            const SESSION_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours - client-side inactivity tracker handles 1-hour timeout
             const attr = process.env.IMMUTABLE_ID_ATTRIBUTE;
             if (profile && attr && profile[attr]) {
                 token.immutableId = profile[attr];
@@ -97,8 +97,9 @@ export const authOptions = {
         },
 
         async session({ session, token, user }) {
-            // Send properties to the client, like an access_token from a provider.
-            session.accessToken = token.accessToken;
+            // Send properties to the client. The Cognito access token deliberately stays
+            // server-side in the JWT cookie — API routes read it via getServerAccessToken()
+            // (utils/server/accessToken.ts) instead of exposing it to client JS here.
             session.error = token.error;
             session.upgradedOrCreated = !!token.upgradedOrCreated;
             session.user.username = token.immutableId;
@@ -108,7 +109,7 @@ export const authOptions = {
     secret: process.env.NEXTAUTH_SECRET,
 }
 
-async function refreshAccessToken(token) {
+export async function refreshAccessToken(token) {
     try {
 
         if(!token || !token.refreshToken){

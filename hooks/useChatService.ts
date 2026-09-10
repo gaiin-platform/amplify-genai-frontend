@@ -7,7 +7,6 @@ import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
 import {wrapResponse, stringChunkCallback} from "@/utils/app/responseWrapper";
 
-import {getSession} from "next-auth/react"
 import json5 from "json5";
 import {newStatus} from "@/types/workflow";
 import { DefaultModels } from "@/types/model";
@@ -21,15 +20,11 @@ export function useChatService() {
     } = useContext(HomeContext);
 
     const killRequest = async (requestId:string) => {
-        const session = await getSession();
-
-        // @ts-ignore
-        if(!session || !session.accessToken || !chatEndpoint){
+        if(!chatEndpoint){
             return false;
         }
 
-        // @ts-ignore
-        const result = await killReq(chatEndpoint, session.accessToken, requestId);
+        const result = await killReq(requestId);
 
         return result;
     }
@@ -151,10 +146,7 @@ export function useChatService() {
 
         const targetEndpoint = chatBody.endpoint || chatEndpoint;
 
-        response = getSession().then((session) => {
-            // @ts-ignore
-            return sendChatRequestWithDocuments(targetEndpoint, session.accessToken, chatBody, abortSignal, metaHandler);
-        }).catch((e) => {
+        response = sendChatRequestWithDocuments(targetEndpoint, chatBody, abortSignal, metaHandler).catch((e) => {
             if(chatBody.assistantId){
                 alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");
             }

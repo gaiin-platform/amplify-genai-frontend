@@ -36,7 +36,6 @@ import HomeContext from "@/pages/api/home/home.context";
 
 
 import PromptTextArea from "@/components/PromptTextArea/PromptTextArea";
-import {getSession} from "next-auth/react";
 import toast from 'react-hot-toast';
 
 
@@ -301,18 +300,10 @@ if __name__ == "__main__":
     const [allowedGroups, setAllowedGroups] = useState<string[]>([]);
     const [newGroupInput, setNewGroupInput] = useState('');
     const [testCases, setTestCases] = useState<any[]>([]);
-    const [accessToken, setAccessToken] = useState<string | null>(null);
     const [groupedFunctions, setGroupedFunctions] = useState<Record<string, any[]>>({});
     const [expandedApps, setExpandedApps] = useState<Record<string, boolean>>({});
     const [loadingFunctionDetails, setLoadingFunctionDetails] = useState(false);
     const [dependencies, setDependencies] = useState('');
-
-    useEffect(() => {
-        getSession().then((session) => {
-            // @ts-ignore
-            setAccessToken(session.accessToken || null);
-        });
-    }, []);
 
     useEffect(() => {
       const groups: Record<string, any[]> = { All: [...userFunctions] };
@@ -1667,13 +1658,11 @@ Output only a markdown code block like this:
                                                         <button
                                                             className="text-xs text-blue-600 hover:underline ml-2"
                                                     onClick={() => {
-                                                        if (!accessToken) {
-                                                            alert("Access token not available.");
-                                                            return;
-                                                        }
+                                                        // The session access token is no longer exposed to client JS;
+                                                        // users substitute their own Amplify API key for the placeholder.
                                                         const input = typeof tc.inputJson === 'string' ? JSON.parse(tc.inputJson) : tc.inputJson;
                                                         const curlCommand = `curl -X POST '${publicationData.uri}' \\
- -H 'Authorization: Bearer ${accessToken}' \\
+ -H 'Authorization: Bearer <YOUR_API_KEY>' \\
  -H 'Content-Type: application/json' \\
  -d '${JSON.stringify({ data: input }, null, 2)}'`;
                                                         navigator.clipboard.writeText(curlCommand)

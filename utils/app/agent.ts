@@ -3,7 +3,6 @@ import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatServic
 import { Conversation, Message } from "@/types/chat";
 import { newStatus } from "@/types/workflow";
 import { deepMerge } from "./state";
-import { getSession } from "next-auth/react";
 import { Model } from "@/types/model";
 import { Account } from "@/types/accounts";
 import cloneDeep from "lodash/cloneDeep";
@@ -149,11 +148,6 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
         shouldAbort: () => false
     };
 
-    const accessToken = await getSession().then((session) => { 
-                            // @ts-ignore
-                            return session.accessToken
-                        })
-
     const userPromptMsg = selectedConversation.messages
     .filter(message => message.role === 'user')
     .slice(-1)[0];
@@ -201,7 +195,6 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
     const chatBody: any = {
         model: model,
         messages: agentMessages(agentResult, userPrompt, msgData, olderMessagesDataSources, selectedConversation.messages),
-        key: accessToken,
         prompt: "You are an AI assistant responding to a user's question. You have been provided with: (1) an assistant's work log, and (2) reference documents via RAG retrieval. CRITICAL RULES: Only use information from these sources. If reference documents are provided in the conversation, you HAVE access to their content - use it. Never claim you lack access to provided information. Never make up information. If the provided sources don't contain the answer, explicitly state that. Always ground your response in the actual content provided to you.",
         temperature: 0.5,
         maxTokens: 4000,
@@ -222,7 +215,7 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
     };
 
     statsService.sendChatEvent(chatBody);
-    const response = await sendChatRequestWithDocuments(chatEndpoint || '', accessToken, chatBody, controller.signal, metaHandler);
+    const response = await sendChatRequestWithDocuments(chatEndpoint || null, chatBody, controller.signal, metaHandler);
                  
     let updatedConversation = cloneDeep(selectedConversation);
 

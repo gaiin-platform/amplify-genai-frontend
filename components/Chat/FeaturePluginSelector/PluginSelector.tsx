@@ -122,14 +122,22 @@ export const PluginSelector: FC<Props> = ({
     } 
 
     if (isActivePlugin(plugin)) { // turn off
-        // turning off RAG means RAG_EVAL needs to be off as well 
+        // turning off RAG means RAG_EVAL needs to be off as well
         let updatedPlugins = plugins.filter((p:Plugin) => p.id !== plugin?.id &&
-                                            (plugin?.id === PluginID.RAG ? 
+                                            (plugin?.id === PluginID.RAG ?
                                                    p.id !== PluginID.RAG_EVAL : true));
         onPluginChange(updatedPlugins);
     } else { // turn on
+        // Artifacts and Code Interpreter are not compatible - turning one on turns the other off.
+        let updatedPlugins = plugins;
+        if (plugin.id === PluginID.ARTIFACTS) {
+          updatedPlugins = updatedPlugins.filter((p:Plugin) => p.id !== PluginID.CODE_INTERPRETER);
+        } else if (plugin.id === PluginID.CODE_INTERPRETER) {
+          updatedPlugins = updatedPlugins.filter((p:Plugin) => p.id !== PluginID.ARTIFACTS);
+        }
+
         // turning on RAG_EVAL means RAG is required to be on as well
-        const updatedPlugins = [...plugins, plugin];
+        updatedPlugins = [...updatedPlugins, plugin];
         if (plugin.id === PluginID.RAG_EVAL && !isActivePlugin(Plugins[PluginID.RAG])) {
           updatedPlugins.push(Plugins[PluginID.RAG]);
         }

@@ -1,5 +1,4 @@
 // Skills service for managing user skills
-import { getSession } from "next-auth/react";
 import {
     Skill,
     SkillsRequest,
@@ -19,13 +18,6 @@ const sendSkillsRequest = async <T = any>(
     data: any = {}
 ): Promise<SkillsResponse<T>> => {
     try {
-        const session = await getSession();
-
-        // @ts-ignore
-        if (!session || !session.accessToken) {
-            throw new Error("No session available");
-        }
-
         if (!chatEndpoint) {
             throw new Error("Chat endpoint not configured");
         }
@@ -37,14 +29,14 @@ const sendSkillsRequest = async <T = any>(
             }
         };
 
-        const response = await fetch(chatEndpoint, {
+        // Routed through the server-side chat proxy, which attaches the
+        // Cognito access token from the JWT cookie.
+        const response = await fetch('/api/chat/proxy', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
-                // @ts-ignore
-                'Authorization': `Bearer ${session.accessToken}`
+                'Content-Type': 'application/json'
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify({ endpoint: chatEndpoint, body: requestBody })
         });
 
         if (!response.ok) {

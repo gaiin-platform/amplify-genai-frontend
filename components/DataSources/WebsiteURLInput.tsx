@@ -230,7 +230,7 @@ export const WebsiteURLInput: React.FC<WebsiteURLInputProps> = ({ onAddURL }) =>
 // Website scan scheduler interface and component
 interface WebsiteScanSchedule {
   enabled: boolean;
-  frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+  frequency: 'none' | 'daily' | 'weekly' | 'monthly' | 'quarterly';
   scanFrequency: number | null; // days between scans
   maxPages?: number; // for sitemaps only
 }
@@ -249,9 +249,10 @@ export const WebsiteScanScheduler: React.FC<WebsiteScanSchedulerProps> = ({ init
     const scanFrequency = urlItem.scanFrequency;
     return {
       enabled: scanFrequency !== null,
-      frequency: scanFrequency === 1 ? 'daily' : 
-                 scanFrequency === 7 ? 'weekly' : 
-                 scanFrequency === 30 ? 'monthly' : 'none',
+      frequency: scanFrequency === 1 ? 'daily' :
+                 scanFrequency === 7 ? 'weekly' :
+                 scanFrequency === 30 ? 'monthly' :
+                 scanFrequency === 90 ? 'quarterly' : 'none',
       scanFrequency: scanFrequency,
       maxPages: urlItem.maxPages
     };
@@ -372,10 +373,11 @@ export const WebsiteScanScheduler: React.FC<WebsiteScanSchedulerProps> = ({ init
                             value={schedule.frequency}
                             onChange={(e) => {
                               const frequency = e.target.value as WebsiteScanSchedule['frequency'];
-                              const scanFrequency = 
+                              const scanFrequency =
                                 frequency === 'daily' ? 1 :
                                 frequency === 'weekly' ? 7 :
-                                frequency === 'monthly' ? 30 : null;
+                                frequency === 'monthly' ? 30 :
+                                frequency === 'quarterly' ? 90 : null;
                               
                               const newSchedule: WebsiteScanSchedule = { ...schedule, frequency, scanFrequency };
                               updateScheduleForWebsiteUrl(urlItem, newSchedule);
@@ -385,6 +387,7 @@ export const WebsiteScanScheduler: React.FC<WebsiteScanSchedulerProps> = ({ init
                             <option value="daily">Daily</option>
                             <option value="weekly">Weekly</option>
                             <option value="monthly">Monthly</option>
+                            <option value="quarterly">Quarterly</option>
                           </select>
                         </div>
 

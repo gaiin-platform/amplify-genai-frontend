@@ -888,8 +888,6 @@ export const ChatMessage: FC<Props> = memo(({
                                             <ChatCodeInterpreterFileBlock
                                                 messageIsStreaming={messageIsStreaming}
                                                 message={message}
-                                                selectedConversation={selectedConversation}
-                                                updateConversation={handleUpdateSelectedConversation}
                                             />}
                                           <ChatSourceBlock
                                             messageIsStreaming={messageIsStreaming}

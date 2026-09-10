@@ -40,14 +40,17 @@ class IndexedStorage {
 
   async setItem(key: string, value: string): Promise<void> {
     await this.ensureInit();
-    
+
     return new Promise((resolve, reject) => {
       const tx = this.db!.transaction([this.storeName], 'readwrite');
       const store = tx.objectStore(this.storeName);
-      const request = store.put({ key, value });
-      
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      store.put({ key, value });
+
+      // Resolve on tx.oncomplete (transaction committed to disk),
+      // not request.onsuccess (request accepted but not yet committed).
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
   }
 
@@ -69,14 +72,15 @@ class IndexedStorage {
 
   async removeItem(key: string): Promise<void> {
     await this.ensureInit();
-    
+
     return new Promise((resolve, reject) => {
       const tx = this.db!.transaction([this.storeName], 'readwrite');
       const store = tx.objectStore(this.storeName);
-      const request = store.delete(key);
-      
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
+      store.delete(key);
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
     });
   }
 
@@ -93,23 +97,35 @@ class IndexedStorage {
     }
   }
 
-  // Mark key as migrated
+  // Mark key as migrated — atomic read-modify-write in a single readwrite
+  // transaction so concurrent calls cannot interleave and lose keys.
   async markMigrated(key: string): Promise<void> {
-    let migrationStatus = await this.getItem(this.migrationKey);
-    let migratedKeys: string[] = [];
-    
-    if (migrationStatus) {
-      try {
-        migratedKeys = JSON.parse(migrationStatus);
-      } catch {
-        migratedKeys = [];
-      }
-    }
-    
-    if (!migratedKeys.includes(key)) {
-      migratedKeys.push(key);
-      await this.setItem(this.migrationKey, JSON.stringify(migratedKeys));
-    }
+    await this.ensureInit();
+
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([this.storeName], 'readwrite');
+      const store = tx.objectStore(this.storeName);
+      const getReq = store.get(this.migrationKey);
+
+      getReq.onsuccess = () => {
+        let migratedKeys: string[] = [];
+        if (getReq.result?.value) {
+          try {
+            migratedKeys = JSON.parse(getReq.result.value);
+          } catch {
+            migratedKeys = [];
+          }
+        }
+        if (!migratedKeys.includes(key)) {
+          migratedKeys.push(key);
+          store.put({ key: this.migrationKey, value: JSON.stringify(migratedKeys) });
+        }
+      };
+
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
   }
 
   // Migrate single key from localStorage to IndexedDB

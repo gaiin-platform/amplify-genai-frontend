@@ -25,7 +25,10 @@ import {
 } from '@/services/notebookService';
 
 interface Props {
-    notebookId: string;
+    // Optional: when a source isn't linked to any notebook (e.g. opened from
+    // the global Sources page), this dialog still works for viewing/generating
+    // insights — only "Save as note" needs a notebook to save into.
+    notebookId?: string;
     source: SourceListItem;
     onClose: () => void;
     // Bubble the new count up so the parent's source list reflects it without
@@ -154,6 +157,7 @@ export const SourceInsightsDialog = ({
     };
 
     const handleSaveAsNote = async (insight: SourceInsight) => {
+        if (!notebookId) return;
         setSavingNoteId(insight.id);
         const note = await saveInsightAsNote(insight.id, notebookId);
         setSavingNoteId(null);
@@ -301,7 +305,8 @@ export const SourceInsightsDialog = ({
                                             <div className="mt-2 flex flex-wrap items-center gap-2">
                                                 <button
                                                     onClick={() => handleSaveAsNote(insight)}
-                                                    disabled={savingNoteId === insight.id}
+                                                    disabled={savingNoteId === insight.id || !notebookId}
+                                                    title={notebookId ? undefined : 'Open this source from within a notebook to save insights as notes'}
                                                     className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700 disabled:opacity-50"
                                                 >
                                                     {savingNoteId === insight.id ? (

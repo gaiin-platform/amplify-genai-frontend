@@ -1,34 +1,18 @@
 import { NextApiRequest, NextApiResponse } from "next";
-import { getSession } from "next-auth/react";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/pages/api/auth/[...nextauth]";
+import { getServerAccessToken } from "@/utils/server/accessToken";
 
 const getPresignedUrl =
     async (req: NextApiRequest, res: NextApiResponse) => {
 
-        const session = await getServerSession(req, res, authOptions);
+        const accessToken = await getServerAccessToken(req);
 
-        if (!session) {
-            // Unauthorized access, no session found
+        if (!accessToken) {
             return res.status(401).json({ error: 'Unauthorized' });
         }
 
-        const { accessToken } = session;
-
         const itemData = req.body;
 
-        // Check if file service should run locally (same logic as doRequestOp)
-        let apiUrl = (process.env.API_BASE_URL || "") + '/files/upload';
-        const localServices = process.env.NEXT_PUBLIC_LOCAL_SERVICES || '';
-        const serviceConfigs = localServices.split(',').map(s => s.trim());
-        for (const config of serviceConfigs) {
-            const [service, port, stage] = config.split(':');
-            if (service?.trim() === 'file' && port) {
-                apiUrl = `http://localhost:${port.trim()}/${(stage || 'dev').trim()}/files/upload`;
-                console.log('[UPLOAD] Routing to local file service:', apiUrl);
-                break;
-            }
-        }
+        const apiUrl = (process.env.API_BASE_URL || "") + '/files/upload';
 
         try {
 

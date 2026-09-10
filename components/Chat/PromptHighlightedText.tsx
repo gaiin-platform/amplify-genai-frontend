@@ -5,7 +5,6 @@ import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";
 import React, { useContext, useEffect, useRef } from "react";
 import { useState } from "react";
 import { HighlightPromptTypes, highlightSource } from "@/types/highlightTextPrompts";
-import { getSession } from "next-auth/react";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
 import { DEFAULT_ASSISTANT } from "@/types/assistant";
 import { deepMerge } from "@/utils/app/state";
@@ -995,10 +994,6 @@ const handleParagraphSelection = (range: Range) => {
             }
         };
     
-    const accessToken = await getSession().then((session) => { 
-                                // @ts-ignore
-                                return session.accessToken
-                            })
     movePulse();
     homeDispatch({field: 'messageIsStreaming', value: true}); 
     if (isArtifactSource) homeDispatch({field: 'artifactIsStreaming', value: true});
@@ -1006,7 +1001,6 @@ const handleParagraphSelection = (range: Range) => {
         const chatBody = {
             model: selectedConversation?.model ?? getDefaultModel(DefaultModels.DEFAULT),
             messages: [message],
-            key: accessToken,
             prompt: prompt,
             temperature: 0.5,
             maxTokens: 4000,
@@ -1017,7 +1011,7 @@ const handleParagraphSelection = (range: Range) => {
         };
 
         statsService.sendChatEvent(chatBody);
-        const response = await sendChatRequestWithDocuments(chatEndpoint || '', accessToken, chatBody, controller.signal);
+        const response = await sendChatRequestWithDocuments(chatEndpoint || null, chatBody, controller.signal);
         
         let updatedConversation = cloneDeep(selectedConversation);
 

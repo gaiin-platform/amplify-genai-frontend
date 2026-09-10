@@ -1,46 +1,63 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
+import remarkGfm from 'remark-gfm';
+import HomeContext from '@/pages/api/home/home.context';
 import {
-    IconPlus,
-    IconSend,
-    IconTrash,
-    IconChevronDown,
-} from '@tabler/icons-react';
+    LucideBot,
+    LucideCheck,
+    LucideClock,
+    LucideCopy,
+    LucideLoader2,
+    LucideSave,
+    LucideSend,
+    LucideUser,
+} from './LucideIcons';
 import {
     ChatMessage,
     ChatSession,
     ContextSelections,
     Note,
+    NotebookModel,
     SourceListItem,
+    buildChatContext,
     createChatSession,
+    createNote,
     deleteChatSession,
     getChatSession,
     listChatSessions,
     sendChatMessage,
+    updateChatSession,
 } from '@/services/notebookService';
 import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
+import { ChatModelSelect } from './ChatModelSelect';
+import { ContextIndicator } from './ContextIndicator';
+import { formatModelName } from './modelDisplay';
+import { resolveContextWindow } from './modelContext';
+import { SessionManagerModal } from './SessionManagerModal';
 
 interface Props {
     notebookId: string;
     contextSelections: ContextSelections;
     sources: SourceListItem[];
     notes: Note[];
+    // Lets "Save to note" on AI replies surface the new note in the Notes
+    // panel immediately.
+    onNoteSaved?: (note: Note) => void;
 }
 
 // The LLM emits citations as raw SurrealDB record IDs (e.g. `[source:abc]`,
 // `source:abc` bare, `[[source:abc]]`, or `[source:a, note:b]` comma-grouped).
 // Ported from open-notebook's convertReferencesToCompactMarkdown so we cover the
-// same edge cases. Output is a segment list (mix of plain text + numbered
-// citation buttons) plus an ordered citation list for the footer.
-type RefType = 'source' | 'note' | 'source_insight';
+// same edge cases. Output is the message text with each citation rewritten as a
+// markdown link (`[n](#ref-type-id)`) so the whole message can be rendered
+// through react-markdown, plus an ordered citation list for the footer.
+type RefType = 'source' | 'note' | 'source_insight' | 'insight';
 interface ParsedRef {
     type: RefType;
     id: string;
     startIndex: number;
     endIndex: number;
 }
-type Segment =
-    | { kind: 'text'; text: string }
-    | { kind: 'citation'; n: number; type: RefType; id: string };
 interface Citation {
     n: number;
     type: RefType;
@@ -49,11 +66,21 @@ interface Citation {
     targetDomId: string;
 }
 interface RenderedMessage {
-    segments: Segment[];
+    // Message text with inline citations rewritten as markdown links
+    // (`[n](#ref-type-id)`); rendered via react-markdown so **bold**, lists,
+    // tables, etc. render, while the numbered citations stay clickable through
+    // a custom link renderer that intercepts `#ref-` hrefs.
+    markdown: string;
     citations: Citation[];
 }
 
-const REF_RE = /(source_insight|note|source):([A-Za-z0-9_]+)/g;
+// The source-chat/notebook-chat system prompts tell the model to cite
+// insights with the shorthand `insight:<id>`, but the actual SurrealDB table
+// (and the id the model copies out of context) is `source_insight:<id>`.
+// That mismatch let raw `insight:xxxx` citations slip past this regex
+// untouched, leaking the id straight into the rendered message. Match the
+// bare `insight` alias too so it gets the same citation treatment.
+const REF_RE = /(source_insight|insight|note|source):([A-Za-z0-9_]+)/g;
 
 const parseRefs = (text: string): ParsedRef[] => {
     const refs: ParsedRef[] = [];
@@ -77,7 +104,7 @@ const renderCitations = (
 ): RenderedMessage => {
     const refs = parseRefs(raw);
     if (refs.length === 0) {
-        return { segments: [{ kind: 'text', text: raw }], citations: [] };
+        return { markdown: raw, citations: [] };
     }
 
     const order = new Map<string, number>();
@@ -87,7 +114,10 @@ const renderCitations = (
         if (!order.has(key)) order.set(key, next++);
     }
 
-    const segments: Segment[] = [];
+    // Rebuild the message text, replacing each citation (and any surrounding
+    // brackets) with a markdown link `[n](#ref-type-id)` so react-markdown
+    // renders the surrounding prose while the citation stays clickable.
+    let markdown = '';
     let pos = 0;
     for (const r of refs) {
         const before = raw.substring(Math.max(0, r.startIndex - 2), r.startIndex);
@@ -101,12 +131,12 @@ const renderCitations = (
             from = r.startIndex - 1;
             to = r.endIndex + 1;
         }
-        if (from > pos) segments.push({ kind: 'text', text: raw.substring(pos, from) });
+        if (from > pos) markdown += raw.substring(pos, from);
         const n = order.get(`${r.type}:${r.id}`)!;
-        segments.push({ kind: 'citation', n, type: r.type, id: r.id });
+        markdown += `[${n}](#ref-${r.type}-${r.id})`;
         pos = to;
     }
-    if (pos < raw.length) segments.push({ kind: 'text', text: raw.substring(pos) });
+    if (pos < raw.length) markdown += raw.substring(pos);
 
     const citations: Citation[] = Array.from(order.entries()).map(([key, n]) => {
         const [type, id] = key.split(':') as [RefType, string];
@@ -122,7 +152,7 @@ const renderCitations = (
         return { n, type, id, label, targetDomId: `ref-${type}-${id}` };
     });
 
-    return { segments, citations };
+    return { markdown, citations };
 };
 
 const focusReference = (domId: string) => {
@@ -142,11 +172,16 @@ const isMobile = () => {
     );
 };
 
-const COMPOSER_MAX_HEIGHT = 160;
+// Matches the reference composer's max-h-[100px].
+const COMPOSER_MAX_HEIGHT = 100;
 
-export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Props) => {
-    const sourceCount = sources.length;
-    const noteCount = notes.length;
+export const ChatPanel = ({
+    notebookId,
+    contextSelections,
+    sources,
+    notes,
+    onNoteSaved,
+}: Props) => {
     const [sessions, setSessions] = useState<ChatSession[]>([]);
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -157,30 +192,63 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     const [error, setError] = useState<string | null>(null);
     const [pendingDelete, setPendingDelete] = useState<ChatSession | null>(null);
     const [deleting, setDeleting] = useState<boolean>(false);
-    const [showSessionPicker, setShowSessionPicker] = useState<boolean>(false);
+    const [showSessions, setShowSessions] = useState<boolean>(false);
+    // Model used to answer; '' = deployment default (no override sent).
+    const [modelOverride, setModelOverride] = useState<string>('');
+    // Record of the model that will answer (override or default), reported by
+    // ChatModelSelect — drives the context-limit readout in the indicator.
+    const [activeModel, setActiveModel] = useState<NotebookModel | null>(null);
+    // Whether there's actually more than one model to choose from — when
+    // there isn't, showing "Model: <name>" is just branding noise since the
+    // user has no choice to make, so the whole label+picker row is hidden.
+    const [hasModelAlternatives, setHasModelAlternatives] = useState<boolean>(true);
+    // Amplify's admin model table — the source of truth for context windows.
+    const {
+        state: { availableModels },
+    } = useContext(HomeContext);
     // IME composition guard — don't submit on the Enter that confirms a
     // composition (matches the main chat input).
     const [isTyping, setIsTyping] = useState<boolean>(false);
 
     const scrollRef = useRef<HTMLDivElement | null>(null);
-    const pickerRef = useRef<HTMLDivElement | null>(null);
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
     // Sessions we created locally in this tab — skip the fetch-on-mount
     // for them so the optimistic user message isn't wiped.
     const locallyCreatedRef = useRef<Set<string>>(new Set());
 
-    const currentSession = useMemo(
-        () => sessions.find((s) => s.id === currentSessionId) ?? null,
-        [sessions, currentSessionId],
-    );
+    const contextStats = useMemo(() => {
+        let sourcesInsights = 0;
+        let sourcesFull = 0;
+        let notesCount = 0;
+        for (const s of sources) {
+            const mode = contextSelections.sources[s.id];
+            if (mode === 'insights') sourcesInsights++;
+            else if (mode === 'full') sourcesFull++;
+        }
+        for (const n of notes) {
+            if (contextSelections.notes[n.id] === 'full') notesCount++;
+        }
+        return { sourcesInsights, sourcesFull, notesCount };
+    }, [sources, notes, contextSelections]);
 
-    const includedCount = useMemo(() => {
-        let s = 0;
-        let n = 0;
-        for (const m of Object.values(contextSelections.sources)) if (m !== 'off') s++;
-        for (const m of Object.values(contextSelections.notes)) if (m !== 'off') n++;
-        return { s, n };
-    }, [contextSelections]);
+    // Token/char counts for the indicator bar — refreshed whenever the
+    // selection changes, independent of sending a message (sendChatMessage's
+    // own fast path doesn't build context client-side, so this is the only
+    // place these counts come from).
+    const [tokenCount, setTokenCount] = useState<number | undefined>(undefined);
+    const [charCount, setCharCount] = useState<number | undefined>(undefined);
+
+    useEffect(() => {
+        let cancelled = false;
+        buildChatContext(notebookId, contextSelections).then((result) => {
+            if (cancelled || !result) return;
+            setTokenCount(result.token_count);
+            setCharCount(result.char_count);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [notebookId, contextSelections]);
 
     useEffect(() => {
         let cancelled = false;
@@ -216,7 +284,14 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
             setError(null);
             const session = await getChatSession(currentSessionId);
             if (cancelled) return;
-            if (session) setMessages(session.messages || []);
+            if (session) {
+                setMessages(session.messages || []);
+                // Without this, modelOverride keeps whatever session A had
+                // selected after switching to session B — the ChatModelSelect
+                // badge would show A's override while the next message to B
+                // silently used it too.
+                setModelOverride(session.model_override || '');
+            }
             setLoadingMessages(false);
         };
         load();
@@ -233,8 +308,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
 
     // Auto-grow the composer as the draft changes so a Shift+Enter newline is
     // actually visible (a fixed-height textarea hides newlines as they scroll
-    // off). Mirrors the main chat input's height handling. The CSS min-height
-    // keeps the resting size at ~2 lines even though we set height inline.
+    // off). Mirrors the main chat input's height handling.
     useEffect(() => {
         const ta = textareaRef.current;
         if (!ta) return;
@@ -243,25 +317,31 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
         ta.style.overflowY = ta.scrollHeight > COMPOSER_MAX_HEIGHT ? 'auto' : 'hidden';
     }, [draft]);
 
-    useEffect(() => {
-        if (!showSessionPicker) return;
-        const onClick = (e: MouseEvent) => {
-            if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
-                setShowSessionPicker(false);
-            }
-        };
-        document.addEventListener('mousedown', onClick);
-        return () => document.removeEventListener('mousedown', onClick);
-    }, [showSessionPicker]);
-
-    const handleNewSession = () => {
-        // Defer backend creation until the first message is sent, so the session
-        // is named from its content (see handleSend) instead of a placeholder
-        // like "Chat Session 12345". Until then this is a local draft session.
-        setCurrentSessionId(null);
+    const handleCreateSession = async (title: string) => {
+        const created = await createChatSession(notebookId, title);
+        if (!created) {
+            setError('Failed to create session.');
+            return;
+        }
+        locallyCreatedRef.current.add(created.id);
+        setSessions((prev) => [created, ...prev]);
+        setCurrentSessionId(created.id);
         setMessages([]);
-        setError(null);
-        setShowSessionPicker(false);
+        // A brand-new session has no override yet — don't carry over
+        // whatever the previously active session had selected.
+        setModelOverride(created.model_override || '');
+        setShowSessions(false);
+    };
+
+    const handleRenameSession = async (sessionId: string, title: string) => {
+        const updated = await updateChatSession(sessionId, { title });
+        if (!updated) {
+            setError('Failed to rename session.');
+            return;
+        }
+        setSessions((prev) =>
+            prev.map((s) => (s.id === sessionId ? { ...s, title: updated.title ?? title } : s)),
+        );
     };
 
     const confirmDelete = async () => {
@@ -285,11 +365,18 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     const handleSend = async () => {
         const text = draft.trim();
         if (!text || isSending) return;
+        // Set before the first await (session creation) so a fast
+        // double-click/double-Enter on the very first message of a new chat
+        // can't race past this guard — the Send button's `disabled` also
+        // reads `isSending`, so this closes the window where a second
+        // invocation could create a duplicate session and send the message
+        // twice.
+        setIsSending(true);
 
         let sessionId = currentSessionId;
         if (!sessionId) {
             // Name the session from the first message, trimmed to a clean word
-            // boundary, so the sidebar shows something relevant.
+            // boundary, so the sessions list shows something relevant.
             const trimmed = text.replace(/\s+/g, ' ').trim();
             const title =
                 trimmed.length > 48
@@ -298,6 +385,7 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
             const created = await createChatSession(notebookId, title);
             if (!created) {
                 setError('Failed to create session.');
+                setIsSending(false);
                 return;
             }
             locallyCreatedRef.current.add(created.id);
@@ -314,23 +402,36 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
             content: text,
         };
         setMessages((prev) => [...prev, userMsg]);
-        setIsSending(true);
 
         // Context is built from the selections server-side, so there's no
         // separate buildChatContext round-trip on the send path.
-        const sendMessage = async () => {
-            const result = await sendChatMessage(notebookId, sessionId!, text, contextSelections);
+        try {
+            const result = await sendChatMessage(
+                notebookId,
+                sessionId,
+                text,
+                contextSelections,
+                modelOverride || undefined,
+            );
             if (!result) {
                 throw new Error('Failed to send message.');
             }
             setMessages(result.messages);
-        };
-
-        try {
-            await sendMessage();
+            // The message is now persisted, so a fresh fetch would return the
+            // same list we just set — safe to stop treating this as a
+            // locally-created session with special-cased state. Without
+            // this, switching away from and back to this session later would
+            // hit the `locallyCreatedRef.current.has(...)` guard above and
+            // skip the fetch, leaving whatever session's messages happened to
+            // be in state at the time (i.e. a different session's messages
+            // rendered under this session's header).
+            locallyCreatedRef.current.delete(sessionId);
         } catch (e: any) {
             setError(e?.message || 'Failed to send message.');
             setMessages((prev) => prev.filter((m) => !m.id.startsWith('temp-')));
+            // Send failed: this session (if newly created) still has no
+            // persisted messages, so keep it in locallyCreatedRef — leave as
+            // is (mirrors SourceChatPanel.tsx's handleSend).
         } finally {
             setIsSending(false);
         }
@@ -347,115 +448,103 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
     };
 
     return (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36] flex flex-col h-[640px]">
-            <div className="flex items-center gap-2 border-b border-gray-200 px-4 py-3 dark:border-neutral-700">
-                <div className="text-sm font-semibold">Chat</div>
+        <div className="flex h-[640px] flex-col rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36] lg:h-full lg:min-h-0">
+            {/* Header — mirrors the reference ChatPanel CardHeader */}
+            <div className="flex flex-none items-center justify-between px-6 pb-3">
+                <div className="flex items-center gap-2 font-semibold leading-none">
+                    <LucideBot size={20} />
+                    Chat with Notebook
+                </div>
+                <button
+                    onClick={() => setShowSessions(true)}
+                    disabled={loadingSessions}
+                    className="inline-flex h-8 items-center gap-2 rounded-md px-3 text-gray-700 transition-colors hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-200 dark:hover:bg-neutral-700"
+                >
+                    <LucideClock size={16} />
+                    <span className="text-xs">Sessions</span>
+                </button>
+            </div>
 
-                <div ref={pickerRef} className="relative ml-auto">
-                    <button
-                        onClick={() => setShowSessionPicker((v) => !v)}
-                        className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-xs text-gray-600 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700"
-                        title="Switch session"
-                    >
-                        <span className="max-w-[140px] truncate">
-                            {currentSession?.title || (loadingSessions ? 'Loading…' : 'New session')}
-                        </span>
-                        <IconChevronDown size={12} />
-                    </button>
-                    {showSessionPicker && (
-                        <div className="absolute right-0 top-full z-20 mt-1 w-64 max-h-72 overflow-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-700 dark:bg-[#202123]">
-                            <button
-                                onClick={handleNewSession}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20"
-                            >
-                                <IconPlus size={12} />
-                                New session
-                            </button>
-                            {sessions.length > 0 && (
-                                <div className="my-1 border-t border-gray-100 dark:border-neutral-700/60" />
-                            )}
-                            {sessions.map((s) => (
-                                <div
-                                    key={s.id}
-                                    className={`group flex items-center gap-2 px-3 py-1.5 text-xs hover:bg-gray-50 dark:hover:bg-neutral-700/60 ${
-                                        s.id === currentSessionId ? 'bg-gray-50 dark:bg-neutral-700/40' : ''
-                                    }`}
-                                >
-                                    <button
-                                        onClick={() => {
-                                            setCurrentSessionId(s.id);
-                                            setShowSessionPicker(false);
-                                        }}
-                                        className="flex-1 truncate text-left"
-                                        title={s.title}
-                                    >
-                                        {s.title}
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setPendingDelete(s);
-                                            setShowSessionPicker(false);
-                                        }}
-                                        title="Delete session"
-                                        className="invisible rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-600 group-hover:visible dark:text-gray-500 dark:hover:bg-red-900/30 dark:hover:text-red-400"
-                                    >
-                                        <IconTrash size={12} />
-                                    </button>
+            <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4">
+                <div className="flex flex-col gap-4 py-4">
+                    {loadingMessages && messages.length === 0 && (
+                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                            Loading messages…
+                        </div>
+                    )}
+                    {!loadingMessages && messages.length === 0 && !isSending && (
+                        <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                            <LucideBot size={48} className="mx-auto mb-4 opacity-50" />
+                            <p className="text-sm">Start a conversation about this notebook</p>
+                            <p className="mt-2 text-xs">
+                                Ask questions to understand the content better
+                            </p>
+                        </div>
+                    )}
+                    {messages.map((m) => (
+                        <MessageBubble
+                            key={m.id}
+                            message={m}
+                            sources={sources}
+                            notes={notes}
+                            notebookId={notebookId}
+                            onNoteSaved={onNoteSaved}
+                        />
+                    ))}
+                    {isSending && (
+                        <div className="flex justify-start gap-3">
+                            <div className="flex-none">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/40">
+                                    <LucideBot
+                                        size={16}
+                                        className="text-purple-600 dark:text-purple-300"
+                                    />
                                 </div>
-                            ))}
+                            </div>
+                            <div className="rounded-lg bg-gray-100 px-4 py-2 dark:bg-neutral-700">
+                                <LucideLoader2
+                                    size={16}
+                                    className="animate-spin text-gray-500 dark:text-gray-300"
+                                />
+                            </div>
                         </div>
                     )}
                 </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 border-b border-gray-100 bg-gray-50/60 px-4 py-2 text-[11px] text-gray-500 dark:border-neutral-700/60 dark:bg-neutral-800/40 dark:text-gray-400">
-                <span>Context:</span>
-                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                    {includedCount.s}/{sourceCount} sources
-                </span>
-                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                    {includedCount.n}/{noteCount} notes
-                </span>
-            </div>
-
-            <div ref={scrollRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-                {loadingMessages && messages.length === 0 && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400">Loading messages…</div>
-                )}
-                {!loadingMessages && messages.length === 0 && !isSending && (
-                    <div className="flex h-full items-center justify-center text-center text-xs text-gray-500 dark:text-gray-400">
-                        <div>
-                            Ask a question about your sources.
-                            <br />
-                            <span className="opacity-70">Press Enter to send · Shift+Enter for newline</span>
-                        </div>
-                    </div>
-                )}
-                {messages.map((m) => (
-                    <MessageBubble key={m.id} message={m} sources={sources} notes={notes} />
-                ))}
-                {isSending && (
-                    <div className="flex items-start gap-2">
-                        <div className="rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-500 dark:bg-neutral-700 dark:text-gray-300">
-                            <span className="inline-flex gap-1">
-                                <span className="animate-pulse">●</span>
-                                <span className="animate-pulse" style={{ animationDelay: '150ms' }}>●</span>
-                                <span className="animate-pulse" style={{ animationDelay: '300ms' }}>●</span>
-                            </span>
-                        </div>
-                    </div>
-                )}
-            </div>
-
             {error && (
-                <div className="border-t border-red-200 bg-red-50 px-4 py-2 text-xs text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                <div className="border-t border-red-200 bg-red-50 px-6 py-2 text-xs text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
                     {error}
                 </div>
             )}
 
-            <div className="border-t border-gray-200 p-3 dark:border-neutral-700">
-                <div className="flex items-end gap-2">
+            <ContextIndicator
+                sourcesInsights={contextStats.sourcesInsights}
+                sourcesFull={contextStats.sourcesFull}
+                notesCount={contextStats.notesCount}
+                tokenCount={tokenCount}
+                charCount={charCount}
+                contextWindow={
+                    activeModel ? resolveContextWindow(activeModel.name, availableModels) : null
+                }
+                modelLabel={activeModel ? formatModelName(activeModel.name) : null}
+            />
+
+            {/* Input Area */}
+            <div className="flex flex-none flex-col gap-3 border-t border-gray-200 p-4 dark:border-neutral-700">
+                {hasModelAlternatives && (
+                    <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Model</span>
+                        <ChatModelSelect
+                            value={modelOverride}
+                            onChange={setModelOverride}
+                            disabled={isSending}
+                            onResolvedModel={setActiveModel}
+                            onHasAlternatives={setHasModelAlternatives}
+                        />
+                    </div>
+                )}
+                <div className="flex min-w-0 items-end gap-2">
                     <textarea
                         ref={textareaRef}
                         value={draft}
@@ -463,30 +552,49 @@ export const ChatPanel = ({ notebookId, contextSelections, sources, notes }: Pro
                         onKeyDown={handleKeyDown}
                         onCompositionStart={() => setIsTyping(true)}
                         onCompositionEnd={() => setIsTyping(false)}
-                        placeholder="Ask anything…"
-                        rows={2}
+                        placeholder="Ask anything about your sources... (Enter to send)"
+                        rows={1}
                         disabled={isSending}
-                        className="flex-1 resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 min-h-[3.5rem]"
+                        className="min-h-[40px] min-w-0 flex-1 resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
                     />
                     <button
                         onClick={handleSend}
                         disabled={!draft.trim() || isSending}
                         title="Send"
-                        className="flex h-9 w-9 items-center justify-center rounded-md bg-purple-500 text-white shadow-sm transition-colors hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="flex h-[40px] w-[40px] flex-none items-center justify-center rounded-md bg-purple-500 text-white shadow-sm transition-colors hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                        <IconSend size={16} />
+                        {isSending ? (
+                            <LucideLoader2 size={16} className="animate-spin" />
+                        ) : (
+                            <LucideSend size={16} />
+                        )}
                     </button>
                 </div>
             </div>
 
+            {showSessions && (
+                <SessionManagerModal
+                    sessions={sessions}
+                    currentSessionId={currentSessionId}
+                    loadingSessions={loadingSessions}
+                    onClose={() => setShowSessions(false)}
+                    onCreate={handleCreateSession}
+                    onSelect={(id) => {
+                        setCurrentSessionId(id);
+                        setShowSessions(false);
+                    }}
+                    onRename={handleRenameSession}
+                    onDelete={(session) => {
+                        setPendingDelete(session);
+                        setShowSessions(false);
+                    }}
+                />
+            )}
+
             {pendingDelete && (
                 <ConfirmModal
-                    title="Delete chat session?"
-                    message={
-                        <span>
-                            Delete <b>{pendingDelete.title}</b>? Its messages will be lost. This can&apos;t be undone.
-                        </span>
-                    }
+                    title="Delete Session"
+                    message="Are you sure you want to delete this chat session? This action cannot be undone."
                     confirmLabel={deleting ? 'Deleting…' : 'Delete'}
                     denyLabel="Cancel"
                     onConfirm={confirmDelete}
@@ -501,60 +609,171 @@ const MessageBubble = ({
     message,
     sources,
     notes,
+    notebookId,
+    onNoteSaved,
 }: {
     message: ChatMessage;
     sources: SourceListItem[];
     notes: Note[];
+    notebookId: string;
+    onNoteSaved?: (note: Note) => void;
 }) => {
     const isHuman = message.type === 'human';
+    const [copied, setCopied] = useState<boolean>(false);
+    const [saving, setSaving] = useState<boolean>(false);
+    const [saved, setSaved] = useState<boolean>(false);
+
     const rendered: RenderedMessage = isHuman
-        ? { segments: [{ kind: 'text', text: message.content }], citations: [] }
+        ? { markdown: message.content, citations: [] }
         : renderCitations(message.content, sources, notes);
+
+    const handleCopy = async () => {
+        try {
+            await navigator.clipboard.writeText(message.content);
+            setCopied(true);
+            window.setTimeout(() => setCopied(false), 2000);
+        } catch {
+            // Clipboard unavailable (e.g. insecure context) — nothing to show.
+        }
+    };
+
+    // "Save to note" mirroring the reference MessageActions: creates an AI
+    // note in this notebook from the reply's content.
+    const handleSaveToNote = async () => {
+        if (saving) return;
+        setSaving(true);
+        const note = await createNote({
+            notebookId,
+            content: message.content,
+            note_type: 'ai',
+        });
+        setSaving(false);
+        if (note) {
+            setSaved(true);
+            onNoteSaved?.(note);
+            window.setTimeout(() => setSaved(false), 2000);
+        }
+    };
+
     return (
-        <div className={`flex ${isHuman ? 'justify-end' : 'justify-start'}`}>
-            <div
-                className={`max-w-[85%] rounded-lg px-3 py-2 text-sm whitespace-pre-wrap ${
-                    isHuman
-                        ? 'bg-purple-500 text-white'
-                        : 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-neutral-100'
-                }`}
-            >
-                {rendered.segments.map((seg, i) =>
-                    seg.kind === 'text' ? (
-                        <span key={i}>{seg.text}</span>
+        <div className={`flex gap-3 ${isHuman ? 'justify-end' : 'justify-start'}`}>
+            {!isHuman && (
+                <div className="flex-none">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/40">
+                        <LucideBot size={16} className="text-purple-600 dark:text-purple-300" />
+                    </div>
+                </div>
+            )}
+            <div className="flex max-w-[80%] flex-col gap-2">
+                <div
+                    className={`rounded-lg px-4 py-2 text-sm ${
+                        isHuman
+                            ? 'whitespace-pre-wrap bg-purple-500 text-white'
+                            : 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-neutral-100'
+                    }`}
+                >
+                    {isHuman ? (
+                        rendered.markdown
                     ) : (
-                        <button
-                            key={i}
-                            onClick={() => focusReference(`ref-${seg.type}-${seg.id}`)}
-                            className="mx-0.5 inline-flex items-baseline rounded bg-purple-100 px-1 font-mono text-[11px] font-medium text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
-                            title={`Jump to ${seg.type}`}
+                        <MemoizedReactMarkdown
+                            className="prose prose-sm dark:prose-invert max-w-none break-words"
+                            remarkPlugins={[remarkGfm]}
+                            components={{
+                                // Numbered citations are emitted as `[n](#ref-type-id)`
+                                // links; intercept those to scroll/flash the referenced
+                                // source or note instead of navigating. All other links
+                                // (real URLs) fall through to a normal new-tab anchor.
+                                a({ href, children, ...props }) {
+                                    if (href && href.startsWith('#ref-')) {
+                                        return (
+                                            <button
+                                                onClick={(e) => {
+                                                    e.preventDefault();
+                                                    e.stopPropagation();
+                                                    focusReference(href.slice(1));
+                                                }}
+                                                className="mx-0.5 inline-flex items-baseline rounded bg-purple-100 px-1 font-mono text-[11px] font-medium text-purple-700 hover:bg-purple-200 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
+                                                title="Jump to reference"
+                                            >
+                                                {children}
+                                            </button>
+                                        );
+                                    }
+                                    return (
+                                        <a
+                                            href={href}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            {...props}
+                                        >
+                                            {children}
+                                        </a>
+                                    );
+                                },
+                            }}
                         >
-                            {seg.n}
+                            {rendered.markdown}
+                        </MemoizedReactMarkdown>
+                    )}
+                    {rendered.citations.length > 0 && (
+                        <div className="mt-2 border-t border-gray-300 pt-1.5 text-[11px] text-gray-600 dark:border-neutral-600 dark:text-gray-300">
+                            <div className="mb-0.5 font-medium">Sources</div>
+                            <ol className="m-0 list-none space-y-0.5 p-0">
+                                {rendered.citations.map((c) => (
+                                    <li key={c.n}>
+                                        <button
+                                            onClick={() => focusReference(c.targetDomId)}
+                                            className="text-left hover:underline"
+                                            title={`Jump to ${c.type}`}
+                                        >
+                                            <span className="font-mono">[{c.n}]</span> {c.label}
+                                            {c.type !== 'source' && (
+                                                <span className="ml-1 opacity-60">({c.type})</span>
+                                            )}
+                                        </button>
+                                    </li>
+                                ))}
+                            </ol>
+                        </div>
+                    )}
+                </div>
+                {!isHuman && (
+                    <div className="flex gap-1">
+                        <button
+                            onClick={handleSaveToNote}
+                            disabled={saving}
+                            title="Save to note"
+                            className="inline-flex h-7 items-center rounded-md px-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-gray-200"
+                        >
+                            {saving ? (
+                                <LucideLoader2 size={14} className="animate-spin" />
+                            ) : saved ? (
+                                <LucideCheck size={14} className="text-green-500" />
+                            ) : (
+                                <LucideSave size={14} />
+                            )}
                         </button>
-                    ),
-                )}
-                {rendered.citations.length > 0 && (
-                    <div className="mt-2 border-t border-gray-300 pt-1.5 text-[11px] text-gray-600 dark:border-neutral-600 dark:text-gray-300">
-                        <div className="font-medium mb-0.5">Sources</div>
-                        <ol className="m-0 list-none p-0 space-y-0.5">
-                            {rendered.citations.map((c) => (
-                                <li key={c.n}>
-                                    <button
-                                        onClick={() => focusReference(c.targetDomId)}
-                                        className="text-left hover:underline"
-                                        title={`Jump to ${c.type}`}
-                                    >
-                                        <span className="font-mono">[{c.n}]</span> {c.label}
-                                        {c.type !== 'source' && (
-                                            <span className="ml-1 opacity-60">({c.type})</span>
-                                        )}
-                                    </button>
-                                </li>
-                            ))}
-                        </ol>
+                        <button
+                            onClick={handleCopy}
+                            title="Copy to clipboard"
+                            className="inline-flex h-7 items-center rounded-md px-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-gray-200"
+                        >
+                            {copied ? (
+                                <LucideCheck size={14} className="text-green-500" />
+                            ) : (
+                                <LucideCopy size={14} />
+                            )}
+                        </button>
                     </div>
                 )}
             </div>
+            {isHuman && (
+                <div className="flex-none">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500">
+                        <LucideUser size={16} className="text-white" />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -121,13 +121,13 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
                     <InputsMap
                         id = {AdminConfigTypes.INTEGRATIONS}
                         obscure={true}
-                        inputs={ [ {label: 'Client ID', key: 'client_id', placeholder: `${capitalize(name)} Client ID`},
-                                    {label: 'Client Secret', key: 'client_secret', placeholder: `${capitalize(name)} Client Secret`},
-                                    {label: 'Tenant ID', key: 'tenant_id', placeholder: `${capitalize(name)} Tenant or Project ID`},
+                        inputs={ [ {label: 'Tenant ID', key: 'tenant_id', placeholder: `${capitalize(name)} Tenant or Project ID`},
+                                   {label: 'Client ID', key: 'client_id', placeholder: `${capitalize(name)} Client ID`},
+                                    ...(secretsHasChanges.includes(name) ? [{label: 'Client Secret', key: 'client_secret', placeholder: `${capitalize(name)} Client Secret`}] : [])
                                 ]}
-                        state = {{client_id: getClientSecret(name, "client_id"),
-                                    client_secret: getClientSecret(name, "client_secret"),
-                                    tenant_id:  getClientSecret(name, "tenant_id")
+                        state = {{tenant_id:  getClientSecret(name, "tenant_id"),
+                                  client_id: getClientSecret(name, "client_id"),
+                                  ...(secretsHasChanges.includes(name) ? {client_secret: getClientSecret(name, "client_secret")} : {})
                                 }}
                         inputChanged = {(key:string, value:string) => {
                             const updated = {...integrationSecrets[name as IntegrationProviders], [key]: value};
@@ -138,7 +138,7 @@ export const IntegrationsTab: FC<Props> = ({integrations, setIntegrations, integ
 
                     {/* Admin Consent Checkbox - Only for Microsoft */}
                     {name === integrationProviders.Microsoft && (
-                        <div className="ml-4 mt-4 flex flex-col gap-2">
+                        <div className="ml-4 mt-6 flex flex-col gap-2">
                             <label className="flex items-center gap-3 cursor-pointer">
                                 <input
                                     type="checkbox"

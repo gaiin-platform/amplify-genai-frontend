@@ -40,8 +40,16 @@ export interface ScheduledTask {
   objectInfo: {objectId: string, objectName: string, data?: any}; 
   
   // Scheduling
+  // For biweekly tasks cronExpression is BIWEEKLY:{dayName}:{hour}:{minute}:{startDate}
   cronExpression: string;
   dateRange?: ScheduleDateRange;
+
+  // Exclusion rules
+  exclusionsEnabled?: boolean;       // true when the "Set exclusion rules" checkbox is ticked
+  excludedDaysOfWeek?: string[];     // e.g. ["saturday","sunday"]  — Daily mode
+  excludedWeeksOfMonth?: number[];   // e.g. [2,3]                  — Weekly mode (1=1st,5=Last)
+  excludedMonths?: string[];         // e.g. ["june","july"]        — Monthly mode
+  excludedDates?: string[];          // e.g. ["2026-12-25"]         — all modes
   
   // Status
   active: boolean;

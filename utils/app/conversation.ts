@@ -41,7 +41,7 @@ export const condenseForConversationHistory = (conversation: Conversation) => {
 
 
 export const deleteConversationCleanUp = (conversation: Conversation) => {
-  if (conversation.codeInterpreterAssistantId) deleteCodeInterpreterConversation(conversation);
+  if (conversation.codeInterpreterRecordId) deleteCodeInterpreterConversation(conversation);
   if (isRemoteConversation(conversation)) deleteRemoteConversation(conversation.id);
 }
 
@@ -127,7 +127,7 @@ export const uncompressConversation = (compressedData: number[]) => {
 }
 
 export const remoteForConversationHistory = (conversation: Conversation) => {
-  const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterAssistantId', 'date'];
+  const CloudConvAttr: (keyof Conversation)[] =  ['id', 'name', 'model', 'folderId', 'tags', 'isLocal', 'groupType', 'codeInterpreterRecordId', 'date'];
   return pickConversationAttributes(conversation, CloudConvAttr) as Conversation;
 };
 

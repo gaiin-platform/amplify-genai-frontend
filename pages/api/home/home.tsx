@@ -63,7 +63,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 // import { Market } from "@/components/Market/Market";
-import { useSession, signIn, signOut, getSession } from "next-auth/react"
+import { useSession, signIn, signOut } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
@@ -330,15 +330,11 @@ const Home = ({
     // FOLDER OPERATIONS  --------------------------------------------
 
     const killRequest = async (requestId:string) => {
-        const session = await getSession();
-
-        // @ts-ignore
-        if(!session || !session.accessToken || !chatEndpoint){
+        if(!chatEndpoint){
             return false;
         }
 
-        // @ts-ignore
-        const result = await killReq(chatEndpoint, session.accessToken, requestId);
+        const result = await killReq(requestId);
 
         return result;
     }
@@ -525,16 +521,9 @@ const Home = ({
                 const newConversation = cloneDeep({
                                                    ...selectedConversation,  
                                                    id: uuidv4(), 
-                                                   codeInterpreterAssistantId: undefined,
+                                                   codeInterpreterRecordId: undefined,
                                                    date: getFullTimestamp(),
-                                                   messages: selectedConversation?.messages.slice(0, messageIndex + 1)
-                                                             .map((m:Message) => {
-                                                                if ( m.data?.state?.codeInterpreter ) {
-                                                                    const {codeInterpreter, ...state} = m.data?.state;
-                                                                    return {...m, data: {...m.data, state : state}}
-                                                                }
-                                                                return m;
-                                                             })});
+                                                   messages: selectedConversation?.messages.slice(0, messageIndex + 1)});
                 if (isRemoteConversation(newConversation)) await uploadConversation(newConversation, foldersRef.current);
                 statsService.newConversationEvent();
     
@@ -699,7 +688,7 @@ const Home = ({
     useEffect(() => {
         // @ts-ignore
         if (["RefreshAccessTokenError", "SessionExpiredError"].includes(session?.error)) {
-            signOut();
+            signOut({ callbackUrl: '/' });
             setUser(null);
         }
     }, [session]);

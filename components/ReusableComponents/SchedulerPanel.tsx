@@ -46,7 +46,7 @@ export const SchedulerPanel: React.FC<SchedulerPanelProps> = ({
         setScheduledTask(task);
         return;
       } 
-      toast.error("Failed to get scheduled task");
+      // toast.error("Failed to get scheduled task");
     }
     if (scheduledTaskId && scheduledTask === undefined) getScheduledTaskData();
   }, [scheduledTaskId]);

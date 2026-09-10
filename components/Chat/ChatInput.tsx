@@ -145,6 +145,16 @@ export const ChatInput = ({
         return '100%';
     };
 
+    // Files attached while Code Interpreter is active would otherwise upload with
+    // ragOn=false (since the RAG plugin isn't separately toggled on), which skips RAG
+    // chunking at upload time (see resolveRagConfiguration/resolveRagEnabled). That file
+    // is then invisible to normal chat once Code Interpreter is later disabled in the
+    // same conversation, because normal chat's file access relies on RAG indexing having
+    // happened. Force RAG-on for new attachments whenever Code Interpreter is active so
+    // the file is indexed regardless of which mode is used to upload it.
+    const codeInterpreterActive = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
+    const effectiveRagOn = ragOn || codeInterpreterActive;
+
     let settingRef = useRef<Settings | null>(null);
     // prevent recalling the getSettings function
     if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
@@ -698,18 +708,20 @@ export const ChatInput = ({
                 }))
             };
         }
-
+         console.log('pendingArtifacts', pendingArtifacts);
         // Add pending artifacts to message data
         if (pendingArtifacts.length > 0) {
             messageData.artifacts = pendingArtifacts
-                .filter(pa => pa.loadingState === 'ready' && pa.artifact)
+                .filter(pa => pa.loadingState === 'ready' && pa.artifact && (pa.artifactId || pa.artifact?.artifactId))
                 .map(pa => {
                     // Extract base artifact ID (remove version/date suffix)
-                    const baseArtifactId = pa.artifactId.split(':')[0];
+                    // Fall back to pa.artifact.artifactId if pa.artifactId is missing
+                    const resolvedId = pa.artifactId || pa.artifact!.artifactId;
+                    const baseArtifactId = resolvedId.split(':')[0];
                     return {
                         artifactId: baseArtifactId,
-                        name: pa.name,
-                        description: pa.description,
+                        name: pa.name || pa.artifact!.name,
+                        description: pa.description || pa.artifact!.description,
                         createdAt: pa.artifact!.createdAt,
                         version: pa.artifact!.version
                     } as ArtifactBlockDetail;
@@ -782,10 +794,12 @@ export const ChatInput = ({
             const conversationArtifacts = selectedConversation.artifacts ?? {};
 
             pendingArtifacts.forEach(pa => {
-                if (pa.artifact && pa.loadingState === 'ready') {
+                if (pa.artifact && pa.loadingState === 'ready' && (pa.artifactId || pa.artifact?.artifactId)) {
                     // Extract base artifact ID (remove version/date suffix)
                     // e.g., "Fun_Animated_SVG:v1-20251020" -> "Fun_Animated_SVG"
-                    const baseArtifactId = pa.artifactId.split(':')[0];
+                    // Fall back to pa.artifact.artifactId if pa.artifactId is missing
+                    const resolvedId = pa.artifactId || pa.artifact.artifactId;
+                    const baseArtifactId = resolvedId.split(':')[0];
 
                     // Preserve the artifact with its original version and update the artifactId
                     const artifact = { ...pa.artifact, artifactId: baseArtifactId };
@@ -1196,12 +1210,12 @@ export const ChatInput = ({
             onSetAbortController: handleDocumentAbortController,
             statsService,
             featureFlags,
-            ragOn,
+            ragOn: effectiveRagOn,
             uploadDocuments: featureFlags.uploadDocuments,
             groupId: undefined,
             props: {}
         });
-    }, [disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+    }, [disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, effectiveRagOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
 
     // Clipboard paste handler
     const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -1221,7 +1235,7 @@ export const ChatInput = ({
                 onSetAbortController: handleDocumentAbortController,
                 statsService,
                 featureFlags,
-                ragOn,
+                ragOn: effectiveRagOn,
                 uploadDocuments: featureFlags.uploadDocuments,
                 groupId: undefined,
                 props: {}
@@ -1250,7 +1264,7 @@ export const ChatInput = ({
             }
             // If text is not large, let the default paste behavior handle it
         }
-    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, ragOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, effectiveRagOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
 
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
@@ -1278,12 +1292,12 @@ export const ChatInput = ({
     ////// Plugin Dependencies //////
 
     // PluginID.CODE_INTERPRETER is not compatible with Selected Assistants for now
-    useEffect(() => { // if code interpreter is toggled in plugin selector, set the selected assistant to the default assistant
+    useEffect(() => { // if code interpreter is toggled in plugin selector, set the selected assistant to default
         const containsCodeInterpreter = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
         if (containsCodeInterpreter) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
     }, [plugins]);
 
-    useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter from plugins
+    useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter
         if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER));
     }, [selectedAssistant]);
 
@@ -1473,7 +1487,7 @@ export const ChatInput = ({
                                 }}
                                 showActionButtons={true}
                                 onIntegrationDataSourceSelected={featureFlags.integrations ?
-                                    (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, ragOn) )}
+                                    (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, effectiveRagOn) )}
                                     : undefined
                                 }
                             />
@@ -2044,6 +2058,7 @@ export const ChatInput = ({
                                         onSetKey={handleSetKey}
                                         onSetAbortController={handleDocumentAbortController}
                                         onUploadProgress={handleDocumentState}
+                                        forceRagOn={codeInterpreterActive}
                                         className="chat-input-button"
                             />
                         </div>}

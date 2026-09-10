@@ -24,59 +24,7 @@ interface queryParams {
     [key: string]: string;
 }
 
-// Interface to map services to their ports
-interface ServicePortMap {
-    [key: string]: string;
-}
-
-function parseServiceConfig(serviceConfigStr: string): {
-    services: string[];
-    servicePorts: ServicePortMap;
-    serviceStages: { [key: string]: string };
-} {
-    const services: string[] = [];
-    const servicePorts: ServicePortMap = {};
-    const serviceStages: { [key: string]: string } = {};
-
-    if (!serviceConfigStr) return { services, servicePorts, serviceStages };
-
-    const serviceConfigs = serviceConfigStr.split(',').map(s => s.trim());
-
-    for (const config of serviceConfigs) {
-        if (!config) continue;
-
-        const [service, port, stage] = config.split(':');
-        if (service) {
-            services.push(service);
-            if (port) servicePorts[service] = port;
-            if (stage) serviceStages[service] = stage;
-        }
-    }
-
-    return { services, servicePorts, serviceStages };
-}
-
 export const doRequestOp = async (opData: opData, abortSignal: AbortSignal | null = null) => {
-    const { service } = opData;
-
-    // Handle local service routing FIRST (before anything else)
-    if (typeof service === 'string') {
-        const serviceConfigStr = process.env.NEXT_PUBLIC_LOCAL_SERVICES || '';
-        const { services, servicePorts, serviceStages } = parseServiceConfig(serviceConfigStr);
-
-        if (services.includes(service)) {
-            const port = servicePorts[service] || '3015';
-            const stage = serviceStages[service] || 'dev';
-
-            opData.url = `http://localhost:${port}/${stage}${opData.path}${opData.op}`;
-            console.log("Function running locally at:", opData.url);
-            // Store original path for compression check before clearing
-            (opData as any).originalPath = opData.path;
-            opData.path = "";
-            opData.op = "";
-        }
-    }
-
     const request = `${opData.method} - ${opData.path + opData.op}`;
 
     // Obfuscate data and query params (do this for BOTH normal and polling requests)
@@ -267,22 +215,3 @@ export const doRequestOp = async (opData: opData, abortSignal: AbortSignal | nul
     }
 }
 
-/**
- * Parse the service:port mapping from environment variable
- * Format: "service1:3001,service2:3002,service3:3003"
- */
-function parseServicePorts(portMapStr: string): ServicePortMap {
-    if (!portMapStr) return {};
-
-    const portMap: ServicePortMap = {};
-    const pairs = portMapStr.split(',');
-
-    pairs.forEach(pair => {
-        const [service, port] = pair.trim().split(':');
-        if (service && port) {
-            portMap[service.trim()] = port.trim();
-        }
-    });
-
-    return portMap;
-}

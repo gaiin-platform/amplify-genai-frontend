@@ -1,7 +1,6 @@
 import { Message } from "@/types/chat";
 import { Model } from "@/types/model";
 import { QiSummary, QiSummaryType } from "@/types/qi";
-import { getSession } from "next-auth/react"
 import { sendChatRequestWithDocuments } from "./chatService";
 import { doRequestOp } from "./doRequestOp";
 import { Account } from "@/types/accounts";
@@ -30,16 +29,10 @@ const qiConversationPrompt =
 export const createQiSummary = async (chatEndpoint: string, model: Model, data: any, type: QiSummaryType, statsService: any, account: Account | undefined) => {
     const controller = new AbortController();
 
-    const accessToken = await getSession().then((session) => {
-        // @ts-ignore
-        return session.accessToken
-    })
-
     try {
         const chatBody = {
             model: model,
             messages: scrubMessages([...data.messages, { role: 'user', content: getPrompt(type) } as Message]),
-            key: accessToken,
             prompt: "Ensure to follow the instructions exactly.",
             temperature: 0.5,
             maxTokens: 500,
@@ -51,7 +44,7 @@ export const createQiSummary = async (chatEndpoint: string, model: Model, data: 
 
         statsService.sendChatEvent(chatBody);
 
-        const response = await sendChatRequestWithDocuments(chatEndpoint, accessToken, chatBody, controller.signal);
+        const response = await sendChatRequestWithDocuments(chatEndpoint, chatBody, controller.signal);
 
         const responseData = response.body;
         const reader = responseData ? responseData.getReader() : null;

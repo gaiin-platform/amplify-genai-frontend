@@ -1,32 +1,32 @@
 import { Conversation } from "@/types/chat";
 import { doRequestOp } from "./doRequestOp";
-import { conversationWithUncompressedMessages } from "@/utils/app/conversation";
 
 const URL_PATH = "/assistant";
-const SERVICE_NAME = "codeInterpreter";
+const SERVICE_NAME = "agentcore";
 
-const deleteOpenAIAssistant = async (assistantId: string) => {
+const deleteAgentCoreSession = async (recordId: string) => {
     const op = {
         method: 'DELETE',
         path: URL_PATH,
-        op: "/openai/delete",
-        queryParams: { "assistantId": assistantId },
+        op: "/agentcore/session/delete",
+        queryParams: { "codeInterpreterRecordId": recordId },
         service: SERVICE_NAME
     };
     const result = await doRequestOp(op);
     return result.success;
-}
+};
 
-const deleteOpenAiThread = async (threadId: string) => {
+export const createCodeInterpreterSession = async (): Promise<string | null> => {
     const op = {
-        method: 'DELETE',
+        method: 'POST',
         path: URL_PATH,
-        op: "/openai/thread/delete",
-        queryParams: { "threadId": threadId },
+        op: "/create/codeinterpreter",
+        data: {},
         service: SERVICE_NAME
     };
     const result = await doRequestOp(op);
-    return result.success;
+    // Backend returns: { success: true, data: { codeInterpreterRecordId: "..." } }
+    return result?.success ? (result.data?.codeInterpreterRecordId ?? null) : null;
 };
 
 export const getPresignedDownloadUrl = async (data: any) => {
@@ -41,11 +41,6 @@ export const getPresignedDownloadUrl = async (data: any) => {
 };
 
 export const deleteCodeInterpreterConversation = (conversation: Conversation) => {
-    const threads: Set<string> = new Set(
-        conversationWithUncompressedMessages(conversation).messages
-            .map(m => m.data?.state?.codeInterpreter?.threadId)
-            .filter(Boolean));
-    threads.forEach((t: string) => deleteOpenAiThread(t));
-    const astId = conversation.codeInterpreterAssistantId;
-    if (astId) deleteOpenAIAssistant(astId);
+    const recordId = conversation.codeInterpreterRecordId;
+    if (recordId) deleteAgentCoreSession(recordId);
 }

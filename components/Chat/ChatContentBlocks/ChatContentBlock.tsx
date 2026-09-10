@@ -1,7 +1,25 @@
 import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import {visit} from 'unist-util-visit';
+
+// Sanitization schema: extends the safe default to allow the custom elements
+// used by the chat renderer (math-display, math-inline for LaTeX), while
+// blocking <script>, event handlers, javascript: hrefs, etc.
+const chatSanitizeSchema = {
+    ...defaultSchema,
+    tagNames: [
+        ...(defaultSchema.tagNames ?? []),
+        'math-display',
+        'math-inline',
+    ],
+    attributes: {
+        ...defaultSchema.attributes,
+        // Allow style attribute on any element (used by rehypeDarkModeStyles)
+        '*': [...(defaultSchema.attributes?.['*'] ?? []), 'style', 'className', 'class'],
+    },
+};
 import LatexBlock from "./LatexBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
@@ -242,7 +260,7 @@ const ChatContentBlock: React.FC<Props> = (
     className="prose dark:prose-invert flex-1 max-w-none w-full"
     remarkPlugins={[remarkGfm]}
     // @ts-ignore
-    rehypePlugins={[rehypeRaw, rehypeDarkModeStyles]}
+    rehypePlugins={[rehypeRaw, [rehypeSanitize, chatSanitizeSchema], rehypeDarkModeStyles]}
     //onMouseUp={handleTextHighlight}
     components={{
         // @ts-ignore
