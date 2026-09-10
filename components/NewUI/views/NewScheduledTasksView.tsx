@@ -265,6 +265,9 @@ export const NewScheduledTasksView: React.FC = () => {
     const [isTestingTask, setIsTestingTask] = useState(false);
     const pollingCancelledRef = useRef(false);
 
+    const [tagsInput, setTagsInput] = useState('');
+    const [notifyEmailsInput, setNotifyEmailsInput] = useState('');
+
     const [allTasks, setAllTasks] = useState<ScheduledTaskPreview[]>([]);
     const [isLoadingTasks, setIsLoadingTasks] = useState(false);
     const [isLoadingTask, setIsLoadingTask] = useState(false);
@@ -379,6 +382,12 @@ export const NewScheduledTasksView: React.FC = () => {
             if (!selectedTask.taskName.trim()) { setError('Task name is required'); setIsSubmitting(false); return; }
             if (!selectedTask.cronExpression.trim()) { setError('Schedule is required'); setIsSubmitting(false); return; }
             if (!selectedTask.objectInfo.objectId) { setError('An object must be selected under "Task Type"'); setIsSubmitting(false); return; }
+
+            const parsedTags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+            const parsedNotifyEmails = notifyEmailsInput.split(',').map((e) => e.trim()).filter(Boolean);
+            selectedTask.tags = parsedTags;
+            selectedTask.notifyEmailAddresses = parsedNotifyEmails;
+            setSelectedTask((prev) => ({ ...prev, tags: parsedTags, notifyEmailAddresses: parsedNotifyEmails }));
 
             if (selectedTask.taskId) {
                 const result = await updateScheduledTask(selectedTask.taskId, selectedTask);
@@ -548,6 +557,21 @@ export const NewScheduledTasksView: React.FC = () => {
         } finally {
             setIsLoadingLogDetails(false);
         }
+    };
+
+    useEffect(() => {
+        setTagsInput(selectedTask.tags?.join(', ') || '');
+        setNotifyEmailsInput(selectedTask.notifyEmailAddresses?.join(', ') || '');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedTask.taskId]);
+
+    const commitTagsInput = () => {
+        const parsed = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+        setSelectedTask((prev) => ({ ...prev, tags: parsed }));
+    };
+    const commitNotifyEmailsInput = () => {
+        const parsed = notifyEmailsInput.split(',').map((e) => e.trim()).filter(Boolean);
+        setSelectedTask((prev) => ({ ...prev, notifyEmailAddresses: parsed }));
     };
 
     useEffect(() => { if (isViewingLogs) fetchTaskLogs(selectedTask.taskId); }, [isViewingLogs, selectedTask.taskId]);
@@ -1294,8 +1318,9 @@ export const NewScheduledTasksView: React.FC = () => {
                             <FieldLabel>Tags (comma separated)</FieldLabel>
                             <input
                                 type="text"
-                                value={selectedTask.tags?.join(', ') || ''}
-                                onChange={(e) => setSelectedTask({ ...selectedTask, tags: e.target.value.split(',').map((t) => t.trim()).filter(Boolean) })}
+                                value={tagsInput}
+                                onChange={(e) => setTagsInput(e.target.value)}
+                                onBlur={commitTagsInput}
                                 className={textFieldClass}
                                 style={textFieldStyle}
                                 placeholder="maintenance, report, etc."
@@ -1317,8 +1342,9 @@ export const NewScheduledTasksView: React.FC = () => {
                                     <FieldLabel>Notification Email Addresses</FieldLabel>
                                     <input
                                         type="text"
-                                        value={selectedTask.notifyEmailAddresses?.join(', ') || ''}
-                                        onChange={(e) => setSelectedTask({ ...selectedTask, notifyEmailAddresses: e.target.value.split(',').map((email) => email.trim()).filter(Boolean) })}
+                                        value={notifyEmailsInput}
+                                        onChange={(e) => setNotifyEmailsInput(e.target.value)}
+                                        onBlur={commitNotifyEmailsInput}
                                         className={textFieldClass}
                                         style={textFieldStyle}
                                         placeholder="email1@example.com, email2@example.com"
