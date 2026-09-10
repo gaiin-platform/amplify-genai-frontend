@@ -86,6 +86,7 @@ import { ApiItemSelector } from '@/components/AssistantApi/ApiSelector';
 import { ApiParameterBindingEditor } from '@/components/AssistantApi/ApiParameterBindingEditor';
 import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { saveActionSet, ActionItem } from '@/services/actionSetsService';
+import { splitEmailList, looksLikeEmail } from '@/components/NewUI/shared/emailSuggestions';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -384,7 +385,13 @@ export const NewScheduledTasksView: React.FC = () => {
             if (!selectedTask.objectInfo.objectId) { setError('An object must be selected under "Task Type"'); setIsSubmitting(false); return; }
 
             const parsedTags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
-            const parsedNotifyEmails = notifyEmailsInput.split(',').map((e) => e.trim()).filter(Boolean);
+            const parsedNotifyEmails = splitEmailList(notifyEmailsInput);
+            const badEmails = parsedNotifyEmails.filter((e) => !looksLikeEmail(e));
+            if (badEmails.length > 0) {
+                setError(`These notification email addresses don't look valid: ${badEmails.join(', ')}`);
+                setIsSubmitting(false);
+                return;
+            }
             selectedTask.tags = parsedTags;
             selectedTask.notifyEmailAddresses = parsedNotifyEmails;
             setSelectedTask((prev) => ({ ...prev, tags: parsedTags, notifyEmailAddresses: parsedNotifyEmails }));
@@ -570,9 +577,11 @@ export const NewScheduledTasksView: React.FC = () => {
         setSelectedTask((prev) => ({ ...prev, tags: parsed }));
     };
     const commitNotifyEmailsInput = () => {
-        const parsed = notifyEmailsInput.split(',').map((e) => e.trim()).filter(Boolean);
+        const parsed = splitEmailList(notifyEmailsInput);
         setSelectedTask((prev) => ({ ...prev, notifyEmailAddresses: parsed }));
     };
+
+    const invalidNotifyEmails = splitEmailList(notifyEmailsInput).filter((e) => !looksLikeEmail(e));
 
     useEffect(() => { if (isViewingLogs) fetchTaskLogs(selectedTask.taskId); }, [isViewingLogs, selectedTask.taskId]);
     useEffect(() => {
@@ -1350,6 +1359,11 @@ export const NewScheduledTasksView: React.FC = () => {
                                         placeholder="email1@example.com, email2@example.com"
                                     />
                                     <p className="text-[11.5px] mt-1" style={{ color: 'var(--text-muted)' }}>Enter email addresses separated by commas</p>
+                                    {invalidNotifyEmails.length > 0 && (
+                                        <p className="text-[11.5px] mt-1" style={{ color: '#e05252' }}>
+                                            Doesn&apos;t look like a valid email: {invalidNotifyEmails.join(', ')}
+                                        </p>
+                                    )}
                                 </div>
                             </div>
                         </div>
