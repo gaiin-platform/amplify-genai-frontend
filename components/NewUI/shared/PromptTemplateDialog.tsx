@@ -32,11 +32,10 @@
  */
 
 import React, { useContext, useEffect, useMemo, useRef } from 'react';
-import { createPortal } from 'react-dom';
 import HomeContext from '@/pages/api/home/home.context';
 import { Prompt } from '@/types/prompt';
 import { AttachedDocument } from '@/types/attacheddocument';
-import { VariableModal } from '@/components/Chat/VariableModal';
+import { PromptTemplateFillDialog } from '@/components/NewUI/shared/PromptTemplateFillDialog';
 import {
   fillInTemplate,
   handleStartConversationWithPrompt,
@@ -58,12 +57,15 @@ export interface PromptTemplateDialogProps {
   onClose: () => void;
   /** Fired after the conversation has been created and the send queued. */
   onStarted?: () => void;
+  /** When provided, renders an edit icon button that fires this callback. */
+  onEdit?: () => void;
 }
 
 export const PromptTemplateDialog: React.FC<PromptTemplateDialogProps> = ({
   prompt,
   onClose,
   onStarted,
+  onEdit,
 }) => {
   const {
     state: { prompts, availableModels, statsService },
@@ -132,25 +134,15 @@ export const PromptTemplateDialog: React.FC<PromptTemplateDialogProps> = ({
 
   if (typeof document === 'undefined') return null;
 
-  return createPortal(
-    // Own stacking context above NewSettingsModal (zIndex 9999); the old Modal's
-    // internal `z-50` is then relative to this, not to the page.
-    // text color per NEW_UI_GUIDE §5 rule 7 — the old component inherits it.
-    <div
-      className="text-neutral-900 dark:text-white"
-      style={{ position: 'fixed', inset: 0, zIndex: 10000 }}
-    >
-      <VariableModal
-        models={[]}
-        showModelSelector={false}
-        handleUpdateModel={() => {}}
-        prompt={prompt}
-        variables={variables}
-        onSubmit={handleSubmit}
-        onClose={onClose}
-      />
-    </div>,
-    document.body,
+  // Use the new-UI fill dialog (styled with design tokens, edit button support).
+  return (
+    <PromptTemplateFillDialog
+      prompt={prompt}
+      variables={variables}
+      onSubmit={handleSubmit}
+      onClose={onClose}
+      onEdit={onEdit}
+    />
   );
 };
 

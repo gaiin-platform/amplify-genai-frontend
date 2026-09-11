@@ -22,9 +22,13 @@
  * each one.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useContext, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Prompt } from '@/types/prompt';
 import { PromptTemplateDialog } from '@/components/NewUI/shared/PromptTemplateDialog';
+import { NewUIPromptCreationModal } from '@/components/NewUI/views/NewUIPromptCreationModal';
+import HomeContext from '@/pages/api/home/home.context';
+import { savePrompts } from '@/utils/app/prompts';
 
 /** Event name launchers use to open the popup. */
 export const USE_PROMPT_TEMPLATE_EVENT = 'amplifyUsePromptTemplate';
@@ -42,12 +46,27 @@ export const openPromptTemplateDialog = (prompt: Prompt) => {
 };
 
 export const PromptTemplateDialogHost: React.FC = () => {
+  const {
+    state: { prompts },
+    dispatch: homeDispatch,
+  } = useContext(HomeContext);
+
+  const promptsRef = useRef(prompts);
+  useEffect(() => {
+    promptsRef.current = prompts;
+  }, [prompts]);
+
   const [prompt, setPrompt] = useState<Prompt | null>(null);
+  /** When true, show the edit modal instead of the fill dialog. */
+  const [editMode, setEditMode] = useState(false);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const next = (e as CustomEvent).detail?.prompt as Prompt | undefined;
-      if (next) setPrompt(next);
+      if (next) {
+        setEditMode(false);
+        setPrompt(next);
+      }
     };
     window.addEventListener(USE_PROMPT_TEMPLATE_EVENT, handler);
     return () => window.removeEventListener(USE_PROMPT_TEMPLATE_EVENT, handler);
@@ -55,11 +74,52 @@ export const PromptTemplateDialogHost: React.FC = () => {
 
   if (!prompt) return null;
 
+  // ── Edit mode — show NewUIPromptCreationModal portalled to document.body ──
+  if (editMode) {
+    const handleUpdatePrompt = (updated: Prompt) => {
+      const next = promptsRef.current.map((p: Prompt) =>
+        p.id === updated.id ? updated : p,
+      );
+      homeDispatch({ field: 'prompts', value: next });
+      savePrompts(next);
+      // Refresh the prompt reference for the fill dialog
+      setPrompt(updated);
+    };
+
+    const handleEditSave = () => {
+      // Return to fill dialog with the updated prompt
+      setEditMode(false);
+    };
+
+    const handleEditCancel = () => {
+      // Return to fill dialog without changes
+      setEditMode(false);
+    };
+
+    if (typeof document === 'undefined') return null;
+    return createPortal(
+      <div
+        className="text-neutral-900 dark:text-white"
+        style={{ position: 'fixed', inset: 0, zIndex: 10002 }}
+      >
+        <NewUIPromptCreationModal
+          prompt={prompt}
+          onSave={handleEditSave}
+          onCancel={handleEditCancel}
+          onUpdatePrompt={handleUpdatePrompt}
+        />
+      </div>,
+      document.body,
+    );
+  }
+
+  // ── Fill mode — show the "populate and use" dialog ────────────────────────
   return (
     <PromptTemplateDialog
       prompt={prompt}
       onClose={() => setPrompt(null)}
       onStarted={() => setPrompt(null)}
+      onEdit={() => setEditMode(true)}
     />
   );
 };
