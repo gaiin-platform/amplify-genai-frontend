@@ -81,6 +81,8 @@ docker run --env-file ./.env.local  -p 3000:3000 dev-gen-ai-image to pull in env
 
 ## Running Locally
 
+See [docs/LOCAL_DEVELOPMENT.md](docs/LOCAL_DEVELOPMENT.md) for the complete frontend and backend local-development workflow, including selective local backend routing with NEXT_PUBLIC_LOCAL_SERVICES.
+
 **1. Clone Repo**
 
 ```bash

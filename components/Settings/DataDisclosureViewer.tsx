@@ -1,6 +1,7 @@
 import React, { FC, useEffect, useState } from 'react';
 import { getLatestDataDisclosure } from "@/services/dataDisclosureService";
 import { IconExternalLink } from '@tabler/icons-react';
+import { sanitizeHtml } from '@/utils/sanitizeHtml';
 
 interface Props {
     open: boolean;
@@ -86,10 +87,39 @@ export const DataDisclosureViewer: FC<Props> = ({ open }) => {
 
             <div className="settings-card-content">
                 {dataDisclosure.html ? (
-                    <div
-                        className="data-disclosure-content p-4 border border-gray-300 dark:border-neutral-600 rounded-md bg-white dark:bg-[#343541] max-h-[600px] overflow-y-auto"
-                        dangerouslySetInnerHTML={{ __html: dataDisclosure.html }}
-                    />
+                    <>
+                        {/* Scoped typography for Word-generated MsoNormal markup.
+                            The backend strips the <style> block from the full HTML doc, so we
+                            inject equivalent defaults here, scoped to .disclosure-body. */}
+                        <style>{`
+                            .disclosure-body .MsoNormal,
+                            .disclosure-body p.MsoNormal,
+                            .disclosure-body li.MsoNormal,
+                            .disclosure-body div.MsoNormal {
+                                margin: 0 0 8pt 0;
+                                line-height: 115%;
+                                font-size: 12pt;
+                                font-family: "Times New Roman", serif;
+                            }
+                            .disclosure-body h1.MsoNormal,
+                            .disclosure-body h2.MsoNormal,
+                            .disclosure-body h3.MsoNormal,
+                            .disclosure-body h4.MsoNormal,
+                            .disclosure-body h5.MsoNormal,
+                            .disclosure-body h6.MsoNormal {
+                                margin: 12pt 0 8pt 0;
+                                line-height: 115%;
+                                font-size: 14pt;
+                                font-family: "Times New Roman", serif;
+                            }
+                            .disclosure-body a { color: #467886; text-decoration: underline; }
+                            .disclosure-body div.WordSection1 { padding: 0; }
+                        `}</style>
+                        <div
+                            className="disclosure-body data-disclosure-content p-4 border border-gray-300 dark:border-neutral-600 rounded-md bg-white dark:bg-[#343541] max-h-[600px] overflow-y-auto"
+                            dangerouslySetInnerHTML={{ __html: sanitizeHtml(dataDisclosure.html ?? '') }}
+                        />
+                    </>
                 ) : (
                     <div className="flex flex-col items-center justify-center min-h-[200px]">
                         <p className="text-gray-600 dark:text-gray-400 mb-4">

@@ -30,21 +30,15 @@ export const Logo: React.FC<LogoProps> = ({
   const [hasError, setHasError] = useState(false);
   
   // Determine logo source
-  // Priority: Custom logo (if configured and valid) > Default logo
+  // Priority: Custom logo (if configured and valid) > icon2.png (new default)
   const getLogoSrc = (): string => {
-    // If error occurred or no custom logo configured, use default
+    // If error occurred or no custom logo configured, use new default icon
     if (hasError || !config.customLogoPath) {
-      return '/sparc_apple.png';
+      return '/icon2.png';
     }
-    
-    // Validate SVG extension
-    if (!config.customLogoPath.toLowerCase().endsWith('.svg')) {
-      console.warn(
-        `Custom logo "${config.customLogoPath}" does not have .svg extension, falling back to default`
-      );
-      return '/sparc_apple.png';
-    }
-    
+
+    // Accept any image extension (PNG, SVG, WEBP, etc.) for custom logos.
+    // The old SVG-only guard is removed — white-label logos may be any format.
     // Use custom logo from public/logos directory
     return `/logos/${config.customLogoPath}`;
   };

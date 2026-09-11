@@ -7,6 +7,7 @@ import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
 import { StorageProgressBar } from "@/components/Settings/StorageProgressBar";
 import { checkDataDisclosureDecision, getLatestDataDisclosure, saveDataDisclosureDecision } from "@/services/dataDisclosureService";
+import { sanitizeHtml } from '@/utils/sanitizeHtml';
 import { getIsLocalStorageSelection, saveStorageSettings, updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import cloneDeep from 'lodash/cloneDeep';
 import {styled} from "styled-components";
@@ -63,7 +64,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { WorkflowDefinition } from "@/types/workflow";
 import { saveWorkflowDefinitions } from "@/utils/app/workflows";
 // import { Market } from "@/components/Market/Market";
-import { useSession, signIn, signOut } from "next-auth/react"
+import { useSession, signOut } from "next-auth/react"
 import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
@@ -96,8 +97,22 @@ import { useRouter } from 'next/router';
 import { AdminConfigTypes } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
 import UserMenu from '@/components/Layout/UserMenu';
-import { Logo } from '@/components/Logo/Logo';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
+// New UI imports
+import { NewSidebar } from '@/components/NewUI/sidebar/NewSidebar';
+import { NewHome } from '@/components/NewUI/home/NewHome';
+import { NewLogin } from '@/components/NewUI/home/NewLogin';
+import { ChatsListView } from '@/components/NewUI/views/ChatsListView';
+import { NewLibraryView } from '@/components/NewUI/views/NewLibraryView';
+import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
+import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
+import { PromptTemplateDialogHost } from '@/components/NewUI/shared/PromptTemplateDialogHost';
+import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
+import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
+import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
+import { NewWorkflowsView } from '@/components/NewUI/views/NewWorkflowsView';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
+import { BlankConversationCleanup } from '@/components/NewUI/shared/BlankConversationCleanup';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -128,8 +143,45 @@ const Home = ({
 
     const [loadingAmplify, setLoadingAmplify] = useState<boolean>(true);
 
+    // New UI preference — 'new' | 'classic' | null (null = show banner)
+    const [uiPreference, setUiPreference] = useState<UIPreference>(null);
+    // Initialize after mount so localStorage is available
+    useEffect(() => {
+        setUiPreference(getUIPreference());
+    }, []);
+
+    // New UI ⌘, shortcut — opens settings modal
+    const [newUiSettingsSection, setNewUiSettingsSection] = useState<string | null>(null);
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+                e.preventDefault();
+                setNewUiSettingsSection('general');
+            }
+        };
+        document.addEventListener('keydown', handler);
+        return () => document.removeEventListener('keydown', handler);
+    }, []);
+
     const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
     const [hasAcceptedDataDisclosure, sethasAcceptedDataDisclosure] = useState<boolean | null> (null);
+
+    // Phase 27 bug fix: bridges the gap between NewHome writing the pending-message
+    // sessionStorage bridge (see ConversationViewShell.tsx) and messageIsStreaming
+    // actually flipping true. Without this, a brand-new conversation's
+    // messages.length===0 window (before the DOM-injection bridge fires, ~150-300ms)
+    // caused the NewHome/landing page to flash back in right after the user hit
+    // send — looking like a revert to "old UI". NewHome.tsx dispatches
+    // 'amplifyNewConversationSendPending' synchronously right before calling
+    // handleNewConversation; we clear it once messageIsStreaming goes true (the
+    // real signal that Chat.tsx's send pipeline has taken over) with a safety-net
+    // timeout in case the bridge silently fails for any reason.
+    const [pendingNewConversationSend, setPendingNewConversationSend] = useState(false);
+    useEffect(() => {
+        const handler = () => setPendingNewConversationSend(true);
+        window.addEventListener('amplifyNewConversationSendPending', handler);
+        return () => window.removeEventListener('amplifyNewConversationSendPending', handler);
+    }, []);
 
     const { data: session, status } = useSession();
     const [user, setUser] = useState<any>(null);
@@ -666,6 +718,24 @@ const Home = ({
 
     // EFFECTS  --------------------------------------------
 
+    // Phase 27 bug fix: clear the pending-send bridge flag once real streaming
+    // has taken over (messageIsStreaming===true means Chat.tsx's send pipeline
+    // is now driving the UI, so NewHome/ConversationViewShell no longer need the
+    // synthetic override). A short safety-net timeout also clears the flag if
+    // messageIsStreaming never flips true for some reason (e.g. the pending-
+    // message DOM-injection bridge failed to find the hidden textarea/button),
+    // so a genuinely stuck flag can't permanently hide NewHome for an empty
+    // conversation the user isn't actually sending anything in.
+    useEffect(() => {
+        if (!pendingNewConversationSend) return;
+        if (messageIsStreaming) {
+            setPendingNewConversationSend(false);
+            return;
+        }
+        const safetyTimer = setTimeout(() => setPendingNewConversationSend(false), 4000);
+        return () => clearTimeout(safetyTimer);
+    }, [pendingNewConversationSend, messageIsStreaming]);
+
     useEffect(() => {
         if (window.innerWidth < 640) {
             dispatch({ field: 'showChatbar', value: false });
@@ -902,18 +972,38 @@ const Home = ({
                 if (result.success) {
                     if (result.data) {
                         const serverSettings = result.data as Settings;
-                        
+
                         // Preserve local theme preference - don't let server override it
                         const localTheme = ThemeService.getInitialTheme();
                         serverSettings.theme = localTheme;
-                        
+
                         saveSettings(serverSettings);
-                        
+
                         // Apply chat color palette from server settings to DOM
                         if (serverSettings.chatColorPalette) {
                             document.body.setAttribute('data-chat-palette', serverSettings.chatColorPalette);
                         }
-                        
+
+                        // ── UI preference sync ─────────────────────────────────────────
+                        // Server is the source of truth for cross-device roaming.
+                        // If the server has a stored preference, apply it — this lets a
+                        // user switch UI on one device and have it reflected everywhere.
+                        if (serverSettings.uiPreference) {
+                            const local = getUIPreference();
+                            if (serverSettings.uiPreference !== local) {
+                                // Update localStorage and cookie to match the server value
+                                localStorage.setItem('amplify_new_ui_preference', serverSettings.uiPreference);
+                                if (serverSettings.uiPreference === 'new') {
+                                    document.cookie = 'X-Amplify-UI=new; path=/; SameSite=Lax; max-age=31536000';
+                                } else {
+                                    document.cookie = 'X-Amplify-UI=; path=/; SameSite=Lax; max-age=0';
+                                }
+                            }
+                            // Update React state — this is what drives the layout switch
+                            setUiPreference(serverSettings.uiPreference);
+                        }
+                        // ──────────────────────────────────────────────────────────────
+
                         window.dispatchEvent(new Event('updateFeatureSettings'));
                     }
                 } else {
@@ -1442,20 +1532,38 @@ const Home = ({
                             <h1 className="text-2xl font-bold dark:text-white">Amplify Data Disclosure Agreement</h1>
                             {dataDisclosure?.url && <a className="hover:text-blue-500" href={dataDisclosure.url} target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline', marginBottom: '10px' }}>Download the data disclosure agreement</a>}
                             {dataDisclosure && dataDisclosure.html ? (
-                                <div
-                                    className="data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
-                                    style={{
-                                        overflowY: 'scroll',
-                                        border: '1px solid #ccc',
-                                        padding: '20px',
-                                        marginBottom: '10px',
-                                        height: '500px',
-                                        width: '35%',
-                                    }}
-                                    onScroll={handleScroll}
-                                    dangerouslySetInnerHTML={{ __html: dataDisclosure.html }}
-                                >   
-                                </div>
+                                <>
+                                    {/* Scoped typography for Word-generated MsoNormal markup. */}
+                                    <style>{`
+                                        .disclosure-gate .MsoNormal,
+                                        .disclosure-gate p.MsoNormal,
+                                        .disclosure-gate li.MsoNormal,
+                                        .disclosure-gate div.MsoNormal {
+                                            margin: 0 0 8pt 0; line-height: 115%;
+                                            font-size: 12pt; font-family: "Times New Roman", serif;
+                                        }
+                                        .disclosure-gate h1.MsoNormal,
+                                        .disclosure-gate h2.MsoNormal,
+                                        .disclosure-gate h3.MsoNormal {
+                                            margin: 12pt 0 8pt 0; line-height: 115%;
+                                            font-size: 14pt; font-family: "Times New Roman", serif;
+                                        }
+                                        .disclosure-gate a { color: #467886; text-decoration: underline; }
+                                    `}</style>
+                                    <div
+                                        className="disclosure-gate data-disclosure dark:bg-[#343541] bg-gray-50 dark:text-white text-black text-left"
+                                        style={{
+                                            overflowY: 'scroll',
+                                            border: '1px solid #ccc',
+                                            padding: '20px',
+                                            marginBottom: '10px',
+                                            height: '500px',
+                                            width: '35%',
+                                        }}
+                                        onScroll={handleScroll}
+                                        dangerouslySetInnerHTML={{ __html: sanitizeHtml(dataDisclosure.html ?? '') }}
+                                    />
+                                </>
 
                             ) : (
                                 <div className="flex flex-col items-center justify-center" style={{ height: '500px', width: '30%' }}>
@@ -1578,52 +1686,158 @@ const Home = ({
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                     >
-                        <div className="flex h-full w-full">
-                            <UserMenu
-                                email={user?.email}
-                                name={session?.user?.name}
-                                username={(session?.user as any)?.username}
-
+                        {/* UI Preference Banner — shown on first visit when no preference set */}
+                        {uiPreference === null && (
+                            <UIPreferenceBanner
+                                onSelectNew={() => setUiPreference('new')}
+                                onSelectClassic={() => setUiPreference('classic')}
                             />
+                        )}
 
+                        {/* ── NEW UI LAYOUT ── */}
+                        {uiPreference === 'new' ? (
+                            <div className="flex h-full w-full overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }} data-new-ui-shell="true">
+                                {/* Renders nothing — prunes leftover empty placeholder chats
+                                    once after load so refreshing never grows Recents. */}
+                                <BlankConversationCleanup />
 
-                            {page !== 'notebook' && (
-                                <TabSidebar
-                                    side={"left"}
-                                >
-                                    <Tab icon={<IconMessage />} title="Chats" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Chatbar /></Tab>
-                                    <Tab icon={<IconSparkles />} title="Assistants" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Promptbar /></Tab>
-                                    <Tab icon={<IconHammer />} title="Settings" onClick={() => dispatch({ field: 'page', value: 'chat' })}><SettingsBar /></Tab>
-                                </TabSidebar>
-                            )}
+                                {/* Unified new sidebar */}
+                                {page !== 'notebook' && (
+                                    <NewSidebar
+                                        email={user?.email}
+                                        name={session?.user?.name}
+                                        username={(session?.user as any)?.username}
+                                    />
+                                )}
 
-                            <div id="main-content" tabIndex={-1} className="flex flex-1">
-                                {page === 'chat' && (
-                                    <Chat stopConversationRef={stopConversationRef} />
+                                {/* Main content area */}
+                                <div id="main-content" tabIndex={-1} className="flex flex-1 overflow-hidden">
+                                    {/* Bug fix (Phase 27): `messageIsStreaming || loading` keeps the chat
+                                        view showing even in the brief window where a brand-new
+                                        conversation has messages.length===0 but a send is already in
+                                        flight (the pending-message sessionStorage bridge in
+                                        ConversationViewShell.tsx takes ~150-300ms to inject text + click
+                                        send — during that window `messages.length` is genuinely 0, which
+                                        previously flashed NewHome/landing page ["old UI"] right after the
+                                        user hit send on the very first message of a new conversation).
+                                        `pendingNewConversationSend` (see effect below) covers the gap
+                                        between NewHome's sessionStorage write and messageIsStreaming
+                                        actually flipping true. See NEW_UI_DOCS.md §12 Phase 27. */}
+                                    {page === 'chat' && (!selectedConversation || (selectedConversation.messages.length === 0 && !messageIsStreaming && !pendingNewConversationSend)) && (
+                                        <NewHome />
+                                    )}
+                                    {/* ConversationViewShell is always mounted while page=chat AND a
+                                        conversation exists — even when messages.length === 0.
+                                        This is necessary so Chat + ChatInput render immediately when
+                                        handleNewConversation fires (before any messages are added),
+                                        letting ConversationViewShell inject the pending message.
+                                        We hide it visually (position:absolute, overflow:hidden, 0×0)
+                                        while NewHome is showing so the user only sees the landing page.
+                                        Chat.tsx sizes itself by windowInnerDims so it renders inputs
+                                        even when the container is collapsed. */}
+                                    {page === 'chat' && selectedConversation && (
+                                        <div
+                                            key={selectedConversation.id}
+                                            style={(selectedConversation.messages.length === 0 && !messageIsStreaming && !pendingNewConversationSend) ? {
+                                                position: 'fixed',
+                                                top: 0,
+                                                left: '-100vw',
+                                                width: '100vw',
+                                                height: '100vh',
+                                                pointerEvents: 'none',
+                                                visibility: 'hidden',
+                                            } : {
+                                                display: 'flex',
+                                                flex: 1,
+                                                overflow: 'hidden',
+                                            }}
+                                        >
+                                            <ConversationViewShell stopConversationRef={stopConversationRef} />
+                                        </div>
+                                    )}
+                                    {page === 'home' && (
+                                        <NewHome />
+                                    )}
+                                    {(page as any) === 'chats' && (
+                                        <ChatsListView />
+                                    )}
+                                    {(page as any) === 'library' && (
+                                        <NewLibraryView />
+                                    )}
+                                    {page === 'assistantGallery' && (
+                                        <NewAssistantsView />
+                                    )}
+                                    {(page as any) === 'scheduledTasks' && featureFlags.scheduledTasks && (
+                                        <NewScheduledTasksView />
+                                    )}
+                                    {(page as any) === 'workflows' && (
+                                        <NewWorkflowsView />
+                                    )}
+                                    {page === 'notebook' && featureFlags.notebook && (
+                                        <NotebookApp />
+                                    )}
+                                </div>
+
+                                {/* ⌘, global settings shortcut for new UI */}
+                                {newUiSettingsSection !== null && (
+                                    <NewSettingsModal
+                                        openToSection={newUiSettingsSection}
+                                        onClose={() => setNewUiSettingsSection(null)}
+                                    />
                                 )}
-                                {/* {page === 'market' && (
-                                    <Market items={[
-                                        // {id: "1", name: "Item 1"},
-                                    ]} />
-                                )} */}
-                                {page === 'home' && (
-                                    <MyHome />
-                                )}
-                                {page === 'assistantGallery' && (
-                                    <AssistantGallery />
-                                )}
-                                {page === 'notebook' && featureFlags.notebook && (
-                                    <NotebookApp />
-                                )}
+
+                                {/* "Use this prompt template" popup. Mounted here, as a
+                                    sibling of the settings modal rather than inside it, so
+                                    the launcher (Settings → Prompt Templates) can close
+                                    itself without unmounting the popup. Renders nothing
+                                    until the amplifyUsePromptTemplate event fires. */}
+                                <PromptTemplateDialogHost />
                             </div>
-                            
+                        ) : (
+                            /* ── CLASSIC UI LAYOUT (unchanged) ── */
+                            <div className="flex h-full w-full">
+                                <UserMenu
+                                    email={user?.email}
+                                    name={session?.user?.name}
+                                    username={(session?.user as any)?.username}
+                                />
 
-                        </div>
+                                {page !== 'notebook' && (
+                                    <TabSidebar
+                                        side={"left"}
+                                    >
+                                        <Tab icon={<IconMessage />} title="Chats" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Chatbar /></Tab>
+                                        <Tab icon={<IconSparkles />} title="Assistants" onClick={() => dispatch({ field: 'page', value: 'chat' })}><Promptbar /></Tab>
+                                        <Tab icon={<IconHammer />} title="Settings" onClick={() => dispatch({ field: 'page', value: 'chat' })}><SettingsBar /></Tab>
+                                    </TabSidebar>
+                                )}
+
+                                <div id="main-content" tabIndex={-1} className="flex flex-1">
+                                    {page === 'chat' && (
+                                        <Chat stopConversationRef={stopConversationRef} />
+                                    )}
+                                    {page === 'home' && (
+                                        <MyHome />
+                                    )}
+                                    {page === 'assistantGallery' && (
+                                        <AssistantGallery />
+                                    )}
+                                    {page === 'notebook' && featureFlags.notebook && (
+                                        <NotebookApp />
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Transient operational loading messages (both UI flavours) */}
                         <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
-                        <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
-
-                        
-
+                        {/* "Setting Up Amplify…" — New UI gets a quiet, accessible treatment;
+                            classic UI keeps the original LoadingDialog unchanged. */}
+                        {uiPreference === 'new' ? (
+                            <NewUILoadingStatus open={loadingAmplify} message="Setting up Amplify…" />
+                        ) : (
+                            <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
+                        )}
                     </main>
                 )}
 
@@ -1650,31 +1864,7 @@ const Home = ({
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`} 
                 style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
-                <div
-                    className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white">
-                    <div className="mb-8">
-                        <Logo width={200} height={60} />
-                    </div>
-                    <button
-                        onClick={() => signIn('cognito')}
-                        id="loginButton"
-                        className="shadow-md"
-                        style={{
-                            backgroundColor: 'white',
-                            border: '2px solid #ccc',
-                            color: 'black',
-                            fontWeight: 'bold',
-                            padding: '10px 20px',
-                            borderRadius: '5px',
-                            cursor: 'pointer',
-                            transition: 'background-color 0.3s ease-in-out',
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#48bb78'}
-                        onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}
-                    >
-                        Login
-                    </button>
-                </div>
+                <NewLogin />
             </main>
         );
     }
@@ -1711,4 +1901,3 @@ export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
         },
     };
 };
-

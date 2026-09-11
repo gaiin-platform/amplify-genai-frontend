@@ -1,0 +1,724 @@
+/**
+ * NewHome — landing page shown when page='chat' and the conversation has 0 messages.
+ *
+ * Composer toolbar (left cluster):
+ *   [AttachMenu ⊕]  [active chips…]
+ *
+ * Composer toolbar (right cluster):
+ *   [ModelPicker]  [🎙 when empty | ↑ when content]
+ *
+ * AttachMenu: spec-compliant ⊕ menu (attach-menu-spec.md)
+ *   - Group 1: Add files or photos, Add from library
+ *   - Group 2: Skills ›, Connectors ›
+ *   - Group 3: Web search toggle
+ *   - Active chips shown in toolbar for on toggles
+ *
+ * ModelPicker: spec v2 compliant (model-picker-spec2.md)
+ *   - Trigger shows "[Model] [Effort] ⌄"
+ *   - Expanded state: Opus/Sonnet/Haiku + Effort › + More models ›
+ *
+ * Send button: 32×32, radius 8px, --accent bg, white glyph var(--accent-fg)
+ */
+import React, { useContext, useRef, useState, useCallback, useEffect } from 'react';
+import Image from 'next/image';
+import {
+  IconArrowUp,
+  IconMicrophone,
+} from '@tabler/icons-react';
+import toast from 'react-hot-toast';
+import HomeContext from '@/pages/api/home/home.context';
+import { RichComposer, type RichComposerHandle } from '@/components/NewUI/shared/RichComposer';
+import { handleFile } from '@/components/Chat/AttachFile';
+import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
+import { getFileExtension, processDragDropFiles, validateFile } from '@/utils/fileHandler';
+import { COMMON_DISALLOWED_FILE_EXTENSIONS, DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
+import { AttachedDocument } from '@/types/attacheddocument';
+import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
+import { AttachMenu, AttachMenuChips, type SelectedAction } from '@/components/NewUI/shared/AttachMenu';
+import { AttachmentRail } from '@/components/NewUI/shared/AttachmentRail';
+import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
+import {
+  UIAttachment,
+  createUIAttachmentFromDoc,
+  createPasteAttachment,
+  buildPastedTextMessage,
+} from '@/components/NewUI/shared/attachmentTypes';
+import {
+  createLibraryUIAttachment,
+  hydrateLibraryAttachmentPreview,
+  libraryFileToAttachedDocument,
+  type LibraryFileSelection,
+} from '@/components/NewUI/shared/libraryAttachment';
+import { PluginID, Plugin, Plugins } from '@/types/plugin';
+import { newMessage, MessageType, type Message } from '@/types/chat';
+import { DEFAULT_ASSISTANT } from '@/types/assistant';
+import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
+import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
+import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
+import { getUserDefaultModelId } from '@/components/NewUI/shared/userDefaultModel';
+import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
+
+export const NewHome: React.FC = () => {
+  const {
+    state: {
+      availableModels, defaultModelId, featureFlags, ragOn, chatEndpoint, selectedAssistant,
+      statsService,
+    },
+    handleNewConversation,
+    dispatch,
+  } = useContext(HomeContext);
+
+  // Active assistant (non-default) for chip display and for handing off to the
+  // conversation this landing page is about to create.
+  const activeAssistant = isRealAssistant(selectedAssistant) ? selectedAssistant : null;
+  const activeAssistantName = activeAssistant?.definition?.name;
+
+  const composerRef = useRef<RichComposerHandle>(null);
+  const [hasContent, setHasContent] = useState(false);
+
+  // ── Model + effort ────────────────────────────────────────────────────────
+  // Priority: user's personal default > admin's default model.
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(() => {
+    const userDefault = getUserDefaultModelId();
+    return userDefault || defaultModelId || undefined;
+  });
+  const [selectedEffort, setSelectedEffort] = useState<EffortLevel>(
+    () => getUserDefaultEffort() ?? 'medium',
+  );
+
+  useEffect(() => {
+    if (!selectedModelId) {
+      const userDefault = getUserDefaultModelId();
+      if (userDefault) setSelectedModelId(userDefault);
+      else if (defaultModelId) setSelectedModelId(defaultModelId);
+    }
+  }, [defaultModelId]);
+
+  // ── Plugins (needed by AttachMenu for feature gating) ────────────────────
+  // On the landing page we have no conversation, so we synthesise the active
+  // plugins from featureFlags — the same set the old ChatInput would default to.
+  const landingPlugins: Plugin[] = [
+    ...(featureFlags.webSearch ? [Plugins[PluginID.WEB_SEARCH]] : []),
+    ...(featureFlags.skills ? [Plugins[PluginID.SKILLS]] : []),
+  ].filter(Boolean);
+
+  // ── Attachment ────────────────────────────────────────────────────────────
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // UIAttachments: visual representations of docs/pastes in the rail
+  const [uiAttachments, setUIAttachments] = useState<UIAttachment[]>([]);
+  // thumbUrl object-URLs to revoke on remove/send
+  const thumbUrlsRef = useRef<Record<string, string>>({});
+  // Backing AttachedDocuments (for send payload)
+  const [attachedDocs, setAttachedDocs] = useState<AttachedDocument[]>([]);
+
+  // Preview overlay state
+  const [previewId, setPreviewId] = useState<string | null>(null);
+  const [previewOriginRect, setPreviewOriginRect] = useState<DOMRect | undefined>(undefined);
+
+  /**
+   * Generate a thumbnail object-URL for an image File BEFORE calling handleFile,
+   * because handleFile sets doc.raw = "" and we lose access to the File object.
+   */
+  const makethumbUrl = (file: File): string | undefined => {
+    if (!file.type.startsWith('image/')) return undefined;
+    try {
+      const url = URL.createObjectURL(file);
+      return url;
+    } catch {
+      return undefined;
+    }
+  };
+
+  // addDocument is called by handleFile after it has processed the file.
+  // We look up the pre-generated thumbUrl from thumbUrlsRef.
+  const addDocument = useCallback((doc: AttachedDocument) => {
+    const thumbUrl = thumbUrlsRef.current[doc.id];
+    setAttachedDocs((prev) => [...prev, doc]);
+    setUIAttachments((prev) => [...prev, createUIAttachmentFromDoc(doc, 0, thumbUrl)]);
+  }, []);
+
+  const handleUploadProgress = useCallback((doc: AttachedDocument, progress: number) => {
+    const fraction = progress / 100;
+    setUIAttachments((prev) =>
+      prev.map((a) =>
+        a.id === doc.id
+          ? { ...a, progress: fraction, status: fraction >= 1 ? 'ready' : 'uploading' }
+          : a,
+      ),
+    );
+  }, []);
+
+  const handleSetKey = useCallback((doc: AttachedDocument, key: string) => {
+    setAttachedDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, key } : d)));
+  }, []);
+
+  const handleSetMetadata = useCallback((doc: AttachedDocument, metadata: any) => {
+    setAttachedDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, metadata } : d)));
+  }, []);
+
+  const handleRemoveAttachment = (id: string) => {
+    // Revoke any object-URL we created
+    if (thumbUrlsRef.current[id]) {
+      URL.revokeObjectURL(thumbUrlsRef.current[id]);
+      delete thumbUrlsRef.current[id];
+    }
+    setUIAttachments((prev) => prev.filter((a) => a.id !== id));
+    setAttachedDocs((prev) => prev.filter((d) => d.id !== id));
+  };
+
+  /** Apply an update to one rail entry — the shape shared/libraryAttachment wants. */
+  const patchUIAttachment = useCallback(
+    (id: string, update: (attachment: UIAttachment) => UIAttachment) => {
+      setUIAttachments((prev) => prev.map((a) => (a.id === id ? update(a) : a)));
+    },
+    [],
+  );
+
+  const rememberObjectUrl = useCallback((id: string, objectUrl: string) => {
+    thumbUrlsRef.current[id] = objectUrl;
+  }, []);
+
+  /**
+   * AttachMenu → "Add from library". These files already live in S3, so they get
+   * an AttachedDocument that already carries a `key` and a `ready` rail card —
+   * routing them through addFileToRail would upload a duplicate copy.
+   *
+   * Duplicates are filtered against the render-time rail, not inside the state
+   * updater, which must stay pure (NEW_UI_GUIDE §15).
+   */
+  const attachLibraryFiles = useCallback(
+    (files: LibraryFileSelection[]) => {
+      const alreadyAttached = new Set([
+        ...attachedDocs.map((d) => d.id),
+        ...uiAttachments.map((a) => a.id),
+      ]);
+      const docs = files
+        .map(libraryFileToAttachedDocument)
+        .filter((doc): doc is AttachedDocument => !!doc && !alreadyAttached.has(doc.id));
+      if (!docs.length) return;
+
+      setAttachedDocs((prev) => [...prev, ...docs]);
+      setUIAttachments((prev) => [...prev, ...docs.map(createLibraryUIAttachment)]);
+      docs.forEach((doc) => {
+        void hydrateLibraryAttachmentPreview(doc, {
+          patch: patchUIAttachment,
+          onObjectUrl: rememberObjectUrl,
+        });
+      });
+    },
+    [attachedDocs, uiAttachments, patchUIAttachment, rememberObjectUrl],
+  );
+
+  // ── Hydrate pending library document ──────────────────────────────────────
+  // When the user clicks "Attach to new chat" in the library, the selected
+  // file's AttachedDocument is stored under 'amplify_pending_library_doc' in
+  // sessionStorage and handleNewConversation() is called. The new conversation
+  // has 0 messages, so NewHome is rendered (and ConversationViewShell is
+  // mounted but hidden). React fires sibling effects in JSX order: NewHome
+  // appears before ConversationViewShell, so this effect runs first and
+  // claims the pending doc before ConversationComposer's own effect can. The
+  // key is removed immediately so ConversationComposer finds nothing and
+  // returns. With the doc in NewHome's attachedDocs, handleSend stores it in
+  // amplify_pending_docs, and ConversationViewShell.tryInject PATH A picks it
+  // up and sends it with the user's first message.
+  //
+  // IMPORTANT: createUIAttachmentFromDoc computes previewState='unsupported'
+  // for library docs because doc.data=null (no local bytes).
+  // createLibraryUIAttachment overrides that to 'pending' and
+  // hydrateLibraryAttachmentPreview resolves it — the same path used by the
+  // library preview panel.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const raw = sessionStorage.getItem('amplify_pending_library_doc');
+    if (!raw) return;
+
+    let doc: AttachedDocument;
+    try {
+      doc = JSON.parse(raw) as AttachedDocument;
+      if (!doc?.id || !doc.key) return;
+    } catch {
+      sessionStorage.removeItem('amplify_pending_library_doc');
+      return;
+    }
+
+    sessionStorage.removeItem('amplify_pending_library_doc');
+    setAttachedDocs([doc]);
+
+    // Show the card immediately with a 'pending' spinner while the preview
+    // data is fetched; the card face updates once the download resolves.
+    setUIAttachments([createLibraryUIAttachment(doc)]);
+
+    // NOTE: we intentionally do NOT gate state updates on a `cancelled` flag
+    // here.  React 18's reactStrictMode (enabled in next.config.js) double-
+    // invokes effects in development: it runs effect → cleanup → effect again.
+    // The cleanup sets cancelled=true and the second run finds the sessionStorage
+    // key already gone and returns early.  When the async fetch from the first
+    // run finally completes, a cancelled check would bail out and leave the
+    // attachment card showing the spinner forever.
+    //
+    // Instead, we always apply the state update (React 18 silently ignores
+    // setState on genuinely unmounted components) and use the cleanup function
+    // solely for object-URL memory management.
+    void hydrateLibraryAttachmentPreview(doc, {
+      patch: patchUIAttachment,
+      onObjectUrl: rememberObjectUrl,
+    });
+
+    return () => {
+      // Only use the cleanup for object-URL memory management.
+      // In Strict Mode dev the cleanup fires between effect double-invocations
+      // while the component is still alive; at that point the fetch is usually
+      // still in-flight so thumbUrlsRef.current[doc.id] is empty and nothing
+      // is revoked.  The URL stored by the completed fetch will be cleaned up
+      // when the component genuinely unmounts (user sends first message).
+      const objectUrl = thumbUrlsRef.current[doc.id];
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        delete thumbUrlsRef.current[doc.id];
+      }
+    };
+    // Empty deps: run once per mount. NewHome re-mounts on each page
+    // transition (library → landing), so a fresh effect runs each time.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  /**
+   * Core helper: generate thumbUrl, stash it, then hand the file to handleFile.
+   * Called from both the file-input handler and the image-paste handler.
+   */
+  const addFileToRail = useCallback((file: File) => {
+    // We need a stable id to link the thumbUrl → addDocument callback.
+    // handleFile generates its own uuid; we can't know it in advance.
+    // So we generate the thumbUrl lazily inside addDocument via thumbUrlsRef,
+    // keyed by a "pending" entry we match by filename+size when addDocument fires.
+    // Simpler approach: wrap addDocument to intercept the first call for this file.
+    let intercepted = false;
+    const wrappedAdd = (doc: AttachedDocument) => {
+      if (!intercepted) {
+        intercepted = true;
+        const thumbUrl = makethumbUrl(file);
+        if (thumbUrl) thumbUrlsRef.current[doc.id] = thumbUrl;
+      }
+      addDocument(doc);
+    };
+    handleFile(
+      file, wrappedAdd, handleUploadProgress, handleSetKey, handleSetMetadata,
+      () => {}, featureFlags.uploadDocuments ?? false, undefined, ragOn, {}, [],
+    );
+  }, [addDocument, handleUploadProgress, handleSetKey, handleSetMetadata, featureFlags.uploadDocuments, ragOn]);
+
+  /**
+   * Intake for a batch of files, from the picker or from a drop onto the pane.
+   * Validates first so an unsupported file is refused with a reason instead of
+   * silently failing during upload; .zip is expanded into its member files.
+   */
+  const intakeFiles = useCallback((files: File[]) => {
+    files.forEach((file) => {
+      if (getFileExtension(file.name) === 'zip') {
+        processDragDropFiles([file], {
+          disallowedExtensions: COMMON_DISALLOWED_FILE_EXTENSIONS,
+          onAttach: addDocument,
+          onUploadProgress: handleUploadProgress,
+          onSetKey: handleSetKey,
+          onSetMetadata: handleSetMetadata,
+          onSetAbortController: () => {},
+          statsService,
+          featureFlags,
+          ragOn,
+          uploadDocuments: featureFlags.uploadDocuments ?? false,
+          groupId: undefined,
+          props: {},
+        });
+        return;
+      }
+      const validation = validateFile(file, {
+        disallowedExtensions: COMMON_DISALLOWED_FILE_EXTENSIONS,
+      });
+      if (!validation.isValid) {
+        toast.error(validation.errorMessage || `${file.name} can't be attached.`);
+        return;
+      }
+      statsService.attachFileEvent(file, featureFlags.uploadDocuments ?? false);
+      addFileToRail(file);
+    });
+  }, [addDocument, addFileToRail, featureFlags, handleSetKey, handleSetMetadata,
+      handleUploadProgress, ragOn, statsService]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    intakeFiles(Array.from(e.target.files));
+    e.target.value = '';
+  };
+
+  const { active: isFileDragOver, dropHandlers } = useFileDropTarget({
+    onFiles: intakeFiles,
+    disabled: !featureFlags.uploadDocuments,
+  });
+
+  // Large-paste → attachment card (spec §6)
+  const handleLargePaste = useCallback((text: string) => {
+    const pasteAttachment = createPasteAttachment(text);
+    setUIAttachments((prev) => [...prev, pasteAttachment]);
+    // Pastes don't have a backing doc — we'll send the fullText via sessionStorage
+  }, []);
+
+  // ── Toggle state (web search, skills) ────────────────────────────────────
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [selectedActions, setSelectedActions] = useState<SelectedAction[]>([]);
+
+  // ── Send ──────────────────────────────────────────────────────────────────
+  const handleSend = (markdown: string) => {
+    const trimmed = markdown.trim();
+    const readyAttachments = uiAttachments.filter((a) => a.status !== 'failed');
+    if (!trimmed && readyAttachments.length === 0) return;
+    const pastedAttachments = readyAttachments.filter((a) => a.kind === 'paste');
+    const pastedMessage = buildPastedTextMessage(trimmed, pastedAttachments);
+    // Docs whose S3 upload finished (doc.key set by handleFile's onSetKey).
+    // Same filter ConversationViewShell's PATH A applies, so both sides agree
+    // on whether this send travels with documents.
+    const docsWithKeys = attachedDocs.filter((d) => !!d.key);
+    if (typeof window !== 'undefined') {
+      if (trimmed) sessionStorage.setItem('amplify_pending_message', trimmed);
+      if (attachedDocs.length > 0)
+        sessionStorage.setItem('amplify_pending_docs', JSON.stringify(attachedDocs));
+      if (selectedModelId)
+        sessionStorage.setItem('amplify_pending_model_id', selectedModelId);
+      // NOTE: effort is NOT bridged through sessionStorage. Nothing reads such a
+      // key — the only channel is `conversation.data.reasoningLevel`, set in the
+      // handleNewConversation call below. (`amplify_pending_model_id` is likewise
+      // only consumed as a hint; the model itself travels in that same call.)
+      if (webSearchEnabled)
+        sessionStorage.setItem('amplify_pending_web_search', 'true');
+      if (selectedSkillIds.length > 0)
+        sessionStorage.setItem('amplify_pending_skills', JSON.stringify(selectedSkillIds));
+    }
+    // ── Optimistic first message (Phase 66) ─────────────────────────────────
+    //
+    // BUG: sending a prompt WITH an attachment as the very first message left
+    // the chat view blank for ~1s before the prompt appeared.
+    //
+    // ROOT CAUSE: Chat.tsx renders the transcript ONLY when
+    // selectedConversation.messages.length > 0; at 0 messages it renders the
+    // old empty-conversation panel (#overflowScroll), which the new UI hides
+    // (conversation-view.css "Phase 38 Bug 2"). So for as long as the new
+    // conversation has no messages, the chat area is *genuinely empty* — the
+    // blank window is exactly the gap between this view switch and the user
+    // message landing in state. Text-only sends go through
+    // ConversationViewShell PATH B, which waits for ChatInput's DOM and then
+    // clicks send, so Chat is already mounted and the message lands almost
+    // with the switch. Attachment sends take PATH A, which fires
+    // useSendService().handleSend() from the shell's *mount* effect — the
+    // message can only land a full render of the freshly-keyed Chat tree
+    // later, and that render is what the user sees as a blank chat.
+    //
+    // FIX: put the user message into the conversation at creation time, in the
+    // same batched update as the view switch, so Chat's first commit already
+    // paints the prompt and its attachment cards. The shell then sends this
+    // exact message with deleteCount:1 (pop + re-append the same id), so the
+    // transcript never shows a duplicate and never blanks.
+    //
+    // Seeded for any send carrying an attachment — docs with S3 keys, or a
+    // pasted-text block (which has no doc and travels inline on the message).
+    // Both take the shell's PATH A, which recognises this message by id and
+    // re-sends it with deleteCount:1. Text-only sends seed nothing and keep
+    // their existing (already fast) PATH B behaviour untouched.
+    let optimisticMessage: Message | null = null;
+    if (typeof window !== 'undefined' && (docsWithKeys.length > 0 || pastedAttachments.length > 0)) {
+      const seeded: Message = newMessage({
+        role: 'user',
+        content: pastedMessage.content || ' ',
+        label: pastedMessage.label || undefined,
+        type: MessageType.PROMPT,
+        data: {
+          enableWebSearch: webSearchEnabled,
+          skills: selectedSkillIds,
+          skillSelectionMode: 'auto',
+          ...pastedMessage.data,
+          dataSources: docsWithKeys.map((d) => ({
+            id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
+            type: d.type,
+            name: d.name || '',
+            metadata: d.metadata || {},
+          })),
+        },
+      });
+      // Stamp the active assistant onto the seeded message. The shell re-applies
+      // it before sending, but the copy that lands in state at creation time is
+      // also what `useConversationAssistant` derives the chip from — without this
+      // the brand-new conversation looks assistant-less for one render.
+      optimisticMessage = activeAssistant
+        ? setAssistantInMsg(seeded, activeAssistant)
+        : seeded;
+      // The shell matches this id against the last message in state to know the
+      // prompt is already rendered and must be sent with deleteCount:1.
+      sessionStorage.setItem('amplify_pending_message_id', seeded.id);
+    } else if (typeof window !== 'undefined') {
+      // No seeded message this time — make sure an id left over from an
+      // abandoned send can never be matched against a later conversation.
+      sessionStorage.removeItem('amplify_pending_message_id');
+    }
+    // Bug fix (Phase 27): tell home.tsx a send is already in flight for the
+    // about-to-be-created conversation, so it doesn't flash NewHome/landing
+    // page again during the ~150-300ms window before ConversationViewShell's
+    // pending-message bridge actually injects the text + clicks send (during
+    // which selectedConversation.messages.length is genuinely still 0). See
+    // NEW_UI_DOCS.md §12 Phase 27 and home.tsx's pendingNewConversationSend.
+    // Still needed for the text-only path, which has no optimistic message.
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new Event('amplifyNewConversationSendPending'));
+    }
+    handleNewConversation({
+      prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
+      ...(selectedModelId && availableModels[selectedModelId]
+        ? { model: availableModels[selectedModelId] }
+        : {}),
+      // Reasoning effort has no per-request field — useChatSendService reads it
+      // off `selectedConversation.data?.reasoningLevel` (:629-644) and turns it
+      // into `options.reasoningLevel` / `disableReasoning`. Set it here or the
+      // picker is decorative and the backend applies its own default.
+      // ConversationViewShell's applyWebSearch spreads `conversation.data`, so
+      // this survives the web-search/skills write that follows.
+      data: { reasoningLevel: selectedEffort },
+      ...(optimisticMessage ? { messages: [optimisticMessage] } : {}),
+      // MUST be passed: handleNewConversation unconditionally dispatches
+      // `selectedAssistant = paramAssistant ?? DEFAULT_ASSISTANT`, so omitting it
+      // silently detaches the assistant the user tagged on this composer — the
+      // chip disappeared and the first message was sent as a plain chat.
+      ...(activeAssistant ? { assistant: activeAssistant } : {}),
+    });
+    composerRef.current?.clear();
+    setHasContent(false);
+    setAttachedDocs([]);
+    setUIAttachments([]);
+    // Revoke all thumbnail object-URLs
+    Object.values(thumbUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
+    thumbUrlsRef.current = {};
+  };
+
+  // Send enabled when text OR at least one ready attachment (spec §1)
+  const allUploaded = uiAttachments.every(
+    (a) => a.status !== 'uploading',
+  );
+  const canSend = (hasContent || uiAttachments.some((a) => a.status === 'ready')) && allUploaded;
+
+  // ⌘U global shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.metaKey && e.key === 'u') {
+        e.preventDefault();
+        fileInputRef.current?.click();
+      }
+    };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, []);
+
+  // Wire openNewUISettingsSection event (dispatched by AttachMenu connectors/skills)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const section = (e as CustomEvent).detail?.section;
+      if (section) {
+        window.dispatchEvent(new CustomEvent('openSettingsSection', { detail: { section } }));
+      }
+    };
+    window.addEventListener('openNewUISettingsSection', handler);
+    return () => window.removeEventListener('openNewUISettingsSection', handler);
+  }, []);
+
+  return (
+    <div
+      className="relative flex-1 flex flex-col items-center justify-start bg-[--bg-app] overflow-hidden"
+      style={{ fontFamily: 'Inter, sans-serif' }}
+      {...dropHandlers}
+    >
+      {/* Drop anywhere on the landing pane → attaches to the composer */}
+      {isFileDragOver && (
+        <FileDropOverlay
+          label="Drop files to attach"
+          hint="They'll be added to your first message"
+        />
+      )}
+
+      {/* Hidden file input */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        className="sr-only"
+        multiple
+        accept="*"
+        onChange={handleFileChange}
+      />
+
+      {/* Centered content column */}
+      <div
+        className="w-full max-w-[760px] px-6 flex flex-col items-center"
+        style={{ paddingTop: 'max(72px, 26vh)' }}
+      >
+        {/* Greeting */}
+        <div className="flex items-center gap-3 mb-8 justify-center">
+          <Image src="/amplify-logo.png" alt="Amplify" width={40} height={40} style={{ borderRadius: 6 }} />
+          <h1
+            className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
+            style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
+          >
+            How can I help?
+          </h1>
+        </div>
+
+        {/* Composer box — 3-band grid: rail | textarea | toolbar */}
+        <div
+          className="
+            new-ui-composer-card
+            w-full bg-[--bg-composer] rounded-[14px]
+            border border-[--border-subtle]
+            focus-within:border-[--border-composer-active]
+            transition-colors duration-150
+            p-4 pb-3
+          "
+          style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto' }}
+          onClick={() => composerRef.current?.focus()}
+        >
+          {/* Band 1 — attachment rail (collapses to 0 when empty) */}
+          <AttachmentRail
+            attachments={uiAttachments}
+            onRemove={handleRemoveAttachment}
+            onPreview={(id, rect) => {
+              setPreviewId(id);
+              setPreviewOriginRect(rect);
+            }}
+          />
+
+          {/* Band 2 — Rich composer */}
+          <RichComposer
+            ref={composerRef}
+            onSend={handleSend}
+            onChange={(value) => setHasContent(value.trim().length > 0)}
+            onLargePaste={handleLargePaste}
+            onImagePaste={addFileToRail}
+            placeholder="Ask anything…"
+            editorClassName="max-h-[240px] overflow-y-auto"
+            autoFocus
+            hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
+          />
+
+          {/* Band 3 — Toolbar */}
+          <div
+            className="flex items-center justify-between mt-3"
+            style={{ minHeight: 34 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Left: ⊕ attach menu + active chips */}
+            <div className="flex items-center gap-2">
+              <AttachMenu
+                isNewChat
+                plugins={landingPlugins}
+                onAddFiles={() => fileInputRef.current?.click()}
+                onAddFromLibrary={attachLibraryFiles}
+                attachedLibraryIds={attachedDocs.map((d) => d.id)}
+                onAddIntegrationFile={(file) => addFileToRail(file)}
+                selectedActions={selectedActions}
+                onActionsChange={setSelectedActions}
+                webSearchEnabled={webSearchEnabled}
+                onToggleWebSearch={() => {
+                  setWebSearchEnabled((v) => {
+                    const next = !v;
+                    // Seed Chat.tsx's plugins array as early as possible — the
+                    // conversation this creates hasn't mounted Chat.tsx yet, but
+                    // there's no harm in getting the settings write in early.
+                    if (next) persistWebSearchPluginPreference(featureFlags);
+                    return next;
+                  });
+                }}
+                selectedSkillIds={selectedSkillIds}
+                onSkillsChange={setSelectedSkillIds}
+                chatEndpoint={chatEndpoint ?? undefined}
+                composerRef={composerRef}
+              />
+
+              {/* Active toggle chips */}
+              <AttachMenuChips
+                webSearchEnabled={webSearchEnabled}
+                onRemoveWebSearch={() => setWebSearchEnabled(false)}
+                selectedSkillIds={selectedSkillIds}
+                onRemoveSkills={() => setSelectedSkillIds([])}
+                assistantName={activeAssistantName}
+                onRemoveAssistant={() => dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
+                selectedActions={selectedActions}
+                onRemoveActions={() => setSelectedActions([])}
+              />
+            </div>
+
+            {/* Right: model picker + mic/send */}
+            <div className="flex items-center gap-2">
+              <ModelPicker
+                selectedModelId={selectedModelId}
+                selectedEffort={selectedEffort}
+                onModelChange={setSelectedModelId}
+                onEffortChange={setSelectedEffort}
+                isNewChat
+                composerRef={composerRef}
+              />
+
+              {/*
+               * §7 Send ↔ Voice slot (32×32, zero layout shift).
+               * One slot, two occupants — cross-fade over 120ms:
+               *   empty → Voice button (transparent bg, mic icon)
+               *   content → Send button (--accent bg, ArrowUp icon)
+               */}
+              <div className="relative w-[32px] h-[32px]">
+                {/* Voice — when empty */}
+                <button
+                  className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
+                  style={{
+                    background: 'transparent',
+                    color: 'var(--text-muted)',
+                    opacity: canSend ? 0 : 1,
+                    pointerEvents: canSend ? 'none' : 'auto',
+                  }}
+                  title="Voice input"
+                  aria-label="Voice input"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+                >
+                  <IconMicrophone size={17} />
+                </button>
+                {/* Send — when content */}
+                <button
+                  className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
+                  style={{
+                    background: 'var(--accent)',
+                    color: 'var(--accent-fg)',
+                    opacity: canSend ? 1 : 0,
+                    pointerEvents: canSend ? 'auto' : 'none',
+                    cursor: 'pointer',
+                  }}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => { const md = composerRef.current?.getValue() ?? ''; handleSend(md); }}
+                  title="Send (Enter)"
+                  aria-label="Send message"
+                >
+                  <IconArrowUp size={18} strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Attachment preview overlay */}
+      {previewId && (
+        <AttachmentPreview
+          attachments={uiAttachments}
+          initialIndex={uiAttachments.findIndex((a) => a.id === previewId)}
+          originRect={previewOriginRect}
+          onClose={() => { setPreviewId(null); setPreviewOriginRect(undefined); }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default NewHome;

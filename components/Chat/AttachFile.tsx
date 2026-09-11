@@ -124,7 +124,7 @@ export const handleFile = async (file: any,
             ? { ...props, durationSeconds: videoDurationSeconds }
             : props;
 
-        let document: AttachedDocument = { id: uuidv4(), name: fileName, type: type, raw: "", data: dataProps, groupId };
+        let document: AttachedDocument = { id: uuidv4(), name: fileName, type: type, raw: "", data: dataProps, size, groupId };
         console.log(`document.type: "${document.type}"`);
         console.log("document", document);
         console.log("file", file);
