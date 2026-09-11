@@ -56,6 +56,8 @@ import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
+import { getUserDefaultModelId } from '@/components/NewUI/shared/userDefaultModel';
+import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
 
 export const NewHome: React.FC = () => {
   const {
@@ -76,13 +78,21 @@ export const NewHome: React.FC = () => {
   const [hasContent, setHasContent] = useState(false);
 
   // ── Model + effort ────────────────────────────────────────────────────────
-  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
-    defaultModelId || undefined,
+  // Priority: user's personal default > admin's default model.
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(() => {
+    const userDefault = getUserDefaultModelId();
+    return userDefault || defaultModelId || undefined;
+  });
+  const [selectedEffort, setSelectedEffort] = useState<EffortLevel>(
+    () => getUserDefaultEffort() ?? 'medium',
   );
-  const [selectedEffort, setSelectedEffort] = useState<EffortLevel>('medium');
 
   useEffect(() => {
-    if (!selectedModelId && defaultModelId) setSelectedModelId(defaultModelId);
+    if (!selectedModelId) {
+      const userDefault = getUserDefaultModelId();
+      if (userDefault) setSelectedModelId(userDefault);
+      else if (defaultModelId) setSelectedModelId(defaultModelId);
+    }
   }, [defaultModelId]);
 
   // ── Plugins (needed by AttachMenu for feature gating) ────────────────────

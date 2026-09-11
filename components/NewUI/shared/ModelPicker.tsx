@@ -58,6 +58,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { Model } from '@/types/model';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
+import { getUserDefaultModelId } from './userDefaultModel';
 import {
   InfoCardMeta,
   InfoCardPill,
@@ -75,7 +76,7 @@ import { SUBMENU_PLACEMENT, submenuMiddleware, submenuStyle } from './menuPositi
 
 export type EffortLevel = 'low' | 'medium' | 'high' | 'off';
 
-const EFFORT_OPTIONS: {
+export const EFFORT_OPTIONS: {
   id: EffortLevel;
   label: string;
   isDefault: boolean;
@@ -140,6 +141,23 @@ function modelDescription(model: Model): string {
   );
   if (family) return family.defaultDesc;
   return (model.description && model.description.trim()) ? model.description : 'General purpose model';
+}
+
+/**
+ * Role-aware description used in the recommended slate.
+ * Priority: user's personal default > advanced > system default.
+ * Everything else falls back to modelDescription().
+ */
+function recommendedModelDescription(
+  model: Model,
+  systemDefaultId: string | undefined,
+  advancedId: string | undefined,
+  userDefaultId: string | null,
+): string {
+  if (userDefaultId && model.id === userDefaultId) return 'Your default';
+  if (advancedId && model.id === advancedId) return 'Advanced tasks';
+  if (systemDefaultId && model.id === systemDefaultId) return 'System default';
+  return modelDescription(model);
 }
 
 export interface ModelPickerProps {
@@ -679,7 +697,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   menuZIndex = 9999,
 }) => {
   const {
-    state: { availableModels, defaultModelId, featureFlags },
+    state: { availableModels, defaultModelId, cheapestModelId, advancedModelId, featureFlags },
   } = useContext(HomeContext);
 
   // ── Model Router state (backed by localStorage, matching old ModelSelect) ─
@@ -704,35 +722,56 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   const activeEffortOption =
     EFFORT_OPTIONS.find((e) => e.id === selectedEffort) ?? EFFORT_OPTIONS[1];
 
+  // ── User's personal default model ────────────────────────────────────────
+  // Read every render so picker always reflects the latest settings write.
+  const userDefaultModelId = getUserDefaultModelId();
+
   // ── Build recommended slate ───────────────────────────────────────────────
-  // Expanded: one per family (Opus > Sonnet > Haiku), plus current model if not in set
-  // Collapsed: just the current model
+  // Expanded (new chat):
+  //   1. System default     (defaultModelId from admin config)
+  //   2. Advanced task model (advancedModelId from admin config — if different)
+  //   3. User's default     (personal preference from settings — only if different from above)
+  //   Falls back to family representatives when admin models aren't configured.
+  // Collapsed (in-conversation): just the active model.
   const recommendedModels: Model[] = (() => {
     if (!isNewChat) {
       return activeModel ? [activeModel] : [];
     }
 
-    const familyReps = pickFamilyRepresentatives(allModels);
+    // Build the ordered id list from admin config + user default
+    const orderedIds: string[] = [];
+    if (defaultModelId) orderedIds.push(defaultModelId);
+    if (advancedModelId && !orderedIds.includes(advancedModelId)) orderedIds.push(advancedModelId);
+    if (userDefaultModelId && !orderedIds.includes(userDefaultModelId)) orderedIds.push(userDefaultModelId);
 
-    // Ensure current/active model is in the list (insert at tier position if missing)
-    if (activeModel && !familyReps.find((m) => m.id === activeModel.id)) {
-      familyReps.push(activeModel);
+    // Resolve ids → Model objects
+    const resolved = orderedIds
+      .map((id) => allModels.find((m) => m.id === id))
+      .filter((m): m is Model => m !== undefined);
+
+    // If no admin models are configured, fall back to family representatives
+    if (resolved.length === 0) {
+      const familyReps = pickFamilyRepresentatives(allModels);
+      if (activeModel && !familyReps.find((m) => m.id === activeModel.id)) {
+        familyReps.push(activeModel);
+      }
+      return familyReps.sort((a, b) => {
+        const tierA = FAMILY_TIERS.find(
+          (f) => a.name.toLowerCase().includes(f.family) || a.id.toLowerCase().includes(f.family)
+        )?.tier ?? 99;
+        const tierB = FAMILY_TIERS.find(
+          (f) => b.name.toLowerCase().includes(f.family) || b.id.toLowerCase().includes(f.family)
+        )?.tier ?? 99;
+        return tierA - tierB;
+      });
     }
 
-    // Sort capability-descending: match FAMILY_TIERS order, unknowns go last
-    return familyReps.sort((a, b) => {
-      const tierA = FAMILY_TIERS.find(
-        (f) =>
-          a.name.toLowerCase().includes(f.family) ||
-          a.id.toLowerCase().includes(f.family)
-      )?.tier ?? 99;
-      const tierB = FAMILY_TIERS.find(
-        (f) =>
-          b.name.toLowerCase().includes(f.family) ||
-          b.id.toLowerCase().includes(f.family)
-      )?.tier ?? 99;
-      return tierA - tierB;
-    });
+    // Ensure the currently selected model is visible (appended if not already in list)
+    if (activeModel && !resolved.find((m) => m.id === activeModel.id)) {
+      resolved.push(activeModel);
+    }
+
+    return resolved;
   })();
 
   // ── Primary menu state ────────────────────────────────────────────────────
@@ -1048,7 +1087,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {modelDescription(model)}
+                      {recommendedModelDescription(model, defaultModelId, advancedModelId, userDefaultModelId)}
                     </div>
                   </div>
                   {model.supportsImages && (

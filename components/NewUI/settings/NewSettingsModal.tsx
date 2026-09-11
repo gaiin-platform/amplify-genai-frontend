@@ -48,6 +48,11 @@ import { NewConnectorsSection } from '@/components/NewUI/settings/NewConnectorsS
 import { PromptTemplatesSection } from '@/components/NewUI/settings/PromptTemplatesSection';
 import { SidebarItemsSection } from '@/components/NewUI/settings/SidebarItemsSection';
 import { CustomInstructionsSection } from '@/components/NewUI/settings/CustomInstructionsSection';
+import { filterModels } from '@/utils/app/models';
+import { getUserDefaultModelId, setUserDefaultModelId } from '@/components/NewUI/shared/userDefaultModel';
+import { getUserDefaultEffort, setUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
+import { EFFORT_OPTIONS } from '@/components/NewUI/shared/ModelPicker';
+import type { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -139,13 +144,42 @@ const STORAGE_CONFIRM: Record<ConversationStorage, string> = {
 const GeneralSection: FC = () => {
   const {
     dispatch: homeDispatch,
-    state: { featureFlags, storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService },
+    state: { featureFlags, storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService, availableModels, defaultModelId, advancedModelId },
   } = useContext(HomeContext);
 
   const settings = getSettings(featureFlags);
   const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(
     settings.featureOptions,
   );
+
+  // ── Default model ─────────────────────────────────────────────────────
+  const allModels = filterModels(availableModels, settings.hiddenModelIds);
+  const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
+  const [userDefaultModelId, setUserDefaultModelIdState] = useState<string>(
+    () => getUserDefaultModelId() ?? '',
+  );
+
+  const handleDefaultModelChange = (id: string) => {
+    setUserDefaultModelIdState(id);
+    setUserDefaultModelId(id || null);
+    setModelDropdownOpen(false);
+  };
+
+  const selectedModelName = allModels.find((m) => m.id === userDefaultModelId)?.name ?? 'System default';
+
+  // ── Default effort ────────────────────────────────────────────────────
+  const [effortDropdownOpen, setEffortDropdownOpen] = useState(false);
+  const [userDefaultEffortId, setUserDefaultEffortIdState] = useState<EffortLevel | ''>(
+    () => getUserDefaultEffort() ?? '',
+  );
+
+  const handleDefaultEffortChange = (id: EffortLevel | '') => {
+    setUserDefaultEffortIdState(id);
+    setUserDefaultEffort(id || null);
+    setEffortDropdownOpen(false);
+  };
+
+  const selectedEffortLabel = EFFORT_OPTIONS.find((e) => e.id === userDefaultEffortId)?.label ?? 'Medium (default)';
 
   // ── Appearance (system / light / dark) ───────────────────────────────
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
@@ -423,6 +457,287 @@ const GeneralSection: FC = () => {
                         {isActive && (
                           <span style={{ color: 'var(--accent)', fontSize: '14px', lineHeight: 1 }}>✓</span>
                         )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Default model row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: '14px',
+            borderBottom: '1px solid var(--border-subtle)',
+            marginBottom: '14px',
+          }}
+        >
+          <div>
+            <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>Default model</span>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              Pre-selected when you start a new conversation.
+            </p>
+          </div>
+
+          {/* Chromeless dropdown trigger — same pattern as chat font */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setModelDropdownOpen((o) => !o)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '2px 0',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <span style={{ fontSize: '14px', color: 'var(--text-primary)', maxWidth: '18ch', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {selectedModelName}
+              </span>
+              <IconChevronDown size={12} stroke={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            </button>
+
+            {modelDropdownOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                  onClick={() => setModelDropdownOpen(false)}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    zIndex: 100,
+                    background: 'var(--bg-raised)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '10px',
+                    padding: '4px',
+                    minWidth: '260px',
+                    maxHeight: 'min(380px, 50dvh)',
+                    overflowY: 'auto',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {/* "System default" clears the personal choice */}
+                  {(() => {
+                    const isActive = !userDefaultModelId;
+                    return (
+                      <button
+                        onClick={() => handleDefaultModelChange('')}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          background: isActive ? 'var(--bg-active)' : 'transparent',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 80ms ease',
+                        }}
+                        onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                        onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                          <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: isActive ? 500 : 400 }}>
+                            System default
+                          </span>
+                          {isActive && <span style={{ color: 'var(--accent)', fontSize: '14px', lineHeight: 1 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          Uses the admin-configured default model
+                        </span>
+                      </button>
+                    );
+                  })()}
+
+                  {/* Divider */}
+                  <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 6px' }} />
+
+                  {allModels.map((model) => {
+                    const isActive = userDefaultModelId === model.id;
+                    const roleLabel =
+                      advancedModelId === model.id ? 'Advanced tasks' :
+                      defaultModelId === model.id ? 'System default' : null;
+                    return (
+                      <button
+                        key={model.id}
+                        onClick={() => handleDefaultModelChange(model.id)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          background: isActive ? 'var(--bg-active)' : 'transparent',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 80ms ease',
+                        }}
+                        onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                        onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
+                          <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: isActive ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {model.name}
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                            {roleLabel && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', background: 'var(--bg-active)', padding: '1px 6px', borderRadius: '4px' }}>
+                                {roleLabel}
+                              </span>
+                            )}
+                            {isActive && <span style={{ color: 'var(--accent)', fontSize: '14px', lineHeight: 1 }}>✓</span>}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Default effort row */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingBottom: '14px',
+            borderBottom: '1px solid var(--border-subtle)',
+            marginBottom: '14px',
+          }}
+        >
+          <div>
+            <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>Default reasoning effort</span>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              Pre-selected effort level for new conversations.
+            </p>
+          </div>
+
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setEffortDropdownOpen((o) => !o)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '5px',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '2px 0',
+                color: 'var(--text-primary)',
+              }}
+            >
+              <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+                {selectedEffortLabel}
+              </span>
+              <IconChevronDown size={12} stroke={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+            </button>
+
+            {effortDropdownOpen && (
+              <>
+                <div
+                  style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+                  onClick={() => setEffortDropdownOpen(false)}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 'calc(100% + 6px)',
+                    right: 0,
+                    zIndex: 100,
+                    background: 'var(--bg-raised)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '10px',
+                    padding: '4px',
+                    minWidth: '200px',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
+                  }}
+                >
+                  {/* "Medium (default)" clears the personal choice */}
+                  {(() => {
+                    const isActive = !userDefaultEffortId;
+                    return (
+                      <button
+                        onClick={() => handleDefaultEffortChange('')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          background: isActive ? 'var(--bg-active)' : 'transparent',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 80ms ease',
+                        }}
+                        onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                        onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      >
+                        <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: isActive ? 500 : 400 }}>
+                          Medium (default)
+                        </span>
+                        {isActive && <span style={{ color: 'var(--accent)', fontSize: '14px', lineHeight: 1 }}>✓</span>}
+                      </button>
+                    );
+                  })()}
+
+                  <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 6px' }} />
+
+                  {EFFORT_OPTIONS.map((opt) => {
+                    const isActive = userDefaultEffortId === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        onClick={() => handleDefaultEffortChange(opt.id)}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'flex-start',
+                          width: '100%',
+                          padding: '8px 10px',
+                          borderRadius: '7px',
+                          border: 'none',
+                          background: isActive ? 'var(--bg-active)' : 'transparent',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          transition: 'background 80ms ease',
+                        }}
+                        onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                        onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                          <div>
+                            <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: isActive ? 500 : 400 }}>
+                              {opt.label}
+                            </span>
+                            {opt.isDefault && !userDefaultEffortId && (
+                              <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '6px' }}>system default</span>
+                            )}
+                          </div>
+                          {isActive && <span style={{ color: 'var(--accent)', fontSize: '14px', lineHeight: 1 }}>✓</span>}
+                        </div>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>
+                          {opt.info}
+                        </span>
                       </button>
                     );
                   })}

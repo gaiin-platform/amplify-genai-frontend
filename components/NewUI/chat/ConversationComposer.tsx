@@ -72,6 +72,7 @@ import { UploadPendingIndicator } from './UploadPendingIndicator';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
+import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 // For the direct-send path (pasted images with S3 keys)
 import { handleFile } from '@/components/Chat/AttachFile';
@@ -174,7 +175,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   // defaulting to 'medium', which made the picker misreport the effort chosen in
   // the prompt-template fill dialog.
   const [selectedEffort, setSelectedEffort] = useState<EffortLevel>(
-    (selectedConversation?.data?.reasoningLevel as EffortLevel | undefined) ?? 'medium',
+    (selectedConversation?.data?.reasoningLevel as EffortLevel | undefined) ??
+      getUserDefaultEffort() ??
+      'medium',
   );
 
   // Keep selectedModelId in sync with conversation model changes
