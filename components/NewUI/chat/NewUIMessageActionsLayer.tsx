@@ -593,6 +593,29 @@ export const NewUIMessageActionsLayer: React.FC = () => {
         debounceTimer = setTimeout(scan, 120);
       };
 
+      // Fast-path ResizeObserver for individual message elements.
+      // When a user prompt expands or collapses ("show more / show less"), the
+      // element's offsetHeight changes frame-by-frame through a CSS transition.
+      // The MutationObserver above only fires on childList changes (not class
+      // toggles or style changes that drive the transition), and the 120 ms
+      // debounce is too coarse to track the animation in real time.  A per-element
+      // ResizeObserver fires on every frame the layout engine commits a new size,
+      // so the action row follows the expansion/collapse immediately.
+      let fastResizeTimer: ReturnType<typeof setTimeout> | null = null;
+      const debouncedScanFast = () => {
+        if (fastResizeTimer) clearTimeout(fastResizeTimer);
+        fastResizeTimer = setTimeout(scan, 16);
+      };
+      const messageResizeObserver = new ResizeObserver(debouncedScanFast);
+      const syncMessageObservers = () => {
+        messageResizeObserver.disconnect();
+        container
+          .querySelectorAll<HTMLElement>('.enhanced-chat-message')
+          .forEach((el) => messageResizeObserver.observe(el));
+      };
+      // Observe all message elements present at attach time.
+      syncMessageObservers();
+
       // subtree:true — message elements + their content mutate a level or two
       // below .chatcontainer (streaming appends content blocks, markdown layer
       // injects hosts, images load). The 120ms debounce keeps this cheap.
@@ -603,6 +626,9 @@ export const NewUIMessageActionsLayer: React.FC = () => {
             continue;
           }
           debouncedScan();
+          // Re-sync per-message observers whenever the message list changes
+          // (new messages added / removed) so new elements are tracked too.
+          syncMessageObservers();
           return;
         }
       });
@@ -628,8 +654,10 @@ export const NewUIMessageActionsLayer: React.FC = () => {
       cleanupFn = () => {
         observer.disconnect();
         containerResizeObserver.disconnect();
+        messageResizeObserver.disconnect();
         window.removeEventListener('resize', onResize);
         if (debounceTimer) clearTimeout(debounceTimer);
+        if (fastResizeTimer) clearTimeout(fastResizeTimer);
         if (overlay && overlay.parentElement) overlay.parentElement.removeChild(overlay);
       };
     };
