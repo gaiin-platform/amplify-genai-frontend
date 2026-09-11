@@ -33,6 +33,8 @@ export interface NewUIPromptCreationModalProps {
     onSave: () => void;
     onCancel: () => void;
     onUpdatePrompt: (prompt: Prompt) => void;
+    /** When provided, the modal shows "Use Template" as the primary action instead of "Save" */
+    onUse?: () => void;
 }
 
 // ── Shared field styles (match NewUIAssistantCreationModal) ───────────────────
@@ -70,6 +72,7 @@ export const NewUIPromptCreationModal: React.FC<NewUIPromptCreationModalProps> =
     onSave,
     onCancel,
     onUpdatePrompt,
+    onUse,
 }) => {
     const [name, setName] = useState(prompt.name || '');
     const [nameError, setNameError] = useState('');
@@ -100,6 +103,25 @@ export const NewUIPromptCreationModal: React.FC<NewUIPromptCreationModalProps> =
             content: content.trim(),
         };
         onUpdatePrompt(updated);
+        onSave();
+    };
+
+    // ── Use handler (save any edits, then start a conversation) ───────────
+    const handleUse = () => {
+        if (!name.trim()) {
+            setNameError('Name is required');
+            return;
+        }
+        setNameError('');
+
+        const updated: Prompt = {
+            ...prompt,
+            name: name.trim(),
+            description: description.trim(),
+            content: content.trim(),
+        };
+        onUpdatePrompt(updated);
+        onUse?.();
         onSave();
     };
 
@@ -134,16 +156,18 @@ export const NewUIPromptCreationModal: React.FC<NewUIPromptCreationModalProps> =
         );
     }
 
-    // ── Title for the shell — "New Template" for empty prompts, "Edit Template" otherwise ──
+    // ── Title for the shell ────────────────────────────────────────────────
     const isNewPrompt = !prompt.description && !prompt.content;
-    const shellTitle = isNewPrompt ? 'New Template' : 'Edit Template';
+    const shellTitle = onUse ? 'Use Template' : (isNewPrompt ? 'New Template' : 'Edit Template');
+    const shellSaveLabel = onUse ? 'Use Template' : (isNewPrompt ? 'Create' : 'Save');
+    const shellOnSave = onUse ? handleUse : handleSave;
 
     return (
         <CreationModalShell
             title={shellTitle}
             onClose={onCancel}
-            onSave={handleSave}
-            saveLabel={isNewPrompt ? 'Create' : 'Save'}
+            onSave={shellOnSave}
+            saveLabel={shellSaveLabel}
         >
             {/* ── Name ─────────────────────────────────────────────────── */}
             <div style={fieldGroupStyle}>

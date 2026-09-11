@@ -149,6 +149,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `useIntegrationConnections.ts` | Supported + connected integrations, OAuth popup connect, disconnect, for an optional `filter`. The one copy of that flow; `useDriveIntegrations` is a thin wrapper. Also exports `isConfigurationMessage` — an unconfigured backend answers with a *message*, not a failure worth alerting on |
 | `openAtLatest.ts` | The "open a conversation at its newest message" rule — `nextOpenAtLatestTop` plus its tolerance/frame budgets. Returns the scroll maximum to pin to, or `null` once the user scrolls up. Used by `ConversationViewShell`'s open-at-latest pin loop. No React, no DOM imports |
 | `uiPreferenceResolution.ts` | The stored new-vs-classic choice: `UI_PREF_KEY`, `getUIPreference`, `writeLocalUIPreference`, `resolveStoredUIPreference` (server beats localStorage; only `'ask'` may show the popup), and the `?uiPreference=reset` helpers. No React imports |
+| `PromptTemplateDialog.tsx` | The "populate and use this template" popup — portals the old `VariableModal` to `document.body` above the settings modal, reproduces `Chat.tsx#handleSubmit`'s `fillInTemplate` semantics, and sends via the `amplify_pending_message` bridge. Also exports `promptTemplateVariables` — call it first and skip the popup when a template has nothing to fill. Model selector is suppressed on purpose (see §26) |
+| `PromptTemplateDialogHost.tsx` | Single mount point for the popup above, at the new-UI root in `home.tsx` — a sibling of `NewSettingsModal`, never a descendant. Launch it with the exported `openPromptTemplateDialog(prompt)` and then close your own modal: the popup survives because it isn't in your subtree. Settings has three entry points (collapsed sidebar, expanded sidebar, ⌘,) so per-launcher hosts would have to be triplicated |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
 ### `sidebar/`
@@ -382,6 +384,32 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     **dead bridge** here for the same reason as §18: `ChatInput`'s `#viewFiles` button
     toggles `DataSourceSelector` inside the old dock, which the new UI renders
     `display:none` — clicking it via `getElementById` opens nothing at all.
+
+26. **A modal that `Chat.tsx` renders is unreachable in the new UI — don't "navigate and let
+    Chat show it".** Three separate mechanisms hide it, and fixing one is not enough:
+    it is nested inside `#overflowScroll`, which `conversation-view.css` sets to
+    `display:none !important`; `home.tsx` parks the whole `ConversationViewShell` at
+    `left:-100vw; visibility:hidden` for as long as `messages.length === 0`; and
+    `ReusableComponents/Modal` is **not portalled** and uses `z-50`, so it lands under
+    `NewSettingsModal`'s `zIndex: 9999` regardless. `VariableModal` (the prompt-template
+    variable prompt) hit all three at once — clicking a template appeared to do nothing.
+    The new UI must render such a dialog itself: import the old component unmodified,
+    `createPortal` it to `document.body` inside a wrapper that owns a stacking context
+    above 9999, and drive the outcome through an existing bridge rather than through
+    Chat's own handler (`shared/PromptTemplateDialog.tsx`). Note also that the
+    `amplify_pending_model_id` key is **cleared** by `ConversationViewShell` but never
+    applied — only `handleNewConversation({ model })` sets a model, so a model picker on
+    such a dialog is a no-op unless you pass the model through conversation creation.
+
+27. **A dialog that must outlive the modal that opened it cannot be rendered inside it.**
+    Rendering it as a descendant gives you a choice of two bugs: leave the launcher open
+    and it sits visible behind the dialog, or close the launcher and React unmounts the
+    dialog with it. Portalling does not help — a portal changes where the DOM node lands,
+    not who owns the React subtree. Mount such a dialog once at the new-UI root in
+    `home.tsx` as a sibling of `NewSettingsModal`, and have launchers open it by window
+    event, then close themselves (`shared/PromptTemplateDialogHost.tsx`). One root mount
+    also covers the fact that settings itself has three entry points — the collapsed
+    sidebar, the expanded sidebar, and the ⌘, shortcut.
 
 ---
 

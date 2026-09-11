@@ -993,6 +993,14 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
     }
   }, [activeSection]);
 
+  // Allow child sections (e.g. PromptTemplatesSection) to close this modal
+  // by dispatching window.dispatchEvent(new Event('closeNewUISettings')).
+  useEffect(() => {
+    const handler = () => onClose();
+    window.addEventListener('closeNewUISettings', handler);
+    return () => window.removeEventListener('closeNewUISettings', handler);
+  }, [onClose]);
+
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target === e.currentTarget) onClose();

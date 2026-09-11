@@ -23,6 +23,8 @@ import { Prompt } from '@/types/prompt';
 import { handleStartConversationWithPrompt, createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 import { isAssistant } from '@/utils/app/assistants';
 import { NewUIPromptCreationModal } from '@/components/NewUI/views/NewUIPromptCreationModal';
+import { promptTemplateVariables } from '@/components/NewUI/shared/PromptTemplateDialog';
+import { openPromptTemplateDialog } from '@/components/NewUI/shared/PromptTemplateDialogHost';
 
 // ── Local helper components ──────────────────────────────────────────────────
 
@@ -212,19 +214,6 @@ const PromptTemplatesSection: React.FC = () => {
       p.name.toLowerCase().includes(q) ||
       (p.description && p.description.toLowerCase().includes(q));
 
-    const quickActions = allTemplates
-      .filter((p: Prompt) => p.folderId === 'amplify_helpers' && match(p))
-      .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name));
-
-    const systemInstructions = allTemplates
-      .filter(
-        (p: Prompt) =>
-          p.type === 'root_prompt' &&
-          p.folderId !== 'amplify_helpers' &&
-          match(p),
-      )
-      .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name));
-
     const yourTemplates = allTemplates
       .filter(
         (p: Prompt) =>
@@ -234,18 +223,38 @@ const PromptTemplatesSection: React.FC = () => {
       )
       .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name));
 
-    return { quickActions, systemInstructions, yourTemplates };
+    return { yourTemplates };
   }, [allTemplates, search]);
 
-  const hasResults =
-    grouped.quickActions.length > 0 ||
-    grouped.systemInstructions.length > 0 ||
-    grouped.yourTemplates.length > 0;
+  const hasResults = grouped.yourTemplates.length > 0;
+
+  /** Close the settings modal so the chat view is visible. */
+  const closeSettings = () => window.dispatchEvent(new Event('closeNewUISettings'));
 
   const handleStartConversation = (p: Prompt) => {
     statsService.startConversationEvent(p);
     handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, p, availableModels);
     homeDispatch({ field: 'page', value: 'chat' });
+    closeSettings();
+  };
+
+  /**
+   * Clicking a template row. Templates with variables open the fill-in popup;
+   * templates with nothing to populate skip it and start the conversation, so we
+   * never show an empty dialog.
+   *
+   * The popup is owned by `PromptTemplateDialogHost` at the new-UI root, not by
+   * this component — so we close settings immediately and the popup is left alone
+   * on screen. Rendering it here instead would either leave settings visible
+   * behind it or unmount it the moment settings closed.
+   */
+  const handleUseTemplate = (p: Prompt) => {
+    if (promptTemplateVariables(p).length > 0) {
+      openPromptTemplateDialog(p);
+      closeSettings();
+      return;
+    }
+    handleStartConversation(p);
   };
 
   const handleCreateTemplate = () => {
@@ -300,7 +309,7 @@ const PromptTemplatesSection: React.FC = () => {
             icon={<IconTemplate size={18} style={{ color: 'var(--text-muted)' }} />}
             name={p.name}
             description={p.description}
-            onClick={() => handleStartConversation(p)}
+            onClick={() => handleUseTemplate(p)}
             onEdit={canEditTemplate(p) ? (e) => handleEditTemplate(e, p) : undefined}
           />
         ))}
@@ -336,8 +345,6 @@ const PromptTemplatesSection: React.FC = () => {
           />
         ) : (
           <>
-            {renderSection('Quick Actions', grouped.quickActions)}
-            {renderSection('System Instructions', grouped.systemInstructions)}
             {renderSection('Your Templates', grouped.yourTemplates)}
           </>
         )}

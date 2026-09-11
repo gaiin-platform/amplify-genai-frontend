@@ -106,6 +106,7 @@ import { ChatsListView } from '@/components/NewUI/views/ChatsListView';
 import { NewLibraryView } from '@/components/NewUI/views/NewLibraryView';
 import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
+import { PromptTemplateDialogHost } from '@/components/NewUI/shared/PromptTemplateDialogHost';
 import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
@@ -1784,6 +1785,13 @@ const Home = ({
                                         onClose={() => setNewUiSettingsSection(null)}
                                     />
                                 )}
+
+                                {/* "Use this prompt template" popup. Mounted here, as a
+                                    sibling of the settings modal rather than inside it, so
+                                    the launcher (Settings → Prompt Templates) can close
+                                    itself without unmounting the popup. Renders nothing
+                                    until the amplifyUsePromptTemplate event fires. */}
+                                <PromptTemplateDialogHost />
                             </div>
                         ) : (
                             /* ── CLASSIC UI LAYOUT (unchanged) ── */
