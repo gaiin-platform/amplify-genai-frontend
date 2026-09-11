@@ -62,7 +62,7 @@ import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { LayeredAssistant } from '@/types/layeredAssistant';
 import { Prompt } from '@/types/prompt';
-import { isAssistant } from '@/utils/app/assistants';
+import { isAssistant, isSystemAssistant } from '@/utils/app/assistants';
 import { useIntegrationConnections, type IntegrationConnection } from './useIntegrationConnections';
 import { integrationIcon } from './integrationIcon';
 import { listIntegrationFiles, downloadIntegrationFile } from '@/services/oauthIntegrationsService';
@@ -1788,8 +1788,17 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   // Build assistant list from prompts (same as ChatInput).
   // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts marked data.hidden
   // unless featureFlags.overrideInvisiblePrompts is set.
+  const SYSTEM_TAG = 'amplify:system';
   const availableAssistants: Assistant[] = (prompts ?? [])
     .filter(isAssistant)
+    .filter((p: Prompt) => {
+      // Check both locations where the system tag may live:
+      // definition.tags (local amplifyAssistants objects) and
+      // prompt.data.tags (server-fetched assistants spread via assistant.data)
+      const defTags: string[] = p.data?.assistant?.definition?.tags ?? [];
+      const dataTags: string[] = p.data?.tags ?? [];
+      return !defTags.includes(SYSTEM_TAG) && !dataTags.includes(SYSTEM_TAG);
+    })
     .filter((p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden)
     .map((p: any) => {
       const ast = p.data?.assistant;
