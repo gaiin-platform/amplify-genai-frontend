@@ -35,7 +35,7 @@ import { COMMON_DISALLOWED_FILE_EXTENSIONS, DEFAULT_SYSTEM_PROMPT } from '@/util
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
-import { AttachMenu, AttachMenuChips } from '@/components/NewUI/shared/AttachMenu';
+import { AttachMenu, AttachMenuChips, type SelectedAction } from '@/components/NewUI/shared/AttachMenu';
 import { AttachmentRail } from '@/components/NewUI/shared/AttachmentRail';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import {
@@ -366,6 +366,7 @@ export const NewHome: React.FC = () => {
   // ── Toggle state (web search, skills) ────────────────────────────────────
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+  const [selectedActions, setSelectedActions] = useState<SelectedAction[]>([]);
 
   // ── Send ──────────────────────────────────────────────────────────────────
   const handleSend = (markdown: string) => {
@@ -616,6 +617,9 @@ export const NewHome: React.FC = () => {
                 onAddFiles={() => fileInputRef.current?.click()}
                 onAddFromLibrary={attachLibraryFiles}
                 attachedLibraryIds={attachedDocs.map((d) => d.id)}
+                onAddIntegrationFile={(file) => addFileToRail(file)}
+                selectedActions={selectedActions}
+                onActionsChange={setSelectedActions}
                 webSearchEnabled={webSearchEnabled}
                 onToggleWebSearch={() => {
                   setWebSearchEnabled((v) => {
@@ -641,6 +645,8 @@ export const NewHome: React.FC = () => {
                 onRemoveSkills={() => setSelectedSkillIds([])}
                 assistantName={activeAssistantName}
                 onRemoveAssistant={() => dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
+                selectedActions={selectedActions}
+                onRemoveActions={() => setSelectedActions([])}
               />
             </div>
 

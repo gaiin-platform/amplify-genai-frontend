@@ -51,7 +51,7 @@ import {
   IconPlayerStop,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
-import { AttachMenu, AttachMenuChips } from '@/components/NewUI/shared/AttachMenu';
+import { AttachMenu, AttachMenuChips, type SelectedAction } from '@/components/NewUI/shared/AttachMenu';
 import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { AttachmentRail } from '@/components/NewUI/shared/AttachmentRail';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
@@ -207,6 +207,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>(
     selectedConversation?.data?.skills ?? [],
   );
+  const [selectedActions, setSelectedActions] = useState<SelectedAction[]>([]);
 
   // ── Assistant attached to THIS conversation ───────────────────────────────
   // Resolved rather than read straight off `selectedAssistant`: home state's
@@ -611,8 +612,14 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       return;
     }
 
-    // ── PATH A: pasted images fully uploaded ─────────────────────────────────
-    if ((docsWithKeys.length > 0 || pastedAttachments.length > 0) && selectedConversation) {
+    // Build configuredTools from selected connector actions
+    const configuredTools =
+      selectedActions.length > 0
+        ? selectedActions.flatMap((a) => a.ops)
+        : undefined;
+
+    // ── PATH A: docs attached OR connector actions selected ───────────────────
+    if ((docsWithKeys.length > 0 || pastedAttachments.length > 0 || selectedActions.length > 0) && selectedConversation) {
       // Clear local doc + attachment state
       const docsToSend = [...docsWithKeys];
       setAttachedDocs([]);
@@ -623,7 +630,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       // Build the message
       let msg = newMessage({
         role: 'user',
-        content: pastedMessage.content || ' ', // at least one space so the message is non-empty
+        content: pastedMessage.content || msgText || ' ', // at least one space so the message is non-empty
         label: pastedMessage.label || undefined,
         type: MessageType.PROMPT,
         data: {
@@ -631,13 +638,16 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           skills: selectedSkillIds,
           skillSelectionMode: 'auto',
           ...pastedMessage.data,
-          dataSources: docsToSend.map((d) => ({
-            id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
-            type: d.type,
-            name: d.name || '',
-            metadata: d.metadata || {},
-          })),
+          ...(docsToSend.length > 0 ? {
+            dataSources: docsToSend.map((d) => ({
+              id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
+              type: d.type,
+              name: d.name || '',
+              metadata: d.metadata || {},
+            })),
+          } : {}),
         },
+        ...(configuredTools ? { configuredTools } : {}),
       });
       msg = setAssistantInMsg(msg, activeAssistant ?? DEFAULT_ASSISTANT);
 
@@ -1162,6 +1172,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 }}
                 onAddFromLibrary={attachLibraryFiles}
                 attachedLibraryIds={attachedDocs.map((d) => d.id)}
+                onAddIntegrationFile={(file) => attachFiles([file])}
+                selectedActions={selectedActions}
+                onActionsChange={setSelectedActions}
                 webSearchEnabled={webSearchEnabled}
                 onToggleWebSearch={() => {
                   setWebSearchEnabled((v: boolean) => {
@@ -1185,6 +1198,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 onRemoveSkills={() => setSelectedSkillIds([])}
                 assistantName={activeAssistantName}
                 onRemoveAssistant={detachAssistant}
+                selectedActions={selectedActions}
+                onRemoveActions={() => setSelectedActions([])}
               />
             </div>
 

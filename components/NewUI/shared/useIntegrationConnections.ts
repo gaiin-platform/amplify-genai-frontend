@@ -49,6 +49,10 @@ export interface IntegrationConnection {
     provider: string;
     /** OAuth settings the provider needs at connect time. */
     providerSettings: Record<string, unknown>;
+    /** Display name from backend, e.g. "OneDrive". May be absent if backend omits it. */
+    name?: string;
+    /** Short description from backend. May be absent. */
+    description?: string;
 }
 
 /** Narrow the universe of integrations — e.g. to just the drive ones. */
@@ -141,14 +145,20 @@ export const useIntegrationConnections = (
         }
 
         const entries: IntegrationConnection[] = Object.entries(map).flatMap(([provider, list]) => {
-            const ids = filterRef.current((list ?? []).map((entry) => entry.id));
-            return ids.map((id) => ({
-                id,
-                provider,
-                // getOauthRedirect wants the settings under the capitalised
-                // provider key, which is how the backend indexes them.
-                providerSettings: providerSettings[capitalize(provider)] ?? {},
-            }));
+            const allEntries = list ?? [];
+            const ids = filterRef.current(allEntries.map((entry) => entry.id));
+            return ids.map((id) => {
+                const backendEntry = allEntries.find((e) => e.id === id);
+                return {
+                    id,
+                    provider,
+                    // getOauthRedirect wants the settings under the capitalised
+                    // provider key, which is how the backend indexes them.
+                    providerSettings: providerSettings[capitalize(provider)] ?? {},
+                    name: backendEntry?.name,
+                    description: backendEntry?.description,
+                };
+            });
         });
         entries.sort((a, b) => a.id.localeCompare(b.id));
 

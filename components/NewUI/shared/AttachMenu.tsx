@@ -53,6 +53,7 @@ import {
   useFloating,
   useInteractions,
 } from '@floating-ui/react';
+import toast from 'react-hot-toast';
 import HomeContext from '@/pages/api/home/home.context';
 import { PluginID, Plugin } from '@/types/plugin';
 import { getUserSkills } from '@/services/skillsService';
@@ -62,6 +63,18 @@ import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssist
 import { LayeredAssistant } from '@/types/layeredAssistant';
 import { Prompt } from '@/types/prompt';
 import { isAssistant } from '@/utils/app/assistants';
+import { useIntegrationConnections, type IntegrationConnection } from './useIntegrationConnections';
+import { integrationIcon } from './integrationIcon';
+import { listIntegrationFiles, downloadIntegrationFile } from '@/services/oauthIntegrationsService';
+import { IntegrationFileRecord } from '@/types/integrations';
+import {
+  COMPOSITE_FUNCTION_CATEGORIES,
+  type CompositeFunction,
+} from '@/utils/app/compositeFunctions';
+import { getOpsForUser } from '@/services/opsService';
+import { filterSupportedIntegrationOps } from '@/utils/app/ops';
+import { isCompositeAvailable, resolveOps } from '@/components/NewUI/views/assistant/toolSelectionModel';
+import type { OpDef } from '@/types/op';
 import {
   InfoCardItalic,
   InfoCardMeta,
@@ -78,6 +91,79 @@ import {
   type PickedLibraryFile,
 } from './DataSourceLibraryPicker';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Integration display helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Known integration ids → human-readable display names. */
+const CONNECTOR_DISPLAY_NAMES: Record<string, string> = {
+  microsoft_drive:       'OneDrive',
+  microsoft_sharepoint:  'SharePoint',
+  microsoft_calendar:    'Outlook Calendar',
+  microsoft_outlook:     'Outlook Mail',
+  microsoft_exchange:    'Exchange',
+  microsoft_excel:       'Excel Online',
+  microsoft_onenote:     'OneNote',
+  microsoft_planner:     'Planner',
+  microsoft_teams:       'Teams',
+  microsoft_contacts:    'Outlook Contacts',
+  microsoft_word:        'Word Online',
+  microsoft_user_groups: 'User Groups',
+  google_drive:          'Google Drive',
+  google_sheets:         'Google Sheets',
+  google_docs:           'Google Docs',
+  google_calendar:       'Google Calendar',
+  google_gmail:          'Gmail',
+  google_contacts:       'Google Contacts',
+  google_forms:          'Google Forms',
+};
+
+/** Fallback descriptions used when the backend doesn't send one. */
+const CONNECTOR_DESCRIPTIONS: Record<string, string> = {
+  microsoft_drive:       'Browse and attach files from OneDrive.',
+  microsoft_sharepoint:  'Browse and attach files from SharePoint sites.',
+  microsoft_calendar:    'Gives AI access to your calendar events and scheduling.',
+  microsoft_outlook:     'Gives AI access to your email, drafts, and folders.',
+  microsoft_exchange:    'Gives AI access to your Exchange mailbox and contacts.',
+  microsoft_excel:       'Browse and attach Excel workbooks from OneDrive.',
+  microsoft_onenote:     'Gives AI access to your OneNote notebooks.',
+  microsoft_planner:     'Gives AI access to your Planner tasks and plans.',
+  microsoft_teams:       'Gives AI access to Teams channels and messages.',
+  microsoft_contacts:    'Gives AI access to your Outlook contact list.',
+  microsoft_word:        'Browse and attach Word documents from OneDrive.',
+  microsoft_user_groups: 'Gives AI access to user group membership.',
+  google_drive:          'Browse and attach files from Google Drive.',
+  google_sheets:         'Browse and attach Google Sheets spreadsheets.',
+  google_docs:           'Browse and attach Google Docs documents.',
+  google_calendar:       'Gives AI access to your Google Calendar events.',
+  google_gmail:          'Gives AI access to your Gmail messages.',
+  google_contacts:       'Gives AI access to your Google contacts.',
+  google_forms:          'Gives AI access to your Google Forms responses.',
+};
+
+/** Returns the human-readable name for a connector, preferring the backend name. */
+const connectorDisplayName = (conn: IntegrationConnection): string =>
+  conn.name ||
+  CONNECTOR_DISPLAY_NAMES[conn.id] ||
+  conn.id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+/** Returns a short description for the connector, preferring the backend description. */
+const connectorDescription = (conn: IntegrationConnection): string =>
+  conn.description || CONNECTOR_DESCRIPTIONS[conn.id] || '';
+
+/**
+ * True for integrations that expose a file-system browser (drive, sharepoint,
+ * google_drive, google_sheets, google_docs). Mirrors the rule used by
+ * DataSourceSelector → getDriveFileIntegrationTypes plus document-type services.
+ */
+const isFileIntegration = (id: string): boolean =>
+  id.includes('drive') ||
+  id.includes('sharepoint') ||
+  id.includes('excel') ||
+  id.includes('sheets') ||
+  id.includes('docs') ||
+  id.includes('word');
+
 /** Width/list height of the library submenu panel (spec §3 nested panel). */
 const LIBRARY_PANEL_WIDTH = 380;
 const LIBRARY_LIST_HEIGHT = 240;
@@ -85,6 +171,15 @@ const LIBRARY_LIST_HEIGHT = 240;
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** A resolved connector action — a CompositeFunction with its ops ready to send. */
+export interface SelectedAction {
+  fnId: string;
+  /** Human-readable composite function name (e.g. "Send Email") */
+  name: string;
+  /** Resolved configuredTools entries — one per op in the composite function. */
+  ops: Array<{ name: string; operation: any }>;
+}
 
 export interface AttachMenuProps {
   /** Whether the composer is on the landing (opens downward) vs docked (opens upward) */
@@ -116,6 +211,20 @@ export interface AttachMenuProps {
   chatEndpoint?: string;
   /** Ref to the composer — focus returned here after close */
   composerRef?: React.RefObject<{ focus: () => void }>;
+  /**
+   * Called when the user picks a file from a connected integration (e.g. OneDrive).
+   * The file is already downloaded — pass it to the composer's attachment intake.
+   */
+  onAddIntegrationFile?: (file: File) => void;
+  /**
+   * Currently selected connector actions (for display in chips and check marks).
+   */
+  selectedActions?: SelectedAction[];
+  /**
+   * Called when the user toggles a connector action on/off.
+   * Receives the full updated list (caller may replace state directly).
+   */
+  onActionsChange?: (actions: SelectedAction[]) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -404,45 +513,764 @@ const SkillsSubmenu: React.FC<{
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Connectors submenu — links to settings
+// ConnectorFilePicker — lightweight file browser for one connected integration
 // ─────────────────────────────────────────────────────────────────────────────
 
-const ConnectorsSubmenu: React.FC<{ onBrowse: () => void }> = ({ onBrowse }) => (
-  <div
-    role="menu"
-    aria-label="Connectors"
-    style={{
-      width: 260,
-      background: 'var(--bg-raised)',
-      border: '1px solid var(--border-subtle)',
-      borderRadius: 12,
-      boxShadow: '0 12px 32px rgba(0,0,0,.5)',
-      overflow: 'hidden',
-    }}
-  >
-    <div style={{ padding: '6px 0' }}>
-      <div style={{ padding: '10px 14px 6px', fontSize: 13, color: 'var(--text-muted)' }}>
-        Connect services to bring your data into conversations.
-      </div>
-    </div>
-    <MenuDivider />
-    <button
-      onClick={onBrowse}
-      className="w-full flex items-center gap-3 px-[10px] h-[35px] text-left transition-colors"
-      style={{ fontSize: 14, color: 'var(--text-secondary)', background: 'transparent' }}
-      onMouseEnter={(e) => {
-        (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-        (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-      }}
-      onMouseLeave={(e) => {
-        (e.currentTarget as HTMLElement).style.background = 'transparent';
-        (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+/** /folder|directory|site|library/i — same rule as DataSourcesTableScrollingIntegrations */
+const isFolderRecord = (r: IntegrationFileRecord): boolean =>
+  /folder|directory|site|library/i.test(r.mimeType ?? '');
+
+const ConnectorFilePicker: React.FC<{
+  integration: IntegrationConnection;
+  onBack: () => void;
+  onFileSelect?: (file: File) => void;
+}> = ({ integration, onBack, onFileSelect }) => {
+  const integrationId = integration.id;
+  const [records, setRecords] = useState<IntegrationFileRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [folderTrail, setFolderTrail] = useState<{ id: string; name: string }[]>([]);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const currentFolderId = folderTrail.length > 0
+    ? folderTrail[folderTrail.length - 1].id
+    : undefined;
+
+  // Re-armed per guide §16 so StrictMode's simulated unmount doesn't latch false.
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!alive.current) return;
+    setLoading(true);
+    setError(null);
+    listIntegrationFiles({
+      integration: integrationId,
+      ...(currentFolderId ? { folder_id: currentFolderId } : {}),
+    })
+      .then((result) => {
+        if (!alive.current) return;
+        if (result?.success) {
+          setRecords(result.data ?? []);
+        } else {
+          setError('Unable to load files.');
+        }
+      })
+      .catch(() => { if (alive.current) setError('Unable to load files.'); })
+      .finally(() => { if (alive.current) setLoading(false); });
+  }, [integrationId, currentFolderId]);
+
+  const handleItemClick = async (record: IntegrationFileRecord) => {
+    if (isFolderRecord(record)) {
+      setFolderTrail((prev) => [...prev, { id: record.id, name: record.name }]);
+      return;
+    }
+    if (!onFileSelect) return;
+
+    setDownloading(record.id);
+    try {
+      const dlResult = await downloadIntegrationFile({
+        integration: integrationId,
+        file_id: record.id,
+        direct_download: false,
+      });
+      if (!dlResult?.success || !dlResult.data) {
+        toast.error('Could not download the file.');
+        return;
+      }
+      const response = await fetch(dlResult.data as string);
+      if (!response.ok) throw new Error('Download failed');
+      const blob = await response.blob();
+      const file = new File([blob], record.name, {
+        type: blob.type || 'application/octet-stream',
+        lastModified: Date.now(),
+      });
+      onFileSelect(file);
+    } catch {
+      toast.error('Could not download the file. Please try again.');
+    } finally {
+      if (alive.current) setDownloading(null);
+    }
+  };
+
+  const handleBack = () => {
+    if (folderTrail.length > 0) {
+      setFolderTrail((prev) => prev.slice(0, -1));
+    } else {
+      onBack();
+    }
+  };
+
+  const displayName = connectorDisplayName(integration);
+  const title = folderTrail.length > 0
+    ? folderTrail[folderTrail.length - 1].name
+    : displayName;
+
+  return (
+    <div
+      role="menu"
+      aria-label={`Browse ${displayName}`}
+      style={{
+        width: 300,
+        background: 'var(--bg-raised)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 12,
+        boxShadow: '0 12px 32px rgba(0,0,0,.5)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
-      Browse connectors…
-    </button>
-  </div>
-);
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '8px 10px 6px',
+          borderBottom: '1px solid var(--border-subtle)',
+          flexShrink: 0,
+        }}
+      >
+        <button
+          type="button"
+          onClick={handleBack}
+          aria-label="Back"
+          className="flex items-center justify-center w-[26px] h-[26px] rounded-[6px] transition-colors flex-shrink-0"
+          style={{ color: 'var(--text-muted)', background: 'transparent' }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+          }}
+        >
+          <IconChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />
+        </button>
+        <span
+          style={{
+            fontSize: 13,
+            fontWeight: 500,
+            color: 'var(--text-primary)',
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {title}
+        </span>
+      </div>
+
+      {/* File list */}
+      <div style={{ maxHeight: 280, overflowY: 'auto', padding: '4px 6px' }}>
+        {loading && (
+          <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
+            Loading…
+          </div>
+        )}
+        {!loading && error && (
+          <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-error)' }}>
+            {error}
+          </div>
+        )}
+        {!loading && !error && records.length === 0 && (
+          <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
+            No files here
+          </div>
+        )}
+        {!loading && !error && records.map((record) => {
+          const isDir = isFolderRecord(record);
+          const isDownloading = downloading === record.id;
+          return (
+            <button
+              key={record.id}
+              role="menuitem"
+              onClick={() => !isDownloading && handleItemClick(record)}
+              disabled={isDownloading}
+              className="w-full flex items-center gap-3 px-[10px] h-[35px] rounded-[8px] text-left transition-colors"
+              style={{
+                background: 'transparent',
+                color: isDownloading ? 'var(--text-muted)' : 'var(--text-primary)',
+                fontSize: 13,
+                cursor: isDownloading ? 'wait' : 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                if (!isDownloading)
+                  (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+              }}
+            >
+              <span
+                style={{
+                  width: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  color: 'var(--text-secondary)',
+                }}
+              >
+                {isDownloading ? (
+                  <span
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: '50%',
+                      border: '2px solid var(--accent)',
+                      borderTopColor: 'transparent',
+                      display: 'inline-block',
+                      animation: 'connectorFileSpin 0.7s linear infinite',
+                    }}
+                  />
+                ) : isDir ? (
+                  <IconBooks size={15} />
+                ) : (
+                  <IconPaperclip size={14} />
+                )}
+              </span>
+              <span
+                style={{
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {record.name}
+              </span>
+              {isDir && (
+                <IconChevronRight size={13} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+              )}
+            </button>
+          );
+        })}
+      </div>
+      <style>{`
+        @keyframes connectorFileSpin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Connectors submenu — shows connected integrations; falls back to "connect" prompt
+// ─────────────────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ConnectorActionsPanel — selectable composite functions for an integration
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Build a configuredTools entry from one op — same shape as ChatInput.addedActions */
+const opToConfiguredTool = (op: OpDef) => ({
+  name: op.name,
+  operation: {
+    tool_name: op.name,
+    name: op.name,
+    description: op.description,
+    id: op.name,
+    type: op.type ?? '',
+    parameters: op.parameters,
+    tags: op.tags ?? [],
+    bindings: op.bindings,
+    method: op.method,
+  },
+});
+
+const ConnectorActionsPanel: React.FC<{
+  integration: IntegrationConnection;
+  selectedActions: SelectedAction[];
+  onActionsChange: (actions: SelectedAction[]) => void;
+  onBack: () => void;
+  onManage: () => void;
+}> = ({ integration, selectedActions, onActionsChange, onBack, onManage }) => {
+  const [availableOps, setAvailableOps] = useState<OpDef[] | null>(null);
+  const [loadingOps, setLoadingOps] = useState(true);
+
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+
+  // Categories for this integration
+  const categories = COMPOSITE_FUNCTION_CATEGORIES.filter((cat) =>
+    cat.integrationIds.includes(integration.id),
+  );
+  const allFunctions: CompositeFunction[] = categories.flatMap((cat) => cat.functions);
+
+  // Load available ops to check which functions are actually enabled on the backend
+  useEffect(() => {
+    if (allFunctions.length === 0) { setLoadingOps(false); return; }
+    getOpsForUser()
+      .then(async (result) => {
+        if (!alive.current) return;
+        if (result.success) {
+          const filtered = await filterSupportedIntegrationOps(result.data);
+          if (alive.current) setAvailableOps((filtered ?? []) as OpDef[]);
+        } else {
+          if (alive.current) setAvailableOps([]);
+        }
+      })
+      .catch(() => { if (alive.current) setAvailableOps([]); })
+      .finally(() => { if (alive.current) setLoadingOps(false); });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [integration.id]);
+
+  if (allFunctions.length === 0) {
+    // No composite categories for this integration — render info panel instead
+    return (
+      <ConnectorInfoPanel
+        integration={integration}
+        onBack={onBack}
+        onManage={onManage}
+      />
+    );
+  }
+
+  const selectedIds = new Set(selectedActions.map((a) => a.fnId));
+
+  const handleToggle = (fn: CompositeFunction) => {
+    if (selectedIds.has(fn.id)) {
+      // Remove
+      onActionsChange(selectedActions.filter((a) => a.fnId !== fn.id));
+    } else {
+      // Add — resolve ops immediately so they're ready when the message fires
+      const ops = availableOps ? resolveOps(fn, availableOps).map(opToConfiguredTool) : [];
+      onActionsChange([...selectedActions, { fnId: fn.id, name: fn.name, ops }]);
+    }
+  };
+
+  const name = connectorDisplayName(integration);
+
+  return (
+    <div
+      role="menu"
+      aria-label={name}
+      style={{
+        width: 300,
+        background: 'var(--bg-raised)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 12,
+        boxShadow: '0 12px 32px rgba(0,0,0,.5)',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '8px 10px 6px',
+          borderBottom: '1px solid var(--border-subtle)',
+          flexShrink: 0,
+        }}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back"
+          className="flex items-center justify-center w-[26px] h-[26px] rounded-[6px] transition-colors flex-shrink-0"
+          style={{ color: 'var(--text-muted)', background: 'transparent' }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+          }}
+        >
+          <IconChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />
+        </button>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+          {integrationIcon(integration.id, 16)}
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {name}
+          </span>
+        </span>
+      </div>
+
+      {/* Action list */}
+      <div style={{ maxHeight: 320, overflowY: 'auto', padding: '4px 6px' }}>
+        {loadingOps && (
+          <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
+            Loading actions…
+          </div>
+        )}
+        {!loadingOps && allFunctions.map((fn) => {
+          const available = availableOps === null || isCompositeAvailable(fn, availableOps);
+          const checked = selectedIds.has(fn.id);
+          return (
+            <button
+              key={fn.id}
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={checked}
+              aria-disabled={!available}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (available) handleToggle(fn);
+              }}
+              className="w-full flex items-start gap-2 px-[10px] py-[7px] rounded-[8px] text-left transition-colors"
+              style={{
+                background: 'transparent',
+                color: available ? 'var(--text-primary)' : 'var(--text-muted)',
+                fontSize: 13,
+                cursor: available ? 'pointer' : 'default',
+                minHeight: 35,
+              }}
+              onMouseEnter={(e) => {
+                if (available)
+                  (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                (e.currentTarget as HTMLElement).style.background = 'transparent';
+              }}
+            >
+              {/* Checkbox slot */}
+              <span
+                style={{
+                  width: 16,
+                  height: 16,
+                  marginTop: 1,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 4,
+                  border: checked ? 'none' : '1.5px solid var(--border-subtle)',
+                  background: checked ? 'var(--accent)' : 'transparent',
+                  color: 'var(--accent-fg)',
+                }}
+              >
+                {checked && <IconCheck size={10} strokeWidth={3} />}
+              </span>
+
+              {/* Text */}
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: 'block', fontWeight: 500 }}>{fn.name}</span>
+                {fn.description && (
+                  <span
+                    style={{
+                      display: 'block',
+                      fontSize: 11,
+                      color: 'var(--text-muted)',
+                      marginTop: 1,
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {fn.description}
+                  </span>
+                )}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <MenuDivider />
+      <button
+        onClick={onManage}
+        className="w-full flex items-center gap-3 px-[10px] h-[35px] text-left transition-colors"
+        style={{ fontSize: 14, color: 'var(--text-secondary)', background: 'transparent' }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+          (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'transparent';
+          (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+        }}
+      >
+        Manage connector…
+      </button>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ConnectorInfoPanel — shown for non-file integrations (calendar, mail, etc.)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ConnectorInfoPanel: React.FC<{
+  integration: IntegrationConnection;
+  onBack: () => void;
+  onManage: () => void;
+}> = ({ integration, onBack, onManage }) => {
+  const name = connectorDisplayName(integration);
+  const desc = connectorDescription(integration);
+
+  return (
+    <div
+      role="dialog"
+      aria-label={name}
+      style={{
+        width: 280,
+        background: 'var(--bg-raised)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 12,
+        boxShadow: '0 12px 32px rgba(0,0,0,.5)',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Header */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          padding: '8px 10px 6px',
+          borderBottom: '1px solid var(--border-subtle)',
+        }}
+      >
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back"
+          className="flex items-center justify-center w-[26px] h-[26px] rounded-[6px] transition-colors flex-shrink-0"
+          style={{ color: 'var(--text-muted)', background: 'transparent' }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+          }}
+        >
+          <IconChevronRight size={16} style={{ transform: 'rotate(180deg)' }} />
+        </button>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+          {integrationIcon(integration.id, 16)}
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {name}
+          </span>
+        </span>
+      </div>
+
+      {/* Body */}
+      <div style={{ padding: '12px 14px' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 40,
+            height: 40,
+            borderRadius: 10,
+            background: 'var(--bg-card)',
+            margin: '0 auto 10px',
+          }}
+        >
+          {integrationIcon(integration.id, 24)}
+        </div>
+
+        <p
+          style={{
+            fontSize: 13,
+            color: 'var(--text-secondary)',
+            textAlign: 'center',
+            margin: 0,
+            lineHeight: 1.5,
+          }}
+        >
+          {desc || `${name} is connected and available to AI tools in this conversation.`}
+        </p>
+      </div>
+
+      <MenuDivider />
+      <button
+        onClick={onManage}
+        className="w-full flex items-center gap-3 px-[10px] h-[35px] text-left transition-colors"
+        style={{ fontSize: 14, color: 'var(--text-secondary)', background: 'transparent' }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+          (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'transparent';
+          (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+        }}
+      >
+        Manage connector…
+      </button>
+    </div>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Connectors submenu — shows connected integrations; falls back to "connect" prompt
+// ─────────────────────────────────────────────────────────────────────────────
+
+const ConnectorsSubmenu: React.FC<{
+  onBrowse: () => void;
+  onFileSelect?: (file: File) => void;
+  onClose: () => void;
+  selectedActions: SelectedAction[];
+  onActionsChange: (actions: SelectedAction[]) => void;
+}> = ({ onBrowse, onFileSelect, onClose, selectedActions, onActionsChange }) => {
+  const { supported, connected, loading } = useIntegrationConnections();
+  const [activeConn, setActiveConn] = useState<IntegrationConnection | null>(null);
+
+  // Full connection objects for connected integrations
+  const connectedItems: IntegrationConnection[] = supported.filter((s) =>
+    connected.includes(s.id),
+  );
+
+  if (activeConn) {
+    if (isFileIntegration(activeConn.id)) {
+      return (
+        <ConnectorFilePicker
+          integration={activeConn}
+          onBack={() => setActiveConn(null)}
+          onFileSelect={
+            onFileSelect
+              ? (file) => {
+                  onFileSelect(file);
+                  onClose();
+                }
+              : undefined
+          }
+        />
+      );
+    }
+    // Check if there are composite categories for this integration
+    const hasCategories = COMPOSITE_FUNCTION_CATEGORIES.some((cat) =>
+      cat.integrationIds.includes(activeConn.id),
+    );
+    if (hasCategories) {
+      return (
+        <ConnectorActionsPanel
+          integration={activeConn}
+          selectedActions={selectedActions}
+          onActionsChange={onActionsChange}
+          onBack={() => setActiveConn(null)}
+          onManage={() => {
+            setActiveConn(null);
+            onBrowse();
+          }}
+        />
+      );
+    }
+    return (
+      <ConnectorInfoPanel
+        integration={activeConn}
+        onBack={() => setActiveConn(null)}
+        onManage={() => {
+          setActiveConn(null);
+          onBrowse();
+        }}
+      />
+    );
+  }
+
+  return (
+    <div
+      role="menu"
+      aria-label="Connectors"
+      style={{
+        width: 260,
+        background: 'var(--bg-raised)',
+        border: '1px solid var(--border-subtle)',
+        borderRadius: 12,
+        boxShadow: '0 12px 32px rgba(0,0,0,.5)',
+        overflow: 'hidden',
+      }}
+    >
+      <div style={{ padding: '6px 0' }}>
+        {loading && (
+          <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
+            Loading…
+          </div>
+        )}
+
+        {!loading && connectedItems.length === 0 && (
+          <div style={{ padding: '10px 14px 6px', fontSize: 13, color: 'var(--text-muted)' }}>
+            Connect services to bring your data into conversations.
+          </div>
+        )}
+
+        {!loading && connectedItems.map((conn) => (
+          <button
+            key={conn.id}
+            type="button"
+            role="menuitem"
+            onClick={() => setActiveConn(conn)}
+            className="w-full flex items-center gap-3 px-[10px] h-[35px] rounded-[8px] text-left transition-colors"
+            style={{ background: 'transparent', color: 'var(--text-primary)', fontSize: 14 }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'transparent';
+            }}
+          >
+            <span
+              style={{
+                width: 18,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              {integrationIcon(conn.id, 16)}
+            </span>
+            <span style={{ flex: 1 }}>{connectorDisplayName(conn)}</span>
+            <IconChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+          </button>
+        ))}
+      </div>
+      <MenuDivider />
+      <button
+        onClick={onBrowse}
+        className="w-full flex items-center gap-3 px-[10px] h-[35px] text-left transition-colors"
+        style={{ fontSize: 14, color: 'var(--text-secondary)', background: 'transparent' }}
+        onMouseEnter={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+          (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLElement).style.background = 'transparent';
+          (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+        }}
+      >
+        {connectedItems.length > 0 ? 'Manage connectors…' : 'Browse connectors…'}
+      </button>
+    </div>
+  );
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Assistant hover-preview card (Phase 48 / Fix 1)
@@ -789,7 +1617,9 @@ export const AttachMenuChips: React.FC<{
   onRemoveSkills: () => void;
   assistantName?: string;
   onRemoveAssistant?: () => void;
-}> = ({ webSearchEnabled, onRemoveWebSearch, selectedSkillIds, onRemoveSkills, assistantName, onRemoveAssistant }) => {
+  selectedActions?: SelectedAction[];
+  onRemoveActions?: () => void;
+}> = ({ webSearchEnabled, onRemoveWebSearch, selectedSkillIds, onRemoveSkills, assistantName, onRemoveAssistant, selectedActions, onRemoveActions }) => {
   const chips: React.ReactNode[] = [];
 
   if (webSearchEnabled) {
@@ -889,6 +1719,38 @@ export const AttachMenuChips: React.FC<{
     );
   }
 
+  if (selectedActions && selectedActions.length > 0 && onRemoveActions) {
+    chips.push(
+      <div
+        key="connector-actions"
+        className="flex items-center gap-1 pl-2 rounded-[6px] text-[12.5px] flex-shrink-0"
+        style={{
+          height: 26,
+          background: 'var(--bg-active)',
+          color: 'var(--text-primary)',
+        }}
+      >
+        <IconPlug size={14} style={{ color: 'var(--text-secondary)' }} />
+        <span>
+          {selectedActions.length === 1
+            ? selectedActions[0].name
+            : `${selectedActions.length} actions`}
+        </span>
+        <button
+          type="button"
+          onClick={onRemoveActions}
+          className="flex items-center justify-center w-[22px] h-full rounded-r-[6px] transition-colors"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+          aria-label="Remove connector actions"
+        >
+          <IconX size={12} />
+        </button>
+      </div>,
+    );
+  }
+
   if (chips.length === 0) return null;
 
   return <>{chips}</>;
@@ -910,6 +1772,9 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   onSkillsChange,
   chatEndpoint,
   composerRef,
+  onAddIntegrationFile,
+  selectedActions = [],
+  onActionsChange,
 }) => {
   const {
     state: { featureFlags, prompts, selectedAssistant, layeredAssistants, groups, availableModels, defaultModelId },
@@ -992,8 +1857,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     closeAll();
   };
 
-  // Badge: any active toggle or non-default assistant
-  const anyToggleActive = webSearchEnabled || selectedSkillIds.length > 0 || !isDefaultAssistant;
+  // Badge: any active toggle, non-default assistant, or connector actions
+  const anyToggleActive = webSearchEnabled || selectedSkillIds.length > 0 || !isDefaultAssistant || selectedActions.length > 0;
 
   // Feature gates
   const showFiles = featureFlags.uploadDocuments;
@@ -1183,6 +2048,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
             {...getFloatingProps()}
             role="menu"
             aria-label="Add to chat"
+            data-new-ui-shell="true"
             style={{
               position: strategy,
               top: y ?? 0,
@@ -1332,7 +2198,13 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                 onMouseEnter={cancelClose}
                 onMouseLeave={scheduleClose}
               >
-                <ConnectorsSubmenu onBrowse={() => { openSettings('connectors'); }} />
+                <ConnectorsSubmenu
+                  onBrowse={() => { openSettings('connectors'); }}
+                  onFileSelect={onAddIntegrationFile}
+                  onClose={closeAll}
+                  selectedActions={selectedActions}
+                  onActionsChange={onActionsChange ?? (() => {})}
+                />
               </div>
             )}
 
