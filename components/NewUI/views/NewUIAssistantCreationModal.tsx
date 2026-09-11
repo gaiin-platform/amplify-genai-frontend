@@ -48,6 +48,7 @@ import {
     IconLoader2,
     IconCheck,
     IconX,
+    IconCopy,
 } from '@tabler/icons-react';
 import { WorkflowTemplatePicker } from './assistant/WorkflowTemplatePicker';
 import { useSession } from 'next-auth/react';
@@ -498,6 +499,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
     // ── Advanced section state ────────────────────────────────────────────
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
+    const [copiedAssistantId, setCopiedAssistantId] = useState(false);
     const [tags, setTags] = useState('');
     const [conversationTags, setConversationTags] = useState('');
 
@@ -2195,6 +2197,81 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     >
                         <div style={{ overflow: 'hidden' }}>
                             <div style={{ paddingTop: 20, display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+                                {/* ── Assistant ID (edit mode only) ─────────── */}
+                                {isEditMode && editingAssistant?.data?.assistant?.definition?.assistantId && (
+                                    <div style={fieldGroupStyle}>
+                                        <label style={labelStyle}>Assistant ID</label>
+                                        <div style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 8,
+                                            background: 'var(--bg-app)',
+                                            border: '1px solid var(--border-subtle)',
+                                            borderRadius: 6,
+                                            padding: '7px 10px',
+                                        }}>
+                                            <span style={{
+                                                flex: 1,
+                                                fontSize: 13,
+                                                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                                color: 'var(--text-secondary)',
+                                                overflow: 'hidden',
+                                                textOverflow: 'ellipsis',
+                                                whiteSpace: 'nowrap',
+                                                userSelect: 'all',
+                                            }}>
+                                                {editingAssistant.data.assistant.definition.assistantId}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                aria-label="Copy assistant ID"
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(
+                                                        editingAssistant!.data!.assistant!.definition!.assistantId as string
+                                                    ).then(() => {
+                                                        setCopiedAssistantId(true);
+                                                        setTimeout(() => setCopiedAssistantId(false), 2000);
+                                                    });
+                                                }}
+                                                style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    flexShrink: 0,
+                                                    width: 28,
+                                                    height: 28,
+                                                    background: 'none',
+                                                    border: '1px solid var(--border-subtle)',
+                                                    borderRadius: 5,
+                                                    cursor: 'pointer',
+                                                    color: copiedAssistantId ? 'var(--accent)' : 'var(--text-muted)',
+                                                    transition: 'color 150ms, border-color 150ms',
+                                                    padding: 0,
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (!copiedAssistantId) {
+                                                        (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                                                        (e.currentTarget as HTMLElement).style.borderColor = 'var(--text-muted)';
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    if (!copiedAssistantId) {
+                                                        (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                                                        (e.currentTarget as HTMLElement).style.borderColor = 'var(--border-subtle)';
+                                                    }
+                                                }}
+                                            >
+                                                {copiedAssistantId
+                                                    ? <IconCheck size={14} stroke={2.5} />
+                                                    : <IconCopy size={14} stroke={1.75} />}
+                                            </button>
+                                        </div>
+                                        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                                            Unique identifier for this assistant. Use it to reference the assistant via the API.
+                                        </p>
+                                    </div>
+                                )}
 
                                 {/* ── Tags ──────────────────────────────────── */}
                                 <div style={fieldGroupStyle}>
