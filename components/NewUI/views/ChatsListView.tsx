@@ -73,6 +73,8 @@ import {
     isPinnedConv,
     isBlankPlaceholderConversation,
 } from '@/components/NewUI/shared/chatFilters';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
+import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -406,7 +408,7 @@ export const ChatsListView: React.FC = () => {
 
                     {/* New chat */}
                     <button
-                        onClick={() => handleNewConversation({})}
+                        onClick={() => handleNewConversation({ prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT) })}
                         className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium bg-[--text-primary] text-[--bg-app] hover:opacity-90 transition-opacity"
                     >
                         <IconPlus size={14} />

@@ -111,6 +111,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewStorageSection.tsx` | Settings → Storage |
 | `NewConnectorsSection.tsx` | Settings → Connectors (Integrations + Tool API Keys tabs) |
 | `PromptTemplatesSection.tsx` | Settings → Customize → Prompt Templates. Two tabs: "My Templates" (Edit/Share/Delete hover actions) + "Shared with Me" (lazy-loads via `getSharedItems`, import on open) |
+| `CustomInstructionsSection.tsx` | Settings → Customize → Custom Instructions. List of named instructions with hover Edit/Delete, radio-style active selector (one or none), inline create/edit form, ConfirmDialog for deletes. Active instruction injected into every new blank conversation |
 | `SidebarItemsSection.tsx` | Settings → Customize → Sidebar Items visibility toggles |
 | `admin/AdminsCard.tsx` | Admin section wrapper card |
 
@@ -133,6 +134,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `FileDropZone.tsx` | Drag-and-drop file intake: `useFileDropTarget` (handlers + active flag for an existing root element), `FileDropOverlay`, and the `FileDropZone` wrapper. Only reacts to `Files` drags; depth-counted dragenter/leave |
 | `libraryQuery.ts` | Shared library query vocabulary — `sanitizePageKey` (DynamoDB cursor rules; unsanitized page keys 502), `buildLibraryQuery`, `isAssistantRecord`, `libraryTypeLabel`. Used by NewLibraryView + the picker. No React imports |
 | `assistantIdentity.ts` | Shared "is this really an assistant?" vocabulary — `PLACEHOLDER_ASSISTANT_NAMES`, `isPlaceholderAssistantName`. Rejects the backend's `"default"` fallback and the old-UI `"Standard Conversation"` look-alike, both of which mean *no* assistant. No React imports |
+| `customInstructions.ts` | React-free store for custom instructions — `loadStore`, `saveStore`, `getActiveInstructionContent`, `buildPromptWithInstruction`, `createInstruction`, `updateInstruction`, `deleteInstruction`, `setActiveInstruction`. Migrates old single-string key on first read. Used at every new-conversation call site in the new UI |
 | `AttachmentPreview.tsx` | Full-screen attachment preview with nav and focus trap |
 | `RichComposer.tsx` | Textarea with paste/image capture handlers |
 | `Badge.tsx` | Small status badge |

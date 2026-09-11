@@ -64,6 +64,8 @@ import { UIAttachment } from '@/components/NewUI/shared/attachmentTypes';
 import {
     LIBRARY_SORT_INDEX, buildLibraryQuery, isAssistantRecord, libraryTypeLabel, sanitizePageKey,
 } from '@/components/NewUI/shared/libraryQuery';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
+import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // sanitizePageKey / buildLibraryQuery live in shared/libraryQuery.ts so the
@@ -879,7 +881,7 @@ export const NewLibraryView: React.FC = () => {
         if (typeof window !== 'undefined') {
             sessionStorage.setItem('amplify_pending_library_doc', JSON.stringify(document));
         }
-        handleNewConversation({});
+        handleNewConversation({ prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT) });
     };
 
     const handleDelete = async (file: FileRecord) => {

@@ -31,7 +31,8 @@ import { RichComposer, type RichComposerHandle } from '@/components/NewUI/shared
 import { handleFile } from '@/components/Chat/AttachFile';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
 import { getFileExtension, processDragDropFiles, validateFile } from '@/utils/fileHandler';
-import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
+import { COMMON_DISALLOWED_FILE_EXTENSIONS, DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { AttachMenu, AttachMenuChips } from '@/components/NewUI/shared/AttachMenu';
@@ -458,6 +459,7 @@ export const NewHome: React.FC = () => {
       window.dispatchEvent(new Event('amplifyNewConversationSendPending'));
     }
     handleNewConversation({
+      prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
       ...(selectedModelId && availableModels[selectedModelId]
         ? { model: availableModels[selectedModelId] }
         : {}),

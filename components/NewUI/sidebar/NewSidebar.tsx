@@ -67,6 +67,8 @@ import {
   DEFAULT_SIDEBAR_VISIBILITY,
   SIDEBAR_VISIBILITY_KEY,
 } from '@/components/NewUI/shared/sidebarVisibility';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
+import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 
 // sessionStorage key used to hand off an initial ScheduledTask (from ScheduledTaskButton
 // elsewhere in the old UI) into the freshly-mounted NewScheduledTasksView — mirrors the
@@ -696,7 +698,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           {iconBtn(
             () => {
               window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
-              handleNewConversation({});
+              handleNewConversation({ prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT) });
             },
             'New chat (⌘N)',
             <IconPlus size={18} />,
@@ -744,7 +746,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           onSearch={() => dispatch({ field: 'page', value: 'chats' as any })}
           onLogoClick={() => {
             window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
-            handleNewConversation({});
+            handleNewConversation({ prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT) });
           }}
         />
 
@@ -754,7 +756,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           <button
             onClick={() => {
               window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false }}));
-              handleNewConversation({});
+              handleNewConversation({ prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT) });
             }}
             className={`
               group w-full flex items-center gap-[10px] h-[36px] px-[10px]
