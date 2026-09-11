@@ -23,13 +23,16 @@
  * (`fillInTemplate` with the same `fillInDocuments` rule) and hand the resulting
  * text to the proven `amplify_pending_message` bridge that NewHome already uses.
  *
- * The model is now selected via a `ModelPicker` in the footer of
- * `PromptTemplateFillDialog`. The selection flows through
- * `startConversationWithTemplate` → `handleNewConversation({ model })`, which
- * is the only path that actually applies a model to a new conversation.
- * (`amplify_pending_model_id` is cleared by ConversationViewShell and never
- * applied, so that key is not used here.)  A template's own enforced model
- * always takes priority over the user's pick.
+ * Model and reasoning effort are selected via the `ModelPicker` in the footer of
+ * `PromptTemplateFillDialog`. Both flow through `startConversationWithTemplate`
+ * into `handleNewConversation({ model, data: { reasoningLevel } })` — the only
+ * path that applies either to a new conversation. There is no per-request field
+ * for effort: `useChatSendService` reads `selectedConversation.data
+ * ?.reasoningLevel` (:629-644). (`amplify_pending_model_id` /
+ * `amplify_pending_effort` are cleared by ConversationViewShell and never
+ * applied, so neither key is used here.)  A template's own enforced model — and
+ * an assistant's `enforceThinkingLevel` — still take priority over the user's
+ * pick.
  */
 
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
@@ -141,10 +144,12 @@ export const PromptTemplateDialog: React.FC<PromptTemplateDialogProps> = ({
     // after the first reply (same as every other chat).
     startConversationWithTemplate(
       handleNewConversation,
+      homeDispatch,
       promptsRef.current,
       prompt,
       availableModels,
       selectedModelId,
+      selectedEffort,
     );
     homeDispatch({ field: 'page', value: 'chat' });
     onStarted?.();

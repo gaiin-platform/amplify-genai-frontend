@@ -169,13 +169,27 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
     selectedConversation?.model?.id ?? defaultModelId ?? undefined,
   );
-  const [selectedEffort, setSelectedEffort] = useState<EffortLevel>('medium');
+  // Effort lives on the conversation as `data.reasoningLevel` — that is the only
+  // field useChatSendService reads (:629-644) — so seed from there rather than
+  // defaulting to 'medium', which made the picker misreport the effort chosen in
+  // the prompt-template fill dialog.
+  const [selectedEffort, setSelectedEffort] = useState<EffortLevel>(
+    (selectedConversation?.data?.reasoningLevel as EffortLevel | undefined) ?? 'medium',
+  );
 
   // Keep selectedModelId in sync with conversation model changes
   useEffect(() => {
     const convModelId = selectedConversation?.model?.id;
     if (convModelId) setSelectedModelId(convModelId);
   }, [selectedConversation?.model?.id]);
+
+  // Same for effort — the conversation is the source of truth
+  useEffect(() => {
+    const convEffort = selectedConversation?.data?.reasoningLevel as
+      | EffortLevel
+      | undefined;
+    if (convEffort) setSelectedEffort(convEffort);
+  }, [selectedConversation?.data?.reasoningLevel]);
 
   // ── Plugins (for AttachMenu feature gating) ───────────────────────────────
   const activeLandingPlugins: Plugin[] = [
@@ -537,22 +551,33 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     if (pendingUploadSendRef.current) return; // already waiting
 
     // ── Shared model + conversation prep ────────────────────────────────────
+    //
+    // Two writes, and the order matters: `handleUpdateConversation` rebuilds the
+    // conversation from the base object it is HANDED (`{...completeConversation,
+    // [key]: value}`), so passing the same stale `selectedConversation` to both
+    // makes the second dispatch win with a copy that never saw the first — the
+    // model write would be reverted by the data write. Thread the intermediate
+    // object through instead.
+    let convBase = selectedConversation;
     if (
-      selectedConversation &&
+      convBase &&
       selectedModelId &&
       availableModels[selectedModelId] &&
-      selectedConversation.model?.id !== selectedModelId
+      convBase.model?.id !== selectedModelId
     ) {
-      handleUpdateConversation(selectedConversation, {
+      handleUpdateConversation(convBase, {
         key: 'model',
         value: availableModels[selectedModelId],
       });
+      convBase = { ...convBase, model: availableModels[selectedModelId] };
     }
-    if (selectedConversation) {
-      handleUpdateConversation(selectedConversation, {
+    if (convBase) {
+      handleUpdateConversation(convBase, {
         key: 'data',
+        // Spread first: web search, skills and reasoningLevel share this one
+        // object, so a bare replacement drops the user's effort (§31).
         value: {
-          ...selectedConversation.data,
+          ...convBase.data,
           webSearchEnabled,
           skills: selectedSkillIds,
           skillSelectionMode: 'auto',
@@ -693,6 +718,21 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       handleUpdateConversation(selectedConversation, {
         key: 'model',
         value: availableModels[modelId],
+      });
+    }
+  };
+
+  // ── Effort change ─────────────────────────────────────────────────────────
+  // Must be persisted onto the conversation, exactly like the model: the picker's
+  // local state is invisible to useChatSendService, which only reads
+  // `selectedConversation.data?.reasoningLevel`. Without this write the effort
+  // control is decorative and the backend applies its own default.
+  const handleEffortChange = (effort: EffortLevel) => {
+    setSelectedEffort(effort);
+    if (selectedConversation) {
+      handleUpdateConversation(selectedConversation, {
+        key: 'data',
+        value: { ...selectedConversation.data, reasoningLevel: effort },
       });
     }
   };
@@ -1151,7 +1191,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 selectedModelId={selectedModelId}
                 selectedEffort={selectedEffort}
                 onModelChange={handleModelChange}
-                onEffortChange={setSelectedEffort}
+                onEffortChange={handleEffortChange}
                 isNewChat={false}
                 composerRef={composerRef}
               />

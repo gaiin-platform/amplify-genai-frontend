@@ -151,7 +151,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `uiPreferenceResolution.ts` | The stored new-vs-classic choice: `UI_PREF_KEY`, `getUIPreference`, `writeLocalUIPreference`, `resolveStoredUIPreference` (server beats localStorage; only `'ask'` may show the popup), and the `?uiPreference=reset` helpers. No React imports |
 | `PromptTemplateFillDialog.tsx` | New-UI styled "populate and use this template" form — portalled to `document.body`, supports text/file/boolean/options variable types with design-token styling. Has an edit icon button (`onEdit`) so the host can switch to edit mode. Used by `PromptTemplateDialog`. |
 | `PromptTemplateDialog.tsx` | Orchestrates the fill-in popup: invokes `PromptTemplateFillDialog` (new UI), runs `fillInTemplate` semantics, sends via `amplify_pending_message`. Accepts `onEdit` callback passed through to the fill dialog. Also exports `promptTemplateVariables`. |
-| `promptConversation.ts` | `startConversationWithTemplate` — creates the conversation for a template (promptTemplate, tags, rootPrompt, enforced model) under the `'New Conversation'` name so the AI renames it after the first reply. No React imports |
+| `promptConversation.ts` | `startConversationWithTemplate` — creates the conversation for a template (promptTemplate, tags, rootPrompt, resolved model) under the `'New Conversation'` name so the AI renames it after the first reply. Takes `homeDispatch` because it must set `isStandalonePromptCreation` in the same batch (§30). No React imports |
 | `PromptTemplateDialogHost.tsx` | Single mount point for the popup above, at the new-UI root in `home.tsx` — a sibling of `NewSettingsModal`, never a descendant. Launch it with the exported `openPromptTemplateDialog(prompt)` and then close your own modal: the popup survives because it isn't in your subtree. Settings has three entry points (collapsed sidebar, expanded sidebar, ⌘,) so per-launcher hosts would have to be triplicated |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
@@ -435,6 +435,43 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     shell div and must opt in on its own wrapper. Do **not** reach for
     `data-new-ui="true"` for this — that attribute is the chat-area CSS scope root and
     drags ~4000 lines of transcript overrides into scope.
+
+30. **A modal that is invisible in the new UI still runs its effects — and Chat.tsx's
+    `VariableModal` writes to the conversation.** §26 explains why the new UI can't *see*
+    Chat's prompt-template dialog; it does not stop Chat from **mounting** it. Chat.tsx
+    shows it for any conversation with a `promptTemplate` and zero messages, and its
+    mount effect calls `handleUpdateModel(models[0])` — `handleUpdateConversation` →
+    `dispatch({field:'selectedConversation'})` — so the model that
+    `handleNewConversation({ model })` just applied is overwritten with the
+    alphabetically-first available model a few ms later, before the pending-message
+    bridge fires the send ~160ms in. Its `window` click listener also calls
+    `onClose(true)`, which **deletes** a zero-message promptTemplate conversation. So any
+    new-UI flow that creates a conversation carrying a `promptTemplate` must first
+    dispatch `isStandalonePromptCreation: true` — the only gate on that Chat.tsx effect,
+    and Chat.tsx is its only consumer, so nothing else changes. **The dispatch has to
+    batch into the same render as the `selectedConversation` dispatch**: Chat reads the
+    flag while rendering, and its effect has already run by the time any effect of yours
+    could. Re-asserting the model afterwards is not a fix — you are racing a mount effect,
+    and every ordering you can reach from a parent component loses. More generally: before
+    handing a conversation to Chat.tsx in a state the old UI treats as "needs input",
+    check what the old UI *mounts* for that state, not just what it displays.
+
+31. **Reasoning effort has no per-request field — it only exists as
+    `conversation.data.reasoningLevel`.** `useChatSendService` (:629-644) reads
+    `selectedConversation.data?.reasoningLevel` and turns it into
+    `options.reasoningLevel`, or `disableReasoning: true` for `'off'`; `ChatRequest`
+    carries nothing. So a `ModelPicker`'s `selectedEffort` is **decorative** unless the
+    host writes it onto the conversation — via `handleNewConversation({ data: {
+    reasoningLevel } })` at creation, or `handleUpdateConversation(conv, { key: 'data',
+    value: { ...conv.data, reasoningLevel } })` afterwards. The symptom of forgetting is
+    not an error but a silent downgrade to the backend's default, which reads as "my
+    effort was changed to medium". Two corollaries: seed the picker **from**
+    `conversation.data.reasoningLevel` (defaulting the state to `'medium'` makes the
+    control misreport a conversation started at another level), and never bridge effort
+    through `sessionStorage` — `amplify_pending_effort` was written by `NewHome` and only
+    ever `removeItem`'d, exactly like `amplify_pending_model_id` (§26). Any write to
+    `key: 'data'` must spread `...conv.data`, since web search, skills and effort all
+    share that one object.
 
 ---
 

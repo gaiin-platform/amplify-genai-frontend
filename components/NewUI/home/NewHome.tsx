@@ -373,7 +373,10 @@ export const NewHome: React.FC = () => {
         sessionStorage.setItem('amplify_pending_docs', JSON.stringify(attachedDocs));
       if (selectedModelId)
         sessionStorage.setItem('amplify_pending_model_id', selectedModelId);
-      sessionStorage.setItem('amplify_pending_effort', selectedEffort);
+      // NOTE: effort is NOT bridged through sessionStorage. Nothing reads such a
+      // key — the only channel is `conversation.data.reasoningLevel`, set in the
+      // handleNewConversation call below. (`amplify_pending_model_id` is likewise
+      // only consumed as a hint; the model itself travels in that same call.)
       if (webSearchEnabled)
         sessionStorage.setItem('amplify_pending_web_search', 'true');
       if (selectedSkillIds.length > 0)
@@ -458,6 +461,13 @@ export const NewHome: React.FC = () => {
       ...(selectedModelId && availableModels[selectedModelId]
         ? { model: availableModels[selectedModelId] }
         : {}),
+      // Reasoning effort has no per-request field — useChatSendService reads it
+      // off `selectedConversation.data?.reasoningLevel` (:629-644) and turns it
+      // into `options.reasoningLevel` / `disableReasoning`. Set it here or the
+      // picker is decorative and the backend applies its own default.
+      // ConversationViewShell's applyWebSearch spreads `conversation.data`, so
+      // this survives the web-search/skills write that follows.
+      data: { reasoningLevel: selectedEffort },
       ...(optimisticMessage ? { messages: [optimisticMessage] } : {}),
       // MUST be passed: handleNewConversation unconditionally dispatches
       // `selectedAssistant = paramAssistant ?? DEFAULT_ASSISTANT`, so omitting it

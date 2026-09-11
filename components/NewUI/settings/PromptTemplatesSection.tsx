@@ -364,7 +364,13 @@ const PromptTemplatesSection: React.FC = () => {
       return;
     }
     statsService.startConversationEvent(p);
-    startConversationWithTemplate(handleNewConversation, promptsRef.current, p, availableModels);
+    startConversationWithTemplate(
+      handleNewConversation,
+      homeDispatch,
+      promptsRef.current,
+      p,
+      availableModels,
+    );
     homeDispatch({ field: 'page', value: 'chat' });
     closeSettings();
   };

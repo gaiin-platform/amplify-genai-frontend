@@ -839,6 +839,22 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   }, [composerRef]);
 
   const handleModelSelect = (id: string) => {
+    // Picking a specific model is an explicit override — turn Model Router off so
+    // useChatSendService's auto-route block doesn't classify the prompt and
+    // replace the user's choice with the cheapest/default/advanced model.
+    //
+    // Read localStorage rather than trusting `autoRoute`: that state is seeded
+    // once at mount, and more than one picker can be mounted at a time (the
+    // composer's plus a dialog's), so this instance's copy can be stale in
+    // exactly the case that matters.
+    const routerOn = (() => {
+      try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; }
+    })();
+    if (routerOn || autoRoute) {
+      setAutoRoute(false);
+      try { localStorage.setItem('autoRouteModel', 'false'); } catch {}
+      onAutoRouteChange?.(false);
+    }
     onModelChange(id);
     closeAll();
   };

@@ -367,6 +367,10 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         sessionStorage.removeItem('amplify_pending_message_id');
         sessionStorage.removeItem('amplify_pending_docs');
         sessionStorage.removeItem('amplify_pending_model_id');
+        // Legacy key — model and effort both travel in the
+        // handleNewConversation({ model, data: { reasoningLevel } }) call now, so
+        // nothing writes or reads this. Kept only to purge stale values left by
+        // sessions from before that change.
         sessionStorage.removeItem('amplify_pending_effort');
         sessionStorage.removeItem('amplify_pending_web_search');
         sessionStorage.removeItem('amplify_pending_skills');
