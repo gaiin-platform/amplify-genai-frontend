@@ -59,12 +59,15 @@ import {
   UIAttachment,
   createPasteAttachment,
   buildPastedTextMessage,
-  getAttachmentMime,
   createUIAttachmentFromDoc,
-  imageResponseToObjectUrlWithBytes,
-  isTextPreviewable,
   PASTE_AS_FILE_THRESHOLD,
 } from '@/components/NewUI/shared/attachmentTypes';
+import {
+  createLibraryUIAttachment,
+  hydrateLibraryAttachmentPreview,
+  libraryFileToAttachedDocument,
+  type LibraryFileSelection,
+} from '@/components/NewUI/shared/libraryAttachment';
 import { UploadPendingIndicator } from './UploadPendingIndicator';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
@@ -81,7 +84,6 @@ import { newMessage, MessageType } from '@/types/chat';
 import { getActivePlugins } from '@/utils/app/plugin';
 import { getSettings } from '@/utils/app/settings';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
-import { getFileDownloadUrl } from '@/services/fileService';
 
 /** Inject value into a React-controlled textarea via native setter. */
 function setNativeValue(el: HTMLTextAreaElement, value: string) {
@@ -249,101 +251,90 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   // object-URL store for image thumbnails (revoke on remove)
   const thumbUrlsRef = useRef<Record<string, string>>({});
 
-  // Library files are already uploaded and only need to be hydrated into the
-  // new conversation's attachment rail; they must not be uploaded again.
+  /** Apply an update to one rail entry — the shape shared/libraryAttachment wants. */
+  const patchUIAttachment = useCallback(
+    (id: string, update: (attachment: UIAttachment) => UIAttachment) => {
+      setUIAttachments((prev) => prev.map((a) => (a.id === id ? update(a) : a)));
+    },
+    [],
+  );
+
+  const rememberObjectUrl = useCallback((id: string, objectUrl: string) => {
+    thumbUrlsRef.current[id] = objectUrl;
+  }, []);
+
+  /**
+   * AttachMenu → "Add from library". These files are already in S3, so they get
+   * an AttachedDocument that already carries a `key` and a rail card that is
+   * `ready` on arrival — pushing them through addFileToRail would upload a
+   * duplicate copy of something the user already owns.
+   *
+   * Duplicates are filtered against the render-time rail rather than inside the
+   * state updater, which must stay pure (NEW_UI_GUIDE §15).
+   */
+  const attachLibraryFiles = useCallback(
+    (files: LibraryFileSelection[]) => {
+      const alreadyAttached = new Set([
+        ...attachedDocs.map((d) => d.id),
+        ...uiAttachments.map((a) => a.id),
+      ]);
+      const docs = files
+        .map(libraryFileToAttachedDocument)
+        .filter((doc): doc is AttachedDocument => !!doc && !alreadyAttached.has(doc.id));
+      if (!docs.length) return;
+
+      setAttachedDocs((prev) => [...prev, ...docs]);
+      setUIAttachments((prev) => [...prev, ...docs.map(createLibraryUIAttachment)]);
+      docs.forEach((doc) => {
+        void hydrateLibraryAttachmentPreview(doc, {
+          patch: patchUIAttachment,
+          onObjectUrl: rememberObjectUrl,
+        });
+      });
+    },
+    [attachedDocs, uiAttachments, patchUIAttachment, rememberObjectUrl],
+  );
+
+  // Library files handed over from the Library view ("Attach to new chat") are
+  // already uploaded and only need hydrating into this conversation's rail; they
+  // must not be uploaded again. Same intake as the ⊕ menu's library panel.
   useEffect(() => {
-    let pendingDocument: AttachedDocument | undefined;
-    if (typeof window !== 'undefined') {
-      const pendingRaw = sessionStorage.getItem('amplify_pending_library_doc');
-      if (pendingRaw) {
-        try {
-          pendingDocument = JSON.parse(pendingRaw) as AttachedDocument;
-        } catch {
-          sessionStorage.removeItem('amplify_pending_library_doc');
-        }
-      }
-    }
-    if (!pendingDocument) return;
+    if (typeof window === 'undefined') return;
+    const pendingRaw = sessionStorage.getItem('amplify_pending_library_doc');
+    if (!pendingRaw) return;
 
+    let pendingDocument: AttachedDocument;
     try {
-      const document = pendingDocument;
-      if (!document?.id || !document.key) return;
-      sessionStorage.removeItem('amplify_pending_library_doc');
-      setAttachedDocs([document]);
-      const mime = getAttachmentMime(document.name, document.type);
-      const isImage = mime.startsWith('image/');
-      const isText = isTextPreviewable(document.name, mime);
-      setUIAttachments([{
-        ...createUIAttachmentFromDoc(document, 1),
-        // A library document has no local data. Its preview is ready only
-        // after the same download used by the library view completes.
-        previewState: 'pending',
-      }]);
-
-      // See the comment in NewHome.tsx's equivalent effect for why there are
-      // no `cancelled` guards on state updates here.  reactStrictMode is true,
-      // so double-invocation in dev would leave the spinner stuck forever if
-      // we bailed on cancelled.  The cleanup is kept solely for object-URL
-      // memory management.
-      void (async () => {
-        try {
-          const result = await getFileDownloadUrl(document.key!, undefined);
-          if (!result.success || !result.downloadUrl) throw new Error('Preview URL unavailable');
-          const response = await fetch(result.downloadUrl);
-          if (!response.ok) throw new Error(`Preview request failed: ${response.status}`);
-
-          if (isImage) {
-            const { objectUrl, bytes } = await imageResponseToObjectUrlWithBytes(response);
-            thumbUrlsRef.current[document.id] = objectUrl;
-            setUIAttachments((prev) => prev.map((attachment) =>
-              attachment.id === document.id
-                ? {
-                    ...attachment,
-                    bytes: attachment.bytes || bytes,
-                    thumbUrl: objectUrl,
-                    previewUrl: objectUrl,
-                    previewState: 'available',
-                  }
-                : attachment,
-            ));
-          } else if (isText) {
-            const text = await response.text();
-            const bytes = new TextEncoder().encode(text).byteLength;
-            const lineCount = text.split('\n').length;
-            setUIAttachments((prev) => prev.map((attachment) =>
-              attachment.id === document.id
-                ? {
-                    ...attachment,
-                    bytes: attachment.bytes || bytes,
-                    bodyPreview: text.slice(0, 400),
-                    fullText: text,
-                    lineCount,
-                    previewState: bytes > 2 * 1024 * 1024 || lineCount > 8000 ? 'too-large' : 'available',
-                  }
-                : attachment,
-            ));
-          } else {
-            setUIAttachments((prev) => prev.map((attachment) =>
-              attachment.id === document.id ? { ...attachment, previewState: 'unsupported' } : attachment,
-            ));
-          }
-        } catch {
-          setUIAttachments((prev) => prev.map((attachment) =>
-            attachment.id === document.id ? { ...attachment, previewState: 'failed' } : attachment,
-          ));
-        }
-      })();
-
-      return () => {
-        const objectUrl = thumbUrlsRef.current[document.id];
-        if (objectUrl) {
-          URL.revokeObjectURL(objectUrl);
-          delete thumbUrlsRef.current[document.id];
-        }
-      };
+      pendingDocument = JSON.parse(pendingRaw) as AttachedDocument;
     } catch {
       sessionStorage.removeItem('amplify_pending_library_doc');
+      return;
     }
+    if (!pendingDocument?.id || !pendingDocument.key) return;
+
+    sessionStorage.removeItem('amplify_pending_library_doc');
+    const document = pendingDocument;
+    setAttachedDocs([document]);
+    setUIAttachments([createLibraryUIAttachment(document)]);
+
+    // No `cancelled` guard on the patches — reactStrictMode double-invokes this
+    // effect (effect → cleanup → effect), the second run finds the sessionStorage
+    // key gone and returns, and a cancelled check would then discard the only
+    // response and leave the card spinning forever (NEW_UI_GUIDE §16). The
+    // cleanup exists solely for object-URL memory management.
+    void hydrateLibraryAttachmentPreview(document, {
+      patch: patchUIAttachment,
+      onObjectUrl: rememberObjectUrl,
+    });
+
+    return () => {
+      const objectUrl = thumbUrlsRef.current[document.id];
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+        delete thumbUrlsRef.current[document.id];
+      }
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedConversation?.id]);
 
   // ── Deferred-send state ────────────────────────────────────────────────────
@@ -1126,10 +1117,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                   // handleSend PATH A whenever the composer holds its own docs.
                   fileInputRef.current?.click();
                 }}
-                onAddFromLibrary={() => {
-                  const viewFilesBtn = document.getElementById('viewFiles') as HTMLButtonElement | null;
-                  viewFilesBtn?.click();
-                }}
+                onAddFromLibrary={attachLibraryFiles}
+                attachedLibraryIds={attachedDocs.map((d) => d.id)}
                 webSearchEnabled={webSearchEnabled}
                 onToggleWebSearch={() => {
                   setWebSearchEnabled((v: boolean) => {

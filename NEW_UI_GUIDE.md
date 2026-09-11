@@ -124,11 +124,12 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `SegmentedControl.tsx` | Tab strip / segmented picker; pass `aria-label` |
 | `ModelPicker.tsx` | Model selector with families, effort levels, hover preview cards |
 | `InfoFloatCard.tsx` | 250ms hover-in preview card; Floating UI positioned |
-| `AttachMenu.tsx` | ⊕ attach menu (files, library, skills, web search toggle) |
+| `AttachMenu.tsx` | ⊕ attach menu (files, library, assistant, skills, connectors, web search toggle). "Add from library" opens `DataSourceLibraryPicker` in a `surface='floating'` submenu and emits the picked files — it never opens the local file picker |
 | `AttachmentRail.tsx` | Pre-send attachment card strip above the composer textarea |
 | `AttachmentCard.tsx` | Individual attachment with upload progress and retry |
 | `DataSourceCard.tsx` | 76px file card + `DataSourceCardGrid` (2-col ≥640px, 12px gap) for attached data sources. State shows only in the 40px icon slot (spinner → file-type icon cross-fade) and the subtitle — the card surface never changes color |
-| `DataSourceLibraryPicker.tsx` | Inline multi-select picker for already-uploaded library files. Emits `{id, name, type, metadata}` with **no `key`** — the assistant save step prefixes a keyless source with `s3://` |
+| `DataSourceLibraryPicker.tsx` | Multi-select picker for already-uploaded library files. Emits `{id, name, type, metadata}` with **no `key`** — the assistant save step prefixes a keyless source with `s3://`. `surface='inline'` (default) is a band in a form; `surface='floating'` + `width` is the ⊕ menu's submenu panel |
+| `libraryAttachment.ts` | The already-uploaded-file intake — `libraryFileToAttachedDocument` (derives the bare S3 `key`; `null` ⇒ unsendable, refuse it), `createLibraryUIAttachment` (`ready` card, `pending` preview), `hydrateLibraryAttachmentPreview` (downloads and resolves the card face; never throws). Use this for anything coming out of the library — `AttachFile#handleFile` would upload a second copy. No React imports |
 | `FileDropZone.tsx` | Drag-and-drop file intake: `useFileDropTarget` (handlers + active flag for an existing root element), `FileDropOverlay`, and the `FileDropZone` wrapper. Only reacts to `Files` drags; depth-counted dragenter/leave |
 | `libraryQuery.ts` | Shared library query vocabulary — `sanitizePageKey` (DynamoDB cursor rules; unsanitized page keys 502), `buildLibraryQuery`, `isAssistantRecord`, `libraryTypeLabel`. Used by NewLibraryView + the picker. No React imports |
 | `assistantIdentity.ts` | Shared "is this really an assistant?" vocabulary — `PLACEHOLDER_ASSISTANT_NAMES`, `isPlaceholderAssistantName`. Rejects the backend's `"default"` fallback and the old-UI `"Standard Conversation"` look-alike, both of which mean *no* assistant. No React imports |
@@ -369,6 +370,18 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     `prompt.id` while the backend deletes the root `definition.assistantId`, so filter by
     the assistantId (`views/assistant/assistantDeletion.ts`) or the other versions stay
     listed.
+
+25. **"Upload a file" and "attach a file I already uploaded" are two different
+    intents, and only one of them involves a `File`.** A library record has no local
+    bytes, is already in S3, and must be attached by `key` — running it through
+    `AttachFile#handleFile` uploads a duplicate of something the user already owns,
+    and `createUIAttachmentFromDoc` alone leaves it stuck at
+    `previewState:'unsupported'` because `doc.data` is null. Use
+    `shared/libraryAttachment.ts` for the library path and keep it distinct from the
+    picker/paste/drop path. Note also that the old UI's library entry point is a
+    **dead bridge** here for the same reason as §18: `ChatInput`'s `#viewFiles` button
+    toggles `DataSourceSelector` inside the old dock, which the new UI renders
+    `display:none` — clicking it via `getElementById` opens nothing at all.
 
 ---
 

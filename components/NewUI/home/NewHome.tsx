@@ -42,11 +42,13 @@ import {
   createUIAttachmentFromDoc,
   createPasteAttachment,
   buildPastedTextMessage,
-  getAttachmentMime,
-  imageResponseToObjectUrlWithBytes,
-  isTextPreviewable,
 } from '@/components/NewUI/shared/attachmentTypes';
-import { getFileDownloadUrl } from '@/services/fileService';
+import {
+  createLibraryUIAttachment,
+  hydrateLibraryAttachmentPreview,
+  libraryFileToAttachedDocument,
+  type LibraryFileSelection,
+} from '@/components/NewUI/shared/libraryAttachment';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { newMessage, MessageType, type Message } from '@/types/chat';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
@@ -154,6 +156,49 @@ export const NewHome: React.FC = () => {
     setAttachedDocs((prev) => prev.filter((d) => d.id !== id));
   };
 
+  /** Apply an update to one rail entry — the shape shared/libraryAttachment wants. */
+  const patchUIAttachment = useCallback(
+    (id: string, update: (attachment: UIAttachment) => UIAttachment) => {
+      setUIAttachments((prev) => prev.map((a) => (a.id === id ? update(a) : a)));
+    },
+    [],
+  );
+
+  const rememberObjectUrl = useCallback((id: string, objectUrl: string) => {
+    thumbUrlsRef.current[id] = objectUrl;
+  }, []);
+
+  /**
+   * AttachMenu → "Add from library". These files already live in S3, so they get
+   * an AttachedDocument that already carries a `key` and a `ready` rail card —
+   * routing them through addFileToRail would upload a duplicate copy.
+   *
+   * Duplicates are filtered against the render-time rail, not inside the state
+   * updater, which must stay pure (NEW_UI_GUIDE §15).
+   */
+  const attachLibraryFiles = useCallback(
+    (files: LibraryFileSelection[]) => {
+      const alreadyAttached = new Set([
+        ...attachedDocs.map((d) => d.id),
+        ...uiAttachments.map((a) => a.id),
+      ]);
+      const docs = files
+        .map(libraryFileToAttachedDocument)
+        .filter((doc): doc is AttachedDocument => !!doc && !alreadyAttached.has(doc.id));
+      if (!docs.length) return;
+
+      setAttachedDocs((prev) => [...prev, ...docs]);
+      setUIAttachments((prev) => [...prev, ...docs.map(createLibraryUIAttachment)]);
+      docs.forEach((doc) => {
+        void hydrateLibraryAttachmentPreview(doc, {
+          patch: patchUIAttachment,
+          onObjectUrl: rememberObjectUrl,
+        });
+      });
+    },
+    [attachedDocs, uiAttachments, patchUIAttachment, rememberObjectUrl],
+  );
+
   // ── Hydrate pending library document ──────────────────────────────────────
   // When the user clicks "Attach to new chat" in the library, the selected
   // file's AttachedDocument is stored under 'amplify_pending_library_doc' in
@@ -168,9 +213,10 @@ export const NewHome: React.FC = () => {
   // up and sends it with the user's first message.
   //
   // IMPORTANT: createUIAttachmentFromDoc computes previewState='unsupported'
-  // for library docs because doc.data=null (no local bytes). We override that
-  // to 'pending' and run an async fetch to hydrate the preview — the same
-  // path used by the existing library preview panel.
+  // for library docs because doc.data=null (no local bytes).
+  // createLibraryUIAttachment overrides that to 'pending' and
+  // hydrateLibraryAttachmentPreview resolves it — the same path used by the
+  // library preview panel.
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const raw = sessionStorage.getItem('amplify_pending_library_doc');
@@ -188,13 +234,9 @@ export const NewHome: React.FC = () => {
     sessionStorage.removeItem('amplify_pending_library_doc');
     setAttachedDocs([doc]);
 
-    const mime = getAttachmentMime(doc.name, doc.type);
-    const isImage = mime.startsWith('image/');
-    const isText = isTextPreviewable(doc.name, mime);
-
     // Show the card immediately with a 'pending' spinner while the preview
     // data is fetched; the card face updates once the download resolves.
-    setUIAttachments([{ ...createUIAttachmentFromDoc(doc, 1), previewState: 'pending' }]);
+    setUIAttachments([createLibraryUIAttachment(doc)]);
 
     // NOTE: we intentionally do NOT gate state updates on a `cancelled` flag
     // here.  React 18's reactStrictMode (enabled in next.config.js) double-
@@ -207,54 +249,10 @@ export const NewHome: React.FC = () => {
     // Instead, we always apply the state update (React 18 silently ignores
     // setState on genuinely unmounted components) and use the cleanup function
     // solely for object-URL memory management.
-    void (async () => {
-      try {
-        const result = await getFileDownloadUrl(doc.key!, undefined);
-        if (!result.success || !result.downloadUrl) throw new Error('Preview URL unavailable');
-        const response = await fetch(result.downloadUrl);
-        if (!response.ok) throw new Error(`Preview request failed: ${response.status}`);
-
-        if (isImage) {
-          const { objectUrl, bytes } = await imageResponseToObjectUrlWithBytes(response);
-          thumbUrlsRef.current[doc.id] = objectUrl;
-          setUIAttachments((prev) => prev.map((a) =>
-            a.id === doc.id
-              ? {
-                  ...a,
-                  bytes: a.bytes || bytes,
-                  thumbUrl: objectUrl,
-                  previewUrl: objectUrl,
-                  previewState: 'available',
-                }
-              : a,
-          ));
-        } else if (isText) {
-          const textContent = await response.text();
-          const bytes = new TextEncoder().encode(textContent).byteLength;
-          const lineCount = textContent.split('\n').length;
-          setUIAttachments((prev) => prev.map((a) =>
-            a.id === doc.id
-              ? {
-                  ...a,
-                  bytes: a.bytes || bytes,
-                  bodyPreview: textContent.slice(0, 400),
-                  fullText: textContent,
-                  lineCount,
-                  previewState: bytes > 2 * 1024 * 1024 || lineCount > 8000 ? 'too-large' : 'available',
-                }
-              : a,
-          ));
-        } else {
-          setUIAttachments((prev) => prev.map((a) =>
-            a.id === doc.id ? { ...a, previewState: 'unsupported' } : a,
-          ));
-        }
-      } catch {
-        setUIAttachments((prev) => prev.map((a) =>
-          a.id === doc.id ? { ...a, previewState: 'failed' } : a,
-        ));
-      }
-    })();
+    void hydrateLibraryAttachmentPreview(doc, {
+      patch: patchUIAttachment,
+      onObjectUrl: rememberObjectUrl,
+    });
 
     return () => {
       // Only use the cleanup for object-URL memory management.
@@ -594,11 +592,8 @@ export const NewHome: React.FC = () => {
                 isNewChat
                 plugins={landingPlugins}
                 onAddFiles={() => fileInputRef.current?.click()}
-                onAddFromLibrary={() => {
-                  // DataSourceSelector opens via a custom event used by the old UI;
-                  // for the new-UI landing page we fall back to the file picker.
-                  fileInputRef.current?.click();
-                }}
+                onAddFromLibrary={attachLibraryFiles}
+                attachedLibraryIds={attachedDocs.map((d) => d.id)}
                 webSearchEnabled={webSearchEnabled}
                 onToggleWebSearch={() => {
                   setWebSearchEnabled((v) => {

@@ -55,6 +55,20 @@ export interface DataSourceLibraryPickerProps {
     attachedIds?: string[];
     /** Scroll height of the row list. */
     listHeight?: number;
+    /**
+     * Where the panel is sitting.
+     *
+     * `'inline'` (default) is the assistant-editor case: the panel is a band in a
+     * form, so it sits on `--bg-app` and reserves bottom margin for the content
+     * below it.
+     *
+     * `'floating'` is the composer's ⊕ menu case: the panel IS the surface, so it
+     * takes `--bg-raised` plus the menu shadow, drops the bottom margin, and
+     * flips the field background so the search box stays distinct from it.
+     */
+    surface?: 'inline' | 'floating';
+    /** Fixed width in px. Omit to fill the container (the inline default). */
+    width?: number;
 }
 
 const PAGE_SIZE = 25;
@@ -69,7 +83,15 @@ export const DataSourceLibraryPicker: React.FC<DataSourceLibraryPickerProps> = (
     onClose,
     attachedIds = [],
     listHeight = 268,
+    surface = 'inline',
+    width,
 }) => {
+    const isFloating = surface === 'floating';
+    /** The panel's own background — also the base for the selected-row tint. */
+    const panelBg = isFloating ? 'var(--bg-raised)' : 'var(--bg-app)';
+    /** Inputs must not match the panel, or the search box disappears into it. */
+    const fieldBg = isFloating ? 'var(--bg-app)' : 'var(--bg-raised)';
+
     const [search, setSearch] = useState('');
     const [committedSearch, setCommittedSearch] = useState('');
     const [items, setItems] = useState<FileRecord[]>([]);
@@ -158,9 +180,11 @@ export const DataSourceLibraryPicker: React.FC<DataSourceLibraryPickerProps> = (
             style={{
                 border: '1px solid var(--border-subtle)',
                 borderRadius: 10,
-                background: 'var(--bg-app)',
-                marginBottom: 12,
+                background: panelBg,
+                marginBottom: isFloating ? 0 : 12,
                 overflow: 'hidden',
+                ...(width ? { width } : null),
+                ...(isFloating ? { boxShadow: '0 12px 32px rgba(0,0,0,.5)' } : null),
             }}
         >
             {/* ── Header: search + close ── */}
@@ -200,7 +224,7 @@ export const DataSourceLibraryPicker: React.FC<DataSourceLibraryPickerProps> = (
                             padding: '6px 10px 6px 28px',
                             borderRadius: 8,
                             border: '1px solid var(--border-subtle)',
-                            background: 'var(--bg-raised)',
+                            background: fieldBg,
                             color: 'var(--text-primary)',
                             fontSize: 13,
                             fontFamily: 'inherit',
@@ -293,7 +317,7 @@ export const DataSourceLibraryPicker: React.FC<DataSourceLibraryPickerProps> = (
                                     cursor: isAttached ? 'default' : 'pointer',
                                     opacity: isAttached ? 0.55 : 1,
                                     background: isSelected
-                                        ? 'color-mix(in srgb, var(--accent) 10%, var(--bg-app))'
+                                        ? `color-mix(in srgb, var(--accent) 10%, ${panelBg})`
                                         : 'transparent',
                                     outline: 'none',
                                 }}

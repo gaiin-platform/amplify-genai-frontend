@@ -6,6 +6,9 @@
  *   GROUP 1 — Bring something in
  *     • Add files or photos  ⌘U  (featureFlags.uploadDocuments)
  *     • Add from library  ›       (featureFlags.dataSourceSelectorOnInput)
+ *         → opens shared/DataSourceLibraryPicker, NOT the local file picker.
+ *           These are two different intents: one uploads new bytes, the other
+ *           attaches something already in S3.
  *   GROUP 2 — Extend what's available
  *     • Skills  ›                 (featureFlags.skills + SKILLS plugin)
  *     • Connectors  ›             (featureFlags.integrations → settings)
@@ -70,6 +73,14 @@ import {
   useInfoCardHover,
 } from './InfoFloatCard';
 import { SUBMENU_PLACEMENT, submenuMiddleware, submenuStyle } from './menuPositioning';
+import {
+  DataSourceLibraryPicker,
+  type PickedLibraryFile,
+} from './DataSourceLibraryPicker';
+
+/** Width/list height of the library submenu panel (spec §3 nested panel). */
+const LIBRARY_PANEL_WIDTH = 380;
+const LIBRARY_LIST_HEIGHT = 240;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -80,10 +91,19 @@ export interface AttachMenuProps {
   isNewChat?: boolean;
   /** Plugins currently active — used to gate web search */
   plugins: Plugin[];
-  /** Called when user picks "Add files" */
+  /** Called when user picks "Add files" — opens the local file picker */
   onAddFiles: () => void;
-  /** Called when user picks "Add from library" */
-  onAddFromLibrary: () => void;
+  /**
+   * Called with the files the user committed in the "Add from library" panel.
+   * These are ALREADY UPLOADED — the receiver must attach them by key and must
+   * not push them back through the upload pipeline.
+   */
+  onAddFromLibrary: (files: PickedLibraryFile[]) => void;
+  /**
+   * Ids already sitting in the composer's rail. Those rows render as "Added" so
+   * the same file can't be attached twice.
+   */
+  attachedLibraryIds?: string[];
   /** Current web search toggle state */
   webSearchEnabled: boolean;
   /** Called to toggle web search */
@@ -883,6 +903,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   plugins,
   onAddFiles,
   onAddFromLibrary,
+  attachedLibraryIds = [],
   webSearchEnabled,
   onToggleWebSearch,
   selectedSkillIds,
@@ -1026,8 +1047,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   useEffect(() => () => { if (submenuTimerRef.current) clearTimeout(submenuTimerRef.current); }, []);
 
   // ── Submenu trigger rows ──────────────────────────────────────────────────
-  // NOTE: "Add from library" has no panel — its row fires an action and closes
-  // the menu — so it needs a ref only, no Floating UI instance.
   const libraryRowRef = useRef<HTMLButtonElement>(null);
   const skillsRowRef = useRef<HTMLButtonElement>(null);
   const connectorsRowRef = useRef<HTMLButtonElement>(null);
@@ -1040,6 +1059,13 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   // Now: one Floating UI instance per panel with flip + shift.
   // See ./menuPositioning for the middleware stack and why strategy stays
   // 'absolute' (useDismiss containment — the Skills checkboxes depend on it).
+  const libraryFloating = useFloating({
+    open: submenu === 'library',
+    placement: SUBMENU_PLACEMENT,
+    middleware: submenuMiddleware(),
+    whileElementsMounted: autoUpdate,
+  } as any);
+
   const skillsFloating = useFloating({
     open: submenu === 'skills',
     placement: SUBMENU_PLACEMENT,
@@ -1065,6 +1091,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   // Done in an effect rather than an inline callback ref: an inline ref would be
   // invoked with (null, node) on every render and thrash setReference's state.
   useEffect(() => {
+    if (submenu === 'library') libraryFloating.refs.setReference(libraryRowRef.current);
     if (submenu === 'skills') skillsFloating.refs.setReference(skillsRowRef.current);
     if (submenu === 'connectors') connectorsFloating.refs.setReference(connectorsRowRef.current);
     if (submenu === 'assistant') assistantFloating.refs.setReference(assistantRowRef.current);
@@ -1189,8 +1216,13 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     label="Add from library"
                     isOpen={submenu === 'library'}
                     onMouseEnter={() => openSubmenu('library')}
-                    onMouseLeave={scheduleClose}
-                    onClick={() => { onAddFromLibrary(); closeAll(); }}
+                    // cancelClose, NOT scheduleClose: this panel holds a search
+                    // field and a multi-select the user commits with a button, so
+                    // a 300ms hover-out timer would throw their selection away
+                    // mid-task. Clearing the timer still cancels a *pending* open
+                    // if they leave before the 150ms hover-intent fires.
+                    onMouseLeave={cancelClose}
+                    onClick={() => setSubmenu(submenu === 'library' ? null : 'library')}
                   />
                 )}
                 {showAssistant && (
@@ -1249,6 +1281,30 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                 checked={webSearchEnabled}
                 onClick={onToggleWebSearch}
               />
+            )}
+
+            {/* ── Library submenu ──
+                Stays a DOM child of the primary panel (see menuPositioning) so
+                useDismiss treats clicks inside it as inside the menu — the row
+                checkboxes and the search field depend on that. */}
+            {submenu === 'library' && (
+              <div
+                ref={libraryFloating.refs.setFloating}
+                style={submenuStyle(libraryFloating, 'attachMenuEnter')}
+                onMouseEnter={cancelClose}
+              >
+                <DataSourceLibraryPicker
+                  surface="floating"
+                  width={LIBRARY_PANEL_WIDTH}
+                  listHeight={LIBRARY_LIST_HEIGHT}
+                  attachedIds={attachedLibraryIds}
+                  onSelect={(picked) => {
+                    onAddFromLibrary(picked);
+                    closeAll();
+                  }}
+                  onClose={() => setSubmenu(null)}
+                />
+              </div>
             )}
 
             {/* ── Skills submenu ── */}
