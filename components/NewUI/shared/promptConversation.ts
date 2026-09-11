@@ -23,12 +23,17 @@ import { parsePromptVariables, fillInTemplate } from '@/utils/app/prompts';
  * Identical to `handleStartConversationWithPrompt` from utils except the
  * conversation name is always 'New Conversation', matching how every other chat
  * is created and letting the AI rename it after the first reply.
+ *
+ * @param userSelectedModelId — optional model the user explicitly picked in the
+ *   fill dialog.  The template's enforced model always takes priority; this is
+ *   only used as a fallback when the template imposes no model of its own.
  */
 export const startConversationWithTemplate = (
     handleNewConversation: (params: Record<string, unknown>) => void,
     prompts: Prompt[],
     startPrompt: Prompt,
     availableModels?: Record<string, unknown>,
+    userSelectedModelId?: string,
 ): void => {
     let prompt: Prompt = startPrompt;
 
@@ -73,11 +78,19 @@ export const startConversationWithTemplate = (
     }
     tags = Array.from(new Set(tags));
 
-    // Enforced model — same logic as original
+    // Enforced model — template takes priority; user selection is fallback
     const enforcedModelId: string | undefined =
         prompt.data?.assistant?.definition?.data?.model;
     const enforcedModel =
         enforcedModelId && availableModels ? availableModels[enforcedModelId] : undefined;
+
+    // Use the user-selected model only when the template doesn't enforce one
+    const userModel =
+        !enforcedModel && userSelectedModelId && availableModels
+            ? availableModels[userSelectedModelId]
+            : undefined;
+
+    const resolvedModel = enforcedModel ?? userModel;
 
     handleNewConversation({
         // ↓ The only difference from the original — no datetime suffix
@@ -88,6 +101,6 @@ export const startConversationWithTemplate = (
         tools: [],
         tags,
         ...(rootPromptContent != null && { prompt: rootPromptContent }),
-        ...(enforcedModel != null && { model: enforcedModel }),
+        ...(resolvedModel != null && { model: resolvedModel }),
     });
 };

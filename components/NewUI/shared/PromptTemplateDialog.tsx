@@ -23,19 +23,21 @@
  * (`fillInTemplate` with the same `fillInDocuments` rule) and hand the resulting
  * text to the proven `amplify_pending_message` bridge that NewHome already uses.
  *
- * The model selector is intentionally suppressed (`showModelSelector={false}`,
- * `models={[]}`): the shell only *clears* `amplify_pending_model_id`, it never
- * applies it, so a picker here would silently do nothing. Passing an empty model
- * list also stops VariableModal's mount effect from firing `handleUpdateModel`,
- * which would otherwise clobber a template's enforced model. Model choice stays
- * with the composer / the template's own enforced model.
+ * The model is now selected via a `ModelPicker` in the footer of
+ * `PromptTemplateFillDialog`. The selection flows through
+ * `startConversationWithTemplate` → `handleNewConversation({ model })`, which
+ * is the only path that actually applies a model to a new conversation.
+ * (`amplify_pending_model_id` is cleared by ConversationViewShell and never
+ * applied, so that key is not used here.)  A template's own enforced model
+ * always takes priority over the user's pick.
  */
 
-import React, { useContext, useEffect, useMemo, useRef } from 'react';
+import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Prompt } from '@/types/prompt';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { PromptTemplateFillDialog } from '@/components/NewUI/shared/PromptTemplateFillDialog';
+import { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import {
   fillInTemplate,
   parseEditableVariables,
@@ -68,7 +70,7 @@ export const PromptTemplateDialog: React.FC<PromptTemplateDialogProps> = ({
   onEdit,
 }) => {
   const {
-    state: { prompts, availableModels, statsService },
+    state: { prompts, availableModels, statsService, defaultModelId },
     dispatch: homeDispatch,
     handleNewConversation,
   } = useContext(HomeContext);
@@ -80,6 +82,19 @@ export const PromptTemplateDialog: React.FC<PromptTemplateDialogProps> = ({
   }, [prompts]);
 
   const variables = useMemo(() => promptTemplateVariables(prompt), [prompt]);
+
+  // Model + effort selection state — seeded from the user's default model.
+  // The template's enforced model (if any) takes priority in
+  // startConversationWithTemplate; we still pass selectedModelId so it is used
+  // when no model is enforced.
+  const [selectedModelId, setSelectedModelId] = useState<string | undefined>(
+    defaultModelId ?? undefined,
+  );
+  const [selectedEffort, setSelectedEffort] = useState<EffortLevel>('medium');
+
+  // Suppress the picker when the template itself enforces a specific model.
+  const enforcedModelId: string | undefined =
+    (prompt.data?.assistant?.definition?.data?.model as string | undefined) ?? undefined;
 
   const handleSubmit = (
     updatedVariables: string[],
@@ -120,14 +135,16 @@ export const PromptTemplateDialog: React.FC<PromptTemplateDialogProps> = ({
     }
 
     statsService.startConversationEvent(prompt);
-    // Creates the conversation with promptTemplate, tags, rootPrompt and any
-    // assistant-enforced model already applied. Uses 'New Conversation' name
-    // so the AI renames it after the first reply (same as every other chat).
+    // Creates the conversation with promptTemplate, tags, rootPrompt and the
+    // resolved model (user-selected, falling back to the template's enforced
+    // model if present). Uses 'New Conversation' name so the AI renames it
+    // after the first reply (same as every other chat).
     startConversationWithTemplate(
       handleNewConversation,
       promptsRef.current,
       prompt,
       availableModels,
+      selectedModelId,
     );
     homeDispatch({ field: 'page', value: 'chat' });
     onStarted?.();
@@ -141,6 +158,11 @@ export const PromptTemplateDialog: React.FC<PromptTemplateDialogProps> = ({
       onSubmit={handleSubmit}
       onClose={onClose}
       onEdit={onEdit}
+      selectedModelId={selectedModelId}
+      selectedEffort={selectedEffort}
+      onModelChange={setSelectedModelId}
+      onEffortChange={setSelectedEffort}
+      enforcedByAssistant={!!enforcedModelId}
     />
   );
 };

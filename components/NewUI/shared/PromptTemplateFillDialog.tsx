@@ -27,6 +27,7 @@ import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import { parsePromptVariableValues, getType } from '@/utils/app/prompts';
 import { DataSourceLibraryPicker, PickedLibraryFile } from '@/components/NewUI/shared/DataSourceLibraryPicker';
 import { libraryFileToAttachedDocument } from '@/components/NewUI/shared/libraryAttachment';
+import { ModelPicker, EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -77,6 +78,16 @@ export interface PromptTemplateFillDialogProps {
   onClose: () => void;
   /** When provided, renders an edit icon in the header. */
   onEdit?: () => void;
+  /** Currently selected model ID — when provided, renders a ModelPicker in the footer. */
+  selectedModelId?: string;
+  /** Current reasoning effort level. */
+  selectedEffort?: EffortLevel;
+  /** Called when the user picks a different model. */
+  onModelChange?: (modelId: string) => void;
+  /** Called when the user changes the reasoning effort. */
+  onEffortChange?: (effort: EffortLevel) => void;
+  /** When true the template enforces a specific model, so the picker is disabled. */
+  enforcedByAssistant?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -87,6 +98,11 @@ export const PromptTemplateFillDialog: React.FC<PromptTemplateFillDialogProps> =
   onSubmit,
   onClose,
   onEdit,
+  selectedModelId,
+  selectedEffort = 'medium',
+  onModelChange,
+  onEffortChange,
+  enforcedByAssistant = false,
 }) => {
   // Text + boolean + options values (one per variable, indexed)
   const [values, setValues] = useState<string[]>(() =>
@@ -694,63 +710,81 @@ export const PromptTemplateFillDialog: React.FC<PromptTemplateFillDialogProps> =
         <div
           style={{
             flexShrink: 0,
-            padding: '12px 24px 20px',
+            padding: '12px 16px 20px 24px',
             display: 'flex',
+            alignItems: 'center',
             gap: 8,
-            justifyContent: 'flex-end',
             borderTop: '1px solid var(--border-subtle)',
           }}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            style={{
-              height: 36,
-              padding: '0 16px',
-              borderRadius: 8,
-              border: '1px solid var(--border-subtle)',
-              background: 'transparent',
-              color: 'var(--text-secondary)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              transition: 'background 120ms ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--bg-hover)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'transparent';
-            }}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            style={{
-              height: 36,
-              padding: '0 20px',
-              borderRadius: 8,
-              border: 'none',
-              background: 'var(--accent)',
-              color: 'var(--accent-fg)',
-              fontSize: 13,
-              fontWeight: 500,
-              cursor: 'pointer',
-              fontFamily: 'inherit',
-              transition: 'opacity 120ms ease',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.opacity = '0.88';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.opacity = '1';
-            }}
-          >
-            Use Template
-          </button>
+          {/* Model picker — left side of footer */}
+          {onModelChange && (
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <ModelPicker
+                selectedModelId={selectedModelId}
+                selectedEffort={selectedEffort}
+                onModelChange={onModelChange}
+                onEffortChange={onEffortChange ?? (() => {})}
+                isNewChat={true}
+                enforcedByAssistant={enforcedByAssistant}
+                menuZIndex={10002}
+              />
+            </div>
+          )}
+
+          {/* Action buttons — right side */}
+          <div style={{ display: 'flex', gap: 8, marginLeft: 'auto', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                height: 36,
+                padding: '0 16px',
+                borderRadius: 8,
+                border: '1px solid var(--border-subtle)',
+                background: 'transparent',
+                color: 'var(--text-secondary)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                transition: 'background 120ms ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--bg-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSubmit}
+              style={{
+                height: 36,
+                padding: '0 20px',
+                borderRadius: 8,
+                border: 'none',
+                background: 'var(--accent)',
+                color: 'var(--accent-fg)',
+                fontSize: 13,
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                transition: 'opacity 120ms ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.opacity = '0.88';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.opacity = '1';
+              }}
+            >
+              Use Template
+            </button>
+          </div>
         </div>
       </div>
     </div>

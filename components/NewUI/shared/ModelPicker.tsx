@@ -164,6 +164,13 @@ export interface ModelPickerProps {
    * observer for callers that need to synchronise other state.
    */
   onAutoRouteChange?: (enabled: boolean) => void;
+  /**
+   * z-index for the primary floating panel. Defaults to 9999 (above
+   * NewSettingsModal). Pass a higher value when the picker is rendered inside a
+   * stacking context that already exceeds 9999 (e.g. PromptTemplateFillDialog
+   * at 10001).
+   */
+  menuZIndex?: number;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -669,6 +676,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   composerRef,
   enforcedByAssistant = false,
   onAutoRouteChange,
+  menuZIndex = 9999,
 }) => {
   const {
     state: { availableModels, defaultModelId, featureFlags },
@@ -952,7 +960,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
               position: strategy,
               top: y ?? 0,
               left: x ?? 0,
-              zIndex: 9999,
+              zIndex: menuZIndex,
               width: panelWidth,
               background: 'var(--bg-raised)',
               border: '1px solid var(--border-subtle)',
