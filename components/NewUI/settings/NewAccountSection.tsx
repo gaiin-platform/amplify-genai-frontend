@@ -349,7 +349,7 @@ export const NewAccountSection: FC = () => {
           color: 'var(--text-muted)',
           fontSize: '13px',
         }}>
-          <IconLoader2 size={16} style={{ flexShrink: 0 }} className="animate-spin" />
+          <IconLoader2 size={16} style={{ flexShrink: 0 }} className="motion-safe:animate-spin motion-reduce:animate-none" />
           Loading cost data…
         </div>
       ) : mtdData ? (
@@ -543,7 +543,7 @@ export const NewAccountSection: FC = () => {
             fontSize: '13px',
             padding: '16px 0',
           }}>
-            <IconLoader2 size={16} className="animate-spin" />
+            <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" />
             Loading accounts…
           </div>
         ) : accounts.length === 0 ? (

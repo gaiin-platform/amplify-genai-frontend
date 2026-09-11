@@ -197,7 +197,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   // user's). During that window:
   //   - ChatLoader IS mounted (Chat.tsx renders it on `loading`), but its dot is
   //     hidden by our own Phase 43 Fix 1b CSS ([data-streaming="true"] …
-  //     .animate-pulse { visibility: hidden }).
+  //     .motion-safe:animate-pulse motion-reduce:animate-none { visibility: hidden }).
   //   - PromptStatus has NOT mounted — it renders inside the last message's
   //     assistant-message wrapper, which doesn't exist yet, and needs status
   //     events that haven't arrived.

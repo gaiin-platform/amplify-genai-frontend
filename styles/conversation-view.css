@@ -4041,3 +4041,17 @@
     animation: none !important;
   }
 }
+
+/* New UI accessibility: honor reduced-motion preferences for inline transitions
+   and legacy utility animations that cannot be expressed with Tailwind variants. */
+@media (prefers-reduced-motion: reduce) {
+  [data-new-ui="true"],
+  [data-new-ui="true"] *,
+  [data-new-ui-shell="true"],
+  [data-new-ui-shell="true"] * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+ }
+}

@@ -229,7 +229,7 @@ export const DriveSourcesPanel: React.FC<DriveSourcesPanelProps> = ({
                                 {isBusy ? (
                                     <IconLoader2
                                         size={14}
-                                        className="animate-spin"
+                                        className="motion-safe:animate-spin motion-reduce:animate-none"
                                         style={{ color: 'var(--text-muted)', flexShrink: 0 }}
                                     />
                                 ) : isConnected ? (

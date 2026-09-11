@@ -87,7 +87,7 @@ function nonTerminateStepCount(workflow: AstWorkflow): number {
 
 const SkeletonCard: React.FC = () => (
   <div
-    className="rounded-[8px] p-3 border border-[--border-subtle] bg-[--bg-raised] animate-pulse"
+    className="rounded-[8px] p-3 border border-[--border-subtle] bg-[--bg-raised] motion-safe:animate-pulse motion-reduce:animate-none"
     style={{ height: 72 }}
   >
     <div className="h-3 w-3/5 rounded bg-[--bg-active] mb-2" />
@@ -279,14 +279,26 @@ export const NewWorkflowsView: React.FC = () => {
           return (
             <div
               key={t.templateId}
+              role="button"
+              tabIndex={0}
+              aria-label={t.description ? (t.name || '(Untitled)') + ': ' + t.description : (t.name || '(Untitled)')}
               onClick={() => {
                 setSelectedId(isSelected ? null : t.templateId);
                 setExpandedSteps(new Set());
                 setConfirmDeleteId(null);
               }}
+              onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setSelectedId(isSelected ? null : t.templateId);
+                  setExpandedSteps(new Set());
+                  setConfirmDeleteId(null);
+                }
+              }}
               onMouseEnter={() => setHoveredId(t.templateId)}
               onMouseLeave={() => setHoveredId(null)}
-              className="relative cursor-pointer rounded-[8px] p-3 border transition-colors"
+              className="relative cursor-pointer rounded-[8px] p-3 border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
               style={{
                 background: isSelected
                   ? 'var(--bg-active)'
@@ -411,7 +423,7 @@ export const NewWorkflowsView: React.FC = () => {
               {/* Spinner while deleting */}
               {isDeleting && (
                 <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                  <IconLoader2 size={16} className="animate-spin text-[--text-muted]" />
+                  <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none text-[--text-muted]" />
                 </div>
               )}
             </div>

@@ -1532,7 +1532,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                             {isCheckingSlug ? (
                                                                 <IconLoader2
                                                                     size={14}
-                                                                    className="animate-spin"
+                                                                    className="motion-safe:animate-spin motion-reduce:animate-none"
                                                                     style={{ color: 'var(--text-muted)' }}
                                                                 />
                                                             ) : slugAvailable === true ? (

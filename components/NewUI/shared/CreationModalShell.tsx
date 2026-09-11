@@ -303,7 +303,7 @@ export const CreationModalShell: React.FC<CreationModalShellProps> = ({
                                 <>
                                     <IconLoader2
                                         size={14}
-                                        className="animate-spin"
+                                        className="motion-safe:animate-spin motion-reduce:animate-none"
                                         style={{ flexShrink: 0 }}
                                     />
                                     Saving…

@@ -526,7 +526,7 @@ export const DriveFileBrowser: React.FC<DriveFileBrowserProps> = ({
                 >
                     {isLoading ? (
                         <div style={emptyState}>
-                            <IconLoader2 size={16} className="animate-spin" />
+                            <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" />
                             <span>Loading…</span>
                         </div>
                     ) : error ? (

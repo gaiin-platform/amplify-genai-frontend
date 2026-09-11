@@ -368,7 +368,7 @@ export const SkillsCapabilityPanel: React.FC<SkillsCapabilityPanelProps> = ({
                 >
                     {loading ? (
                         <div style={centeredState}>
-                            <IconLoader2 size={16} className="motion-safe:animate-spin" aria-hidden="true" />
+                            <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" aria-hidden="true" />
                             <span>Loading skills…</span>
                         </div>
                     ) : error ? (

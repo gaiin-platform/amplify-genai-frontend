@@ -246,7 +246,7 @@ export const DataSourceLibraryPicker: React.FC<DataSourceLibraryPickerProps> = (
             >
                 {isLoading ? (
                     <div style={centeredState}>
-                        <IconLoader2 size={16} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
+                        <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--text-muted)' }} />
                         <span>Loading your library…</span>
                     </div>
                 ) : error ? (
@@ -387,7 +387,7 @@ export const DataSourceLibraryPicker: React.FC<DataSourceLibraryPickerProps> = (
                                 cursor: isPaging ? 'default' : 'pointer',
                             }}
                         >
-                            {isPaging && <IconLoader2 size={13} className="animate-spin" />}
+                            {isPaging && <IconLoader2 size={13} className="motion-safe:animate-spin motion-reduce:animate-none" />}
                             {isPaging ? 'Loading…' : 'Load more'}
                         </button>
                     </div>

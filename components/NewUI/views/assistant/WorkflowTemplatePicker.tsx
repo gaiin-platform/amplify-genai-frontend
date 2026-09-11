@@ -167,7 +167,7 @@ export const WorkflowTemplatePicker: React.FC<WorkflowTemplatePickerProps> = ({
                     {loading && (
                         <IconLoader2
                             size={14}
-                            className="motion-safe:animate-spin"
+                            className="motion-safe:animate-spin motion-reduce:animate-none"
                             aria-hidden="true"
                             style={{
                                 position: 'absolute',

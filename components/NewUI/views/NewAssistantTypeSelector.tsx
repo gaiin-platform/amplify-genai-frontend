@@ -927,7 +927,7 @@ export const NewAssistantTypeSelector: React.FC<Props> = ({ onClose, onConfirm }
                         {teamCreating && (
                             <IconLoader2
                                 size={14}
-                                className="animate-spin"
+                                className="motion-safe:animate-spin motion-reduce:animate-none"
                                 style={{ flexShrink: 0 }}
                             />
                         )}

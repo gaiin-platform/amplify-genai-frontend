@@ -113,7 +113,7 @@ type ChatTab = 'mine' | 'shared';
 
 const SkeletonRow: React.FC = () => (
     <div
-        className="flex items-center gap-3 px-3 h-[48px] rounded-[8px] animate-pulse"
+        className="flex items-center gap-3 px-3 h-[48px] rounded-[8px] motion-safe:animate-pulse motion-reduce:animate-none"
         aria-hidden="true"
     >
         <div className="w-4 h-4 rounded bg-[--bg-raised] flex-shrink-0" />
@@ -619,7 +619,7 @@ export const ChatsListView: React.FC = () => {
                                             {isOpening ? (
                                                 <IconLoader2
                                                     size={12}
-                                                    className="animate-spin motion-reduce:animate-none"
+                                                    className="motion-safe:animate-spin motion-reduce:animate-none"
                                                 />
                                             ) : (
                                                 'Open →'

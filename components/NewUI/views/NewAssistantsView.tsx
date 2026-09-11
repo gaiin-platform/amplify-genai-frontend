@@ -75,11 +75,21 @@ const AssistantRow: React.FC<RowProps> = ({
 
     return (
         <div
-            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] cursor-pointer transition-colors duration-100"
+            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] cursor-pointer transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+            role="button"
+            tabIndex={0}
+            aria-label={description ? name + ': ' + description : name}
             style={{ backgroundColor: hovered ? 'var(--bg-hover)' : 'transparent' }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             onClick={onClick}
+            onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
         >
             {/* Icon square */}
             <div
@@ -119,7 +129,7 @@ const AssistantRow: React.FC<RowProps> = ({
 
             {/* Hover actions */}
             <div
-                className={`flex items-center gap-1 transition-opacity duration-100 ${hovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                className={`flex items-center gap-1 transition-opacity duration-100 ${hovered ? 'opacity-100' : 'opacity-0 pointer-events-none'} focus-within:opacity-100 focus-within:pointer-events-auto`}
                 onClick={(e) => e.stopPropagation()}
             >
                 <button
@@ -203,7 +213,7 @@ const AssistantRow: React.FC<RowProps> = ({
                         disabled={isDeleting}
                     >
                         {isDeleting
-                            ? <IconLoader2 size={14} className="animate-spin" />
+                            ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" />
                             : <IconTrash size={14} />
                         }
                     </button>
@@ -984,7 +994,7 @@ const LayeredAssistantsTab: React.FC = () => {
             <div className="flex-1 overflow-y-auto px-3 py-2">
                 {syncingLayeredAssistants ? (
                     <div className="flex flex-col items-center justify-center py-20 gap-3">
-                        <IconLoader2 size={24} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
+                        <IconLoader2 size={24} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--text-muted)' }} />
                         <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
                             Loading layered assistants…
                         </p>
@@ -1092,7 +1102,7 @@ export const NewAssistantsView: React.FC = () => {
             id: 'group',
             label: syncingPrompts ? 'Loading Groups…' : 'Groups',
             icon: syncingPrompts
-                ? <IconLoader2 size={15} className="animate-spin" />
+                ? <IconLoader2 size={15} className="motion-safe:animate-spin motion-reduce:animate-none" />
                 : <IconUsers size={15} />,
             visible: shouldShowGroupTab,
         },
@@ -1100,7 +1110,7 @@ export const NewAssistantsView: React.FC = () => {
             id: 'layered',
             label: syncingLayeredAssistants ? 'Loading Layered…' : 'Layered Assistants',
             icon: syncingLayeredAssistants
-                ? <IconLoader2 size={15} className="animate-spin" />
+                ? <IconLoader2 size={15} className="motion-safe:animate-spin motion-reduce:animate-none" />
                 : <IconGitBranch size={15} />,
             visible: shouldShowLayeredTab,
         },

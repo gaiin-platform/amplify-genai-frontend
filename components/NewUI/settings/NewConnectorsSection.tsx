@@ -455,7 +455,7 @@ export const NewConnectorsSection: FC = () => {
                     }}
                   >
                     {isLoading ? (
-                      <IconLoader2 size={14} className="animate-spin" />
+                      <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" />
                     ) : isConnected ? (
                       <>
                         <IconX size={13} />

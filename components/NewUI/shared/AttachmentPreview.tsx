@@ -372,7 +372,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
               aria-label="Loading preview"
               style={{ backgroundColor: 'rgba(0, 0, 0, 0.16)', color: 'var(--text-secondary)' }}
             >
-              <IconLoader2 size={24} className="animate-spin" />
+              <IconLoader2 size={24} className="motion-safe:animate-spin motion-reduce:animate-none" />
             </div>
           ) : null}
           {previewState === 'too-large' && (

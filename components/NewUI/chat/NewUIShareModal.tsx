@@ -17,7 +17,7 @@
  * Chrome: position:fixed overlay, focus trap, Escape closes, backdrop click closes.
  * Accessibility: role="dialog" aria-modal="true" aria-labelledby="share-modal-heading"
  * Dark mode: all colours use CSS vars from globals.css.
- * Reduced motion: the only animation is the `animate-spin` spinner, which is
+ * Reduced motion: the only animation is the `motion-safe:animate-spin motion-reduce:animate-none` spinner, which is
  *   suppressed via `motion-reduce:animate-none`.
  *
  * Service wiring:
@@ -593,10 +593,10 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                         >
                             {isSharing ? (
                                 <>
-                                    {/* animate-spin: Tailwind class; motion-reduce:animate-none suppresses it */}
+                                    {/* motion-safe:animate-spin motion-reduce:animate-none: Tailwind class; motion-reduce:animate-none suppresses it */}
                                     <IconLoader2
                                         size={14}
-                                        className="animate-spin motion-reduce:animate-none"
+                                        className="motion-safe:animate-spin motion-reduce:animate-none"
                                         style={{ flexShrink: 0 }}
                                     />
                                     Sharing…

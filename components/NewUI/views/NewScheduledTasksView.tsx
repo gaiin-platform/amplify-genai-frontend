@@ -199,11 +199,21 @@ const TaskRow: React.FC<{
     const [hovered, setHovered] = useState(false);
     return (
         <div
-            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] cursor-pointer transition-colors duration-100"
+            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] cursor-pointer transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+            role="button"
+            tabIndex={0}
+            aria-label={task.taskName || 'Untitled task'}
             style={{ backgroundColor: isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent' }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             onClick={onClick}
+            onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
         >
             <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-[8px]" style={{ backgroundColor: 'var(--bg-raised)', color: 'var(--text-muted)' }}>
                 {TYPE_ICON[task.taskType] ?? <IconAlarm size={16} />}
@@ -223,13 +233,15 @@ const TaskRow: React.FC<{
                 </div>
             </div>
             <button
+                type="button"
+                aria-label={'Delete ' + (task.taskName || 'task')}
                 className="flex-shrink-0 flex items-center justify-center h-[26px] w-[26px] rounded-[6px] transition-opacity"
                 style={{ color: '#e05252', opacity: hovered || isSelected ? 1 : 0 }}
                 onClick={onDelete}
                 title="Delete task"
                 disabled={isDeleting}
             >
-                {isDeleting ? <IconLoader2 size={14} className="animate-spin" /> : <IconTrash size={14} />}
+                {isDeleting ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconTrash size={14} />}
             </button>
         </div>
     );
@@ -816,7 +828,7 @@ export const NewScheduledTasksView: React.FC = () => {
                                                     <ApiItemSelector
                                                         availableApis={Object.entries(availableAgentTools).map(([key, tool]: [string, any]) => ({ id: tool.tool_name || key, name: tool.tool_name || key, tool_name: tool.tool_name || key, description: tool.description || '', parameters: tool.parameters || {}, tags: [...(tool.tags || []), 'Agent Tool', 'native'], type: 'builtIn' }))}
                                                         selectedApis={selectedTask.objectInfo?.objectId ? [{ id: selectedTask.objectInfo.objectId, name: selectedTask.objectInfo.objectName } as any] : []}
-                                                        setSelectedApis={() => {}}
+                                                        setSelectedApis={() => { }}
                                                         onClickApiItem={(api: OpDef) => handleApiToolSelect(api.name, { tool_name: api.name, name: api.name, description: api.description, id: api.name, type: 'builtIn', parameters: api.parameters, tags: api.tags ?? [], bindings: api.bindings })}
                                                         disableSelection showDetails={false} allowConfiguration
                                                     />
@@ -832,7 +844,7 @@ export const NewScheduledTasksView: React.FC = () => {
                                                     <ApiItemSelector
                                                         availableApis={availableApis}
                                                         selectedApis={selectedTask.objectInfo?.objectId ? [{ id: selectedTask.objectInfo.objectId, name: selectedTask.objectInfo.objectName } as any] : []}
-                                                        setSelectedApis={() => {}}
+                                                        setSelectedApis={() => { }}
                                                         apiFilter={(apis) => apis.filter((api) => api.type !== 'custom')}
                                                         onClickApiItem={(api: OpDef) => handleApiToolSelect(api.name, { tool_name: api.name, name: api.name, description: api.description, id: api.name, type: api.type || '', parameters: api.parameters, tags: api.tags ?? [], bindings: api.bindings, method: api.method })}
                                                         disableSelection showDetails={false} allowConfiguration
@@ -863,7 +875,7 @@ export const NewScheduledTasksView: React.FC = () => {
                                                                 {rawAgentOpen && (
                                                                     <ApiItemSelector
                                                                         availableApis={Object.entries(availableAgentTools).map(([key, tool]: [string, any]) => ({ id: tool.tool_name || key, name: tool.tool_name || key, tool_name: tool.tool_name || key, description: tool.description || '', parameters: tool.parameters || {}, tags: [...(tool.tags || []), 'Agent Tool', 'native'], type: 'builtIn' }))}
-                                                                        selectedApis={newActionSetActions.map((a) => a.operation as any)} setSelectedApis={() => {}} onClickApiItem={(api: OpDef) => handleAddRawActionToNewSet(api)} disableSelection showDetails={false} allowConfiguration
+                                                                        selectedApis={newActionSetActions.map((a) => a.operation as any)} setSelectedApis={() => { }} onClickApiItem={(api: OpDef) => handleAddRawActionToNewSet(api)} disableSelection showDetails={false} allowConfiguration
                                                                     />
                                                                 )}
                                                             </div>
@@ -875,7 +887,7 @@ export const NewScheduledTasksView: React.FC = () => {
                                                                 </button>
                                                                 {rawIntegrationOpen && (
                                                                     <ApiItemSelector
-                                                                        availableApis={availableApis} selectedApis={newActionSetActions.map((a) => a.operation as any)} setSelectedApis={() => {}}
+                                                                        availableApis={availableApis} selectedApis={newActionSetActions.map((a) => a.operation as any)} setSelectedApis={() => { }}
                                                                         apiFilter={(apis) => apis.filter((api) => api.type !== 'custom')}
                                                                         onClickApiItem={(api: OpDef) => handleAddRawActionToNewSet(api)} disableSelection showDetails={false} allowConfiguration
                                                                     />
@@ -940,7 +952,7 @@ export const NewScheduledTasksView: React.FC = () => {
                                                 className={textFieldClass}
                                                 style={{ ...textFieldStyle, borderColor: newActionSetName.trim() ? 'var(--border-subtle)' : '#e05252' }}
                                             />
-                                            <PrimaryButton onClick={handleSaveNewActionSet} disabled={isSavingActionSet} icon={isSavingActionSet ? <IconLoader2 size={14} className="animate-spin" /> : <IconDeviceFloppy size={14} />} className="w-full">
+                                            <PrimaryButton onClick={handleSaveNewActionSet} disabled={isSavingActionSet} icon={isSavingActionSet ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconDeviceFloppy size={14} />} className="w-full">
                                                 {isSavingActionSet ? 'Saving…' : 'Save Action Set & Use'}
                                             </PrimaryButton>
                                         </div>
@@ -1016,7 +1028,7 @@ export const NewScheduledTasksView: React.FC = () => {
                             Refresh
                         </GhostButton>
                         <GhostButton
-                            icon={isTestingTask ? <IconLoader2 size={14} className="animate-spin" /> : <IconPlayerPlay size={14} />}
+                            icon={isTestingTask ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconPlayerPlay size={14} />}
                             onClick={() => handleRunTask(selectedTask.taskId)}
                             disabled={isTestingTask}
                         >
@@ -1030,7 +1042,7 @@ export const NewScheduledTasksView: React.FC = () => {
 
                 {isLoadingLogs ? (
                     <div className="flex items-center justify-center py-10 gap-2" style={{ color: 'var(--text-muted)' }}>
-                        <IconLoader2 size={20} className="animate-spin" /> Loading execution logs…
+                        <IconLoader2 size={20} className="motion-safe:animate-spin motion-reduce:animate-none" /> Loading execution logs…
                     </div>
                 ) : taskLogs.length === 0 ? (
                     <div className="text-center py-10 rounded-[10px] border" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}>
@@ -1086,7 +1098,7 @@ export const NewScheduledTasksView: React.FC = () => {
                         </h3>
                         {isLoadingLogDetails ? (
                             <div className="flex items-center justify-center py-4 gap-2" style={{ color: 'var(--text-muted)' }}>
-                                <IconLoader2 size={18} className="animate-spin" /> Loading details…
+                                <IconLoader2 size={18} className="motion-safe:animate-spin motion-reduce:animate-none" /> Loading details…
                             </div>
                         ) : selectedLogDetails ? (
                             <div className="space-y-4 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
@@ -1165,7 +1177,7 @@ export const NewScheduledTasksView: React.FC = () => {
         <div className="flex-1 overflow-y-auto px-6 py-5">
             {isLoadingTask ? (
                 <div className="flex flex-col items-center justify-center h-full gap-3">
-                    <IconLoader2 size={26} className="animate-spin" style={{ color: 'var(--accent)' }} />
+                    <IconLoader2 size={26} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--accent)' }} />
                     <p className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Loading task details…</p>
                 </div>
             ) : (
@@ -1178,7 +1190,7 @@ export const NewScheduledTasksView: React.FC = () => {
                             {selectedTask.taskId && (
                                 <>
                                     <GhostButton
-                                        icon={isTestingTask ? <IconLoader2 size={14} className="animate-spin" /> : <IconPlayerPlay size={14} />}
+                                        icon={isTestingTask ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconPlayerPlay size={14} />}
                                         onClick={() => handleRunTask(selectedTask.taskId)}
                                         disabled={isTestingTask}
                                     >
@@ -1190,7 +1202,7 @@ export const NewScheduledTasksView: React.FC = () => {
                                 </>
                             )}
                             <PrimaryButton
-                                icon={isSubmitting ? <IconLoader2 size={14} className="animate-spin" /> : <IconDeviceFloppy size={14} />}
+                                icon={isSubmitting ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconDeviceFloppy size={14} />}
                                 onClick={handleSaveTask}
                                 disabled={isSubmitting}
                             >
@@ -1428,7 +1440,7 @@ export const NewScheduledTasksView: React.FC = () => {
                         {isLoadingTasks ? (
                             <div className="flex flex-col gap-2 px-2 pt-2">
                                 {[1, 2, 3].map((i) => (
-                                    <div key={i} className="h-[52px] rounded-[8px] animate-pulse" style={{ backgroundColor: 'var(--bg-hover)' }} />
+                                    <div key={i} className="h-[52px] rounded-[8px] motion-safe:animate-pulse motion-reduce:animate-none" style={{ backgroundColor: 'var(--bg-hover)' }} />
                                 ))}
                             </div>
                         ) : totalVisible === 0 ? (

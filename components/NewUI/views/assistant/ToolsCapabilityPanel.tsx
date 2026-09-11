@@ -447,7 +447,7 @@ export const ToolsCapabilityPanel: React.FC<ToolsCapabilityPanelProps> = ({
                                     }}
                                 >
                                     {busy[category.integrationIds[0]] ? (
-                                        <IconLoader2 size={13} className="motion-safe:animate-spin" aria-hidden="true" />
+                                        <IconLoader2 size={13} className="motion-safe:animate-spin motion-reduce:animate-none" aria-hidden="true" />
                                     ) : (
                                         <IconPlugConnected size={13} aria-hidden="true" />
                                     )}
@@ -513,7 +513,7 @@ export const ToolsCapabilityPanel: React.FC<ToolsCapabilityPanelProps> = ({
 
                 {opsLoading || connectionsLoading ? (
                     <div style={centeredState}>
-                        <IconLoader2 size={16} className="motion-safe:animate-spin" aria-hidden="true" />
+                        <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" aria-hidden="true" />
                         <span>Loading tools…</span>
                     </div>
                 ) : filteredCategories.length === 0 ? (
@@ -628,7 +628,7 @@ export const ToolsCapabilityPanel: React.FC<ToolsCapabilityPanelProps> = ({
                         >
                             {opsLoading ? (
                                 <div style={centeredState}>
-                                    <IconLoader2 size={16} className="motion-safe:animate-spin" aria-hidden="true" />
+                                    <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" aria-hidden="true" />
                                     <span>Loading tools…</span>
                                 </div>
                             ) : browseRows.length === 0 ? (

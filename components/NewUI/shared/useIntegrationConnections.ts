@@ -70,6 +70,21 @@ export interface UseIntegrationConnections {
 
 const identity: IntegrationFilter = (ids) => ids;
 
+/**
+ * OAuth redirect URLs come from the service, but they still cross a browser
+ * trust boundary. Require a real HTTPS URL without embedded credentials before
+ * handing it to window.open().
+ */
+const isSafeOAuthRedirect = (value: unknown): value is string => {
+    if (typeof value !== 'string' || !value.trim()) return false;
+    try {
+        const url = new URL(value);
+        return url.protocol === 'https:' && !url.username && !url.password && !!url.hostname;
+    } catch {
+        return false;
+    }
+};
+
 export const useIntegrationConnections = (
     filter: IntegrationFilter = identity,
 ): UseIntegrationConnections => {
@@ -203,7 +218,7 @@ export const useIntegrationConnections = (
             return;
         }
 
-        if (!location || !/^https:\/\//.test(location)) {
+        if (!isSafeOAuthRedirect(location)) {
             toast.error('Could not start authorization. Please try again.');
             if (alive.current) markBusy(id, false);
             return;
@@ -216,7 +231,7 @@ export const useIntegrationConnections = (
         const authWindow = window.open(
             location,
             'Auth Window',
-            `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`,
+            `noopener,noreferrer,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`,
         );
 
         if (!authWindow) {

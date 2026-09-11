@@ -202,7 +202,7 @@ function StatusBadge({ status }: { status: string | undefined }) {
             {style.dot && (
                 <span
                     className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        status === 'processing' || status === 'starting' ? 'animate-pulse' : ''
+                        status === 'processing' || status === 'starting' ? 'motion-safe:animate-pulse motion-reduce:animate-none' : ''
                     }`}
                     style={{ backgroundColor: style.fg }}
                 />
@@ -334,7 +334,7 @@ const FileRow: React.FC<FileRowProps> = ({
                         aria-label="Loading preview"
                         style={{ backgroundColor: 'rgba(0, 0, 0, 0.42)', color: 'white' }}
                     >
-                        <IconLoader2 size={16} className="animate-spin" />
+                        <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" />
                     </div>
                 )}
                 <button
@@ -395,18 +395,20 @@ const FileRow: React.FC<FileRowProps> = ({
             {/* Status */}
             <div className="flex items-center gap-1 w-[100px] justify-end flex-shrink-0">
                 {!hasFetched ? (
-                    <IconLoader2 size={14} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
+                    <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--text-muted)' }} />
                 ) : (
                     <StatusBadge status={status} />
                 )}
                 {/* Polling spinner */}
                 {isPolling && (
-                    <IconLoader2 size={13} className="animate-spin ml-1" style={{ color: 'var(--text-muted)' }} />
+                    <IconLoader2 size={13} className="motion-safe:animate-spin motion-reduce:animate-none ml-1" style={{ color: 'var(--text-muted)' }} />
                 )}
                 {/* Action buttons (refresh / reprocess) */}
                 {!isPolling && hasFetched && canReprocess && action === 'refresh' && (
-                    <button
-                        onClick={(e) => { e.stopPropagation(); onStatusRefresh(); }}
+                   <button
+                        type="button"
+                        aria-label={'Refresh status for ' + file.name}
+                       onClick={(e) => { e.stopPropagation(); onStatusRefresh(); }}
                         className="flex items-center justify-center h-5 w-5 rounded-[4px] transition-colors"
                         style={{ color: 'var(--text-muted)' }}
                         onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#6090D8'; }}
@@ -417,8 +419,10 @@ const FileRow: React.FC<FileRowProps> = ({
                     </button>
                 )}
                 {!isPolling && hasFetched && canReprocess && action === 'reprocess' && (
-                    <button
-                        onClick={(e) => {
+                   <button
+                        type="button"
+                        aria-label={'Regenerate embeddings for ' + file.name}
+                       onClick={(e) => {
                             e.stopPropagation();
                             if (confirm('Regenerate text extraction and embeddings for this file?')) {
                                 onReprocess();
@@ -437,13 +441,15 @@ const FileRow: React.FC<FileRowProps> = ({
 
             {/* Hover actions */}
             <div
-                className={`flex items-center gap-1 transition-opacity duration-100 ${
+                className={`flex items-center gap-1 transition-opacity duration-100 focus-within:opacity-100 focus-within:pointer-events-auto ${
                     hovered && !isDeleteMode ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
                 onClick={(e) => e.stopPropagation()}
             >
-                <button
-                    className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+               <button
+                    type="button"
+                    aria-label={'Download ' + file.name}
+                   className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
                     style={{ color: 'var(--text-muted)' }}
                     onMouseEnter={(e) => {
                         (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
@@ -458,8 +464,9 @@ const FileRow: React.FC<FileRowProps> = ({
                 >
                     <IconDownload size={14} />
                 </button>
-                <button
-                    className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+               <button
+                    type="button"
+                   className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
                     style={{ color: 'var(--text-muted)' }}
                     onMouseEnter={(e) => {
                         (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
@@ -475,8 +482,10 @@ const FileRow: React.FC<FileRowProps> = ({
                 >
                     <IconPaperclip size={14} />
                 </button>
-                <button
-                    className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+               <button
+                    type="button"
+                    aria-label={'Delete ' + file.name}
+                   className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
                     style={{ color: 'var(--text-muted)' }}
                     onMouseEnter={(e) => {
                         (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
@@ -1120,7 +1129,7 @@ export const NewLibraryView: React.FC = () => {
                             disabled={uploading}
                         >
                             {uploading
-                                ? <IconLoader2 size={13} className="animate-spin" />
+                                ? <IconLoader2 size={13} className="motion-safe:animate-spin motion-reduce:animate-none" />
                                 : <IconCloudUpload size={13} />
                             }
                             Upload
@@ -1198,7 +1207,7 @@ export const NewLibraryView: React.FC = () => {
                         {Array.from({ length: 8 }).map((_, i) => (
                             <div
                                 key={i}
-                                className="flex items-center gap-3 px-4 py-2.5 rounded-[8px] animate-pulse"
+                                className="flex items-center gap-3 px-4 py-2.5 rounded-[8px] motion-safe:animate-pulse motion-reduce:animate-none"
                             >
                                 <div
                                     className="w-9 h-9 rounded-[8px] flex-shrink-0"
@@ -1290,7 +1299,7 @@ export const NewLibraryView: React.FC = () => {
                                 </button>
                             )}
                             {isRefetching && (
-                                <IconLoader2 size={16} className="animate-spin" style={{ color: 'var(--text-muted)' }} />
+                                <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--text-muted)' }} />
                             )}
                             {hasMore && !isRefetching && (
                                 <button

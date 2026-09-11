@@ -844,7 +844,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
                 {[80, 65, 75, 55, 70].map((w, i) => (
                   <div
                     key={i}
-                    className="h-[32px] rounded-[8px] bg-[--bg-hover] animate-pulse"
+                    className="h-[32px] rounded-[8px] bg-[--bg-hover] motion-safe:animate-pulse motion-reduce:animate-none"
                     style={{ width: `${w}%` }}
                   />
                 ))}
