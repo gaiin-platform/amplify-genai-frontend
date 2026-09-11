@@ -148,6 +148,10 @@ export const InfoFloatCard: React.FC<{
       // Animation lives in the <style> block below, not inline, so the
       // prefers-reduced-motion media query can actually override it.
       className="new-ui-info-float-card"
+      // §29: portalled to document.body, so it is outside home.tsx's shell div
+      // and would otherwise inherit the orange `data-chat-palette` scrollbar
+      // thumb. This card scrolls whenever a long description exceeds maxHeight.
+      data-new-ui-shell="true"
       style={{
         position: anchor.strategy,
         top: anchor.y ?? 0,

@@ -1011,6 +1011,13 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
             {...getFloatingProps()}
             role="menu"
             aria-label="Select model"
+            /* §29: FloatingPortal lands this panel in document.body, outside
+               home.tsx's shell div, so it inherits _app.tsx's `data-chat-palette`
+               orange ::-webkit-scrollbar-thumb. Opting in here covers the panel
+               and both submenus nested inside it — the scrolling "More models"
+               list is the one that actually shows a thumb. Not
+               `data-new-ui="true"`: that scope drags in the transcript overrides. */
+            data-new-ui-shell="true"
             style={{
               position: strategy,
               top: y ?? 0,
