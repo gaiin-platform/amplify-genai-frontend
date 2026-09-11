@@ -165,6 +165,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | File | Purpose |
 |------|---------|
 | `assistantDraftContract.ts` | Zod-validated contract for AI-produced draft patches. Exports `parseAssistantDraftPatch`, `filterDraftPatch`, `safeChangesToApply`. No React, no service imports. |
+| `assistantDeletion.ts` | The delete-an-assistant vocabulary — `getDeletableAssistantId` (root id, never the version id; `null` ⇒ local-only), `canDeleteAssistantPrompt`, `promptsAfterAssistantDelete` (drops **every** version sharing the assistantId), `isSelectedAssistantDeleted`. No React imports |
 | `NewWebsiteSourceInput.tsx` | Data Sources → Website URL panel. Replaces `DataSources/WebsiteURLInput` with the same `onAddURL(url, isSitemap, maxPages?, exclusions?)` contract; Single page / Sitemap segmented control. Still defers to the old (portalled, unstyled) `SitemapUrlSelectionModal` for sitemap URL picking |
 | `DriveSourcesPanel.tsx` | Data Sources → OneDrive/SharePoint. Native replacement for the old `AssistantDriveDataSources` stack (which stays in place for the old editor). The connector rows **are** the service selector — no tab bar, no "Select Service" dropdown; active row gets a left accent bar. Disconnect is revealed on hover and never clears that service's selections |
 | `DriveFileBrowser.tsx` | One connected drive service's browser: breadcrumb above the table, one search field, one 40px header row, select-all with indeterminate state, rows capped on a whole-row boundary. Owns the folder trail + listing cache, so the panel must key it on the integration id |
@@ -356,6 +357,18 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     `===` silently falls back to the raw address); and the dropdown must be portalled, because
     every modal body that hosts one scrolls or clips. `shared/emailSuggestions.ts` holds that
     logic React-free — reach for it, not for a local `Object.keys(amplifyUsers).find(…)`.
+
+24. **`prompts` is a cache of a server list, so removing an item from it is not a delete.**
+    `home.tsx` re-seeds `prompts` on every load from `listAssistants()` →
+    `utils/app/assistants#syncAssistants`, so a row filtered out of `prompts` +
+    `savePrompts()` disappears convincingly and then walks back in on the next refresh or
+    login. Any destructive action on a server-backed item must call its service op
+    **first**, keep the row on screen when that call fails, and only then update local
+    state — the reverse order is indistinguishable from success right up until the reload.
+    The same trap applies per-*version*: rows are keyed by the version-specific
+    `prompt.id` while the backend deletes the root `definition.assistantId`, so filter by
+    the assistantId (`views/assistant/assistantDeletion.ts`) or the other versions stay
+    listed.
 
 ---
 

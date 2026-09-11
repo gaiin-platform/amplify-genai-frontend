@@ -27,10 +27,10 @@ import HomeContext from '@/pages/api/home/home.context';
 import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType } from '@/types/groups';
 import { LayeredAssistant, createLayeredAssistant } from '@/types/layeredAssistant';
-import { Assistant, AssistantDefinition, AssistantProviderID } from '@/types/assistant';
+import { Assistant, AssistantDefinition, AssistantProviderID, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { isAssistant, getAssistants, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
-import { deleteLayeredAssistant, saveLayeredAssistant } from '@/services/assistantService';
+import { deleteAssistant, deleteLayeredAssistant, saveLayeredAssistant } from '@/services/assistantService';
 import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
@@ -40,6 +40,14 @@ import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import ReactDOM from 'react-dom';
 import { savePrompts } from '@/utils/app/prompts';
+import toast from 'react-hot-toast';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
+import {
+    canDeleteAssistantPrompt,
+    getDeletableAssistantId,
+    isSelectedAssistantDeleted,
+    promptsAfterAssistantDelete,
+} from './assistant/assistantDeletion';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -330,6 +338,8 @@ const MyAssistantsTab: React.FC = () => {
     const [assistantForShare, setAssistantForShare] = useState<Prompt | null>(null);
     // Delete confirm dialog
     const [confirmDeleteAssistant, setConfirmDeleteAssistant] = useState<Prompt | null>(null);
+    // prompt.id of the row whose backend delete is in flight (null = idle)
+    const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
 
     const canEdit = (p: Prompt) => !p.data?.noEdit;
 
@@ -379,11 +389,55 @@ const MyAssistantsTab: React.FC = () => {
         setAssistantForShare(p);
     };
 
-    const handleDeleteAssistant = (p: Prompt) => {
-        const updatedPrompts = promptsRef.current.filter((x: Prompt) => x.id !== p.id);
+    /**
+     * Delete an assistant for real.
+     *
+     * The backend call comes FIRST and the local removal only happens once it succeeds.
+     * Removing the row locally on its own looks like a successful delete but is undone on
+     * the next load: home.tsx re-seeds `prompts` from `listAssistants()` (syncAssistants),
+     * so the assistant reappears after a refresh or re-login.
+     */
+    const handleDeleteAssistant = async (p: Prompt) => {
+        setConfirmDeleteAssistant(null);
+
+        const assistantId = getDeletableAssistantId(p);
+
+        // Persist the delete server-side before touching local state. An assistant with no
+        // assistantId only ever existed locally (imported), so there is nothing to call.
+        if (assistantId && canDeleteAssistantPrompt(p)) {
+            setDeletingPromptId(p.id);
+            let deleted = false;
+            try {
+                deleted = await deleteAssistant(assistantId);
+            } catch (e) {
+                console.error('Failed to delete assistant:', e);
+            } finally {
+                setDeletingPromptId(null);
+            }
+            if (!deleted) {
+                // Leave the row in place — a silent local removal here is exactly the bug
+                // that made deleted assistants come back.
+                toast.error(`Failed to delete ${p.name}. Please try again.`);
+                return;
+            }
+        }
+
+        statsService.deletePromptEvent(p);
+
+        // Drop every row that pointed at this assistant, not just the one that was clicked
+        // (older versions are separate prompts sharing one assistantId).
+        const updatedPrompts = promptsAfterAssistantDelete(promptsRef.current, p);
         homeDispatch({ field: 'prompts', value: updatedPrompts });
         savePrompts(updatedPrompts);
-        setConfirmDeleteAssistant(null);
+
+        // A deleted assistant must not stay selected, or the next send routes an
+        // assistantId the backend can no longer resolve.
+        if (isSelectedAssistantDeleted(selectedAssistant, p)) {
+            homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+        }
+
+        // Only reached once the delete actually persisted, so this confirms the real thing.
+        toast.success(`${p.name} deleted`);
     };
 
     // Derive the access-type badge for a row: Private / Shared / URL
@@ -449,10 +503,14 @@ const MyAssistantsTab: React.FC = () => {
                                 e.stopPropagation();
                                 setConfirmDeleteAssistant(p);
                             }}
+                            isDeleting={deletingPromptId === p.id}
                         />
                     ))
                 )}
             </div>
+
+            {/* Blocks the list while the backend delete is in flight so it can't double-fire */}
+            <NewUILoadingStatus open={!!deletingPromptId} message="Deleting assistant…" />
 
             {/* Create new assistant modal */}
             {showCreationModal && (
@@ -964,9 +1022,14 @@ const LayeredAssistantsTab: React.FC = () => {
                     field: 'layeredAssistants',
                     value: layeredAssistants.filter((x: LayeredAssistant) => x.assistantId !== la.assistantId),
                 });
+                toast.success(`${la.name} deleted`);
+            } else {
+                // Never remove the row on a failed delete — it would reappear on refresh.
+                toast.error(`Failed to delete ${la.name}. Please try again.`);
             }
         } catch (e) {
             console.error('Failed to delete layered assistant:', e);
+            toast.error(`Failed to delete ${la.name}. Please try again.`);
         } finally {
             setDeletingId(null);
         }
