@@ -110,7 +110,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewAccountSection.tsx` | Settings → Account |
 | `NewStorageSection.tsx` | Settings → Storage |
 | `NewConnectorsSection.tsx` | Settings → Connectors (Integrations + Tool API Keys tabs) |
-| `PromptTemplatesSection.tsx` | Settings → Customize → Prompt Templates |
+| `PromptTemplatesSection.tsx` | Settings → Customize → Prompt Templates. Two tabs: "My Templates" (Edit/Share/Delete hover actions) + "Shared with Me" (lazy-loads via `getSharedItems`, import on open) |
 | `SidebarItemsSection.tsx` | Settings → Customize → Sidebar Items visibility toggles |
 | `admin/AdminsCard.tsx` | Admin section wrapper card |
 
@@ -151,6 +151,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `uiPreferenceResolution.ts` | The stored new-vs-classic choice: `UI_PREF_KEY`, `getUIPreference`, `writeLocalUIPreference`, `resolveStoredUIPreference` (server beats localStorage; only `'ask'` may show the popup), and the `?uiPreference=reset` helpers. No React imports |
 | `PromptTemplateFillDialog.tsx` | New-UI styled "populate and use this template" form — portalled to `document.body`, supports text/file/boolean/options variable types with design-token styling. Has an edit icon button (`onEdit`) so the host can switch to edit mode. Used by `PromptTemplateDialog`. |
 | `PromptTemplateDialog.tsx` | Orchestrates the fill-in popup: invokes `PromptTemplateFillDialog` (new UI), runs `fillInTemplate` semantics, sends via `amplify_pending_message`. Accepts `onEdit` callback passed through to the fill dialog. Also exports `promptTemplateVariables`. |
+| `promptConversation.ts` | `startConversationWithTemplate` — creates the conversation for a template (promptTemplate, tags, rootPrompt, enforced model) under the `'New Conversation'` name so the AI renames it after the first reply. No React imports |
 | `PromptTemplateDialogHost.tsx` | Single mount point for the popup above, at the new-UI root in `home.tsx` — a sibling of `NewSettingsModal`, never a descendant. Launch it with the exported `openPromptTemplateDialog(prompt)` and then close your own modal: the popup survives because it isn't in your subtree. Settings has three entry points (collapsed sidebar, expanded sidebar, ⌘,) so per-launcher hosts would have to be triplicated |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
@@ -411,6 +412,29 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     event, then close themselves (`shared/PromptTemplateDialogHost.tsx`). One root mount
     also covers the fact that settings itself has three entry points — the collapsed
     sidebar, the expanded sidebar, and the ⌘, shortcut.
+
+28. **A `createPortal` target that you do not own can strand an overlay on screen forever.**
+    React removes a portal's children from the container it *recorded at mount*, so a
+    portalling component that is swapped out of a conditional slot — or replaced by Fast
+    Refresh while its dialog is open — can leave an owner-less `position:fixed` node sitting
+    in `document.body` with no React owner and therefore no way to close it. That is what
+    put the prompt-template fill dialog behind the edit modal "forever". Two rules follow:
+    only **one** component in a swap may own the portal (the host, never both branches —
+    `PromptTemplateFillDialog` renders a plain `position:fixed` div and lets
+    `PromptTemplateDialogHost` portal it), and the host should portal into a **container
+    element it creates and `remove()`s in an effect**, not into `document.body` directly, so
+    teardown is one node removal instead of a per-child reconciliation.
+
+29. **A portalled new-UI surface needs `data-new-ui-shell="true"` or its scrollbars come out
+    orange.** `_app.tsx` sets `data-chat-palette` (default `warm-browns`) on `document.body`,
+    and that palette's `::-webkit-scrollbar-thumb` rule is orange. `conversation-view.css` is
+    `@import`ed at the *top* of `globals.css`, so its `[data-new-ui="true"]` blue thumb rule
+    loses the equal-specificity tie on source order; only the
+    `[data-new-ui-shell="true"]` rules (declared after every palette override, in
+    `globals.css` itself) win. Anything portalled to `document.body` is outside home.tsx's
+    shell div and must opt in on its own wrapper. Do **not** reach for
+    `data-new-ui="true"` for this — that attribute is the chat-area CSS scope root and
+    drags ~4000 lines of transcript overrides into scope.
 
 ---
 

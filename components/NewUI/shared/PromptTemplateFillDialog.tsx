@@ -13,7 +13,6 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import {
   IconX,
   IconPencil,
@@ -182,15 +181,12 @@ export const PromptTemplateFillDialog: React.FC<PromptTemplateFillDialogProps> =
     onSubmit(finalValues, documents.length > 0 ? documents : null);
   };
 
-  if (typeof document === 'undefined') return null;
-
-  return createPortal(
+  return (
     <div
       className="text-neutral-900 dark:text-white"
       style={{
         position: 'fixed',
         inset: 0,
-        zIndex: 10001,
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
@@ -757,8 +753,7 @@ export const PromptTemplateFillDialog: React.FC<PromptTemplateFillDialogProps> =
           </button>
         </div>
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 };
 

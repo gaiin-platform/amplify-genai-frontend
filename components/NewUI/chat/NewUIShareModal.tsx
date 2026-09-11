@@ -63,6 +63,14 @@ interface NewUIShareModalProps {
     assistantId?: string;
     /** Display name shown in the success message ("Assistant shared"). */
     assistantName?: string;
+    /**
+     * Share a prompt template — provide promptId (prompt.id).
+     * When provided, the modal title changes to "Share this template" and the
+     * export bundle is built from the Prompt record.
+     */
+    promptId?: string;
+    /** Display name shown in the header and success message. */
+    promptName?: string;
     onClose: () => void;
 }
 
@@ -72,9 +80,12 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
     conversationTitle,
     assistantId,
     assistantName,
+    promptId,
+    promptName,
     onClose,
 }) => {
     const isAssistantShare = !!assistantId;
+    const isPromptShare = !!promptId;
     const {
         state: { conversations, prompts, amplifyUsers },
     } = useContext(HomeContext);
@@ -184,6 +195,21 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
             setShareError('');
             try {
                 sharedData = await createExport([], [], [assistantPrompt], 'share', false);
+            } catch {
+                setIsSharing(false);
+                setShareError('An unexpected error occurred. Please try again.');
+                return;
+            }
+        } else if (isPromptShare) {
+            const promptToShare = prompts.find((p: any) => p.id === promptId);
+            if (!promptToShare) {
+                setShareError('Template not found. Please try again.');
+                return;
+            }
+            setIsSharing(true);
+            setShareError('');
+            try {
+                sharedData = await createExport([], [], [promptToShare], 'share', false);
             } catch {
                 setIsSharing(false);
                 setShareError('An unexpected error occurred. Please try again.');
@@ -337,7 +363,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                 {/* ── Header row (wiki §9 rule 19) ─────────────────────── */}
                 <div style={s.headerRow}>
                     <h2 id="share-modal-heading" style={s.heading}>
-                        {isAssistantShare ? 'Share this assistant' : 'Share this conversation'}
+                        {isPromptShare ? `Share "${promptName || 'Template'}"` : isAssistantShare ? 'Share this assistant' : 'Share this conversation'}
                     </h2>
                     <button
                         aria-label="Close"
@@ -395,7 +421,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                                     margin: 0,
                                 }}
                             >
-                                {isAssistantShare ? 'Assistant shared' : 'Conversation shared'}
+                                {isPromptShare ? 'Template shared' : isAssistantShare ? 'Assistant shared' : 'Conversation shared'}
                             </p>
                         </div>
                     ) : (
@@ -565,7 +591,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                         <button
                             onClick={canShare && !isSharing ? handleShare : undefined}
                             disabled={!canShare || isSharing}
-                            aria-label={isAssistantShare ? 'Share assistant' : 'Share conversation'}
+                            aria-label={isPromptShare ? 'Share template' : isAssistantShare ? 'Share assistant' : 'Share conversation'}
                             style={{
                                 height: 36,
                                 padding: '0 20px',

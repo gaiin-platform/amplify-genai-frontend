@@ -16,13 +16,39 @@
  * themselves; this host is mounted once by `home.tsx`'s new-UI layout block, as a
  * sibling of `NewSettingsModal`, so the popup survives.
  *
- * There is exactly one mount, deliberately: settings can appear from three
- * different places (the collapsed sidebar, the expanded sidebar, and the ⌘,
- * shortcut in home.tsx), and a per-launcher host would have to be duplicated into
- * each one.
+ * SINGLE-PORTAL ARCHITECTURE
+ * --------------------------
+ * The host owns ONE portal at zIndex 10001. Inside it, exactly one of these is
+ * ever rendered:
+ *   - PromptTemplateDialog → PromptTemplateFillDialog (mode === 'fill')
+ *   - NewUIPromptCreationModal              (mode === 'edit')
+ *
+ * Neither of those may portal itself. Two portals into `document.body` from the
+ * same conditional slot is how the fill dialog ended up stranded behind the edit
+ * modal: React removes a portal's children from the container it recorded, so a
+ * portal root that is swapped out (or replaced by Fast Refresh while it is open)
+ * can leave an owner-less `position:fixed` node sitting in `document.body` that
+ * nothing can ever close.
+ *
+ * The portal target is a dedicated element this host creates and removes in an
+ * effect — NOT `document.body` itself. Tearing down the container removes every
+ * node inside it in one step, so no stale overlay can outlive the host even if
+ * React's own child removal is skipped (which is exactly what a hot-module swap
+ * of a portalling child does).
+ *
+ * SCROLLBAR SCOPE
+ * ---------------
+ * The wrapper carries `data-new-ui-shell="true"`. It has to: `_app.tsx` puts
+ * `data-chat-palette="warm-browns"` on `document.body`, whose
+ * `::-webkit-scrollbar-thumb` rule is orange, and `conversation-view.css` is
+ * `@import`ed at the TOP of `globals.css` — so the `[data-new-ui="true"]` blue
+ * thumb rule loses the equal-specificity tie on source order. The
+ * `[data-new-ui-shell="true"]` rules are declared after every palette override
+ * in globals.css and win. Portalled surfaces are outside home.tsx's shell div,
+ * so they must opt in explicitly or they inherit the palette's orange.
  */
 
-import React, { useEffect, useContext, useRef, useState } from 'react';
+import React, { useEffect, useContext, useRef, useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { Prompt } from '@/types/prompt';
 import { PromptTemplateDialog } from '@/components/NewUI/shared/PromptTemplateDialog';
@@ -45,6 +71,8 @@ export const openPromptTemplateDialog = (prompt: Prompt) => {
   );
 };
 
+type Mode = 'fill' | 'edit';
+
 export const PromptTemplateDialogHost: React.FC = () => {
   const {
     state: { prompts },
@@ -57,14 +85,29 @@ export const PromptTemplateDialogHost: React.FC = () => {
   }, [prompts]);
 
   const [prompt, setPrompt] = useState<Prompt | null>(null);
-  /** When true, show the edit modal instead of the fill dialog. */
-  const [editMode, setEditMode] = useState(false);
+  const [mode, setMode] = useState<Mode>('fill');
+
+  /**
+   * Dedicated portal target. Owned by this host so its removal is a single
+   * `el.remove()` — see SCROLLBAR/PORTAL notes at the top of the file.
+   */
+  const [container, setContainer] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const el = document.createElement('div');
+    el.setAttribute('data-prompt-template-portal', 'true');
+    document.body.appendChild(el);
+    setContainer(el);
+    return () => {
+      el.remove();
+      setContainer(null);
+    };
+  }, []);
 
   useEffect(() => {
     const handler = (e: Event) => {
       const next = (e as CustomEvent).detail?.prompt as Prompt | undefined;
       if (next) {
-        setEditMode(false);
+        setMode('fill');
         setPrompt(next);
       }
     };
@@ -72,55 +115,53 @@ export const PromptTemplateDialogHost: React.FC = () => {
     return () => window.removeEventListener(USE_PROMPT_TEMPLATE_EVENT, handler);
   }, []);
 
-  if (!prompt) return null;
+  const handleClose = useCallback(() => setPrompt(null), []);
 
-  // ── Edit mode — show NewUIPromptCreationModal portalled to document.body ──
-  if (editMode) {
-    const handleUpdatePrompt = (updated: Prompt) => {
-      const next = promptsRef.current.map((p: Prompt) =>
-        p.id === updated.id ? updated : p,
-      );
-      homeDispatch({ field: 'prompts', value: next });
-      savePrompts(next);
-      // Refresh the prompt reference for the fill dialog
-      setPrompt(updated);
-    };
+  const handleStarted = useCallback(() => setPrompt(null), []);
 
-    const handleEditSave = () => {
-      // Return to fill dialog with the updated prompt
-      setEditMode(false);
-    };
+  const handleEdit = useCallback(() => setMode('edit'), []);
 
-    const handleEditCancel = () => {
-      // Return to fill dialog without changes
-      setEditMode(false);
-    };
+  const handleUpdatePrompt = useCallback((updated: Prompt) => {
+    const next = promptsRef.current.map((p: Prompt) =>
+      p.id === updated.id ? updated : p,
+    );
+    homeDispatch({ field: 'prompts', value: next });
+    savePrompts(next);
+    setPrompt(updated);
+  }, [homeDispatch]);
 
-    if (typeof document === 'undefined') return null;
-    return createPortal(
-      <div
-        className="text-neutral-900 dark:text-white"
-        style={{ position: 'fixed', inset: 0, zIndex: 10002 }}
-      >
+  const handleEditDone = useCallback(() => setMode('fill'), []);
+
+  // Render nothing when no template is active, or before the container exists
+  if (!prompt || !container) return null;
+
+  // Single portal — always at zIndex 10001. Inside it we swap content.
+  return createPortal(
+    <div
+      data-new-ui-shell="true"
+      className="text-neutral-900 dark:text-white"
+      style={{ position: 'fixed', inset: 0, zIndex: 10001 }}
+    >
+      {mode === 'fill' ? (
+        <PromptTemplateDialog
+          prompt={prompt}
+          onClose={handleClose}
+          onStarted={handleStarted}
+          onEdit={handleEdit}
+        />
+      ) : (
+        /* Edit mode: NewUIPromptCreationModal's CreationModalShell renders its
+           own position:fixed overlay at zIndex 9999, which paints within this
+           stacking context (10001) — appearing above everything else. */
         <NewUIPromptCreationModal
           prompt={prompt}
-          onSave={handleEditSave}
-          onCancel={handleEditCancel}
+          onSave={handleEditDone}
+          onCancel={handleEditDone}
           onUpdatePrompt={handleUpdatePrompt}
         />
-      </div>,
-      document.body,
-    );
-  }
-
-  // ── Fill mode — show the "populate and use" dialog ────────────────────────
-  return (
-    <PromptTemplateDialog
-      prompt={prompt}
-      onClose={() => setPrompt(null)}
-      onStarted={() => setPrompt(null)}
-      onEdit={() => setEditMode(true)}
-    />
+      )}
+    </div>,
+    container,
   );
 };
 

@@ -38,9 +38,9 @@ import { AttachedDocument } from '@/types/attacheddocument';
 import { PromptTemplateFillDialog } from '@/components/NewUI/shared/PromptTemplateFillDialog';
 import {
   fillInTemplate,
-  handleStartConversationWithPrompt,
   parseEditableVariables,
 } from '@/utils/app/prompts';
+import { startConversationWithTemplate } from '@/components/NewUI/shared/promptConversation';
 
 /**
  * The variables a user must fill before this template can run.
@@ -121,8 +121,9 @@ export const PromptTemplateDialog: React.FC<PromptTemplateDialogProps> = ({
 
     statsService.startConversationEvent(prompt);
     // Creates the conversation with promptTemplate, tags, rootPrompt and any
-    // assistant-enforced model already applied.
-    handleStartConversationWithPrompt(
+    // assistant-enforced model already applied. Uses 'New Conversation' name
+    // so the AI renames it after the first reply (same as every other chat).
+    startConversationWithTemplate(
       handleNewConversation,
       promptsRef.current,
       prompt,
@@ -131,8 +132,6 @@ export const PromptTemplateDialog: React.FC<PromptTemplateDialogProps> = ({
     homeDispatch({ field: 'page', value: 'chat' });
     onStarted?.();
   };
-
-  if (typeof document === 'undefined') return null;
 
   // Use the new-UI fill dialog (styled with design tokens, edit button support).
   return (
