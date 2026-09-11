@@ -10,16 +10,24 @@ import { IconButton } from '@/components/NewUI/shared/IconButton';
 interface SidebarHeaderProps {
   onCollapse: () => void;
   onSearch?: () => void;
+  onLogoClick?: () => void;
 }
 
 export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
   onCollapse,
   onSearch,
+  onLogoClick,
 }) => {
   return (
     <div className="flex items-center justify-between h-[48px] px-[14px] flex-shrink-0">
       {/* Wordmark */}
-      <div className="flex items-center gap-2 select-none">
+      <button
+        onClick={onLogoClick}
+        className="flex items-center gap-2 select-none rounded-[6px] px-1 -mx-1 hover:bg-[--bg-hover] transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+        aria-label="New chat"
+        title="New chat"
+        type="button"
+      >
         <Image src="/amplify-logo.png" alt="Amplify" width={24} height={24} style={{ borderRadius: 4 }} />
         <span
           className="text-[20px] text-[--text-primary] tracking-[-0.01em]"
@@ -27,7 +35,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
         >
           Amplify
         </span>
-      </div>
+      </button>
 
       {/* Right actions */}
       <div className="flex items-center gap-1">

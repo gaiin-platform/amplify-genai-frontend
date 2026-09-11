@@ -742,6 +742,10 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
         <SidebarHeader
           onCollapse={handleToggle}
           onSearch={() => dispatch({ field: 'page', value: 'chats' as any })}
+          onLogoClick={() => {
+            window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
+            handleNewConversation({});
+          }}
         />
 
         {/* 2. Nav actions */}
