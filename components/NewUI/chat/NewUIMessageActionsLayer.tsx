@@ -465,6 +465,100 @@ export const NewUIMessageActionsLayer: React.FC = () => {
   const conversationRef = useRef<Conversation | undefined>(selectedConversation);
   conversationRef.current = selectedConversation;
 
+  // ── Edit-timestamp stamping ───────────────────────────────────────────────
+  // ChatMessage.tsx's handleEditMessage spreads the original message onto onEdit
+  // ({ ...message, content: newContent }) without touching `timestamp`, so the
+  // displayed timestamp never updates when a user edits their message.  Because
+  // ChatMessage.tsx is off-limits (NEW_UI_GUIDE §2), the fix lives here instead:
+  // watch the conversation messages, detect when a user message's *content*
+  // changes between renders, and immediately stamp a fresh timestamp onto it via
+  // handleUpdateSelectedConversation (which also persists it for remote convs).
+  //
+  // Loop safety: after handleUpdateSelectedConversation fires, the same messages
+  // come back with the same content but a new timestamp.  prevMessageContentRef
+  // is updated with the new content on every run, so the next run sees no content
+  // change and returns early — no infinite loop.
+  //
+  // Streaming-overwrite guard: useChatSendService keeps a local `updatedConversation`
+  // captured at send-time.  Every streaming chunk dispatches that local variable,
+  // overwriting our freshly stamped timestamp with the pre-edit one.  To survive
+  // this, we record the desired timestamp in pendingStampRef and re-apply it once
+  // messageIsStreaming transitions false — by which point the streaming loop has
+  // finished dispatching its stale local copy.
+  const prevMessageContentRef = useRef<Map<string, string>>(new Map());
+  const handleUpdateRef = useRef(handleUpdateSelectedConversation);
+  handleUpdateRef.current = handleUpdateSelectedConversation;
+  /** msgId → the ISO timestamp we want the message to display after streaming. */
+  const pendingStampRef = useRef<Map<string, string>>(new Map());
+  const prevStreamingRef = useRef(false);
+
+  useEffect(() => {
+    const conversation = selectedConversation;
+    if (!conversation) return;
+
+    const messages = conversation.messages ?? [];
+    const prevContentMap = prevMessageContentRef.current;
+    const newContentMap = new Map<string, string>();
+    const editedIndexes: number[] = [];
+
+    messages.forEach((msg, index) => {
+      if (!msg.id || msg.role !== 'user') return;
+      newContentMap.set(msg.id, msg.content);
+      const prevContent = prevContentMap.get(msg.id);
+      if (prevContent !== undefined && prevContent !== msg.content) {
+        editedIndexes.push(index);
+      }
+    });
+
+    // Always advance the ref so the next render can detect the next edit.
+    prevMessageContentRef.current = newContentMap;
+
+    if (editedIndexes.length === 0) return;
+
+    // Stamp edited messages with the current time.
+    const now = new Date().toISOString();
+    const updatedMessages = [...messages];
+    editedIndexes.forEach((index) => {
+      const msg = updatedMessages[index];
+      updatedMessages[index] = { ...msg, timestamp: now };
+      // Record the desired timestamp so we can re-apply it after streaming ends.
+      if (msg.id) pendingStampRef.current.set(msg.id, now);
+    });
+    handleUpdateRef.current({ ...conversation, messages: updatedMessages });
+  }, [selectedConversation?.messages]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Re-apply edit timestamps after streaming ends.
+  // useChatSendService dispatches its local `updatedConversation` on every chunk,
+  // which overwrites any timestamp we stamped above.  We keep track of the desired
+  // timestamps in pendingStampRef and restore them once streaming completes.
+  useEffect(() => {
+    const wasStreaming = prevStreamingRef.current;
+    prevStreamingRef.current = !!messageIsStreaming;
+
+    if (!wasStreaming || messageIsStreaming || pendingStampRef.current.size === 0) return;
+
+    // Streaming just ended — re-apply any pending edit timestamps.
+    const conversation = conversationRef.current;
+    if (!conversation) return;
+
+    const messages = conversation.messages ?? [];
+    let needsUpdate = false;
+    const updatedMessages = messages.map((msg) => {
+      if (!msg.id) return msg;
+      const pendingTimestamp = pendingStampRef.current.get(msg.id);
+      if (pendingTimestamp && pendingTimestamp > (msg.timestamp ?? '')) {
+        needsUpdate = true;
+        return { ...msg, timestamp: pendingTimestamp };
+      }
+      return msg;
+    });
+
+    pendingStampRef.current.clear();
+    if (needsUpdate) {
+      handleUpdateRef.current({ ...conversation, messages: updatedMessages });
+    }
+  }, [messageIsStreaming]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Speech synthesis cleanup ──────────────────────────────────────────────
   useEffect(() => {
     return () => {
@@ -504,7 +598,18 @@ export const NewUIMessageActionsLayer: React.FC = () => {
       el.setAttribute('data-new-ui-msg-key', key);
       const rawIndex = (conversationRef.current?.messages ?? []).indexOf(message);
       const pos = computePosition(el, role, container);
-      nextSlots.push({ key, el, role, message, rawIndex, ...pos });
+      // During streaming, the send-service dispatches a stale local copy of the
+      // conversation that still has the pre-edit timestamp.  If we have a pending
+      // stamp for this message (stored when the edit was detected), override the
+      // displayed timestamp so it stays correct throughout the thinking/streaming
+      // phase.  The real state is persisted via handleUpdateSelectedConversation
+      // once streaming ends (see the messageIsStreaming effect above).
+      const pendingTimestamp = message.id ? pendingStampRef.current.get(message.id) : undefined;
+      const displayMessage =
+        pendingTimestamp && pendingTimestamp > (message.timestamp ?? '')
+          ? { ...message, timestamp: pendingTimestamp }
+          : message;
+      nextSlots.push({ key, el, role, message: displayMessage, rawIndex, ...pos });
     });
 
     setSlots(nextSlots);
