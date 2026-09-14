@@ -6,12 +6,31 @@
 // validates the token and routes the request to that user's isolated
 // database, so these routes add no authorization of their own — they exist
 // only because the browser session token lives server-side in next-auth.
-
+//
+// The base URL is derived from API_BASE_URL rather than a separate env var:
+// per-stage, the Amplify API custom domain and the Open Notebook ALB domain
+// share the same parent domain and differ only in the leftmost hostname
+// label -- e.g. dev-api.dev-amplify.vanderbilt.ai -> open-notebook.dev-amplify.vanderbilt.ai
+// and prod-api.vanderbilt.ai -> open-notebook.vanderbilt.ai. Swapping that
+// label generically (instead of literally replacing the substring "dev-api",
+// which only matched in dev) makes the derivation work for every stage.
 export const getOpenNotebookBase = (): string | null => {
     const apiBaseUrl = process.env.API_BASE_URL;
     if (!apiBaseUrl) return null;
-    const url = apiBaseUrl.replace('dev-api', 'open-notebook');
-    return url.replace(/\/+$/, '');
+
+    let parsed: URL;
+    try {
+        parsed = new URL(apiBaseUrl);
+    } catch {
+        return null;
+    }
+
+    const labels = parsed.hostname.split('.');
+    if (labels.length < 2) return null; // no parent domain to preserve
+    labels[0] = 'open-notebook';
+    parsed.hostname = labels.join('.');
+
+    return parsed.toString().replace(/\/+$/, '');
 };
 
 // Builds the full upstream URL for an Open Notebook API path.

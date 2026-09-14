@@ -1,4 +1,4 @@
-import { FC, useState, useEffect } from "react";
+import { FC, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
 import { AdminConfigTypes, FeatureFlagConfig } from "@/types/admin";
@@ -117,6 +117,27 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     // Manage Members modal state
     const [manageMembersGroup, setManageMembersGroup] = useState<string | null>(null);
     const [memberModalInput, setMemberModalInput] = useState<string>('');
+
+    // Reverse lookup: email -> username. Built once when amplifyUsers changes.
+    const emailToUsername = useMemo(
+        () => Object.fromEntries(Object.entries(amplifyUsers).map(([k, v]) => [v, k])),
+        [amplifyUsers]
+    );
+
+    // Members of the currently managed group as a Set for O(1) lookups.
+    const managedGroupMembersSet = useMemo(
+        () => new Set(manageMembersGroup ? (ampGroups[manageMembersGroup]?.members ?? []) : []),
+        [manageMembersGroup, ampGroups]
+    );
+
+    // Emails available to add in the modal — pre-filtered, recomputed only when group or email list changes.
+    const managedGroupAvailableEmails = useMemo(
+        () => (allEmails ?? []).filter(e => {
+            const username = emailToUsername[e];
+            return !managedGroupMembersSet.has(username || e) && !managedGroupMembersSet.has(e);
+        }),
+        [allEmails, managedGroupMembersSet, emailToUsername]
+    );
 
     // Resolve a stored username/UUID to a displayable email; fallback to "Unknown User"
     const resolveDisplay = (usernameOrUuid: string): string => {
@@ -1292,10 +1313,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                             <EmailsAutoComplete
                                                 input={memberModalInput}
                                                 setInput={setMemberModalInput}
-                                                allEmails={(allEmails ?? []).filter(e => {
-                                                    const username = Object.keys(amplifyUsers).find(k => amplifyUsers[k] === e);
-                                                    return !members.includes(username || e) && !members.includes(e);
-                                                })}
+                                                allEmails={managedGroupAvailableEmails}
                                                 alreadyAddedEmails={members.map(u => resolveDisplay(u)).filter(d => d !== 'Unknown User')}
                                                 addMultipleUsers={false}
                                                 onSuggestionSelected={(suggestion) => addMemberByEmail(suggestion)}
