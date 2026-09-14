@@ -190,6 +190,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `ParameterBindingEditor.tsx` | Per-parameter AI/Manual binding. Controlled and stateless — the draft lives in the panel, seeded from saved bindings |
 | `SkillsCapabilityPanel.tsx` | Capabilities → Skills. Replaces `Skills/SkillsSection`, dropping its duplicate accordion header and its purple accent. Still launches the old `SkillEditor` for creation, early-returned |
 | `WorkflowTemplatePicker.tsx` | Capabilities → Workflow Template. Replaces `AssistantWorkflows/AssistantWorkflowSelector`; still launches the old `AssistantWorkflowBuilder`, early-returned rather than permanently mounted |
+| `AssistantEmailEventsPanel.tsx` | Advanced Settings → Email Events. New-UI replacement for the old `AssistantEmailEvents` — uses `ToggleSwitch`, design-token text colors, and inline expand/collapse for instructions |
 
 ### `views/`
 | File | Purpose |

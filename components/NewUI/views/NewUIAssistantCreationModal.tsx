@@ -80,7 +80,7 @@ import { opLanguageOptionsMap } from '@/types/op';
 import { Flag } from '@/components/ReusableComponents/FlagsMap';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
-import { AssistantEmailEvents } from '@/components/Promptbar/components/AssistantModalComponents/AssistantEmailEvents';
+import { AssistantEmailEventsPanel } from '@/components/NewUI/views/assistant/AssistantEmailEventsPanel';
 import { addEventTemplate } from '@/services/emailEventService';
 import { formatEmailEventTemplate, safeEmailEventTag } from '@/utils/app/assistantEmailEvents';
 import { isWebsiteDs } from '@/components/DataSources/WebsiteURLInput';
@@ -2465,7 +2465,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                 {/* ── Email Events (gated, non-collaborative) ─ */}
                                 {featureFlags.assistantEmailEvents && accessType !== 'collaborative' && (
                                     <div style={fieldGroupStyle}>
-                                        <AssistantEmailEvents
+                                        <AssistantEmailEventsPanel
                                             assistantId={undefined}
                                             initialEmailEventTag={undefined}
                                             enableEmailEvents={enableEmailEvents}
