@@ -26,6 +26,7 @@ import {
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { getAccounts, saveAccounts } from '@/services/accountService';
+import { getAdminConfigs } from '@/services/adminService';
 import { Account, noCoaAccount } from '@/types/accounts';
 import {
   formatRateLimit,
@@ -104,9 +105,29 @@ const NewRateLimiter: FC<{
 // Main component
 // ─────────────────────────────────────────────────────────────────────────────
 
+const DEFAULT_ACCOUNT_NOTICE =
+  'All API usage is billed regardless of whether your provided COA (Chart of Accounts) string ' +
+  'is valid or recognized. An invalid or unverified COA does not exempt you from charges. ' +
+  'You are responsible for all costs incurred under your account. Please ensure your COA is ' +
+  'correct and set rate limits that reflect your intended usage.';
+
 export const NewAccountSection: FC = () => {
   const { dispatch: homeDispatch } = useContext(HomeContext);
   const { data: session } = useSession();
+
+  // ── Admin-configured account notice message
+  const [accountNotice, setAccountNotice] = useState<string>(DEFAULT_ACCOUNT_NOTICE);
+
+  useEffect(() => {
+    getAdminConfigs(true).then((result) => {
+      if (result.success && result.data) {
+        const msg = result.data['accountNoticeMessage'];
+        if (typeof msg === 'string' && msg.trim()) {
+          setAccountNotice(msg.trim());
+        }
+      }
+    }).catch(() => {/* fall back to default silently */});
+  }, []);
 
   // ── Account state
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -333,9 +354,7 @@ export const NewAccountSection: FC = () => {
         <IconAlertTriangle size={15} style={{ flexShrink: 0, marginTop: 1, color: '#f59e0b' }} />
         <span>
           <strong style={{ color: 'var(--text-primary)' }}>Important: </strong>
-          By configuring a rate limit on an account, you acknowledge that usage up to that limit may
-          result in charges. Any spending beyond what is covered under your plan or institution
-          remains your responsibility. Please set limits that reflect your intended usage.
+          {accountNotice}
         </span>
       </div>
 

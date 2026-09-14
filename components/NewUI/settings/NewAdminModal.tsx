@@ -236,6 +236,11 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const [webSearchConfig, setWebSearchConfig]   = useState<AdminWebSearchConfig | null>(null);
   const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
 
+  // ── Account notice message (customisable by admins; shown to all users in Account settings)
+  const ACCOUNT_NOTICE_CONFIG_KEY = 'accountNoticeMessage';
+  const [accountNoticeMessage, setAccountNoticeMessage] = useState<string>('');
+  const [accountNoticeUnsaved, setAccountNoticeUnsaved] = useState<boolean>(false);
+
   // ── Tab list (dynamic, based on loaded data) ──────────────────────────────
   const tabs: AdminNavItem[] = [
     ...BASE_ADMIN_TABS,
@@ -375,6 +380,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         setUserDocumentationUrl(d[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
         setDefaultTimezone(d[AdminConfigTypes.DEFAULT_TIMEZONE] || 'America/Chicago');
         setSmartMessagesEnabled(d[AdminConfigTypes.DEFAULT_SMART_MESSAGES] ?? false);
+        setAccountNoticeMessage(d[ACCOUNT_NOTICE_CONFIG_KEY] || '');
         setLoadingMessage('');
 
         const nonlazyResult = await nonlazyReq;
@@ -698,8 +704,11 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   };
 
   const handleSave = async () => {
-    if (unsavedConfigs.size === 0) { toast('No changes to save'); return; }
-    const payload = Array.from(unsavedConfigs).map((t) => ({ type: t, data: getConfigTypeData(t) }));
+    if (unsavedConfigs.size === 0 && !accountNoticeUnsaved) { toast('No changes to save'); return; }
+    const payload: any[] = Array.from(unsavedConfigs).map((t) => ({ type: t, data: getConfigTypeData(t) }));
+    if (accountNoticeUnsaved) {
+      payload.push({ type: ACCOUNT_NOTICE_CONFIG_KEY, data: accountNoticeMessage });
+    }
     if (!validateSavedData()) return;
     if (testEndpointsRef.current.length > 0) {
       setLoadingMessage('Testing new endpoints…');
@@ -718,6 +727,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       updateOnSave();
       toast('Configurations saved');
       setUnsavedConfigs(new Set());
+      setAccountNoticeUnsaved(false);
       testEndpointsRef.current = [];
     } else {
       if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
@@ -732,7 +742,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
 
   // ── Tab label helper ──────────────────────────────────────────────────────
   const tabHasChanges = (tab: AdminTab) =>
-    adminTabHasChanges(Array.from(unsavedConfigs), tab);
+    adminTabHasChanges(Array.from(unsavedConfigs), tab) ||
+    (tab === 'Configurations' && accountNoticeUnsaved);
 
   // ── Filtered tabs ─────────────────────────────────────────────────────────
   const filteredTabs = searchQuery.trim()
@@ -788,6 +799,48 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
               updateUnsavedConfigs={updateUnsavedConfigs}
               onModalStateChange={setHasChildModalOpen}
             />
+
+            {/* ── Account Notice Message ── */}
+            <div style={{
+              background: 'var(--bg-raised)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: '12px',
+              padding: '20px',
+              marginTop: '16px',
+            }}>
+              <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+                Account Notice Message
+              </h3>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                This message is shown to all users in the Account settings section. Use it to communicate
+                billing and COA policies. Leave blank to display the default message.
+              </p>
+              <textarea
+                rows={5}
+                placeholder="Enter the account notice message shown to users…"
+                value={accountNoticeMessage}
+                onChange={(e) => {
+                  setAccountNoticeMessage(e.target.value);
+                  setAccountNoticeUnsaved(true);
+                }}
+                style={{
+                  width: '100%',
+                  background: 'var(--bg-app)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '6px',
+                  padding: '10px',
+                  fontSize: '13px',
+                  color: 'var(--text-primary)',
+                  outline: 'none',
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                  lineHeight: 1.5,
+                }}
+              />
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                Default: <em>All API usage is billed regardless of whether your provided COA string is valid or recognized.</em>
+              </p>
+            </div>
           </>
         );
       case 'Supported Models':
