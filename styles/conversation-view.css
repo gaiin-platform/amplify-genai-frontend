@@ -1151,7 +1151,11 @@
 /* Fenced code block inset panel (spec §4):
    --bg-app (recessed against the bubble's --bg-raised); 1px --border-subtle;
    radius 12px; padding 16px 18px; margin 14px 0;
-   13.5px/1.6 monospace --text-primary; overflow-x auto; no syntax highlighting */
+   13.5px/1.6 monospace --text-primary; overflow-x auto; no syntax highlighting.
+   The scrollbar lives here (on <pre>), not on <code> — see overflow-x override
+   on .new-ui-user-code-block code below. Because the browser grows this element
+   to accommodate a classic scrollbar before painting, the 16px bottom padding
+   separates the text from the scrollbar track on all platforms. */
 [data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block {
   background-color: var(--bg-app) !important;
   border: 1px solid var(--border-subtle) !important;
@@ -1170,6 +1174,12 @@
   border: none !important;
   border-radius: 0 !important;
   white-space: pre !important;
+  /* The global [data-new-ui] pre code rule sets overflow-x:auto on <code>, but
+     this <code> has padding:0 so that scrollbar would cover the text directly.
+     Disable overflow on <code> so the scrollbar lives on <pre> instead, which
+     has 28px of bottom padding (declared above) and keeps the text clear. */
+  overflow-x: visible !important;
+  overflow-y: visible !important;
 }
 
 /* ── §5 — Collapse "Show more" control ──────────────────────────────────── */
