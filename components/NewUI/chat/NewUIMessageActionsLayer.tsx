@@ -255,18 +255,21 @@ function retryFromUserMessageEl(userMsgEl: HTMLElement) {
 interface ActionRowProps {
   slot: Slot;
   hovered: boolean;
+  /** Derived from live selectedConversation in the parent — never from the stale slot.message snapshot. */
+  currentRating: 'good' | 'bad' | null;
   onHoverChange: (key: string, hovered: boolean) => void;
   onCopy: (slot: Slot) => Promise<boolean>;
   onEdit: (slot: Slot) => void;
   onRetry: (slot: Slot) => void;
   onReadAloud: (slot: Slot) => void;
   isSpeaking: boolean;
-  onRate: (slot: Slot, rating: 'good' | 'bad' | null, feedback?: string) => void;
+  onRate: (slot: Slot, rating: 'good' | 'bad' | null) => void;
 }
 
 const ActionRow: React.FC<ActionRowProps> = ({
   slot,
   hovered,
+  currentRating,
   onHoverChange,
   onCopy,
   onEdit,
@@ -277,12 +280,8 @@ const ActionRow: React.FC<ActionRowProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
   const [focused, setFocused] = useState(false);
-  const [showFeedback, setShowFeedback] = useState(false);
-  const [feedbackText, setFeedbackText] = useState('');
   const relTime = useRelativeTime(slot.message.timestamp);
   const absTime = slot.message.timestamp ? formatAbsoluteTime(slot.message.timestamp) : '';
-
-  const currentRating: 'good' | 'bad' | null = slot.message.data?.newUiRating ?? null;
 
   // Phase 33 §2: rows appear on hover (or keyboard focus) only — for every
   // message including the last. No always-visible last-assistant behaviour.
@@ -297,23 +296,11 @@ const ActionRow: React.FC<ActionRowProps> = ({
   };
 
   const handleBadClick = () => {
-    if (currentRating === 'bad') {
-      onRate(slot, null);
-      setShowFeedback(false);
-      return;
-    }
-    onRate(slot, 'bad');
-    setShowFeedback(true);
+    onRate(slot, currentRating === 'bad' ? null : 'bad');
   };
 
   const handleGoodClick = () => {
     onRate(slot, currentRating === 'good' ? null : 'good');
-    setShowFeedback(false);
-  };
-
-  const submitFeedback = () => {
-    onRate(slot, 'bad', feedbackText.trim() || undefined);
-    setShowFeedback(false);
   };
 
   // Position is a pure layout value computed in scan() and passed via `slot`.
@@ -432,7 +419,6 @@ const ActionRow: React.FC<ActionRowProps> = ({
               title="Good response"
               aria-label="Mark as a good response"
               aria-pressed={currentRating === 'good'}
-              style={currentRating === 'good' ? { color: 'var(--accent)' } : undefined}
             >
               {currentRating === 'good' ? <IconThumbUpFilled size={16} /> : <IconThumbUp size={16} />}
             </button>
@@ -442,7 +428,6 @@ const ActionRow: React.FC<ActionRowProps> = ({
               title="Bad response"
               aria-label="Mark as a bad response"
               aria-pressed={currentRating === 'bad'}
-              style={currentRating === 'bad' ? { color: 'var(--accent)' } : undefined}
             >
               {currentRating === 'bad' ? <IconThumbDownFilled size={16} /> : <IconThumbDown size={16} />}
             </button>
@@ -459,34 +444,6 @@ const ActionRow: React.FC<ActionRowProps> = ({
         </>
       )}
 
-      {showFeedback && (
-        <div
-          className="new-ui-feedback-input"
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: slot.role === 'assistant' ? 0 : undefined,
-            right: slot.role === 'user' ? 0 : undefined,
-            marginTop: 6,
-          }}
-          onMouseEnter={() => onHoverChange(slot.key, true)}
-        >
-          <input
-            autoFocus
-            type="text"
-            value={feedbackText}
-            onChange={(e) => setFeedbackText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submitFeedback();
-              if (e.key === 'Escape') setShowFeedback(false);
-            }}
-            placeholder="What went wrong? (optional)"
-          />
-          <button onClick={submitFeedback} title="Submit feedback" aria-label="Submit feedback">
-            <IconCheck size={14} />
-          </button>
-        </div>
-      )}
     </div>
   );
 };
@@ -821,7 +778,7 @@ export const NewUIMessageActionsLayer: React.FC = () => {
   }, []);
 
   const handleRate = useCallback(
-    (slot: Slot, rating: 'good' | 'bad' | null, feedback?: string) => {
+    (slot: Slot, rating: 'good' | 'bad' | null) => {
       const conversation = conversationRef.current;
       if (!conversation) return;
       const idx = slot.rawIndex;
@@ -833,7 +790,6 @@ export const NewUIMessageActionsLayer: React.FC = () => {
         data: {
           ...updatedMessages[idx].data,
           newUiRating: rating,
-          newUiFeedback: feedback,
         },
       };
       handleUpdateSelectedConversation({ ...conversation, messages: updatedMessages });
@@ -849,20 +805,28 @@ export const NewUIMessageActionsLayer: React.FC = () => {
   // share the scroller's coordinate system and scroll with the content for free.
   return createPortal(
     <>
-      {slots.map((slot) => (
-        <ActionRow
-          key={slot.key}
-          slot={slot}
-          hovered={hoveredKey === slot.key}
-          onHoverChange={handleRowHoverChange}
-          onCopy={handleCopy}
-          onEdit={handleEdit}
-          onRetry={handleRetry}
-          onReadAloud={handleReadAloud}
-          isSpeaking={isSpeaking && speakingKeyRef.current === slot.key}
-          onRate={handleRate}
-        />
-      ))}
+      {slots.map((slot) => {
+        // Read the rating from the live selectedConversation so it reflects the
+        // latest handleRate update immediately — slot.message is a stale snapshot
+        // from the last scan() and does not update when message data changes.
+        const liveMsg = selectedConversation?.messages?.[slot.rawIndex];
+        const currentRating: 'good' | 'bad' | null = (liveMsg?.data as any)?.newUiRating ?? null;
+        return (
+          <ActionRow
+            key={slot.key}
+            slot={slot}
+            currentRating={currentRating}
+            hovered={hoveredKey === slot.key}
+            onHoverChange={handleRowHoverChange}
+            onCopy={handleCopy}
+            onEdit={handleEdit}
+            onRetry={handleRetry}
+            onReadAloud={handleReadAloud}
+            isSpeaking={isSpeaking && speakingKeyRef.current === slot.key}
+            onRate={handleRate}
+          />
+        );
+      })}
     </>,
     overlayEl,
   );

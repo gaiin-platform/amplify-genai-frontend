@@ -1658,7 +1658,7 @@
   background: transparent;
   border: none;
   cursor: pointer;
-  transition: background-color 0.1s, color 0.1s;
+  transition: background-color 0.1s, color 0.15s, transform 0.08s;
   padding: 0;
   flex-shrink: 0;
 }
@@ -1666,6 +1666,34 @@
 .new-ui-action-btn:hover {
   background-color: var(--bg-hover);
   color: var(--text-primary);
+}
+
+/* Instant scale-down on press so every click feels responsive */
+.new-ui-action-btn:active {
+  transform: scale(0.82);
+  background-color: var(--bg-active);
+}
+
+/* Rated state: accent colour driven by aria-pressed so it moves with the DOM
+   attribute rather than requiring an extra React state field. */
+.new-ui-action-btn[aria-pressed="true"] {
+  color: var(--accent);
+  animation: new-ui-rating-pop 180ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes new-ui-rating-pop {
+  0%   { transform: scale(0.72); }
+  60%  { transform: scale(1.22); }
+  100% { transform: scale(1.0);  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .new-ui-action-btn[aria-pressed="true"] {
+    animation: none;
+  }
+  .new-ui-action-btn:active {
+    transform: none;
+  }
 }
 
 .new-ui-action-btn:focus-visible {
