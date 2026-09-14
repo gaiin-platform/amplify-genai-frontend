@@ -61,6 +61,11 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   // Position for the portalled fixed menu — captured from the dots button on open
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
 
+  // Estimated menu height:
+  // py-[6px]=12 + 3×h-[34px]=102 + divider≈9 + delete h-[34px]=34 = ~157px
+  const MENU_ESTIMATED_HEIGHT = 160;
+  const MENU_MIN_WIDTH = 160;
+
   const dotsButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -119,7 +124,26 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
     if (isMenuOpen) { setIsMenuOpen(false); return; }
     if (dotsButtonRef.current) {
       const rect = dotsButtonRef.current.getBoundingClientRect();
-      setMenuPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+      const GAP = 4;
+      const SCREEN_PADDING = 8;
+
+      // ── Vertical: prefer below; flip above if not enough room ──────────────
+      const spaceBelow = window.innerHeight - rect.bottom - GAP;
+      let top: number;
+      if (spaceBelow >= MENU_ESTIMATED_HEIGHT) {
+        top = rect.bottom + GAP;
+      } else {
+        // Open upward; clamp so it never disappears above the top edge either
+        top = Math.max(SCREEN_PADDING, rect.top - MENU_ESTIMATED_HEIGHT - GAP);
+      }
+
+      // ── Horizontal: keep the right edge within the viewport ────────────────
+      // `right` is CSS right offset (distance from viewport's right edge).
+      // Clamp so the left edge (= innerWidth − right − minWidth) stays ≥ 8px.
+      const rawRight = window.innerWidth - rect.right;
+      const right = Math.min(rawRight, window.innerWidth - MENU_MIN_WIDTH - SCREEN_PADDING);
+
+      setMenuPos({ top, right: Math.max(0, right) });
     }
     setIsMenuOpen(true);
   };
