@@ -63,9 +63,10 @@ export const NewHome: React.FC = () => {
   const {
     state: {
       availableModels, defaultModelId, featureFlags, ragOn, chatEndpoint, selectedAssistant,
-      statsService,
+      statsService, selectedConversation, page,
     },
     handleNewConversation,
+    handleUpdateConversation,
     dispatch,
   } = useContext(HomeContext);
 
@@ -468,6 +469,49 @@ export const NewHome: React.FC = () => {
     // Still needed for the text-only path, which has no optimistic message.
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('amplifyNewConversationSendPending'));
+    }
+    // ── Reuse pre-created conversation when on the chat page ─────────────────
+    //
+    // When the user picks an assistant from the gallery (or clicks New Chat in
+    // the sidebar), home.tsx creates a blank conversation and navigates to
+    // page='chat'. NewHome is shown because messages.length === 0. If we called
+    // handleNewConversation here we would create a SECOND conversation and the
+    // first one (the "Chat with …" entry) would be left orphaned in the sidebar.
+    //
+    // Instead, skip handleNewConversation and let the ConversationViewShell that
+    // is already mounted (but hidden) for the existing conversation pick up the
+    // sessionStorage keys written above — its tryInject bridge fires ≤150ms
+    // later and routes the message via PATH A (attachments) or PATH B (text).
+    //
+    // Only applies when page='chat'. On page='home' there is no pre-created
+    // conversation and we always need to create one.
+    if (page === 'chat' && selectedConversation) {
+      // Reset the name to 'New Conversation' so Chat.tsx's auto-rename effect
+      // fires after the first AI reply (it only triggers on that sentinel value).
+      // Without this the "Chat with X [date]" name from handleStartConversationWithPrompt
+      // would persist permanently since it never matched the rename condition.
+      if (selectedConversation.name !== 'New Conversation') {
+        handleUpdateConversation(selectedConversation, {
+          key: 'name',
+          value: 'New Conversation',
+        });
+      }
+      // For attachment/paste sends, seed the optimistic message so the
+      // conversation transitions out of the empty state immediately and
+      // ConversationViewShell PATH A finds it and sends with deleteCount:1.
+      if (optimisticMessage) {
+        dispatch({
+          field: 'selectedConversation',
+          value: { ...selectedConversation, messages: [optimisticMessage] },
+        });
+      }
+      composerRef.current?.clear();
+      setHasContent(false);
+      setAttachedDocs([]);
+      setUIAttachments([]);
+      Object.values(thumbUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
+      thumbUrlsRef.current = {};
+      return;
     }
     handleNewConversation({
       prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
