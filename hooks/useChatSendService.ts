@@ -1653,6 +1653,45 @@ User message: "${userMessageContent.slice(0, 500)}"`;
 
                         if (!isWaitingForAgentResponse(updatedConversation)) homeDispatch({ field: 'messageIsStreaming', value: false });
 
+                        // Auto-rename "New Conversation" after the first exchange.
+                        // Chat.tsx does this too, but its useEffect([selectedConversation]) fires while
+                        // messageIsStreaming is still true (stale closure), so it never renames in the
+                        // new-UI path. We do it here where we know streaming has just ended.
+                        if (
+                            updatedConversation.name === 'New Conversation' &&
+                            updatedConversation.messages.length > 1 &&
+                            !isWaitingForAgentResponse(updatedConversation)
+                        ) {
+                            (async () => {
+                                try {
+                                    const promptMessages = updatedConversation.messages
+                                        .slice(0, 1)
+                                        .map(m => ({ ...m, data: {}, configuredTools: [] }));
+                                    promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`;
+                                    const customName = await promptForData(
+                                        chatEndpoint || '',
+                                        promptMessages,
+                                        getDefaultModel(DefaultModels.CHEAPEST),
+                                        'Respond with only the title name and nothing else.',
+                                        defaultAccount,
+                                        statsService,
+                                        10
+                                    );
+                                    const firstMsg = updatedConversation.messages[0].content;
+                                    const fallbackName = firstMsg && firstMsg.length > 30
+                                        ? firstMsg.substring(0, 30) + '...'
+                                        : firstMsg ?? updatedConversation.name;
+                                    const renamedConversation = {
+                                        ...updatedConversation,
+                                        name: customName?.trim() || fallbackName,
+                                    };
+                                    handleUpdateSelectedConversation(renamedConversation);
+                                } catch (e) {
+                                    console.warn('Auto-rename failed:', e);
+                                }
+                            })();
+                        }
+
                         // Run memory extraction after main response is processed
                         if (isMemoryOn && memoryExtractionEnabled) {
                             // This runs completely independently and doesn't affect the main response flow
