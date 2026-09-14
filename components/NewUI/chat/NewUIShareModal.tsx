@@ -194,7 +194,17 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
             setIsSharing(true);
             setShareError('');
             try {
-                sharedData = await createExport([], [], [assistantPrompt], 'share', false);
+                // Deep-copy so we never mutate the original prompt in React state.
+                // Strip internal-only fields before export so the recipient gets a
+                // clean, independent copy — mirroring ShareAnythingModal's behaviour.
+                const assistantToExport = JSON.parse(JSON.stringify(assistantPrompt));
+                if (assistantToExport.data) {
+                    delete assistantToExport.data.workflowTemplateId;
+                    if (assistantToExport.data.emailEvents) {
+                        delete assistantToExport.data.emailEvents.tag;
+                    }
+                }
+                sharedData = await createExport([], [], [assistantToExport], 'share', false);
             } catch {
                 setIsSharing(false);
                 setShareError('An unexpected error occurred. Please try again.');
@@ -209,7 +219,15 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
             setIsSharing(true);
             setShareError('');
             try {
-                sharedData = await createExport([], [], [promptToShare], 'share', false);
+                // Same strip for prompt templates — they can also carry these fields.
+                const promptToExport = JSON.parse(JSON.stringify(promptToShare));
+                if (promptToExport.data) {
+                    delete promptToExport.data.workflowTemplateId;
+                    if (promptToExport.data.emailEvents) {
+                        delete promptToExport.data.emailEvents.tag;
+                    }
+                }
+                sharedData = await createExport([], [], [promptToExport], 'share', false);
             } catch {
                 setIsSharing(false);
                 setShareError('An unexpected error occurred. Please try again.');
