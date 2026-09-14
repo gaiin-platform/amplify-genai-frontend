@@ -1133,7 +1133,7 @@ export const NewAssistantsView: React.FC = () => {
     });
 
     const shouldShowGroupTab = syncingPrompts || groups.length > 0;
-    const shouldShowLayeredTab = syncingLayeredAssistants || layeredAssistants.length > 0;
+    const shouldShowLayeredTab = true; // Always show so first-time users can discover and create layered assistants
 
     // If the current tab becomes hidden, fall back to individual
     useEffect(() => {

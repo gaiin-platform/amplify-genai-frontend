@@ -107,6 +107,7 @@ import { NewLibraryView } from '@/components/NewUI/views/NewLibraryView';
 import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import { PromptTemplateDialogHost } from '@/components/NewUI/shared/PromptTemplateDialogHost';
+import { LayeredBuilderHost } from '@/components/NewUI/shared/LayeredBuilderHost';
 import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
@@ -1792,6 +1793,11 @@ const Home = ({
                                     itself without unmounting the popup. Renders nothing
                                     until the amplifyUsePromptTemplate event fires. */}
                                 <PromptTemplateDialogHost />
+                                {/* Layered Assistant Builder — listens for openLayeredBuilderTrigger.
+                                    The event's only classic-UI listener is UserMenu, which is not
+                                    rendered in this branch. This host provides the equivalent for
+                                    the new UI. */}
+                                <LayeredBuilderHost />
                             </div>
                         ) : (
                             /* ── CLASSIC UI LAYOUT (unchanged) ── */
