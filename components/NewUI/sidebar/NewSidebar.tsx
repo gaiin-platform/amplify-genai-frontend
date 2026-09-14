@@ -700,7 +700,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
               window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
               handleNewConversation({ prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT) });
             },
-            'New chat (⌘N)',
+            'New chat',
             <IconPlus size={18} />,
           )}
 
@@ -769,9 +769,6 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           >
             <IconPlus size={16} className="flex-shrink-0" />
             <span className="flex-1 text-left">New chat</span>
-            <span className="text-[11px] text-[--text-muted] opacity-0 group-hover:opacity-100 transition-opacity">
-              ⌘N
-            </span>
           </button>
 
           {/* Primary nav items */}
