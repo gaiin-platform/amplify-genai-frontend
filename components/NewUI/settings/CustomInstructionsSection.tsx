@@ -480,7 +480,7 @@ const HowItWorksCard: React.FC = () => (
       The active custom instruction is appended to the system prompt of every new blank conversation, helping Amplify understand your context and preferences without repeating them each time.
     </p>
     <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.8' }}>
-      <li>Select "None" to disable custom instructions at any time</li>
+      <li>Select &quot;None&quot; to disable custom instructions at any time</li>
       <li>Templates and assistant conversations use their own system prompts</li>
       <li>Instructions are stored locally in your browser</li>
     </ul>

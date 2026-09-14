@@ -66,7 +66,7 @@ const VarInfoTooltip: React.FC = () => {
             whiteSpace: 'normal',
           }}
         >
-          When someone uses this template, they're prompted to fill in each variable before the conversation starts. Set the type and whether the field is required or optional.
+          When someone uses this template, they&apos;re prompted to fill in each variable before the conversation starts. Set the type and whether the field is required or optional.
         </div>
       )}
     </div>
