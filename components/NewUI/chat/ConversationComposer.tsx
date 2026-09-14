@@ -117,6 +117,9 @@ interface PendingUploadSend {
   remainingCount: number;
   webSearchEnabled: boolean;
   selectedSkillIds: string[];
+  /** Connector actions selected at send time — carried through so the auto-fire
+   *  path includes configuredTools exactly as the immediate PATH A does. */
+  selectedActions: SelectedAction[];
 }
 
 /** How long an upload may stall (no key callback) before we mark it failed. */
@@ -208,7 +211,23 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>(
     selectedConversation?.data?.skills ?? [],
   );
-  const [selectedActions, setSelectedActions] = useState<SelectedAction[]>([]);
+  // Seed connector actions from sessionStorage so the chip re-appears when the
+  // ConversationComposer mounts for a conversation that was started from the
+  // landing page with a connector selected. The key is written by NewHome and
+  // cleared by ConversationViewShell's tryInject → clearPending after the first
+  // message fires, so the initializer only reads something on the very first
+  // mount of a new conversation; subsequent conversations and page refreshes find
+  // nothing and default to [].
+  const [selectedActions, setSelectedActions] = useState<SelectedAction[]>(() => {
+    if (typeof window === 'undefined') return [];
+    const raw = sessionStorage.getItem('amplify_pending_actions');
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw) as SelectedAction[];
+    } catch {
+      return [];
+    }
+  });
 
   // ── Assistant attached to THIS conversation ───────────────────────────────
   // Resolved rather than read straight off `selectedAssistant`: home state's
@@ -455,7 +474,13 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
 
     // Current-turn upload results only (used for abort/fallback checks below)
     const currentDocs = [...pending.readyDocs, ...pending.newDocs];
-    const { msgText, pastedAttachments, webSearchEnabled: pendingWebSearch, selectedSkillIds: pendingSkills } = pending;
+    const {
+      msgText,
+      pastedAttachments,
+      webSearchEnabled: pendingWebSearch,
+      selectedSkillIds: pendingSkills,
+      selectedActions: pendingActions,
+    } = pending;
     const pastedMessage = buildPastedTextMessage(msgText, pastedAttachments);
 
     // Clear before firing to prevent any double-fire
@@ -495,6 +520,12 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       return;
     }
 
+    // Build configuredTools from the connector actions captured at send time
+    const deferredConfiguredTools =
+      pendingActions && pendingActions.length > 0
+        ? pendingActions.flatMap((a) => a.ops)
+        : undefined;
+
     // Build and fire ChatRequest (same construction as PATH A in handleSend)
     let msg = newMessage({
       role: 'user',
@@ -513,6 +544,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           metadata: d.metadata || {},
         })),
       },
+      ...(deferredConfiguredTools ? { configuredTools: deferredConfiguredTools } : {}),
     });
     msg = setAssistantInMsg(msg, activeAssistant ?? DEFAULT_ASSISTANT);
 
@@ -646,6 +678,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         remainingCount: uploadingAttachments.length,
         webSearchEnabled,
         selectedSkillIds,
+        selectedActions: [...selectedActions],
       };
       // pendingUploadState.done tracks how many of the originally-uploading
       // attachments have since completed (starts at 0).
@@ -753,6 +786,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     availableModels,
     webSearchEnabled,
     selectedSkillIds,
+    selectedActions,
     featureFlags,
     handleUpdateConversation,
     priorDataSources,

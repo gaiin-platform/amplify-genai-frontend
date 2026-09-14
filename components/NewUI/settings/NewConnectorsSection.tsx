@@ -128,8 +128,7 @@ export const NewConnectorsSection: FC = () => {
   const refreshIntegrations = async () => {
     try {
       setLoadingIntegrations(true);
-      await getIntegrationData();
-      await getUserIntegrationData();
+      await Promise.all([getIntegrationData(), getUserIntegrationData()]);
     } catch (e) {
       console.error('Error refreshing integrations:', e);
     }

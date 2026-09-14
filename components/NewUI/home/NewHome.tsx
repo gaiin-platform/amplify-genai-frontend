@@ -394,6 +394,8 @@ export const NewHome: React.FC = () => {
         sessionStorage.setItem('amplify_pending_web_search', 'true');
       if (selectedSkillIds.length > 0)
         sessionStorage.setItem('amplify_pending_skills', JSON.stringify(selectedSkillIds));
+      if (selectedActions.length > 0)
+        sessionStorage.setItem('amplify_pending_actions', JSON.stringify(selectedActions));
     }
     // ── Optimistic first message (Phase 66) ─────────────────────────────────
     //

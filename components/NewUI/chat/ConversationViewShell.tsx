@@ -47,6 +47,7 @@ import { getSettings } from '@/utils/app/settings';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
+import type { SelectedAction } from '@/components/NewUI/shared/AttachMenu';
 import {
   nextOpenAtLatestTop,
   OPEN_AT_LATEST_MAX_FRAMES,
@@ -335,6 +336,17 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         try { pendingSkills = JSON.parse(pendingSkillsRaw); } catch { /* ignore */ }
       }
 
+      // ── Read pending connector actions (written by NewHome, cleared below) ──
+      const pendingActionsRaw = sessionStorage.getItem('amplify_pending_actions');
+      let pendingActions: SelectedAction[] = [];
+      if (pendingActionsRaw) {
+        try { pendingActions = JSON.parse(pendingActionsRaw) as SelectedAction[]; } catch { /* ignore */ }
+      }
+      // Flatten into configuredTools entries — same shape as ChatInput.addedActions
+      const pendingConfiguredTools = pendingActions.length > 0
+        ? pendingActions.flatMap((a) => a.ops)
+        : undefined;
+
       // ── Read pending docs (written by NewHome, previously never consumed) ─
       const pendingDocsRaw = sessionStorage.getItem('amplify_pending_docs');
       let pendingDocs: AttachedDocument[] = [];
@@ -374,6 +386,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         sessionStorage.removeItem('amplify_pending_effort');
         sessionStorage.removeItem('amplify_pending_web_search');
         sessionStorage.removeItem('amplify_pending_skills');
+        sessionStorage.removeItem('amplify_pending_actions');
       };
 
       // ── PATH A: a seeded message, or pending docs with S3 keys ─────────────
@@ -386,7 +399,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       // *second* user message: the transcript then showed the seeded message
       // (with the paste chip) and ChatInput's plain copy stacked under it, and
       // the pasted text never reached the model at all.
-      if ((docsWithKeys.length > 0 || optimistic) && conversation) {
+      if ((docsWithKeys.length > 0 || optimistic || pendingActions.length > 0) && conversation) {
         hasFiredRef.current = true;
         applyWebSearch();
         clearPending();
@@ -416,6 +429,14 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
                 })),
               },
             });
+
+        // Attach connector tools to the message so the backend can execute them.
+        // Both the optimistic copy (already seeded) and a freshly-built message
+        // need this — the optimistic path replaces the seeded message (deleteCount:1),
+        // so the copy here is what the backend actually receives.
+        if (pendingConfiguredTools) {
+          msg = { ...msg, configuredTools: pendingConfiguredTools };
+        }
 
         // Apply the active assistant to the message (mirrors ChatInput.tsx:758).
         // `isRealAssistant`, not an id comparison: a placeholder look-alike
