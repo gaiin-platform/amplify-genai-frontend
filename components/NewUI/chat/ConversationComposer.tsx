@@ -42,6 +42,7 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
@@ -219,6 +220,38 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     assistantName: activeAssistantName,
     detach: detachAssistant,
   } = useConversationAssistant();
+
+  // ── Prior-message data sources ─────────────────────────────────────────────
+  // Documents from earlier messages in this conversation. Included on every
+  // subsequent send so the model retains file context beyond the single turn it
+  // was uploaded in — without this, useChatSendService only sends the current
+  // turn's attachments and the model loses access to an uploaded file on the
+  // very next message (confirmed root cause from useChatSendService lines
+  // 556-583: dataSources are built only from the current send's `documents`
+  // argument; there is no aggregation over conversation history).
+  const priorDataSources = useMemo<AttachedDocument[]>(() => {
+    if (!selectedConversation?.messages?.length) return [];
+    const seen = new Set<string>();
+    const result: AttachedDocument[] = [];
+    for (const msg of selectedConversation.messages) {
+      if (msg.role !== 'user') continue;
+      for (const ds of ((msg.data as any)?.dataSources as any[] | undefined) ?? []) {
+        if (!ds?.id || seen.has(ds.id)) continue;
+        seen.add(ds.id);
+        result.push({
+          id: ds.id,
+          // Already "s3://…"; useChatSendService passes it through unchanged
+          // (line 561: `key.indexOf("://") > -1` branch uses key as-is).
+          key: ds.id,
+          name: ds.name || '',
+          type: ds.type || '',
+          data: null,
+          metadata: ds.metadata || {},
+        } as AttachedDocument);
+      }
+    }
+    return result;
+  }, [selectedConversation?.messages]);
 
   // ── Auto-grow textarea ─────────────────────────────────────────────────────
   const adjustHeight = useCallback(() => {
@@ -420,7 +453,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     const pending = pendingUploadSendRef.current;
     if (!pending || !selectedConversation) return;
 
-    const allDocs = [...pending.readyDocs, ...pending.newDocs];
+    // Current-turn upload results only (used for abort/fallback checks below)
+    const currentDocs = [...pending.readyDocs, ...pending.newDocs];
     const { msgText, pastedAttachments, webSearchEnabled: pendingWebSearch, selectedSkillIds: pendingSkills } = pending;
     const pastedMessage = buildPastedTextMessage(msgText, pastedAttachments);
 
@@ -432,15 +466,22 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     Object.values(thumbUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
     thumbUrlsRef.current = {};
 
-    // Edge case: all images failed (timeout) and there's no text either.
-    // Nothing to send — silently abort rather than fire an empty message.
-    if (allDocs.length === 0 && !pastedMessage.content.trim()) {
+    // Edge case: all uploads failed AND the user typed nothing → nothing to send.
+    if (currentDocs.length === 0 && !pastedMessage.content.trim()) {
       return;
     }
 
-    // Edge case: all images failed (timeout) but the user did write text.
-    // Fall through to PATH B (text-only DOM bridge) rather than PATH A.
-    if (allDocs.length === 0) {
+    // Merge prior-message dataSources for continuous file context
+    const currentDocKeys = new Set(currentDocs.map((d) => d.key).filter(Boolean) as string[]);
+    const allDocs = [
+      ...currentDocs,
+      ...priorDataSources.filter((p) => p.key && !currentDocKeys.has(p.key)),
+    ];
+
+    // Edge case: all uploads failed but user wrote text.
+    // Use PATH B only when there are truly no docs (including no prior ones).
+    // If prior docs exist, fall through to PATH A so the model still has them.
+    if (currentDocs.length === 0 && allDocs.length === 0) {
       const hiddenTextarea = document.getElementById(
         'messageChatInputText',
       ) as HTMLTextAreaElement | null;
@@ -498,7 +539,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     };
 
     sendViaServiceRef.current(request, () => false);
-  }, [pendingUploadState, selectedConversation, activeAssistant, featureFlags]);
+  }, [pendingUploadState, selectedConversation, activeAssistant, featureFlags, priorDataSources]);
 
   // ── Set data-upload-pending on the shell ─────────────────────────────────
   // Drives the asterisk pulse animation in conversation-view.css when a
@@ -618,10 +659,18 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         ? selectedActions.flatMap((a) => a.ops)
         : undefined;
 
+    // Merge current-turn docs with prior-message dataSources (dedup by key) so
+    // the model retains access to previously uploaded files on every follow-up.
+    const currentKeySet = new Set(docsWithKeys.map((d) => d.key).filter(Boolean) as string[]);
+    const mergedDocs = [
+      ...docsWithKeys,
+      ...priorDataSources.filter((p) => p.key && !currentKeySet.has(p.key)),
+    ];
+
     // ── PATH A: docs attached OR connector actions selected ───────────────────
-    if ((docsWithKeys.length > 0 || pastedAttachments.length > 0 || selectedActions.length > 0) && selectedConversation) {
-      // Clear local doc + attachment state
-      const docsToSend = [...docsWithKeys];
+    if ((mergedDocs.length > 0 || pastedAttachments.length > 0 || selectedActions.length > 0) && selectedConversation) {
+      // Clear local doc + attachment state (priorDataSources live in conv messages, not UI state)
+      const docsToSend = mergedDocs;
       setAttachedDocs([]);
       setUIAttachments([]);
       Object.values(thumbUrlsRef.current).forEach((u) => URL.revokeObjectURL(u));
@@ -706,6 +755,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     selectedSkillIds,
     featureFlags,
     handleUpdateConversation,
+    priorDataSources,
   ]);
 
   // ── Stop generation ───────────────────────────────────────────────────────
