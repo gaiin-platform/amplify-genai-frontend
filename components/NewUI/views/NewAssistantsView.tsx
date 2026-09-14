@@ -42,6 +42,7 @@ import ReactDOM from 'react-dom';
 import { savePrompts } from '@/utils/app/prompts';
 import toast from 'react-hot-toast';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
+import { NewGroupManagementModal } from './assistant/NewGroupManagementModal';
 import {
     canDeleteAssistantPrompt,
     getDeletableAssistantId,
@@ -671,6 +672,8 @@ const GroupAssistantsTab: React.FC = () => {
     // AssistantModal still used for the edit path (edit icon → admin interface)
     const [showGroupAssistantModal, setShowGroupAssistantModal] = useState(false);
     const [groupAssistantForEdit, setGroupAssistantForEdit] = useState<Prompt | null>(null);
+    // New-UI group management modal (gear icon on group header)
+    const [managingGroup, setManagingGroup] = useState<Group | null>(null);
 
     const { data: session } = useSession();
     const userIdentifier = getUserIdentifier(session?.user);
@@ -840,7 +843,10 @@ const GroupAssistantsTab: React.FC = () => {
                                     </div>
                                     {isAdmin && (
                                         <button
-                                            onClick={() => openAdminInterface(group)}
+                                            onClick={() => {
+                                                const originalGroup = groupsRef.current.find((g: Group) => g.id === group.id) ?? group;
+                                                setManagingGroup(originalGroup);
+                                            }}
                                             className="flex items-center justify-center h-[26px] w-[26px] rounded-[6px] transition-colors"
                                             style={{ color: 'var(--text-muted)' }}
                                             onMouseEnter={(e) => {
@@ -851,7 +857,7 @@ const GroupAssistantsTab: React.FC = () => {
                                                 (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
                                                 (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
                                             }}
-                                            title="Open in Assistant Admin Interface"
+                                            title="Manage Group"
                                         >
                                             <IconSettings size={14} />
                                         </button>
@@ -915,6 +921,14 @@ const GroupAssistantsTab: React.FC = () => {
                     loadingMessage="Saving assistant…"
                     loc=""
                     disableEdit={false}
+                />
+            )}
+
+            {/* New-UI group management modal (gear icon) */}
+            {managingGroup && (
+                <NewGroupManagementModal
+                    group={managingGroup}
+                    onClose={() => setManagingGroup(null)}
                 />
             )}
         </div>

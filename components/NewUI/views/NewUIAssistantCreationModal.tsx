@@ -447,6 +447,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroupId ?? null);
     const [newTeamName, setNewTeamName] = useState('');
     const [selectedMemberEmails, setSelectedMemberEmails] = useState<string[]>([]);
+    const [newMemberAccessMap, setNewMemberAccessMap] = useState<Record<string, GroupAccessType>>({});
 
     // Slug availability check state
     const [isCheckingSlug, setIsCheckingSlug] = useState(false);
@@ -1052,7 +1053,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         (k) => (amplifyUsers as Record<string, string>)[k] === email
                     ) || email;
                 if (username !== userIdentifier) {
-                    members[username] = GroupAccessType.WRITE;
+                    members[username] = newMemberAccessMap[email] ?? GroupAccessType.WRITE;
                 }
             });
 
@@ -1602,37 +1603,85 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                             </div>
 
                                             {/* Existing team */}
-                                            {teamMode === 'existing' && (
-                                                <>
-                                                    {adminGroups.length === 1 && (
-                                                        <div style={{
-                                                            display: 'flex', alignItems: 'center', gap: 8,
-                                                            padding: '8px 10px', borderRadius: 8,
-                                                            background: 'var(--bg-active)', fontSize: 13,
-                                                            color: 'var(--text-primary)',
-                                                        }}>
-                                                            <span style={{
-                                                                width: 8, height: 8, borderRadius: '50%',
-                                                                background: 'var(--accent)', flexShrink: 0,
-                                                                display: 'inline-block',
-                                                            }} />
-                                                            Creating in: <strong>{adminGroups[0].name}</strong>
-                                                        </div>
-                                                    )}
-                                                    {adminGroups.length > 1 && (
-                                                        <select
-                                                            value={selectedGroupId || ''}
-                                                            onChange={(e) => setSelectedGroupId(e.target.value || null)}
-                                                            style={fieldStyle}
-                                                        >
-                                                            <option value="">Choose a group…</option>
-                                                            {adminGroups.map((g: Group) => (
-                                                                <option key={g.id} value={g.id}>{g.name}</option>
-                                                            ))}
-                                                        </select>
-                                                    )}
-                                                </>
-                                            )}
+                                            {teamMode === 'existing' && (() => {
+                                                const previewGroup = adminGroups.length === 1
+                                                    ? adminGroups[0]
+                                                    : adminGroups.find((g: Group) => g.id === selectedGroupId) ?? null;
+                                                const memberEntries = previewGroup
+                                                    ? Object.entries(previewGroup.members ?? {})
+                                                    : [];
+                                                return (
+                                                    <>
+                                                        {adminGroups.length === 1 && (
+                                                            <div style={{
+                                                                display: 'flex', alignItems: 'center', gap: 8,
+                                                                padding: '8px 10px', borderRadius: 8,
+                                                                background: 'var(--bg-active)', fontSize: 13,
+                                                                color: 'var(--text-primary)',
+                                                            }}>
+                                                                <span style={{
+                                                                    width: 8, height: 8, borderRadius: '50%',
+                                                                    background: 'var(--accent)', flexShrink: 0,
+                                                                    display: 'inline-block',
+                                                                }} />
+                                                                Creating in: <strong>{adminGroups[0].name}</strong>
+                                                            </div>
+                                                        )}
+                                                        {adminGroups.length > 1 && (
+                                                            <select
+                                                                value={selectedGroupId || ''}
+                                                                onChange={(e) => setSelectedGroupId(e.target.value || null)}
+                                                                style={fieldStyle}
+                                                            >
+                                                                <option value="">Choose a group…</option>
+                                                                {adminGroups.map((g: Group) => (
+                                                                    <option key={g.id} value={g.id}>{g.name}</option>
+                                                                ))}
+                                                            </select>
+                                                        )}
+
+                                                        {/* Member list for the selected/auto-selected group */}
+                                                        {previewGroup && memberEntries.length > 0 && (
+                                                            <div style={{ marginTop: 10 }}>
+                                                                <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>
+                                                                    {memberEntries.length} member{memberEntries.length !== 1 ? 's' : ''} in this group
+                                                                </p>
+                                                                <div style={{
+                                                                    display: 'flex', flexDirection: 'column', gap: 3,
+                                                                    maxHeight: 180, overflowY: 'auto',
+                                                                    borderRadius: 8, border: '1px solid var(--border-subtle)',
+                                                                    padding: '4px 0',
+                                                                }}>
+                                                                    {memberEntries
+                                                                        .sort(([a], [b]) => a.localeCompare(b))
+                                                                        .map(([username, access]) => {
+                                                                            const email = (amplifyUsers as Record<string, string>)[username] ?? username;
+                                                                            const accessLabel = access === 'admin' ? 'Admin' : access === 'write' ? 'Write' : 'Read';
+                                                                            const accessColor = access === 'admin' ? '#ef4444' : access === 'write' ? 'var(--accent)' : 'var(--text-muted)';
+                                                                            return (
+                                                                                <div key={username} style={{
+                                                                                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                                                                    padding: '5px 10px', gap: 8,
+                                                                                }}>
+                                                                                    <span style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                                        {email}
+                                                                                    </span>
+                                                                                    <span style={{
+                                                                                        fontSize: 10, fontWeight: 600, textTransform: 'uppercase',
+                                                                                        letterSpacing: '0.04em', color: accessColor, flexShrink: 0,
+                                                                                    }}>
+                                                                                        {accessLabel}
+                                                                                    </span>
+                                                                                </div>
+                                                                            );
+                                                                        })
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
 
                                             {/* New group */}
                                             {teamMode === 'new' && (
@@ -1650,6 +1699,38 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                             style={fieldStyle}
                                                         />
                                                     </div>
+
+                                                    {/* Copy members from an existing group */}
+                                                    {adminGroups.length > 0 && (
+                                                        <div>
+                                                            <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                                                Copy members from existing group (optional)
+                                                            </label>
+                                                            <select
+                                                                value=""
+                                                                onChange={(e) => {
+                                                                    const src = adminGroups.find((g: Group) => g.id === e.target.value);
+                                                                    if (!src) return;
+                                                                    const srcEmails = Object.keys(src.members ?? {}).map(
+                                                                        (u) => (amplifyUsers as Record<string, string>)[u] ?? u
+                                                                    ).filter(Boolean);
+                                                                    // Merge without duplicates, skip the current user
+                                                                    const current = session?.user?.email ?? '';
+                                                                    setSelectedMemberEmails((prev) => {
+                                                                        const merged = Array.from(new Set([...prev, ...srcEmails]));
+                                                                        return merged.filter((e) => e.toLowerCase() !== current.toLowerCase());
+                                                                    });
+                                                                }}
+                                                                style={fieldStyle}
+                                                            >
+                                                                <option value="">Select a group to import members…</option>
+                                                                {adminGroups.map((g: Group) => (
+                                                                    <option key={g.id} value={g.id}>{g.name} ({Object.keys(g.members ?? {}).length} members)</option>
+                                                                ))}
+                                                            </select>
+                                                        </div>
+                                                    )}
+
                                                     <div>
                                                         <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
                                                             Add members (optional)
@@ -1663,8 +1744,29 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                             inputId="new-group-members"
                                                             ariaLabel="Group members — email addresses"
                                                         />
+                                                        {/* Per-email access level pickers */}
+                                                        {selectedMemberEmails.length > 0 && (
+                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
+                                                                {selectedMemberEmails.map((email) => (
+                                                                    <div key={email} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                                                                        <span style={{ fontSize: 12, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                                            {email}
+                                                                        </span>
+                                                                        <select
+                                                                            value={newMemberAccessMap[email] ?? GroupAccessType.WRITE}
+                                                                            onChange={(e) => setNewMemberAccessMap((prev) => ({ ...prev, [email]: e.target.value as GroupAccessType }))}
+                                                                            style={{ ...fieldStyle, width: 'auto', height: 28, padding: '0 8px', fontSize: 12, flexShrink: 0 }}
+                                                                        >
+                                                                            <option value={GroupAccessType.READ}>Read</option>
+                                                                            <option value={GroupAccessType.WRITE}>Write</option>
+                                                                            <option value={GroupAccessType.ADMIN}>Admin</option>
+                                                                        </select>
+                                                                    </div>
+                                                                ))}
+                                                            </div>
+                                                        )}
                                                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0' }}>
-                                                            Members will be added with editor access. You will be the admin.
+                                                            You will be the admin.
                                                         </p>
                                                     </div>
                                                 </div>

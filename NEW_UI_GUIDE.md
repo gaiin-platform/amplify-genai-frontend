@@ -158,6 +158,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `promptConversation.ts` | `startConversationWithTemplate` — creates the conversation for a template (promptTemplate, tags, rootPrompt, resolved model) under the `'New Conversation'` name so the AI renames it after the first reply. Takes `homeDispatch` because it must set `isStandalonePromptCreation` in the same batch (§30). No React imports |
 | `PromptTemplateDialogHost.tsx` | Single mount point for the popup above, at the new-UI root in `home.tsx` — a sibling of `NewSettingsModal`, never a descendant. Launch it with the exported `openPromptTemplateDialog(prompt)` and then close your own modal: the popup survives because it isn't in your subtree. Settings has three entry points (collapsed sidebar, expanded sidebar, ⌘,) so per-launcher hosts would have to be triplicated |
 | `LayeredBuilderHost.tsx` | Listens for `openLayeredBuilderTrigger` window events and renders `LayeredAssistantBuilder` in a portalled full-screen dialog. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch. Mounted at the new-UI root in `home.tsx` alongside `PromptTemplateDialogHost` |
+| `AssistantAdminUIHost.tsx` | Listens for `openAstAdminInterfaceTrigger` window events and renders `AssistantAdminUI`. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch so gear icons in `GroupAssistantsTab` open the admin interface. Mounted at the new-UI root in `home.tsx` alongside `LayeredBuilderHost` |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
 ### `sidebar/`
@@ -191,6 +192,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `SkillsCapabilityPanel.tsx` | Capabilities → Skills. Replaces `Skills/SkillsSection`, dropping its duplicate accordion header and its purple accent. Still launches the old `SkillEditor` for creation, early-returned |
 | `WorkflowTemplatePicker.tsx` | Capabilities → Workflow Template. Replaces `AssistantWorkflows/AssistantWorkflowSelector`; still launches the old `AssistantWorkflowBuilder`, early-returned rather than permanently mounted |
 | `AssistantEmailEventsPanel.tsx` | Advanced Settings → Email Events. New-UI replacement for the old `AssistantEmailEvents` — uses `ToggleSwitch`, design-token text colors, and inline expand/collapse for instructions |
+| `NewGroupManagementModal.tsx` | Group management modal opened from the gear icon on a group header in `GroupAssistantsTab`. Members (add/remove/edit-access via `EmailChipsInput`), Group Types, Amplify Groups, System Users, and Delete Group. Uses `CreationModalShell`, `CapabilityCard`, `ConfirmDialog`, `NewUILoadingStatus`. Never opens `AssistantAdminUI` |
 
 ### `views/`
 | File | Purpose |

@@ -108,6 +108,7 @@ import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewS
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import { PromptTemplateDialogHost } from '@/components/NewUI/shared/PromptTemplateDialogHost';
 import { LayeredBuilderHost } from '@/components/NewUI/shared/LayeredBuilderHost';
+import { AssistantAdminUIHost } from '@/components/NewUI/shared/AssistantAdminUIHost';
 import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
@@ -1798,6 +1799,11 @@ const Home = ({
                                     rendered in this branch. This host provides the equivalent for
                                     the new UI. */}
                                 <LayeredBuilderHost />
+                                {/* Assistant Admin Interface — listens for openAstAdminInterfaceTrigger.
+                                    The event's only classic-UI listener is UserMenu, which is not
+                                    rendered in this branch. This host provides the equivalent for
+                                    the new UI. */}
+                                <AssistantAdminUIHost />
                             </div>
                         ) : (
                             /* ── CLASSIC UI LAYOUT (unchanged) ── */
