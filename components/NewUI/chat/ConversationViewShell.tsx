@@ -200,6 +200,30 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   const [showJumpBtn, setShowJumpBtn] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
 
+  // ── "Stopped Before Completing." indicator ───────────────────────────────
+  // Tracks which message element was cut short by the user clicking Stop.
+  // targetRole: 'assistant' when stopped mid-stream (a partial response exists);
+  //             'user' when stopped during the sending phase (no response yet).
+  // The span is injected as a sibling AFTER the target .enhanced-chat-message
+  // element (not inside it) to avoid overlapping the absolutely-positioned
+  // hover action row that lives in the message's reserved padding-bottom.
+  // Persists across subsequent sends; cleared only when regenerated or conv changes.
+  const [stoppedInfo, setStoppedInfo] = useState<{
+    conversationId: string;
+    /** 'assistant' | 'user' — which role's DOM list to index into */
+    targetRole: 'assistant' | 'user';
+    /** 0-based index into querySelectorAll('.enhanced-chat-message.[role]-message') */
+    targetDomIndex: number;
+    /** Total messages.length at stop time — used to detect edit/resend trimming. */
+    messageCount: number;
+    /** Content of the stopped message — used to detect regeneration (assistant only). */
+    messageContent: string;
+  } | null>(null);
+  const stoppedInfoRef = useRef(stoppedInfo);
+  stoppedInfoRef.current = stoppedInfo;
+  const messageIsStreamingRef = useRef(messageIsStreaming);
+  messageIsStreamingRef.current = messageIsStreaming;
+
   // ── Issue 1: "Waiting for response" pending indicator ─────────────────────
   //
   // ROOT CAUSE (verified by reading hooks/useChatSendService.ts):
@@ -256,6 +280,198 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       shellRef.current.removeAttribute('data-awaiting-first-token');
     }
   }, [showPendingIndicator]);
+
+  // ── "Stopped Before Completing." — detect stop events ────────────────────
+  //
+  // ChatInput.tsx fires 'killChatRequest' or 'killArtifactRequest' on window
+  // immediately before resetting messageIsStreaming, so both events fire while
+  // streaming is still logically true. We capture the current conversation and
+  // the target element:
+  //   - If an assistant message exists → target the last assistant message
+  //     (stopped mid-stream case)
+  //   - Otherwise → target the last user message (sending-phase stop: no
+  //     response was ever received)
+  useEffect(() => {
+    const onKill = () => {
+      if (!messageIsStreamingRef.current) return;
+      const conv = conversationRef.current;
+      if (!conv) return;
+      const msgs = conv.messages ?? [];
+      if (!msgs.length) return;
+
+      // Find the last assistant message (streaming stop)
+      let targetIdx = -1;
+      let targetRole: 'assistant' | 'user' = 'assistant';
+      for (let i = msgs.length - 1; i >= 0; i--) {
+        if (msgs[i].role === 'assistant') { targetIdx = i; break; }
+      }
+
+      // Sending-phase stop: no assistant message yet → use last user message
+      if (targetIdx === -1) {
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          if (msgs[i].role === 'user') { targetIdx = i; targetRole = 'user'; break; }
+        }
+      }
+      if (targetIdx === -1) return;
+
+      // 0-based DOM index among elements of the same role
+      let targetDomIndex = 0;
+      for (let i = 0; i < targetIdx; i++) {
+        if (msgs[i].role === targetRole) targetDomIndex++;
+      }
+
+      setStoppedInfo({
+        conversationId: conv.id,
+        targetRole,
+        targetDomIndex,
+        messageCount: msgs.length,
+        messageContent: typeof msgs[targetIdx].content === 'string'
+          ? (msgs[targetIdx].content as string)
+          : '',
+      });
+    };
+
+    window.addEventListener('killChatRequest', onKill);
+    window.addEventListener('killArtifactRequest', onKill);
+    return () => {
+      window.removeEventListener('killChatRequest', onKill);
+      window.removeEventListener('killArtifactRequest', onKill);
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── "Stopped Before Completing." — clear when regenerated / conv changes ──
+  //
+  // Assistant-stop: clear when messages trimmed below stopped point (edit+resend)
+  //   or when the stopped message's content changes (regenerated in place).
+  // User-stop (sending phase): clear when message count changes at all — either
+  //   a response arrived (count grew) or the message was edited/removed (shrank).
+  useEffect(() => {
+    if (!stoppedInfo) return;
+    const conv = selectedConversation;
+    if (!conv) { setStoppedInfo(null); return; }
+
+    if (conv.id !== stoppedInfo.conversationId) {
+      setStoppedInfo(null);
+      return;
+    }
+
+    const msgs = conv.messages ?? [];
+
+    if (stoppedInfo.targetRole === 'user') {
+      // Any change in message count means either a response arrived or was removed
+      if (msgs.length !== stoppedInfo.messageCount) {
+        setStoppedInfo(null);
+      }
+      return;
+    }
+
+    // Assistant-stop
+    if (msgs.length < stoppedInfo.messageCount) {
+      setStoppedInfo(null);
+      return;
+    }
+    const stoppedMsgInState = msgs[stoppedInfo.messageCount - 1];
+    if (
+      stoppedMsgInState &&
+      typeof stoppedMsgInState.content === 'string' &&
+      stoppedMsgInState.content !== stoppedInfo.messageContent
+    ) {
+      setStoppedInfo(null);
+    }
+  }, [selectedConversation?.id, selectedConversation?.messages, stoppedInfo]);
+
+  // ── "Stopped Before Completing." — DOM injection ─────────────────────────
+  //
+  // When stoppedInfo is set (and not streaming), append a
+  // <span class="new-ui-stopped-text" aria-hidden="true"> to the end of the
+  // target assistant message element. A MutationObserver re-injects the span
+  // if React re-renders removed it, and removes it when stoppedInfo is cleared
+  // or streaming resumes.
+  //
+  // The span is appended as a last child of the .enhanced-chat-message element
+  // (same pattern as .new-ui-loading-text inside PromptStatus). CSS gives it
+  // display:block so it appears on its own line below the message content.
+  useEffect(() => {
+    const STOPPED_CLASS = 'new-ui-stopped-text';
+
+    const removeAll = () => {
+      document.querySelectorAll<HTMLElement>(`.${STOPPED_CLASS}`).forEach((el) => el.remove());
+    };
+
+    if (!stoppedInfo || messageIsStreaming) {
+      removeAll();
+      return;
+    }
+
+    const inject = () => {
+      // If we already have a live span, nothing to do
+      if (document.querySelector(`.${STOPPED_CLASS}`)) return;
+
+      const cssRole = stoppedInfo.targetRole === 'assistant' ? 'assistant-message' : 'user-message';
+      const elements = document.querySelectorAll<HTMLElement>(
+        `[data-new-ui="true"] .enhanced-chat-message.${cssRole}`,
+      );
+      const target = elements[stoppedInfo.targetDomIndex];
+      if (!target) return;
+
+      const span = document.createElement('span');
+      span.className = STOPPED_CLASS;
+      span.setAttribute('aria-hidden', 'true');
+      span.setAttribute('data-role', stoppedInfo.targetRole);
+
+      if (stoppedInfo.targetRole === 'assistant') {
+        // Append INSIDE #chatHover (the response content block). This is the key
+        // to correct placement: NewUIMessageActionsLayer#computePosition anchors
+        // the hover action row to `#chatHover.offsetHeight`, so growing that
+        // element makes the action row reposition BELOW our text automatically —
+        // no overlap, no hardcoded offsets to keep in sync. Its MutationObserver
+        // sees the insertion and rescans (120ms debounce).
+        //
+        // The span carries no DOM text (CSS ::after generates it), so the copy
+        // button — which reads `#chatHover.innerText` — is unaffected.
+        const chatHover = target.querySelector<HTMLElement>('#chatHover');
+        (chatHover ?? target).appendChild(span);
+      } else {
+        // Sending-phase stop: no response element exists. The user bubble is
+        // display:flex/justify-end, so appending inside would place the text
+        // beside the bubble. Insert as a sibling after the message instead —
+        // left-aligned in the column, i.e. exactly where the assistant's
+        // response would have begun.
+        target.insertAdjacentElement('afterend', span);
+      }
+    };
+
+    inject();
+
+    // Observe so the span is re-injected if React reconciles and removes it
+    let observer: MutationObserver | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const startObserving = () => {
+      const chatContainer = document.querySelector('.chatcontainer');
+      if (!chatContainer) {
+        retryTimer = setTimeout(startObserving, 300);
+        return;
+      }
+      inject();
+      observer = new MutationObserver(() => {
+        if (!stoppedInfoRef.current || messageIsStreamingRef.current) {
+          removeAll();
+          return;
+        }
+        inject();
+      });
+      observer.observe(chatContainer, { childList: true, subtree: true });
+    };
+
+    startObserving();
+
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer);
+      observer?.disconnect();
+      removeAll();
+    };
+  }, [stoppedInfo, messageIsStreaming]);
 
   // ── Scrollbar-clip fix: inset the shell bottom to match composer height ──
   //

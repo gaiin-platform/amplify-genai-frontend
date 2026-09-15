@@ -147,6 +147,9 @@ export function useChatService() {
         const targetEndpoint = chatBody.endpoint || chatEndpoint;
 
         response = sendChatRequestWithDocuments(targetEndpoint, chatBody, abortSignal, metaHandler).catch((e) => {
+            // AbortError is thrown by the fetch when the user intentionally stops
+            // the request (via killChatRequest / controller.abort()). Don't alert.
+            if (e?.name === 'AbortError') return Promise.reject(e);
             if(chatBody.assistantId){
                 alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");
             }

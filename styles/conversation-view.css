@@ -2548,6 +2548,65 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   "Stopped Before Completing." indicator
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ConversationViewShell.tsx appends a <span class="new-ui-stopped-text"
+   aria-hidden="true"> to the end of the assistant message element that was
+   cut short when the user clicked Stop. The span persists across new sends
+   and is only removed when that specific response is regenerated or the
+   conversation is switched.
+
+   Visual design: matches the "Sending…" / "Thinking…" labels — 13px italic
+   Inter, --text-muted color. Static (no pulse) because the response has
+   already ended; block display so it appears on its own line below the
+   message content with 6px top gap.
+
+   The ::after generates the text so the DOM node stays empty (no selection
+   / copy side effects).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Shared appearance — matches the "Sending…" / "Thinking…" labels.
+   Static (no pulse): the response has already ended. */
+[data-new-ui="true"] .new-ui-stopped-text {
+  display: block;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-style: italic;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.4;
+}
+
+[data-new-ui="true"] .new-ui-stopped-text::after {
+  content: "Stopped Before Completing.";
+}
+
+/* Assistant stop — the span lives INSIDE #chatHover, so it inherits the
+   content column and left edge for free. It only needs a gap from the last
+   prose line. The hover action row follows it down automatically because
+   the layer measures #chatHover's height. */
+[data-new-ui="true"] .new-ui-stopped-text[data-role="assistant"] {
+  margin-top: 8px;
+  /* #chatHover sets font-size/line-height with !important for prose; re-assert
+     ours so the label stays 13px regardless of the chat-font setting. */
+  font-size: 13px !important;
+  line-height: 1.4 !important;
+}
+
+/* Sending-phase stop — the span is a sibling after the user message, so it
+   must reproduce the message column geometry itself. The user message's
+   36px padding-bottom already separates it from the bubble; trim a little so
+   the text sits closer to the turn it belongs to while staying clear of the
+   right-aligned hover action row (which occupies ~26px of that padding). */
+[data-new-ui="true"] .new-ui-stopped-text[data-role="user"] {
+  max-width: min(74ch, calc(100% - 48px));
+  margin-left: auto;
+  margin-right: auto;
+  margin-top: -8px;
+  margin-bottom: 16px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    Task 14 — Upload-Pending Deferred Send (Phase 42)
    Ambient progress indicator inside the composer card + asterisk pulse state.
    ═══════════════════════════════════════════════════════════════════════════ */
