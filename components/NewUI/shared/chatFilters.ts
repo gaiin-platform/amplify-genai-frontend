@@ -32,12 +32,21 @@ export const CHAT_FILTER_DEFAULTS: Record<string, string> = {
 };
 
 /**
- * Pinned state lives in `conversation.data.pinned` — same detection as
- * ConversationRow so every view agrees.
+ * Sentinel tag written into conversation.tags to track pinned state.
+ * Tags survive remoteForConversationHistory(), unlike conversation.data which is
+ * stripped for cloud-stored conversations. ConversationRow uses this same constant
+ * when toggling the tag via handleUpdateConversation.
+ */
+export const PINNED_TAG = '__pinned__';
+
+/**
+ * Pinned state: checks both the tags-based mechanism (the primary path, works for
+ * both local and remote/cloud conversations) and the legacy data.pinned field (for
+ * backwards-compat with any conversations pinned before the tags fix).
  * TODO: once `pinned?: boolean` exists on the Conversation type, simplify to c.pinned.
  */
 export function isPinnedConv(c: Conversation): boolean {
-    return !!(c.data?.pinned) || !!(c as any).pinned;
+    return !!c.tags?.includes(PINNED_TAG) || !!(c.data?.pinned) || !!(c as any).pinned;
 }
 
 /**

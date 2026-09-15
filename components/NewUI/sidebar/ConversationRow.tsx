@@ -32,6 +32,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
+import { PINNED_TAG } from '@/components/NewUI/shared/chatFilters';
 
 interface ConversationRowProps {
   conversation: Conversation;
@@ -69,11 +70,15 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   const dotsButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const { handleUpdateConversation } = useContext(HomeContext);
+  const { handleUpdateConversation, state: { conversations }, dispatch } = useContext(HomeContext);
 
-  // Pin state: check both data.pinned (new storage) and top-level cast (legacy)
+  // Pin state: primary check is the __pinned__ tag (survives remoteForConversationHistory
+  // for cloud conversations). Legacy data.pinned / top-level cast kept for backwards compat.
   // TODO: add `pinned?: boolean` to Conversation type in types/chat.ts
-  const isPinned = !!(conversation.data?.pinned) || !!(conversation as any).pinned;
+  const isPinned =
+    !!conversation.tags?.includes(PINNED_TAG) ||
+    !!(conversation.data?.pinned) ||
+    !!(conversation as any).pinned;
 
   // ── Focus + select all when rename input appears ────────────────────────────
   useEffect(() => {
@@ -180,13 +185,25 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   const handlePin = (e: React.MouseEvent) => {
     e.stopPropagation();
     setIsMenuOpen(false);
-    // Store in conversation.data.pinned (the existing untyped bag).
-    // TODO: once `pinned?: boolean` is added to the Conversation type, use
-    //   handleUpdateConversation(conversation, { key: 'pinned', value: !isPinned })
-    handleUpdateConversation(conversation, {
-      key: 'data',
-      value: { ...conversation.data, pinned: !isPinned },
-    });
+    // Store pin state as a tag rather than in conversation.data, because
+    // remoteForConversationHistory() strips the data field for cloud-stored
+    // conversations — meaning a data.pinned write is immediately discarded when
+    // handleUpdateConversation dispatches the updated conversations array.
+    // The `tags` field IS preserved by remoteForConversationHistory, so toggling
+    // PINNED_TAG here survives the dispatch and the sidebar re-renders correctly.
+    const currentTags = (conversation.tags ?? []).filter((t: string) => t !== PINNED_TAG);
+    const newTags = isPinned ? currentTags : [...currentTags, PINNED_TAG];
+
+    // Optimistic update: immediately reflect the new tags in the conversations
+    // list so the sidebar re-renders without waiting for the async server fetch
+    // inside handleUpdateConversation.
+    const optimisticConversations = conversations.map((c) =>
+      c.id === conversation.id ? { ...c, tags: newTags } : c
+    );
+    dispatch({ field: 'conversations', value: optimisticConversations });
+
+    // Still call handleUpdateConversation to persist the change server-side.
+    handleUpdateConversation(conversation, { key: 'tags', value: newTags });
   };
 
   // ── Share ───────────────────────────────────────────────────────────────────
@@ -253,7 +270,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
         relative rounded-[8px]
         ${isSelected
           ? 'bg-[--bg-active]'
-          : isMenuOpen || isRenaming
+          : isMenuOpen || isRenaming || isHovered
             ? 'bg-[--bg-hover]'
             : 'hover:bg-[--bg-hover]'
         }
