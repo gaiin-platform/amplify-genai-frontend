@@ -38,6 +38,7 @@
 import { FC, useContext, useEffect, useRef } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import { saveStorageSettings } from '@/utils/app/conversationStorage';
+import { ThemeService } from '@/utils/whiteLabel/themeService';
 import {
     DEFAULT_STORAGE_SELECTION,
     STORAGE_SELECTION_LS_KEY,
@@ -66,12 +67,68 @@ const DEFAULT_SEED_DELAY_MS = 2500;
 export const UserPrefsSync: FC = () => {
     const { dispatch: homeDispatch } = useContext(HomeContext);
 
+    /** Apply a resolved theme value to all the places the app reads it. */
+    const applyResolvedTheme = (resolved: 'light' | 'dark') => {
+        ThemeService.setTheme(resolved);              // → user-theme-preference + html.dark class
+        localStorage.setItem('lightMode', resolved);  // legacy key still read by classic UI paths
+        homeDispatch({ field: 'lightMode', value: resolved });
+    };
+
     // §16: re-arm in the effect body — StrictMode's simulated unmount would
     // otherwise latch this false for the life of the component.
     const alive = useRef(true);
     useEffect(() => {
         alive.current = true;
         return () => { alive.current = false; };
+    }, []);
+
+    // ── Startup theme correction + OS preference listener ──────────────────
+    // Fixes three issues that all cause theme "resets" on refresh:
+    //
+    // 1. AccountMenu only wrote `lightMode` key, not `user-theme-preference`
+    //    (the key ThemeService.getInitialTheme reads). On refresh, ThemeService
+    //    fell back to the config default, showing the wrong theme.
+    //    Fix: if user-theme-preference is absent, promote lightMode into it.
+    //
+    // 2. 'system' mode stored the resolved value at save time, not the
+    //    current OS preference. If the OS changed between sessions, the old
+    //    resolved value was applied on refresh.
+    //    Fix: re-resolve from matchMedia on every mount.
+    //
+    // 3. No listener for OS preference changes while running.
+    //    Fix: add one when mode is 'system', clean up on unmount.
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+
+        const mode = localStorage.getItem('amplify_appearance_mode');
+
+        if (mode === 'system') {
+            // Re-resolve from current OS preference (may differ from saved value)
+            const mql = window.matchMedia('(prefers-color-scheme: dark)');
+            const resolveOS = (dark: boolean) =>
+                applyResolvedTheme(dark ? 'dark' : 'light');
+
+            resolveOS(mql.matches);
+
+            const handleOSChange = (e: MediaQueryListEvent) => {
+                if (!alive.current) return;
+                resolveOS(e.matches);
+            };
+            mql.addEventListener('change', handleOSChange);
+            return () => mql.removeEventListener('change', handleOSChange);
+        }
+
+        // Explicit light/dark: if user-theme-preference is absent (set by an older
+        // code path that only wrote `lightMode`), promote it so subsequent refreshes
+        // start with the right theme without waiting for this component to mount.
+        if (!ThemeService.getSavedTheme()) {
+            const lm = localStorage.getItem('lightMode');
+            if (lm === 'light' || lm === 'dark') {
+                applyResolvedTheme(lm);
+            }
+        }
+    // homeDispatch is stable (useReducer dispatch); alive.current is a ref
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     useEffect(() => {

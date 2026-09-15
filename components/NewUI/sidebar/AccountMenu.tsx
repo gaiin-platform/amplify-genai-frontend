@@ -24,6 +24,7 @@ import {
 import { signOut } from 'next-auth/react';
 import HomeContext from '@/pages/api/home/home.context';
 import { setUIPreference } from '@/components/NewUI/UIPreferenceBanner';
+import { ThemeService } from '@/utils/whiteLabel/themeService';
 
 const DOCS_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
 
@@ -86,12 +87,12 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   const setTheme = (mode: 'light' | 'dark') => {
     dispatch({ field: 'lightMode', value: mode });
     localStorage.setItem('lightMode', mode);
-    const root = document.documentElement;
-    if (mode === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    // Clear any 'system' mode so the explicit choice takes precedence on refresh
+    localStorage.setItem('amplify_appearance_mode', mode);
+    // ThemeService.setTheme writes to `user-theme-preference` — the key that
+    // ThemeService.getInitialTheme() reads on startup. Without this, refreshing
+    // after a theme change here would fall back to the config default.
+    ThemeService.setTheme(mode);
     setOpen(false);
   };
 
