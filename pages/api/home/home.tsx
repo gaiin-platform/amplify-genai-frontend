@@ -116,6 +116,7 @@ import { NewWorkflowsView } from '@/components/NewUI/views/NewWorkflowsView';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 import { BlankConversationCleanup } from '@/components/NewUI/shared/BlankConversationCleanup';
 import { UserPrefsSync } from '@/components/NewUI/shared/UserPrefsSync';
+import { LastChatRestore } from '@/components/NewUI/shared/LastChatRestore';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1707,6 +1708,11 @@ const Home = ({
                                     (chat font, storage selection) after fetchSettings completes,
                                     and seeds 'future-cloud' default for brand-new users. */}
                                 <UserPrefsSync />
+                                {/* Renders nothing — remembers the conversation being
+                                    viewed and re-opens it after a refresh, so reloading
+                                    inside a chat no longer drops the user on the
+                                    new-chat view. */}
+                                <LastChatRestore />
 
                                 {/* Unified new sidebar */}
                                 {page !== 'notebook' && (
@@ -1730,7 +1736,17 @@ const Home = ({
                                         `pendingNewConversationSend` (see effect below) covers the gap
                                         between NewHome's sessionStorage write and messageIsStreaming
                                         actually flipping true. */}
-                                    {page === 'chat' && (!selectedConversation || (selectedConversation.messages.length === 0 && !messageIsStreaming && !pendingNewConversationSend)) && (
+                                    {/* `messages?.length` — not `messages.length`: a conversation
+                                        record can reach `selectedConversation` with NO `messages`
+                                        field at all. updateWithRemoteConversations() writes the raw
+                                        /get/all cloud metadata into `conversations` without running
+                                        it through cleanConversationHistory() (the only thing that
+                                        backfills `messages: []`), and several paths dispatch a
+                                        history record straight into `selectedConversation`. Reading
+                                        it blind is an unhandled TypeError that blanks the whole app;
+                                        treating unknown as "no messages" shows the landing page and
+                                        lets the repair effect (~line 748) re-fetch. */}
+                                    {page === 'chat' && (!selectedConversation || ((selectedConversation.messages?.length ?? 0) === 0 && !messageIsStreaming && !pendingNewConversationSend)) && (
                                         <NewHome />
                                     )}
                                     {/* ConversationViewShell is always mounted while page=chat AND a
@@ -1745,7 +1761,7 @@ const Home = ({
                                     {page === 'chat' && selectedConversation && (
                                         <div
                                             key={selectedConversation.id}
-                                            style={(selectedConversation.messages.length === 0 && !messageIsStreaming && !pendingNewConversationSend) ? {
+                                            style={((selectedConversation.messages?.length ?? 0) === 0 && !messageIsStreaming && !pendingNewConversationSend) ? {
                                                 position: 'fixed',
                                                 top: 0,
                                                 left: '-100vw',
@@ -1846,8 +1862,12 @@ const Home = ({
                             </div>
                         )}
 
-                        {/* Transient operational loading messages (both UI flavours) */}
-                        <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
+                        {/* Transient operational loading messages (Loading Conversation…, Forking…) */}
+                        {uiPreference === 'new' ? (
+                            <NewUILoadingStatus open={!!loadingMessage} message={loadingMessage || 'Loading…'} />
+                        ) : (
+                            <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
+                        )}
                         {/* "Setting Up Amplify…" — New UI gets a quiet, accessible treatment;
                             classic UI keeps the original LoadingDialog unchanged. */}
                         {uiPreference === 'new' ? (

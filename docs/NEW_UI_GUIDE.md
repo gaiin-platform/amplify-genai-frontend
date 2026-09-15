@@ -162,6 +162,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `PromptTemplateDialogHost.tsx` | Single mount point for the popup above, at the new-UI root in `home.tsx` — a sibling of `NewSettingsModal`, never a descendant. Launch it with the exported `openPromptTemplateDialog(prompt)` and then close your own modal: the popup survives because it isn't in your subtree. Settings has three entry points (collapsed sidebar, expanded sidebar, ⌘,) so per-launcher hosts would have to be triplicated |
 | `LayeredBuilderHost.tsx` | Listens for `openLayeredBuilderTrigger` window events and renders `LayeredAssistantBuilder` in a portalled full-screen dialog. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch. Mounted at the new-UI root in `home.tsx` alongside `PromptTemplateDialogHost` |
 | `AssistantAdminUIHost.tsx` | Listens for `openAstAdminInterfaceTrigger` window events and renders `AssistantAdminUI`. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch so gear icons in `GroupAssistantsTab` open the admin interface. Mounted at the new-UI root in `home.tsx` alongside `LayeredBuilderHost` |
+| `lastViewedChat.ts` | The "refresh puts me back in the chat I was reading" vocabulary — `LAST_CHAT_KEY` (sessionStorage, so it survives a refresh but not a new tab), `nextRecordedChat` (`record`/`clear`/**`keep`** — an unknown message state must never clear a good id) and `findRestorableConversation` (proves content via `messages`, `compressedMessages`, **or** being cloud-stored, and normalizes `messages` to an array on the way out). Both keep *empty* apart from *unknown* per §36. No React imports |
+| `LastChatRestore.tsx` | Mounts once at the new-UI root; renders nothing. Records the conversation being viewed and re-selects it once per load, so reloading inside a chat no longer lands on NewHome. Restore waits for a non-empty `availableModels` (`handleSelectConversation` rewrites `conversation.model` when the model isn't in that map) and gates hydration on `conversationStateId !== 'init'`, **not** `=== 'post-init'` — `useHomeReducer` replaces that string with a uuid on every later `selectedConversation`/`conversations` dispatch. Defers to the `amplify_pending_message` bridge |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
 
 ### `sidebar/`
@@ -532,6 +534,24 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     `.user-message`) and retry until the DOM agrees, comparing with `!==` so an
     edit-and-resend's *shrinking* transcript is also awaited. Keep a frame budget after
     which the gate lifts, so an unexpected filter degrades to a late anchor, not to none.
+
+36. **`conversation.messages` in `state.conversations` has three shapes, and "no messages"
+    means *unknown*, not *empty*.** A record is either **full** (`messages: Message[]`),
+    **local/compressed** (`messages: []` + `compressedMessages` — every local chat looks
+    empty after `compressAllConversationMessages` on load and
+    `condenseForConversationHistory` on every update), or **cloud metadata with the
+    `messages` key missing entirely** — `updateWithRemoteConversations` writes the raw
+    `/get/all` records into `conversations`, bypassing `cleanConversationHistory`, which is
+    the only thing that backfills `messages: []`. So `messages.length > 0` as a
+    "has content?" test silently refuses every local conversation, and `messages.length`
+    read blind is an unhandled TypeError — old-UI code survives it because several paths
+    dispatch a history record straight into `selectedConversation` and Chat.tsx guards with
+    `?.`. Prove content with `messages` **or** `compressedMessages` **or**
+    `isRemoteConversation`, normalize `messages` to an array before handing a record to
+    anything, and never *clear* stored state on the strength of an unknown shape. Also
+    note `conversationStateId` is not a milestone you can wait for: `useHomeReducer`
+    replaces `'post-init'` with a fresh uuid on every later `selectedConversation` or
+    `conversations` dispatch, so gate on `!== 'init'`.
 
 ---
 
