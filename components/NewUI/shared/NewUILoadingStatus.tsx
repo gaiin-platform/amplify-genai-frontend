@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { createPortal } from 'react-dom';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -38,8 +39,13 @@ export const NewUILoadingStatus: React.FC<NewUILoadingStatusProps> = ({
   message = 'Loading…',
 }) => {
   if (!open) return null;
+  // Always portal to document.body so position:fixed is anchored to the
+  // real viewport — not to a transformed/filtered ancestor in the component
+  // tree (CSS transforms, backdrop-filter, will-change on any ancestor all
+  // create a new containing block that traps fixed-positioned descendants).
+  if (typeof document === 'undefined') return null;
 
-  return (
+  return createPortal(
     <div
       role="status"
       aria-live="polite"
@@ -149,7 +155,8 @@ export const NewUILoadingStatus: React.FC<NewUILoadingStatusProps> = ({
           }
         }
       `}</style>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

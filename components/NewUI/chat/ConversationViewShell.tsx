@@ -36,6 +36,7 @@ import { NewUIUserMessageMarkdownLayer } from './NewUIUserMessageMarkdownLayer';
 import { NewUITranscriptAttachmentsLayer } from './NewUITranscriptAttachmentsLayer';
 import { NewUITranscriptPastedTextLayer } from './NewUITranscriptPastedTextLayer';
 import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
+import { NewUISourcesLayer } from './NewUISourcesLayer';
 import HomeContext from '@/pages/api/home/home.context';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
@@ -1347,6 +1348,10 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
           the same component the composer uses — instead of the classic modal,
           which is trapped inside .chatcontainer's mask/stacking context */}
       <NewUITranscriptPreviewLayer />
+
+      {/* Sources disclosure — replaces ChatSourcesBlock's ExpansionComponent
+          with a compact, accessible pill + flat source-card panel. */}
+      <NewUISourcesLayer />
     </div>
   );
 };
