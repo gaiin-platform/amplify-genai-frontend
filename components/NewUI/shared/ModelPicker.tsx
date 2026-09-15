@@ -24,7 +24,7 @@
  * Effort levels: existing REASONING_LEVELS ('low' | 'medium' | 'high' | 'off')
  * Positioning: Floating UI throughout — primary panel AND both submenus
  *   (submenus use the shared flip/shift stack in ./menuPositioning, so they
- *   never clip against a viewport edge). See NEW_UI_DOCS.md Phase 48.
+ *   never clip against a viewport edge).
  * Hover previews: "More models" rows show a model detail card (./InfoFloatCard).
  */
 import React, {

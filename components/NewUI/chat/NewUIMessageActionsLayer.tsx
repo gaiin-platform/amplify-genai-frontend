@@ -52,7 +52,7 @@
  *    the nearest preceding `.enhanced-chat-message.user-message` sibling.
  *  - Good/bad rating persists to `message.data.newUiRating` / `newUiFeedback` via
  *    the always-safe `handleUpdateSelectedConversation` context handler (see
- *    NEW_UI_DOCS.md §12 Phase 28 for why it deliberately does NOT call the
+ *    see docs/NEW_UI_GUIDE.md §5 rule 24 for why it deliberately does NOT call the
  *    group-assistant-scoped `saveUserRating` endpoint).
  */
 

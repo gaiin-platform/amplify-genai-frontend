@@ -3,8 +3,7 @@
  * mechanism that Chat.tsx (a DO-NOT-CHANGE file) actually uses to decide
  * whether the WEB_SEARCH plugin is present in its outgoing request.
  *
- * Root cause this works around (see NEW_UI_DOCS.md §13 "RAG / Web Search
- * Wiring Gap"): Chat.tsx maintains its OWN local `plugins` array, populated
+ * Root cause this works around: Chat.tsx maintains its OWN local `plugins` array, populated
  * once per mount from `getActivePlugins()` (utils/app/plugin.ts). For
  * PluginID.WEB_SEARCH specifically, `getActivePlugins` ALWAYS overrides
  * whatever is in localStorage with `settings.featureOptions.includeWebSearch`
@@ -30,7 +29,7 @@
  * The very first message sent immediately after enabling Web Search in an
  * already-open, already-mounted conversation may still be sent without the
  * plugin. Every conversation opened/reloaded/created AFTER the toggle has
- * been flipped once will work correctly. See NEW_UI_PORTING_STATUS.md.
+ * been flipped once will work correctly.
  */
 import { getSettings, saveSettings } from '@/utils/app/settings';
 

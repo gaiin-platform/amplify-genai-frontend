@@ -16,7 +16,7 @@
  * (CronScheduleBuilder, ActionSetList, CompositeActionsPanel, ApiItemSelector,
  * ApiParameterBindingEditor) inside a new-UI-styled wrapper. These sub-components still use
  * their original (old-UI) internal styling. TODO: give these a dedicated new-UI visual pass
- * in a future phase — tracked in NEW_UI_PORTING_STATUS.md.
+ * in a future phase.
  *
  * Design tokens: --bg-app, --bg-sidebar, --bg-raised, --bg-hover, --bg-active,
  *                --border-subtle, --text-primary, --text-secondary, --text-muted, --accent

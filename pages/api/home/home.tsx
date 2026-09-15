@@ -1724,7 +1724,7 @@ const Home = ({
                                         user hit send on the very first message of a new conversation).
                                         `pendingNewConversationSend` (see effect below) covers the gap
                                         between NewHome's sessionStorage write and messageIsStreaming
-                                        actually flipping true. See NEW_UI_DOCS.md §12 Phase 27. */}
+                                        actually flipping true. */}
                                     {page === 'chat' && (!selectedConversation || (selectedConversation.messages.length === 0 && !messageIsStreaming && !pendingNewConversationSend)) && (
                                         <NewHome />
                                     )}

@@ -559,7 +559,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   // + `ref={messagesEndRef}`, ~L1743-1746), so resizing it to make room made the
   // observer report `isIntersecting` and re-enabled the very auto-scroll we were
   // suppressing, dragging the prompt off the top of the screen every 100ms.
-  // See NEW_UI_DOCS.md Phase 41a. This approach is immune to all of that: the
+  // This approach is immune to all of that: the
   // scrolls are inert regardless of what `autoScrollEnabled` says, so no layout
   // measurement can undo the freeze.
   //

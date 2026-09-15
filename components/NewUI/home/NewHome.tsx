@@ -467,7 +467,7 @@ export const NewHome: React.FC = () => {
     // page again during the ~150-300ms window before ConversationViewShell's
     // pending-message bridge actually injects the text + clicks send (during
     // which selectedConversation.messages.length is genuinely still 0). See
-    // NEW_UI_DOCS.md §12 Phase 27 and home.tsx's pendingNewConversationSend.
+    // See home.tsx's pendingNewConversationSend.
     // Still needed for the text-only path, which has no optimistic message.
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('amplifyNewConversationSendPending'));
