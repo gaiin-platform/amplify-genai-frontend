@@ -28,7 +28,7 @@ export const Checkbox: React.FC<CheckboxProps> = ({ id, label, checked, onChange
             <polyline points="1.5 6 4.5 9 10.5 1"></polyline>
           </svg>
         </span>
-        <span className={`mt-[1px] dark:text-white ${bold ? "font-bold" : ""}`}>{label}</span>
+        <span className={`mt-[1px] text-gray-900 dark:text-white ${bold ? "font-bold" : ""}`}>{label}</span>
       </label>
 
       <style jsx>{`

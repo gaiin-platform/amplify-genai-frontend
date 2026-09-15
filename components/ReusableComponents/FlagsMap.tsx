@@ -35,7 +35,7 @@ export const FlagsMap: React.FC<Props> = ({ id, flags, state, flagChanged }) => 
             onChange={(checked) => flagChanged(flag.key, checked)}
           />
           {flag.description && (
-            <div className="mb-2 pl-6 pr-2">
+            <div className="mb-2 pl-6 pr-2 text-sm text-gray-600 dark:text-gray-400">
               {highlightKeywords(flag.description)}
             </div>
           )}

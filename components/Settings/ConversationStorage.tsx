@@ -200,7 +200,7 @@ export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendi
             <InfoBox
               content = { 
               <div className='w-full flex justify-center text-center'>
-                  <span className="ml-2 text-xs"> 
+                  <span className="ml-2 text-xs text-gray-700 dark:text-gray-300">
                   {"These are default settings that could be manually overwritten at the conversation level as indicated by the cloud icon."}
                   <br className='mb-2'></br>
                   {"If you are concerned with privacy, you can store your conversations locally, but they will not be available across multiple devices or browsers."}
