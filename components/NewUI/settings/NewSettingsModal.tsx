@@ -164,6 +164,9 @@ const GeneralSection: FC = () => {
     setUserDefaultModelIdState(id);
     setUserDefaultModelId(id || null);
     setModelDropdownOpen(false);
+    // Persist server-side so the choice roams. `null` is an explicit clear
+    // ("System default"), which must propagate to other devices too.
+    void saveDisplayPrefsToServer({ userDefaultModelId: id || null });
   };
 
   const selectedModelName = allModels.find((m) => m.id === userDefaultModelId)?.name ?? 'System default';
@@ -178,6 +181,9 @@ const GeneralSection: FC = () => {
     setUserDefaultEffortIdState(id);
     setUserDefaultEffort(id || null);
     setEffortDropdownOpen(false);
+    // Persist server-side so the choice roams. `null` is an explicit clear
+    // ("Medium (default)"), which must propagate to other devices too.
+    void saveDisplayPrefsToServer({ userDefaultEffort: id || null });
   };
 
   const selectedEffortLabel = EFFORT_OPTIONS.find((e) => e.id === userDefaultEffortId)?.label ?? 'Medium (default)';

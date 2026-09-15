@@ -1,8 +1,15 @@
 /**
  * UserPrefsSync — mounts once inside the new-UI layout, renders nothing.
  *
- * Applies the user's server-synced display prefs (chat font + conversation
- * storage) to this device, and seeds the system defaults for brand-new users.
+ * Applies the user's server-synced display prefs (chat font, conversation
+ * storage, default model, default reasoning effort) to this device, seeds the
+ * system defaults for brand-new users, and backfills prefs that were chosen
+ * before they roamed.
+ *
+ * Model/effort need no notification step: ModelPicker, NewHome and
+ * ConversationComposer all read their localStorage keys lazily, so writing the
+ * key before they next mount is sufficient. The mount pass below runs within
+ * milliseconds of the new-UI shell appearing, well before Settings can be opened.
  *
  * ── Why this is not a one-shot "if unset, write the default" ────────────────
  *
@@ -35,8 +42,16 @@ import {
     DEFAULT_STORAGE_SELECTION,
     STORAGE_SELECTION_LS_KEY,
     applyServerPrefsToLocalStorage,
+    backfillLocalDefaultsToServer,
 } from './userDisplayPrefs';
 import type { ConversationStorage } from '@/types/conversationStorage';
+
+/**
+ * Module-scoped, not a ref: this must run once per page load, and StrictMode
+ * mounts → unmounts → remounts every component, which would otherwise pay for
+ * a second backfill fetch.
+ */
+let backfillAttempted = false;
 
 /**
  * Grace period before seeding the hardcoded default, so the concurrent
@@ -103,6 +118,15 @@ export const UserPrefsSync: FC = () => {
             graceElapsed = true;
             syncServerValue();
             seedDefaultIfNeeded();
+
+            // Once the server has had time to answer, publish any pref this user
+            // set before it roamed. Decides from its own fresh fetch and skips
+            // every key the server already holds, so it cannot clobber a newer
+            // choice made on another device.
+            if (!backfillAttempted) {
+                backfillAttempted = true;
+                void backfillLocalDefaultsToServer();
+            }
         }, DEFAULT_SEED_DELAY_MS);
 
         window.addEventListener('updateFeatureSettings', handleEvent);

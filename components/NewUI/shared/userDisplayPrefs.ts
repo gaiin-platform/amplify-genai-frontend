@@ -1,13 +1,19 @@
 /**
- * userDisplayPrefs.ts — React-free module for user display preferences
- * (chat font + conversation storage) with server-side sync.
+ * userDisplayPrefs.ts — React-free module for the user's personal display
+ * preferences, with server-side sync so they roam across devices/browsers:
  *
- * These prefs ride along in the `settings` server object so they roam across
- * devices/browsers, following the precedent set by `uiPreference`
- * (see UIPreferenceBanner#setUIPreference). They are also mirrored into their
- * dedicated localStorage keys so existing consumers keep working unchanged.
+ *   - chat font            (`amplify_chat_font`)
+ *   - conversation storage (`storageSelection`)
+ *   - default model        (`amplify_user_default_model_id`)
+ *   - default effort       (`amplify_user_default_effort`)
  *
- * ── The two constraints that shape this file ────────────────────────────────
+ * All four ride along in the `settings` server object, following the precedent
+ * set by `uiPreference` (see UIPreferenceBanner#setUIPreference), and are
+ * mirrored into their dedicated localStorage keys so every existing consumer
+ * (ConversationViewShell, ModelPicker, NewHome, ConversationComposer) keeps
+ * working unchanged — they all read those keys lazily.
+ *
+ * ── The three constraints that shape this file ──────────────────────────────
  *
  * 1. The backend schema (`save_settings_schema.py`) declares
  *    `required: ["theme", "featureOptions", "hiddenModelIds"]`. A POST missing
@@ -20,11 +26,19 @@
  *    freshest source is the server itself (localStorage may be thin on a new
  *    device, or stale). Same order as UIPreferenceBanner#setUIPreference.
  *
+ * 3. Model and effort have a "System default" affordance, i.e. an explicit
+ *    *clear*. "Cleared" must roam, but must not be confused with "this server
+ *    object predates the feature". Hence: `null` = explicitly cleared (roams
+ *    and clears other devices), key ABSENT = no opinion (leaves devices alone).
+ *
  * NO React imports — safe to call from effects, event handlers, and
  * non-component modules.
  */
 
 import { saveUserSettings, fetchUserSettings } from '@/services/settingsService';
+import { getUserDefaultModelId, setUserDefaultModelId } from './userDefaultModel';
+import { getUserDefaultEffort, setUserDefaultEffort } from './userDefaultEffort';
+import type { EffortLevel } from './ModelPicker';
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 /** Dedicated localStorage key read by ConversationViewShell + the settings modal */
@@ -40,6 +54,21 @@ export const DEFAULT_CHAT_FONT: 'serif' | 'sans' = 'sans';
 /** Default conversation storage — new conversations go to the cloud */
 export const DEFAULT_STORAGE_SELECTION = 'future-cloud' as const;
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+/**
+ * The prefs that roam. `null` on model/effort means "explicitly cleared, fall
+ * back to the system default"; omitting a key means "don't touch it".
+ */
+export interface DisplayPrefs {
+    chatFont?: 'serif' | 'sans';
+    storageSelection?: string;
+    userDefaultModelId?: string | null;
+    userDefaultEffort?: EffortLevel | null;
+}
+
+const VALID_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'off'];
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 /** Read the raw settings blob from localStorage (includes server-synced extra fields). */
@@ -47,11 +76,18 @@ const readSettingsBlob = (): Record<string, unknown> => {
     if (typeof window === 'undefined') return {};
     try {
         const parsed = JSON.parse(localStorage.getItem(SETTINGS_BLOB_KEY) || '{}');
-        return parsed && typeof parsed === 'object' ? parsed : {};
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
     } catch {
         return {};
     }
 };
+
+/**
+ * Drop keys explicitly set to `undefined` so a caller passing an absent value
+ * can never be mistaken for an intentional clear (which is `null`).
+ */
+const omitUndefined = (o: Record<string, unknown>): Record<string, unknown> =>
+    Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined));
 
 /**
  * Guarantee the three server-required keys exist, without inventing values that
@@ -114,14 +150,12 @@ export const getChatFont = (): 'serif' | 'sans' => {
  *
  * Never throws — returns false on failure so callers can stay fire-and-forget.
  */
-export const saveDisplayPrefsToServer = async (prefs: {
-    chatFont?: 'serif' | 'sans';
-    storageSelection?: string;
-}): Promise<boolean> => {
+export const saveDisplayPrefsToServer = async (prefs: DisplayPrefs): Promise<boolean> => {
+    const patch = omitUndefined(prefs as Record<string, unknown>);
+
     // Mirror locally first so the UI is correct even if the network call fails.
     try {
-        const localMerged = { ...readSettingsBlob(), ...prefs };
-        localStorage.setItem(SETTINGS_BLOB_KEY, JSON.stringify(localMerged));
+        localStorage.setItem(SETTINGS_BLOB_KEY, JSON.stringify({ ...readSettingsBlob(), ...patch }));
     } catch (e) {
         console.error('[userDisplayPrefs] Failed to mirror display prefs locally:', e);
     }
@@ -138,10 +172,10 @@ export const saveDisplayPrefsToServer = async (prefs: {
             // Non-fatal — fall through to the local blob.
         }
 
-        const merged = withRequiredFields({ ...readSettingsBlob(), ...base, ...prefs });
+        const merged = withRequiredFields({ ...readSettingsBlob(), ...base, ...patch });
         const ok = await saveUserSettings(merged);
         if (!ok) {
-            console.error('[userDisplayPrefs] Server rejected display prefs save:', prefs);
+            console.error('[userDisplayPrefs] Server rejected display prefs save:', patch);
         }
         return !!ok;
     } catch (e) {
@@ -153,13 +187,15 @@ export const saveDisplayPrefsToServer = async (prefs: {
 // ─── Server → local sync ───────────────────────────────────────────────────────
 
 /**
- * Read the server-synced display prefs out of the settings blob and apply the
- * chat font to its dedicated key.
+ * Read the server-synced display prefs out of the settings blob and apply them
+ * to their dedicated localStorage keys.
  *
- * - Promotes `chatFont` to CHAT_FONT_LS_KEY and fires `amplifyChatFontChanged`
- *   only when the value actually changed (so listeners don't churn).
- * - Returns the raw server-side values so the caller can decide how to apply
- *   `storageSelection`, which has side effects the font does not.
+ * - `chatFont` fires `amplifyChatFontChanged` only when it actually changed, so
+ *   ConversationViewShell doesn't churn.
+ * - Model/effort are applied through their own setters, reusing their
+ *   validation. A `null` clears them; an absent key leaves this device alone.
+ * - `storageSelection` is returned rather than applied, because writing it has
+ *   consequences the caller has to sequence (see UserPrefsSync).
  */
 export const applyServerPrefsToLocalStorage = (): {
     chatFont: 'serif' | 'sans' | null;
@@ -180,10 +216,84 @@ export const applyServerPrefsToLocalStorage = (): {
         chatFont = blob.chatFont;
     }
 
+    // ── Default model ──────────────────────────────────────────────────────
+    // `null` = cleared on another device; absent = server has no opinion.
+    if ('userDefaultModelId' in blob) {
+        const v = blob.userDefaultModelId;
+        if (v === null) {
+            if (getUserDefaultModelId() !== null) setUserDefaultModelId(null);
+        } else if (typeof v === 'string' && v.trim()) {
+            if (getUserDefaultModelId() !== v.trim()) setUserDefaultModelId(v);
+        }
+    }
+
+    // ── Default reasoning effort ───────────────────────────────────────────
+    if ('userDefaultEffort' in blob) {
+        const v = blob.userDefaultEffort;
+        if (v === null) {
+            if (getUserDefaultEffort() !== null) setUserDefaultEffort(null);
+        } else if (typeof v === 'string' && VALID_EFFORTS.includes(v as EffortLevel)) {
+            if (getUserDefaultEffort() !== v) setUserDefaultEffort(v as EffortLevel);
+        }
+    }
+
     // ── Storage selection ──────────────────────────────────────────────────
     if (typeof blob.storageSelection === 'string' && blob.storageSelection) {
         storageSelection = blob.storageSelection;
     }
 
     return { chatFont, storageSelection };
+};
+
+// ─── One-time backfill for users who set a preference before it roamed ────────
+
+/**
+ * Upload this device's locally-set prefs for any key the server has **no
+ * opinion on**, so a user who chose a font/model/effort before this feature
+ * existed doesn't have to re-pick it to make it roam.
+ *
+ * Deliberately conservative:
+ *  - Decides from a FRESH server fetch, never the local blob: "absent" is only
+ *    meaningful once the server has actually answered, and a failed fetch
+ *    aborts rather than guesses.
+ *  - Skips any key the server already holds (including an explicit `null`), so
+ *    a stale device can never overwrite a newer choice made elsewhere.
+ *  - Excludes `storageSelection` on purpose. That key may have been written by
+ *    the admin-configured default rather than chosen by the user, and freezing
+ *    an admin default as a *personal* preference would make future admin
+ *    changes stop applying to them.
+ *
+ * Returns true when it actually saved something.
+ */
+export const backfillLocalDefaultsToServer = async (): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
+
+    let server: Record<string, unknown>;
+    try {
+        const result = await fetchUserSettings();
+        if (!result?.success) return false;                     // can't tell — don't guess
+        server = (result.data && typeof result.data === 'object')
+            ? (result.data as Record<string, unknown>)
+            : {};
+    } catch {
+        return false;
+    }
+
+    const patch: DisplayPrefs = {};
+
+    if (!('chatFont' in server)) {
+        const local = localStorage.getItem(CHAT_FONT_LS_KEY);
+        if (local === 'serif' || local === 'sans') patch.chatFont = local;
+    }
+    if (!('userDefaultModelId' in server)) {
+        const local = getUserDefaultModelId();
+        if (local) patch.userDefaultModelId = local;
+    }
+    if (!('userDefaultEffort' in server)) {
+        const local = getUserDefaultEffort();
+        if (local) patch.userDefaultEffort = local;
+    }
+
+    if (Object.keys(patch).length === 0) return false;
+    return await saveDisplayPrefsToServer(patch);
 };

@@ -29,10 +29,13 @@ import {
     getChatFont,
     saveDisplayPrefsToServer,
     applyServerPrefsToLocalStorage,
+    backfillLocalDefaultsToServer,
     DEFAULT_CHAT_FONT,
     DEFAULT_STORAGE_SELECTION,
     CHAT_FONT_LS_KEY,
 } from '@/components/NewUI/shared/userDisplayPrefs';
+import { USER_DEFAULT_MODEL_KEY } from '@/components/NewUI/shared/userDefaultModel';
+import { USER_DEFAULT_EFFORT_KEY } from '@/components/NewUI/shared/userDefaultEffort';
 
 // ── Browser globals (vitest runs this project in the 'node' environment) ──────
 const store = new Map<string, string>();
@@ -190,5 +193,161 @@ describe('applyServerPrefsToLocalStorage', () => {
 describe('system defaults', () => {
     it('stores new conversations in the cloud going forward', () => {
         expect(DEFAULT_STORAGE_SELECTION).toBe('future-cloud');
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Default model + default reasoning effort
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe('default model / effort — saving', () => {
+    beforeEach(() => {
+        vi.mocked(fetchUserSettings).mockResolvedValue({ success: true, data: null } as any);
+    });
+
+    it('sends a schema-valid payload carrying both prefs', async () => {
+        await saveDisplayPrefsToServer({ userDefaultModelId: 'gpt-4o', userDefaultEffort: 'high' });
+
+        const sent = vi.mocked(saveUserSettings).mock.calls[0][0];
+        expect(schemaAccepts(sent)).toBe(true);
+        expect(sent.userDefaultModelId).toBe('gpt-4o');
+        expect(sent.userDefaultEffort).toBe('high');
+    });
+
+    it('sends an explicit null when the user picks "System default", so the clear roams', async () => {
+        await saveDisplayPrefsToServer({ userDefaultModelId: null });
+
+        const sent = vi.mocked(saveUserSettings).mock.calls[0][0];
+        expect(sent).toHaveProperty('userDefaultModelId', null);
+    });
+
+    it('never turns an omitted pref into a clear', async () => {
+        await saveDisplayPrefsToServer({ userDefaultEffort: 'low' });
+
+        const sent = vi.mocked(saveUserSettings).mock.calls[0][0];
+        expect(sent).not.toHaveProperty('userDefaultModelId');
+    });
+
+    it('treats an explicit undefined as "leave alone", not as a clear', async () => {
+        await saveDisplayPrefsToServer({ userDefaultModelId: undefined, userDefaultEffort: 'low' });
+
+        const sent = vi.mocked(saveUserSettings).mock.calls[0][0];
+        expect(sent).not.toHaveProperty('userDefaultModelId');
+        expect(sent.userDefaultEffort).toBe('low');
+    });
+});
+
+describe('default model / effort — applying a server value', () => {
+    it('applies both to the keys the pickers actually read', () => {
+        setBlob({ userDefaultModelId: 'claude-3', userDefaultEffort: 'high' });
+
+        applyServerPrefsToLocalStorage();
+
+        expect(store.get(USER_DEFAULT_MODEL_KEY)).toBe('claude-3');
+        expect(store.get(USER_DEFAULT_EFFORT_KEY)).toBe('high');
+    });
+
+    it('propagates an explicit clear from another device', () => {
+        store.set(USER_DEFAULT_MODEL_KEY, 'stale-model');
+        store.set(USER_DEFAULT_EFFORT_KEY, 'low');
+        setBlob({ userDefaultModelId: null, userDefaultEffort: null });
+
+        applyServerPrefsToLocalStorage();
+
+        expect(store.has(USER_DEFAULT_MODEL_KEY)).toBe(false);
+        expect(store.has(USER_DEFAULT_EFFORT_KEY)).toBe(false);
+    });
+
+    it('leaves a local choice alone when the server has no opinion', () => {
+        store.set(USER_DEFAULT_MODEL_KEY, 'local-pick');
+        store.set(USER_DEFAULT_EFFORT_KEY, 'high');
+        setBlob({ theme: 'dark' });                 // pre-feature server object
+
+        applyServerPrefsToLocalStorage();
+
+        expect(store.get(USER_DEFAULT_MODEL_KEY)).toBe('local-pick');
+        expect(store.get(USER_DEFAULT_EFFORT_KEY)).toBe('high');
+    });
+
+    it('ignores an invalid effort rather than writing it through', () => {
+        store.set(USER_DEFAULT_EFFORT_KEY, 'high');
+        setBlob({ userDefaultEffort: 'ludicrous' });
+
+        applyServerPrefsToLocalStorage();
+
+        expect(store.get(USER_DEFAULT_EFFORT_KEY)).toBe('high');
+    });
+});
+
+describe('backfillLocalDefaultsToServer', () => {
+    it('publishes prefs the user set before they roamed', async () => {
+        store.set(USER_DEFAULT_MODEL_KEY, 'gpt-4o');
+        store.set(USER_DEFAULT_EFFORT_KEY, 'high');
+        store.set(CHAT_FONT_LS_KEY, 'serif');
+        vi.mocked(fetchUserSettings).mockResolvedValue({
+            success: true,
+            data: { theme: 'dark', featureOptions: {}, hiddenModelIds: [] },
+        } as any);
+
+        expect(await backfillLocalDefaultsToServer()).toBe(true);
+
+        const sent = vi.mocked(saveUserSettings).mock.calls[0][0];
+        expect(sent.userDefaultModelId).toBe('gpt-4o');
+        expect(sent.userDefaultEffort).toBe('high');
+        expect(sent.chatFont).toBe('serif');
+    });
+
+    it('never overwrites a value the server already holds', async () => {
+        store.set(USER_DEFAULT_MODEL_KEY, 'stale-local');
+        vi.mocked(fetchUserSettings).mockResolvedValue({
+            success: true,
+            data: { theme: 'dark', featureOptions: {}, hiddenModelIds: [], userDefaultModelId: 'newer-elsewhere' },
+        } as any);
+
+        expect(await backfillLocalDefaultsToServer()).toBe(false);
+        expect(saveUserSettings).not.toHaveBeenCalled();
+    });
+
+    it('respects an explicit server-side clear instead of re-uploading a local value', async () => {
+        store.set(USER_DEFAULT_EFFORT_KEY, 'high');
+        vi.mocked(fetchUserSettings).mockResolvedValue({
+            success: true,
+            data: { theme: 'dark', featureOptions: {}, hiddenModelIds: [], userDefaultEffort: null },
+        } as any);
+
+        expect(await backfillLocalDefaultsToServer()).toBe(false);
+        expect(saveUserSettings).not.toHaveBeenCalled();
+    });
+
+    it('never backfills storageSelection — it may be an admin default, not a user choice', async () => {
+        store.set('storageSelection', 'local-only');
+        store.set(CHAT_FONT_LS_KEY, 'serif');
+        vi.mocked(fetchUserSettings).mockResolvedValue({
+            success: true,
+            data: { theme: 'dark', featureOptions: {}, hiddenModelIds: [] },
+        } as any);
+
+        await backfillLocalDefaultsToServer();
+
+        const sent = vi.mocked(saveUserSettings).mock.calls[0][0];
+        expect(sent).not.toHaveProperty('storageSelection');
+    });
+
+    it('aborts rather than guessing when the settings fetch fails', async () => {
+        store.set(USER_DEFAULT_MODEL_KEY, 'gpt-4o');
+        vi.mocked(fetchUserSettings).mockResolvedValue({ success: false } as any);
+
+        expect(await backfillLocalDefaultsToServer()).toBe(false);
+        expect(saveUserSettings).not.toHaveBeenCalled();
+    });
+
+    it('does nothing when the user has no local prefs to publish', async () => {
+        vi.mocked(fetchUserSettings).mockResolvedValue({
+            success: true,
+            data: { theme: 'dark', featureOptions: {}, hiddenModelIds: [] },
+        } as any);
+
+        expect(await backfillLocalDefaultsToServer()).toBe(false);
+        expect(saveUserSettings).not.toHaveBeenCalled();
     });
 });
