@@ -84,7 +84,7 @@ const CHAT_FILTERS_KEY = 'amplify_sidebar_chat_filters';
 // Collapsed icon-rail mode (52px) ignores these values entirely.
 const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 480;
-const SIDEBAR_DEFAULT_WIDTH = 310;
+const SIDEBAR_DEFAULT_WIDTH = 280; // Item 8: reduced from 310 → 280px per spec
 const SIDEBAR_WIDTH_KEY = 'amplify_sidebar_width';
 // Below this viewport width the sidebar auto-collapses to the icon rail.
 // Chosen so the chat content area has at least ~500px at the default sidebar width.

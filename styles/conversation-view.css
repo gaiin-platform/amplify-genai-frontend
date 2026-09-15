@@ -618,38 +618,59 @@
   margin: 0 !important;
 }
 
+/* Item 6 — Transcript image thumbnails: true aspect ratio.
+   Previously forced to 144×136 near-square (object-fit: cover cropping).
+   Now: card auto-sizes to the image's natural proportions, capped at 240×180px.
+   The image uses object-fit: contain so nothing is cropped.
+   The card wrapper gets a subtle border + 12px border-radius for polish.
+
+   Architecture note: the old structure used position:absolute inset-0 to fill
+   a fixed-height parent. Switching the inner container to position:relative lets
+   it size to its content (the image), so no fixed height is needed on any ancestor.
+   Absolutely-positioned overlays (download button, bottom label) are hidden via
+   existing display:none rules so they don't affect layout. */
 [data-new-ui="true"] .new-ui-transcript-attachments .flex.flex-wrap > .mr-3.mb-3 {
   margin: 0 !important;
-  flex: 0 0 144px !important;
-  width: 144px !important;
-  height: 136px !important;
+  flex: 0 0 auto !important;
+  width: auto !important;
+  height: auto !important;
+  max-width: 240px !important;
 }
 
 [data-new-ui="true"] .new-ui-transcript-attachments .flex.flex-wrap > .mr-3.mb-3 > .relative.group {
-  width: 144px !important;
-  height: 136px !important;
+  width: auto !important;
+  height: auto !important;
 }
 
 [data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative {
-  width: 144px !important;
-  height: 136px !important;
-  padding: 0 !important;
-  background: transparent !important;
-  border: 0 !important;
-  border-radius: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 4px !important;
+  background: var(--bg-raised) !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 12px !important;
   box-shadow: none !important;
-  overflow: visible !important;
+  overflow: hidden !important;
 }
 
 [data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.inset-0 {
-  inset: 0 !important;
+  /* Convert from absolute-fill to flow layout so the image defines the height */
+  position: relative !important;
+  inset: auto !important;
   height: auto !important;
-  border-radius: 10px !important;
+  border-radius: 8px !important;
   overflow: hidden !important;
 }
 
 [data-new-ui="true"] .new-ui-transcript-attachments img {
   display: block !important;
+  object-fit: contain !important;
+  width: auto !important;
+  height: auto !important;
+  /* 240px card - 4px padding on each side = 232px; 180px - 4px*2 = 172px */
+  max-width: 232px !important;
+  max-height: 172px !important;
+  border-radius: 8px !important;
 }
 
 [data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.inset-0:not(.cursor-pointer) {
@@ -870,9 +891,18 @@
   margin-bottom: 0 !important;
 }
 
+/* Item 1 — Remove top margin from the first block inside a message so the
+   first heading or paragraph sits flush with the message top. Without this,
+   a response that opens with an h1/h2 gets a large gap at the top (up to 28px)
+   because the heading's margin-top applies even as the first child. */
+[data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .prose > *:first-child,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .assistantContentBlock > *:first-child {
+  margin-top: 0 !important;
+}
+
 [data-new-ui="true"] .assistantContentBlock h1 {
   font-size: 22px !important;
-  font-weight: 400 !important;
+  font-weight: 600 !important; /* Item 1: all headings weight 600 (was 400) */
   margin-top: 28px !important;
   margin-bottom: 12px !important;
   color: var(--text-primary) !important;
@@ -882,10 +912,11 @@
    covered for .prose but h1 was not. Tailwind Typography defaults h1 to ~2.25em
    (~38px) which causes "randomly some text appears larger" symptoms in AI
    responses. Normalised to 20px — close to h2 (18px), clearly differentiated
-   from body text (17px), well below browser/Tailwind defaults. */
+   from body text (17px), well below browser/Tailwind defaults.
+   Item 1: weight changed 700→600 so all headings use the same weight. */
 [data-new-ui="true"] .enhanced-chat-message.assistant-message .prose h1 {
   font-size: 20px !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
   margin-top: 28px !important;
   margin-bottom: 12px !important;
   color: var(--text-primary) !important;
