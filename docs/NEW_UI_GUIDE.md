@@ -519,6 +519,20 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     CSS fallback. Grep all three and route them through one resolver, or the setting will
     report a value the app is not using.
 
+35. **The transcript in the DOM is one commit behind `selectedConversation`, so a DOM
+    measurement triggered by a state change must verify the DOM caught up.** `Chat.tsx`
+    does not render context state — it mirrors it into its own `useState` in a passive
+    effect (L343-346). Child effects flush before the parent's, but that mirror is a
+    *setState*, so its re-render has not committed while a new-UI effect runs. A
+    measurement that finds *something* therefore silently measures the PREVIOUS message:
+    `anchorNewPrompt` parked follow-up sends on the prior prompt, and only worked on the
+    first send because "zero user bubbles" happened to look like "not mounted yet" and hit
+    the retry path. Pass the count you expect (mirroring Chat's render filter — an
+    `actionResult` message is user-role but renders as `.action-message`, not
+    `.user-message`) and retry until the DOM agrees, comparing with `!==` so an
+    edit-and-resend's *shrinking* transcript is also awaited. Keep a frame budget after
+    which the gate lifts, so an unexpected filter degrades to a late anchor, not to none.
+
 ---
 
 ## 6. Key Architecture Notes

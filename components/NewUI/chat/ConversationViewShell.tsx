@@ -132,6 +132,18 @@ const STREAM_TICK_MS = 100;
  */
 const PROG_SCROLL_GRACE_MS = 250;
 
+/**
+ * Frame budget for the anchor loop (~1s at 60fps). Retrying on frames rather
+ * than on a timer is what lets the freeze land before Chat.tsx's own 50ms
+ * scroll-to-spacer; see `anchorNewPrompt`.
+ */
+const ANCHOR_MAX_FRAMES = 60;
+
+/** User bubbles currently in the DOM — how far behind our state Chat.tsx is. */
+function countUserMessages(container: HTMLElement) {
+  return container.querySelectorAll('.enhanced-chat-message.user-message').length;
+}
+
 export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   stopConversationRef,
 }) => {
@@ -733,15 +745,28 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
    * spacer, i.e. shows blank. Whoever gets there first wins, so retrying every
    * ~16ms rather than every 50ms is what lets the freeze land before that
    * scroll. Same ~1s total budget (60 frames).
+   *
+   * ⚠ `expectedUserMessages` is not optional bookkeeping — it is what makes a
+   * FOLLOW-UP send land on the right bubble. Chat.tsx does not render
+   * `selectedConversation`; it mirrors it into its own `useState` in a passive
+   * effect (Chat.tsx L343-346). Child effects flush before ours, but that
+   * mirror is a *setState*, so its re-render has not committed by the time we
+   * run — the transcript in the DOM is one commit behind our props. On the
+   * first send that is harmless (zero user bubbles ⇒ `measureAnchorTarget`
+   * returns null ⇒ we retry until the prompt mounts), but on a follow-up there
+   * is always a STALE last user bubble to measure, so we would anchor to the
+   * PREVIOUS prompt and stop. Passing the count we expect turns that silent
+   * mis-measure back into a retry. Past the frame budget the gate lifts, so a
+   * transcript that never grows still gets anchored rather than left frozen.
    */
-  const anchorNewPrompt = useCallback(() => {
+  const anchorNewPrompt = useCallback((expectedUserMessages?: number) => {
     let attempts = 0;
 
     const run = () => {
       const container = getContainer();
       const sentinel = container ? getSentinel(container) : null;
       if (!container || !sentinel || !shellRef.current) {
-        if (attempts++ < 60) requestAnimationFrame(run);
+        if (attempts++ < ANCHOR_MAX_FRAMES) requestAnimationFrame(run);
         return;
       }
 
@@ -754,10 +779,19 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
       // The just-sent message may not have mounted yet — retry briefly. The
       // freeze above is already in place, so the viewport cannot drift while we
-      // wait for it.
-      const anchorTarget = measureAnchorTarget(container);
+      // wait for it. Measuring a transcript that is still one prompt short
+      // would anchor to the previous prompt, so treat that as "not mounted"
+      // too, until the frame budget runs out.
+      // `!==`, not `<`: an edit-and-resend truncates the transcript, so the
+      // stale DOM can hold MORE bubbles than we expect, and measuring then
+      // would anchor to a bubble that is about to be removed.
+      const awaitingPrompt =
+        expectedUserMessages != null &&
+        attempts < ANCHOR_MAX_FRAMES &&
+        countUserMessages(container) !== expectedUserMessages;
+      const anchorTarget = awaitingPrompt ? null : measureAnchorTarget(container);
       if (anchorTarget === null) {
-        if (attempts++ < 60) requestAnimationFrame(run);
+        if (attempts++ < ANCHOR_MAX_FRAMES) requestAnimationFrame(run);
         return;
       }
 
@@ -838,6 +872,27 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
     }
     return null;
   }, [selectedConversation?.messages]);
+  /**
+   * How many `.user-message` bubbles the transcript will show once Chat.tsx
+   * catches up with us. `anchorNewPrompt` waits for the DOM to reach exactly
+   * this count so a follow-up send cannot anchor to the previous prompt — see
+   * its doc comment.
+   *
+   * ⚠ This must mirror Chat.tsx's render-time filter, not just count
+   * `role === 'user'`: an action-result message is user-role but renders with
+   * the `action-message` class instead (ChatMessage.tsx ~L471-481), so counting
+   * it would make the DOM look permanently one short and stall the anchor for
+   * the whole frame budget on any conversation that contains one.
+   */
+  const userMessageCount = useMemo(
+    () =>
+      (selectedConversation?.messages ?? []).reduce(
+        (n, m) =>
+          m.role === 'user' && !m.data?.actionResult ? n + 1 : n,
+        0,
+      ),
+    [selectedConversation?.messages],
+  );
   const anchoredMessageIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -850,7 +905,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       lastUserMessageId !== anchoredMessageIdRef.current
     ) {
       anchoredMessageIdRef.current = lastUserMessageId;
-      anchorNewPrompt();
+      anchorNewPrompt(userMessageCount);
     } else if (!messageIsStreaming && wasStreaming) {
       // Streaming is over: there is nothing left to auto-scroll, so restore the
       // real method and give the reserved room back as far as is safe.
@@ -861,6 +916,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   }, [
     messageIsStreaming,
     lastUserMessageId,
+    userMessageCount,
     anchorNewPrompt,
     releaseScroll,
     getContainer,
