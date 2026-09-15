@@ -619,58 +619,49 @@
 }
 
 /* Item 6 — Transcript image thumbnails: true aspect ratio.
-   Previously forced to 144×136 near-square (object-fit: cover cropping).
-   Now: card auto-sizes to the image's natural proportions, capped at 240×180px.
-   The image uses object-fit: contain so nothing is cropped.
-   The card wrapper gets a subtle border + 12px border-radius for polish.
+   Architecture notes:
+   - Images are rendered as `div.absolute.inset-0.bg-cover.bg-center` using
+     background-image (NOT <img>). The face div MUST stay position:absolute so it
+     fills its fixed-size parent card — changing it to position:relative collapses
+     the background-image to zero height (the prior broken fix).
+   - NewUITranscriptAttachmentsLayer.tsx writes width/height on card elements via
+     element.style.setProperty(prop, val, 'important') — inline !important styles.
+     CSS !important rules CANNOT override inline !important, so width/height must
+     be changed in the TS constants (CARD_WIDTH/CARD_HEIGHT), not here.
+   - background-size: contain !important beats Tailwind's non-!important bg-cover.
+   - Visual styling (border, border-radius, overflow) can be set in CSS because
+     force() does not set those properties. */
 
-   Architecture note: the old structure used position:absolute inset-0 to fill
-   a fixed-height parent. Switching the inner container to position:relative lets
-   it size to its content (the image), so no fixed height is needed on any ancestor.
-   Absolutely-positioned overlays (download button, bottom label) are hidden via
-   existing display:none rules so they don't affect layout. */
-[data-new-ui="true"] .new-ui-transcript-attachments .flex.flex-wrap > .mr-3.mb-3 {
-  margin: 0 !important;
-  flex: 0 0 auto !important;
-  width: auto !important;
-  height: auto !important;
-  max-width: 240px !important;
-}
-
-[data-new-ui="true"] .new-ui-transcript-attachments .flex.flex-wrap > .mr-3.mb-3 > .relative.group {
-  width: auto !important;
-  height: auto !important;
-}
-
+/* Card: add border + rounded corners via properties force() doesn't set.
+   overflow:hidden clips the image face to the border-radius correctly. */
 [data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative {
-  width: auto !important;
-  height: auto !important;
-  padding: 4px !important;
-  background: var(--bg-raised) !important;
+  /* width/height/margin/padding are owned by force()'s inline !important — no override */
   border: 1px solid var(--border-subtle) !important;
-  border-radius: 12px !important;
+  border-radius: 10px !important;
   box-shadow: none !important;
   overflow: hidden !important;
 }
 
+/* Restore image face to correct absolute positioning (reverts the broken
+   position:relative change that collapsed background-image to zero height). */
 [data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.inset-0 {
-  /* Convert from absolute-fill to flow layout so the image defines the height */
-  position: relative !important;
-  inset: auto !important;
+  position: absolute !important;
+  inset: 0 !important;
   height: auto !important;
-  border-radius: 8px !important;
+  border-radius: 0 !important; /* card's overflow:hidden handles corner clipping */
   overflow: hidden !important;
+}
+
+/* Show the full image without cropping. background-color fills letterbox/pillarbox
+   areas that appear when the image aspect ratio differs from the card's. */
+[data-new-ui="true"] .new-ui-transcript-attachments .absolute.inset-0.bg-cover.bg-center {
+  background-size: contain !important;
+  background-repeat: no-repeat !important;
+  background-color: var(--bg-raised) !important;
 }
 
 [data-new-ui="true"] .new-ui-transcript-attachments img {
   display: block !important;
-  object-fit: contain !important;
-  width: auto !important;
-  height: auto !important;
-  /* 240px card - 4px padding on each side = 232px; 180px - 4px*2 = 172px */
-  max-width: 232px !important;
-  max-height: 172px !important;
-  border-radius: 8px !important;
 }
 
 [data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.inset-0:not(.cursor-pointer) {

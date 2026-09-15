@@ -19,9 +19,13 @@ function renderedMessages(messages: Message[]): Message[] {
   );
 }
 
-/** Thumbnail edge length in the transcript rail (classic UI renders 200px). */
-const CARD_WIDTH = 144;
-const CARD_HEIGHT = 136;
+/** Thumbnail dimensions in the transcript rail.
+ *  Item 6: widened from 144×136 to 200×150 (≈4:3 ratio) so there's room for
+ *  background-size:contain to show landscape and portrait images without heavy
+ *  letterboxing. The CSS .absolute.inset-0.bg-cover.bg-center rule overrides
+ *  bg-cover with contain so the full image is always visible. */
+const CARD_WIDTH = 200;
+const CARD_HEIGHT = 150;
 /** Space between the attachment rail and the text bubble below it. */
 const RAIL_TO_BUBBLE_GAP = 6;
 
