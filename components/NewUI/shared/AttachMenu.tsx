@@ -1139,9 +1139,21 @@ const ConnectorsSubmenu: React.FC<{
   onClose: () => void;
   selectedActions: SelectedAction[];
   onActionsChange: (actions: SelectedAction[]) => void;
-}> = ({ onBrowse, onFileSelect, onClose, selectedActions, onActionsChange }) => {
+  /**
+   * Called when a nested connector panel (file picker / actions / info) becomes
+   * active or inactive. The parent uses this to suppress the 300 ms hover-close
+   * timer so a layout-shift in the floating container can't race the transition.
+   */
+  onNestedPanelActiveChange?: (active: boolean) => void;
+}> = ({ onBrowse, onFileSelect, onClose, selectedActions, onActionsChange, onNestedPanelActiveChange }) => {
   const { supported, connected, loading } = useIntegrationConnections();
   const [activeConn, setActiveConn] = useState<IntegrationConnection | null>(null);
+
+  // Notify parent whenever a connector panel opens or closes.
+  useEffect(() => {
+    onNestedPanelActiveChange?.(activeConn !== null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeConn]);
 
   // Full connection objects for connected integrations
   const connectedItems: IntegrationConnection[] = supported.filter((s) =>
@@ -1784,6 +1796,10 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
 
   const [primaryOpen, setPrimaryOpen] = useState(false);
   const [submenu, setSubmenu] = useState<'skills' | 'connectors' | 'library' | 'assistant' | null>(null);
+  // True while any nested connector panel (file picker / actions / info) is open.
+  // Suppresses the hover-close timer so a layout shift in the floating container
+  // can't race the 300 ms close and dismiss the panel the user just opened.
+  const [connectorPanelActive, setConnectorPanelActive] = useState(false);
 
   // Build assistant list from prompts (same as ChatInput).
   // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts marked data.hidden
@@ -1919,6 +1935,20 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     if (submenuTimerRef.current) clearTimeout(submenuTimerRef.current);
   }, []);
   useEffect(() => () => { if (submenuTimerRef.current) clearTimeout(submenuTimerRef.current); }, []);
+
+  // When the connectors submenu closes (submenu changes away from 'connectors'),
+  // reset the nested-panel flag so it doesn't linger for the next open.
+  useEffect(() => {
+    if (submenu !== 'connectors') setConnectorPanelActive(false);
+  }, [submenu]);
+
+  // Called by ConnectorsSubmenu when a nested panel opens or closes.
+  // Immediately cancels any pending hover-close timer when a panel becomes active
+  // — effects fire within a frame, well inside the 300 ms window.
+  const handleConnectorPanelActiveChange = useCallback((active: boolean) => {
+    setConnectorPanelActive(active);
+    if (active) cancelClose();
+  }, [cancelClose]);
 
   // ── Submenu trigger rows ──────────────────────────────────────────────────
   const libraryRowRef = useRef<HTMLButtonElement>(null);
@@ -2139,7 +2169,12 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     isOpen={submenu === 'connectors'}
                     onMouseEnter={() => openSubmenu('connectors')}
                     onMouseLeave={scheduleClose}
-                    onClick={() => setSubmenu(submenu === 'connectors' ? null : 'connectors')}
+                    onClick={() => {
+                      // Cancel any pending hover-close timer so a click-to-open
+                      // can't race with a previously scheduled close.
+                      cancelClose();
+                      setSubmenu(submenu === 'connectors' ? null : 'connectors');
+                    }}
                   />
                 )}
               </>
@@ -2205,7 +2240,11 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                 ref={connectorsFloating.refs.setFloating}
                 style={submenuStyle(connectorsFloating, 'attachMenuEnter')}
                 onMouseEnter={cancelClose}
-                onMouseLeave={scheduleClose}
+                // While a nested connector panel is active, suppress the hover-close
+                // timer entirely: the layout shift from list → file-picker can make
+                // the browser fire mouseleave even though the user didn't leave, and
+                // the 300 ms timer would close the panel they just opened.
+                onMouseLeave={connectorPanelActive ? undefined : scheduleClose}
               >
                 <ConnectorsSubmenu
                   onBrowse={() => { openSettings('connectors'); }}
@@ -2213,6 +2252,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                   onClose={closeAll}
                   selectedActions={selectedActions}
                   onActionsChange={onActionsChange ?? (() => {})}
+                  onNestedPanelActiveChange={handleConnectorPanelActiveChange}
                 />
               </div>
             )}
