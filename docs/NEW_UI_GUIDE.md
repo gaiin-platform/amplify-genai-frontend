@@ -154,6 +154,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `uiPreferenceResolution.ts` | The stored new-vs-classic choice: `UI_PREF_KEY`, `getUIPreference`, `writeLocalUIPreference`, `resolveStoredUIPreference` (server beats localStorage; only `'ask'` may show the popup), and the `?uiPreference=reset` helpers. No React imports |
 | `userDefaultModel.ts` | User's personal default model preference — `USER_DEFAULT_MODEL_KEY`, `getUserDefaultModelId`, `setUserDefaultModelId`. localStorage-backed, no React imports. Takes precedence over admin's `defaultModelId` in `NewHome` + `ModelPicker` slate. |
 | `userDefaultEffort.ts` | User's personal default reasoning effort — `USER_DEFAULT_EFFORT_KEY`, `getUserDefaultEffort`, `setUserDefaultEffort`. localStorage-backed, no React imports. Seeds `NewHome` + `ConversationComposer` initial effort state. |
+| `userDisplayPrefs.ts` | The chat-font + conversation-storage vocabulary — `getChatFont` (**the** font resolver: dedicated key → settings blob → `'sans'`; both the settings dropdown and `ConversationViewShell` must use it or they disagree), `saveDisplayPrefsToServer` (fetches server settings, merges, guarantees the schema-required keys, saves; returns `false` rather than throwing), `applyServerPrefsToLocalStorage` (promotes a server font to the dedicated key, fires `amplifyChatFontChanged` only on change), `DEFAULT_CHAT_FONT`, `DEFAULT_STORAGE_SELECTION`. No React imports |
+| `UserPrefsSync.tsx` | Mounts once at the new-UI root; renders nothing. Idempotent difference-based sync of the server-synced display prefs, plus a grace-delayed seed of the system storage default. Precedence: server-synced user choice > admin default > system default. Never calls `handleStorageSelection` — `'future-cloud'` is going-forward and must not migrate existing conversations |
 | `PromptTemplateFillDialog.tsx` | New-UI styled "populate and use this template" form — portalled to `document.body`, supports text/file/boolean/options variable types with design-token styling. Has an edit icon button (`onEdit`) so the host can switch to edit mode. Used by `PromptTemplateDialog`. |
 | `PromptTemplateDialog.tsx` | Orchestrates the fill-in popup: invokes `PromptTemplateFillDialog` (new UI), runs `fillInTemplate` semantics, sends via `amplify_pending_message`. Accepts `onEdit` callback passed through to the fill dialog. Also exports `promptTemplateVariables`. |
 | `promptConversation.ts` | `startConversationWithTemplate` — creates the conversation for a template (promptTemplate, tags, rootPrompt, resolved model) under the `'New Conversation'` name so the AI renames it after the first reply. Takes `homeDispatch` because it must set `isStandalonePromptCreation` in the same batch (§30). No React imports |
@@ -481,6 +483,41 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     ever `removeItem`'d, exactly like `amplify_pending_model_id` (§26). Any write to
     `key: 'data'` must spread `...conv.data`, since web search, skills and effort all
     share that one object.
+
+32. **Riding a new field along in the server `settings` object has two hard constraints, and
+    breaking either fails silently.** The backend accepts unknown keys (that is how
+    `uiPreference` roams), but `save_settings_schema.py` declares
+    `required: ["theme", "featureOptions", "hiddenModelIds"]` and `saveUserSettings`
+    **replaces** the whole object rather than patching it. So `saveUserSettings({ myField })`
+    is rejected by validation and never persists — and the case that breaks is the
+    brand-new user, whose browser has no `settings` blob to merge those three keys from,
+    which is exactly the population a new default targets. Fetch the server object first,
+    merge onto it, and guarantee the required keys
+    (`shared/userDisplayPrefs#saveDisplayPrefsToServer`). Note also that `fetchSettings`
+    forces `theme` to the device-local value before caching, so echoing the localStorage
+    blob back to the server writes a device-local theme as the roaming one.
+
+33. **`updateFeatureSettings` is not a "settings loaded" signal — it has ~7 dispatchers.**
+    `home.tsx` fires it on **every** `featureFlags` change, long before `fetchSettings`
+    resolves, and for a brand-new user `fetchSettings` never fires it at all (the backend
+    returns `data: None` and the dispatch sits inside `if (result.data)`). A handler that
+    treats one firing as authoritative and guards with `if (a value exists) return;` will
+    write its default from an empty blob and then permanently block the user's real
+    server-side value from landing on that device. Make such a handler **idempotent and
+    difference-based** (server value wins whenever it disagrees; every local write mirrors
+    into the blob, so a fresh local choice never reads as a disagreement), and delay
+    seeding a hardcoded default so `fetchUserAppConfigs`'s admin-configured default — gated
+    on `!storageSelection` and therefore suppressed by whoever writes first — still wins.
+
+34. **A default that is applied in a passive effect flashes, if CSS treats the unset state
+    as the other value.** `conversation-view.css` selects the serif face with
+    `:not([data-body-face="sans"])`, so the attribute being absent *means* serif; setting
+    it in a `useEffect` painted Newsreader for one frame for every sans user once sans
+    became the default. Write such an attribute in a `useLayoutEffect` (pre-paint, making
+    the CSS fallback unreachable). More generally, a user-facing default usually lives in
+    more than one place — the control's own state, the DOM/attribute that applies it, and a
+    CSS fallback. Grep all three and route them through one resolver, or the setting will
+    report a value the app is not using.
 
 ---
 

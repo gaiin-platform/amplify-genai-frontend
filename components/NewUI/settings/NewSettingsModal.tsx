@@ -53,6 +53,7 @@ import { getUserDefaultModelId, setUserDefaultModelId } from '@/components/NewUI
 import { getUserDefaultEffort, setUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
 import { EFFORT_OPTIONS } from '@/components/NewUI/shared/ModelPicker';
 import type { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
+import { getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -213,9 +214,10 @@ const GeneralSection: FC = () => {
   };
 
   // ── Chat font (serif / sans) ──────────────────────────────────────────
+  // getChatFont() checks: dedicated localStorage key → settings blob → DEFAULT_CHAT_FONT ('sans')
   const [chatFont, setChatFont] = useState<'serif' | 'sans'>(() => {
-    if (typeof window === 'undefined') return 'serif';
-    return (localStorage.getItem('amplify_chat_font') as 'serif' | 'sans') ?? 'serif';
+    if (typeof window === 'undefined') return 'sans';
+    return getChatFont();
   });
   const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
   const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
@@ -245,6 +247,8 @@ const GeneralSection: FC = () => {
     try {
       saveStorageSettings(selection);
       homeDispatch({ field: 'storageSelection', value: selection });
+      // Persist to server so the preference roams across devices / browsers
+      void saveDisplayPrefsToServer({ storageSelection: selection });
       const updated = await handleStorageSelection(
         selection,
         conversationsRef.current,
@@ -272,6 +276,8 @@ const GeneralSection: FC = () => {
     setChatFont(value);
     localStorage.setItem('amplify_chat_font', value);
     window.dispatchEvent(new Event('amplifyChatFontChanged'));
+    // Save to server so the preference roams across devices / browsers
+    void saveDisplayPrefsToServer({ chatFont: value });
   };
 
   // ── Feature flags ─────────────────────────────────────────────────────

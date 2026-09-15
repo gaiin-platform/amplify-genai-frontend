@@ -37,6 +37,7 @@ import { NewUITranscriptAttachmentsLayer } from './NewUITranscriptAttachmentsLay
 import { NewUITranscriptPastedTextLayer } from './NewUITranscriptPastedTextLayer';
 import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
+import { getChatFont } from '@/components/NewUI/shared/userDisplayPrefs';
 import HomeContext from '@/pages/api/home/home.context';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
@@ -1059,18 +1060,21 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   useEffect(() => releaseScroll, [releaseScroll]);
 
   // ── Chat font: set data-body-face from localStorage ──────────────────────
-  useEffect(() => {
+  // LAYOUT effect, not a passive one: conversation-view.css treats an *unset*
+  // data-body-face as serif (`:not([data-body-face="sans"])`), so setting this
+  // after paint flashes Newsreader for every sans user — which is now the
+  // default. Writing it pre-paint makes the CSS fallback unreachable.
+  useLayoutEffect(() => {
     if (!shellRef.current) return;
-    const savedFont = typeof window !== 'undefined'
-      ? (localStorage.getItem('amplify_chat_font') ?? 'serif')
-      : 'serif';
-    shellRef.current.setAttribute('data-body-face', savedFont);
+    // getChatFont() resolves: dedicated key → server-synced settings blob →
+    // DEFAULT_CHAT_FONT ('sans'/Inter). Must stay in sync with the settings
+    // modal's default, or the dropdown reports a font the transcript isn't using.
+    shellRef.current.setAttribute('data-body-face', getChatFont());
 
     // Listen for settings-change events so the font updates without reload
     const handler = () => {
       if (!shellRef.current) return;
-      const f = localStorage.getItem('amplify_chat_font') ?? 'serif';
-      shellRef.current.setAttribute('data-body-face', f);
+      shellRef.current.setAttribute('data-body-face', getChatFont());
     };
     window.addEventListener('amplifyChatFontChanged', handler);
     return () => window.removeEventListener('amplifyChatFontChanged', handler);

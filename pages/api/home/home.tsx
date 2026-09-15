@@ -115,6 +115,7 @@ import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTask
 import { NewWorkflowsView } from '@/components/NewUI/views/NewWorkflowsView';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 import { BlankConversationCleanup } from '@/components/NewUI/shared/BlankConversationCleanup';
+import { UserPrefsSync } from '@/components/NewUI/shared/UserPrefsSync';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1702,6 +1703,10 @@ const Home = ({
                                 {/* Renders nothing — prunes leftover empty placeholder chats
                                     once after load so refreshing never grows Recents. */}
                                 <BlankConversationCleanup />
+                                {/* Renders nothing — applies server-synced display prefs
+                                    (chat font, storage selection) after fetchSettings completes,
+                                    and seeds 'future-cloud' default for brand-new users. */}
+                                <UserPrefsSync />
 
                                 {/* Unified new sidebar */}
                                 {page !== 'notebook' && (

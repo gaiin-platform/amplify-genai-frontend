@@ -783,9 +783,15 @@
    §6 — Assistant body typography: Chat font setting
    (chat-pane-migration-spec.md §6)
 
-   Default: "Chat font" = Serif. ConversationViewShell sets
-   data-body-face="serif" (or "sans") on the shell element, read from
-   localStorage key `amplify_chat_font`. When absent, defaults to "serif".
+   Default: "Chat font" = Sans (Inter). ConversationViewShell sets
+   data-body-face="sans" (or "serif") on the shell element in a LAYOUT effect,
+   resolved by shared/userDisplayPrefs#getChatFont (dedicated localStorage key
+   `amplify_chat_font` → server-synced settings blob → 'sans').
+
+   NOTE: the selectors below still treat an *unset* attribute as serif
+   (`:not([data-body-face="sans"])`). That fallback is now only reachable if
+   the shell fails to set the attribute at all — which is why the shell writes
+   it pre-paint. Do not rely on the unset state to mean "default".
 
    - Serif face:  Newsreader (already loaded via globals.css)
    - Sans face:   Inter (fallback)
