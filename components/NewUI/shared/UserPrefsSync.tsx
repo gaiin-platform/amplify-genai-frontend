@@ -45,6 +45,7 @@ import {
     applyServerPrefsToLocalStorage,
     backfillLocalDefaultsToServer,
 } from './userDisplayPrefs';
+import { applyServerCustomInstructions } from './customInstructions';
 import type { ConversationStorage } from '@/types/conversationStorage';
 
 /**
@@ -147,6 +148,13 @@ export const UserPrefsSync: FC = () => {
             // Also promotes a server-synced chatFont to its dedicated key and
             // notifies ConversationViewShell if it actually changed.
             const { storageSelection: serverStorage } = applyServerPrefsToLocalStorage();
+
+            // Restore custom instructions from the server settings blob if the
+            // user's localStorage was cleared (e.g. browser data wipe, new device).
+            // applyServerCustomInstructions is idempotent and no-ops when the
+            // server has no data or local data already matches.
+            applyServerCustomInstructions();
+
             if (!serverStorage) return;
             if (localStorage.getItem(STORAGE_SELECTION_LS_KEY) === serverStorage) return;
             applyStorage(serverStorage as ConversationStorage);

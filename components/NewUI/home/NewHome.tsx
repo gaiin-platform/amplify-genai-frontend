@@ -498,15 +498,56 @@ export const NewHome: React.FC = () => {
           value: 'New Conversation',
         });
       }
+
+      // Apply the active custom instruction to empty conversations.
+      //
+      // home.tsx always creates the initial conversation with DEFAULT_SYSTEM_PROMPT
+      // — before any custom instruction exists.  If the user creates an instruction
+      // and then sends their very first message, we'd reuse that conversation and
+      // the instruction would never reach the backend.
+      //
+      // Fix: compute the up-to-date prompt here and patch it onto the conversation
+      // before the send fires.  Two writes happen in parallel:
+      //   1. handleUpdateConversation — persists to localStorage / server
+      //      (async, fire-and-forget; the immediate send doesn't wait for it).
+      //   2. dispatch — updates the in-memory selectedConversation so that
+      //      ConversationViewShell reads the correct prompt from conversationRef.current
+      //      (PATH A) or ChatInput reads it from context (PATH B), both of which
+      //      run after an 80-160 ms timeout and therefore see this re-render.
+      const customPrompt = buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT);
+      const needsPromptUpdate = selectedConversation.prompt !== customPrompt;
+
+      if (needsPromptUpdate) {
+        // Persist (async, fire-and-forget)
+        handleUpdateConversation(selectedConversation, {
+          key: 'prompt',
+          value: customPrompt,
+        });
+      }
+
       // For attachment/paste sends, seed the optimistic message so the
       // conversation transitions out of the empty state immediately and
       // ConversationViewShell PATH A finds it and sends with deleteCount:1.
+      // Combine with the prompt update (if any) into one dispatch to avoid
+      // a second round-trip through the reducer.
       if (optimisticMessage) {
         dispatch({
           field: 'selectedConversation',
-          value: { ...selectedConversation, messages: [optimisticMessage] },
+          value: {
+            ...selectedConversation,
+            ...(needsPromptUpdate ? { prompt: customPrompt } : {}),
+            messages: [optimisticMessage],
+          },
+        });
+      } else if (needsPromptUpdate) {
+        // Text-only send: no optimistic message, but we still need to push the
+        // updated prompt so PATH B's 80 + 80 ms timeout finds it in context.
+        dispatch({
+          field: 'selectedConversation',
+          value: { ...selectedConversation, prompt: customPrompt },
         });
       }
+
       composerRef.current?.clear();
       setHasContent(false);
       setAttachedDocs([]);
