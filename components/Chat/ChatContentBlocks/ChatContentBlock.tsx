@@ -129,7 +129,7 @@ const ChatContentBlock: React.FC<Props> = (
         // More precise LaTeX detection that avoids code blocks
         const codeBlockRegex = /```[\s\S]*?```|`[^`]*`/g;
         const contentWithoutCode = content.replace(codeBlockRegex, '');
-        return /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(contentWithoutCode);
+        return /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^\s$](?:[^$]*[^\s$])?\$/.test(contentWithoutCode);
     }, []);
 
     // Debounced LaTeX processing to reduce jitter during streaming - only for LaTeX content
@@ -186,7 +186,13 @@ const ChatContentBlock: React.FC<Props> = (
         processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
             return `<math-inline>${latex}</math-inline>`;
         });
-        
+
+        // Replace single-dollar inline math $...$ with placeholder, skipping plain dollar amounts
+        processed = processed.replace(/\$([^\s$](?:[^$]*[^\s$])?)\$/g, (match, latex) => {
+            if (/^[\d.,]+$/.test(latex)) return match;
+            return `<math-inline>${latex}</math-inline>`;
+        });
+
         // Restore code blocks
         codeBlockPlaceholders.forEach((placeholder, index) => {
             processed = processed.replace(placeholder, codeBlocks[index]);
