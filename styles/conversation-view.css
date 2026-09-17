@@ -1386,15 +1386,24 @@
   display: none !important;
 }
 
-/* The text content area — render as spec step line */
+/* The text content area — render as spec step line.
+   Phase 67 Fix — use display:flex (matching ChatLoader's layout) so:
+   1. The ::before dot is a flex item whose left edge is never clipped by
+      the `overflow:hidden` inherited from Tailwind's `truncate` class.
+   2. dot + "Thinking…" text are centred with the same align-items:center /
+      gap:8px used by the ChatLoader "Sending…" row (identical placement). */
 [data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3 {
   margin-left: 0 !important;
   font-size: 14px !important;
   color: var(--text-muted) !important;
   font-family: Inter, sans-serif !important;
   font-style: normal !important;
-  padding: 20px 0 20px !important;
-  display: block !important;
+  padding: 20px 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  overflow: visible !important; /* override truncate's overflow:hidden to stop
+                                    the ::before circle from being clipped */
 }
 
 /* Fix 40 — Hide the literal status text (e.g. "Amplify is responding…").
@@ -2007,17 +2016,19 @@
    render in their static, final-state styling (Phase 19 TODO, done here).
 ───────────────────────────────────────────────────────────────────────────── */
 
-/* Static (always-present, non-animated) breathing dot before the status text */
+/* Static (always-present, non-animated) breathing dot before the status text.
+   Phase 67: parent is now display:flex, so ::before is a flex item.
+   margin-right removed (parent gap:8px handles spacing).
+   vertical-align removed (not applicable in flex context).
+   flex-shrink:0 is now meaningful — prevents the dot from collapsing. */
 [data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3::before {
   content: "";
-  display: inline-block;
+  display: block;
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background-color: var(--accent);
   opacity: 0.6;
-  margin-right: 8px;
-  vertical-align: middle;
   flex-shrink: 0;
 }
 
@@ -2509,10 +2520,10 @@
    by the aria-live effect in ConversationViewShell) rather than reading the
    CSS-generated text.
 
-   Layout: .mt-0.ml-3 is display:block. The ::before dot is display:inline-block
-   (with margin-right:8px). Our injected span is display:inline, so it flows on
-   the same inline line immediately after the dot — producing "● Thinking…"
-   on one line.
+   Layout (Phase 67): .mt-0.ml-3 is display:flex with align-items:center and
+   gap:8px. The ::before dot is a flex item (display:block, 6×6px circle).
+   The injected span is blockified as a flex item, aligned centred beside the
+   dot — matching the ChatLoader "Sending…" row layout exactly.
 
    Animation: calm opacity pulse, 2s ease-in-out (same family as the breathing
    dot). The ::after generates the "Thinking…" text via CSS `content` so the
@@ -2526,9 +2537,15 @@
   display: inline;
   color: var(--text-muted);
   font-size: 13px;
+  line-height: 1; /* Phase 67 fix: match the ChatLoader ::after "Sending…" line-height.
+                     Without this, the span inherits line-height ~1.7 from #chatHover
+                     (the prose wrapper), making the flex item ~22px tall instead of 13px.
+                     The taller item shifts the flex container's centre point upward,
+                     placing the dot ~4.5px lower than the "Sending…" dot. */
   font-style: italic;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  vertical-align: middle;
+  /* Phase 67: vertical-align removed — parent .mt-0.ml-3 is now display:flex
+     with align-items:center, so flex handles vertical alignment. */
   /* opacity default: 1 in reduced-motion mode; animated below otherwise */
 }
 
