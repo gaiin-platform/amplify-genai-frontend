@@ -27,12 +27,17 @@ import {
   IconShare,
   IconTrash,
   IconEdit,
+  IconFolder,
+  IconFolderPlus,
+  IconFolderMinus,
+  IconChevronLeft,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { PINNED_TAG } from '@/components/NewUI/shared/chatFilters';
+import { getUserChatFolders } from '@/components/NewUI/shared/chatFolderHelpers';
 
 interface ConversationRowProps {
   conversation: Conversation;
@@ -59,18 +64,31 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
+  // ── Move-to-folder submenu state ────────────────────────────────────────────
+  const [menuView, setMenuView] = useState<'main' | 'move'>('main');
+  const [isCreatingFolder, setIsCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
+
   // Position for the portalled fixed menu — captured from the dots button on open
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
 
   // Estimated menu height:
-  // py-[6px]=12 + 3×h-[34px]=102 + divider≈9 + delete h-[34px]=34 = ~157px
-  const MENU_ESTIMATED_HEIGHT = 160;
-  const MENU_MIN_WIDTH = 160;
+  // py-[6px]=12 + 4×h-[34px]=136 + divider≈9 + delete h-[34px]=34 = ~191px
+  const MENU_ESTIMATED_HEIGHT = 200;
+  const MENU_MIN_WIDTH = 200;
 
   const dotsButtonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const { handleUpdateConversation, state: { conversations }, dispatch } = useContext(HomeContext);
+  const {
+    handleUpdateConversation,
+    handleCreateFolder,
+    state: { conversations, folders },
+    dispatch,
+  } = useContext(HomeContext);
+
+  const userChatFolders = getUserChatFolders(folders);
 
   // Pin state: primary check is the __pinned__ tag (survives remoteForConversationHistory
   // for cloud conversations). Legacy data.pinned / top-level cast kept for backwards compat.
@@ -96,7 +114,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
         menuRef.current?.contains(e.target as Node) ||
         dotsButtonRef.current?.contains(e.target as Node)
       ) return;
-      setIsMenuOpen(false);
+      closeMenu();
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -107,7 +125,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
     if (!isMenuOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setIsMenuOpen(false);
+        closeMenu();
         dotsButtonRef.current?.focus();
       }
     };
@@ -118,7 +136,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   // ── Close menu on scroll ────────────────────────────────────────────────────
   useEffect(() => {
     if (!isMenuOpen) return;
-    const handler = () => setIsMenuOpen(false);
+    const handler = () => closeMenu();
     window.addEventListener('scroll', handler, true);
     return () => window.removeEventListener('scroll', handler, true);
   }, [isMenuOpen]);
@@ -126,7 +144,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   // ── Open / toggle menu ──────────────────────────────────────────────────────
   const handleMenuClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isMenuOpen) { setIsMenuOpen(false); return; }
+    if (isMenuOpen) { closeMenu(); return; }
     if (dotsButtonRef.current) {
       const rect = dotsButtonRef.current.getBoundingClientRect();
       const GAP = 4;
@@ -215,6 +233,40 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
     setShowShareModal(true);
   };
 
+  // ── Move to folder ──────────────────────────────────────────────────────────
+  const closeMenu = () => {
+    setIsMenuOpen(false);
+    setMenuView('main');
+    setIsCreatingFolder(false);
+    setNewFolderName('');
+  };
+
+  const openMoveView = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuView('move');
+  };
+
+  const assignFolder = (folderId: string | null) => {
+    handleUpdateConversation(conversation, { key: 'folderId', value: folderId });
+    closeMenu();
+  };
+
+  useEffect(() => {
+    if (isCreatingFolder && newFolderInputRef.current) newFolderInputRef.current.focus();
+  }, [isCreatingFolder]);
+
+  const commitNewFolder = () => {
+    const trimmed = newFolderName.trim();
+    if (!trimmed) { setIsCreatingFolder(false); return; }
+    const folder = handleCreateFolder(trimmed, 'chat');
+    assignFolder(folder.id);
+  };
+
+  const handleNewFolderKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') { e.preventDefault(); commitNewFolder(); }
+    if (e.key === 'Escape') { e.preventDefault(); setIsCreatingFolder(false); setNewFolderName(''); }
+  };
+
   const menuItemCls =
     'w-full flex items-center gap-2 px-3 h-[34px] text-[14px] ' +
     'text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] transition-colors';
@@ -224,39 +276,103 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
     isMenuOpen && menuPos ? (
       <div
         ref={menuRef}
-        style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: 160 }}
-        className="bg-[--bg-raised] border border-[--border-subtle] rounded-[--radius-panel] shadow-[0_8px_24px_rgba(0,0,0,0.3)] py-[6px]"
+        style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: MENU_MIN_WIDTH }}
+        className="bg-[--bg-raised] border border-[--border-subtle] rounded-[--radius-panel] shadow-[0_8px_24px_rgba(0,0,0,0.3)] py-[6px] max-h-[280px] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Rename */}
-        <button onClick={startRename} className={menuItemCls}>
-          <IconEdit size={14} />
-          Rename
-        </button>
+        {menuView === 'main' ? (
+          <>
+            {/* Rename */}
+            <button onClick={startRename} className={menuItemCls}>
+              <IconEdit size={14} />
+              Rename
+            </button>
 
-        {/* Pin / Unpin */}
-        <button onClick={handlePin} className={menuItemCls}>
-          {isPinned ? <IconPinnedOff size={14} /> : <IconPin size={14} />}
-          {isPinned ? 'Unpin' : 'Pin'}
-        </button>
+            {/* Pin / Unpin */}
+            <button onClick={handlePin} className={menuItemCls}>
+              {isPinned ? <IconPinnedOff size={14} /> : <IconPin size={14} />}
+              {isPinned ? 'Unpin' : 'Pin'}
+            </button>
 
-        {/* Share */}
-        <button onClick={handleShare} className={menuItemCls}>
-          <IconShare size={14} />
-          Share
-        </button>
+            {/* Move to folder */}
+            <button onClick={openMoveView} className={menuItemCls}>
+              <IconFolder size={14} />
+              Move to folder
+            </button>
 
-        {/* Divider before destructive action */}
-        <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+            {/* Share */}
+            <button onClick={handleShare} className={menuItemCls}>
+              <IconShare size={14} />
+              Share
+            </button>
 
-        {/* Delete */}
-        <button
-          onClick={handleDelete}
-          className="w-full flex items-center gap-2 px-3 h-[34px] text-[14px] text-red-400 hover:bg-[--bg-hover] hover:text-red-300 transition-colors"
-        >
-          <IconTrash size={14} />
-          Delete
-        </button>
+            {/* Divider before destructive action */}
+            <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+
+            {/* Delete */}
+            <button
+              onClick={handleDelete}
+              className="w-full flex items-center gap-2 px-3 h-[34px] text-[14px] text-red-400 hover:bg-[--bg-hover] hover:text-red-300 transition-colors"
+            >
+              <IconTrash size={14} />
+              Delete
+            </button>
+          </>
+        ) : (
+          <>
+            {/* Back to main menu */}
+            <button onClick={() => setMenuView('main')} className={menuItemCls}>
+              <IconChevronLeft size={14} />
+              Move to folder
+            </button>
+
+            <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+
+            {/* Remove from current folder */}
+            {conversation.folderId && (
+              <button onClick={() => assignFolder(null)} className={menuItemCls}>
+                <IconFolderMinus size={14} />
+                No folder
+              </button>
+            )}
+
+            {/* Existing folders */}
+            {userChatFolders.map((f) => (
+              <button
+                key={f.id}
+                onClick={() => assignFolder(f.id)}
+                className={menuItemCls}
+                disabled={conversation.folderId === f.id}
+              >
+                <IconFolder size={14} />
+                <span className="flex-1 min-w-0 truncate text-left">{f.name}</span>
+                {conversation.folderId === f.id && <span className="text-[11px] text-[--text-muted]">Current</span>}
+              </button>
+            ))}
+
+            {/* New folder */}
+            {isCreatingFolder ? (
+              <div className="flex items-center gap-2 px-3 h-[34px]">
+                <IconFolderPlus size={14} className="flex-shrink-0 text-[--text-muted]" />
+                <input
+                  ref={newFolderInputRef}
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={handleNewFolderKeyDown}
+                  onBlur={commitNewFolder}
+                  placeholder="Folder name"
+                  className="flex-1 min-w-0 h-[24px] text-[14px] text-[--text-primary] bg-transparent outline-none border-b border-[--accent]"
+                  spellCheck={false}
+                />
+              </div>
+            ) : (
+              <button onClick={() => setIsCreatingFolder(true)} className={menuItemCls}>
+                <IconFolderPlus size={14} />
+                New folder
+              </button>
+            )}
+          </>
+        )}
       </div>
     ) : null;
 

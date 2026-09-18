@@ -28,10 +28,12 @@ import {
   IconAdjustments,
   IconLayoutSidebarLeftExpand,
   IconPuzzle,
+  IconFolderPlus,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
+import { FolderInterface } from '@/types/folder';
 import {
   saveConversations,
   deleteConversationCleanUp,
@@ -39,7 +41,7 @@ import {
 import { deleteRemoteConversation } from '@/services/remoteConversationService';
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { getFullTimestamp, getDateName } from '@/utils/app/date';
-import { getArchiveNumOfDays } from '@/utils/app/folders';
+import { getArchiveNumOfDays, saveFolders } from '@/utils/app/folders';
 import { DefaultModels } from '@/types/model';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -47,7 +49,9 @@ import { SidebarHeader } from './SidebarHeader';
 import { SidebarNavItem } from './SidebarNavItem';
 import { SidebarSection } from './SidebarSection';
 import { ConversationRow } from './ConversationRow';
+import { FolderRow } from './FolderRow';
 import { AccountMenu } from './AccountMenu';
+import { getUserChatFolders } from '@/components/NewUI/shared/chatFolderHelpers';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
 import { FilterMenu } from '@/components/NewUI/shared/FilterMenu';
 import {
@@ -224,6 +228,9 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     handleNewConversation,
     handleSelectConversation,
     handleUpdateConversation,
+    handleCreateFolder,
+    handleDeleteFolder,
+    handleUpdateFolder,
     getDefaultModel,
   } = useContext(HomeContext);
 
@@ -535,9 +542,27 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     [searchedConversations, chatFilters, chatFilterGroups]
   );
 
-  const { today, yesterday, previous } = groupConversationsByTime(filteredConversations, chatFolders, archiveDays);
+  // User-created chat folders (excludes the legacy per-day auto-folders that
+  // chatFolders above still includes — see chatFolderHelpers). Conversations
+  // inside one of these are shown under their folder, not also in
+  // Pinned/Today/Yesterday/Previous, so they never appear twice.
+  const userChatFolders = useMemo(
+    () =>
+      getUserChatFolders(chatFolders).sort((a: FolderInterface, b: FolderInterface) => {
+        if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      }),
+    [chatFolders]
+  );
+  const userFolderIds = useMemo(() => new Set(userChatFolders.map((f) => f.id)), [userChatFolders]);
+  const unfolderedConversations = useMemo(
+    () => filteredConversations.filter((c) => !c.folderId || !userFolderIds.has(c.folderId)),
+    [filteredConversations, userFolderIds]
+  );
 
-  const pinned = filteredConversations.filter(isPinnedConv);
+  const { today, yesterday, previous } = groupConversationsByTime(unfolderedConversations, chatFolders, archiveDays);
+
+  const pinned = unfolderedConversations.filter(isPinnedConv);
   const unpinned_today = today.filter((c) => !isPinnedConv(c));
   const unpinned_yesterday = yesterday.filter((c) => !isPinnedConv(c));
   const unpinned_previous = previous.filter((c) => !isPinnedConv(c));
@@ -552,6 +577,64 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [unpinned_today, unpinned_yesterday, unpinned_previous, sortMode]
   );
+
+  // ── Folders ──────────────────────────────────────────────────────────────
+  // The "New folder" action lives inline with the Recents heading and only
+  // shows on hover — kept out of the way of the New Chat row so the sidebar
+  // doesn't accumulate always-visible buttons.
+  const [isRecentsHeaderHovered, setIsRecentsHeaderHovered] = useState(false);
+  // Which folders are expanded — open by default (matches Pinned/Recents).
+  const [openFolderIds, setOpenFolderIds] = useState<Record<string, boolean>>({});
+  // The folder to open straight into rename mode — set right after creation.
+  const [newlyCreatedFolderId, setNewlyCreatedFolderId] = useState<string | null>(null);
+
+  const toggleFolderOpen = (folderId: string) => {
+    setOpenFolderIds((prev) => ({ ...prev, [folderId]: !(prev[folderId] ?? true) }));
+  };
+
+  const handleCreateNewFolder = () => {
+    const newFolder = handleCreateFolder('New Folder', 'chat');
+    setOpenFolderIds((prev) => ({ ...prev, [newFolder.id]: true }));
+    setNewlyCreatedFolderId(newFolder.id);
+  };
+
+  const handleRenameFolderRow = (folderId: string, name: string) => {
+    handleUpdateFolder(folderId, name);
+    if (folderId === newlyCreatedFolderId) setNewlyCreatedFolderId(null);
+  };
+
+  const handleDeleteFolderRow = (folderId: string) => {
+    handleDeleteFolder(folderId);
+    setOpenFolderIds((prev) => {
+      const { [folderId]: _removed, ...rest } = prev;
+      return rest;
+    });
+  };
+
+  // Mirrors classic UI's Folder.tsx handlePinFolder — toggles folder.pinned
+  // directly (there's no dedicated HomeContext handler for this, same as
+  // classic UI, which writes straight to folders + saveFolders too).
+  const handlePinFolderRow = (folderId: string) => {
+    const updatedFolders = folders.map((f: FolderInterface) =>
+      f.id === folderId ? { ...f, pinned: !f.pinned } : f
+    );
+    dispatch({ field: 'folders', value: updatedFolders });
+    saveFolders(updatedFolders);
+  };
+
+  // Conversations per user folder, filtered/sorted the same way Recents is.
+  const conversationsByFolderId = useMemo(() => {
+    const map = new Map<string, Conversation[]>();
+    for (const f of userChatFolders) {
+      map.set(
+        f.id,
+        filteredConversations
+          .filter((c) => c.folderId === f.id)
+          .sort(compareConversationsByMode(sortMode))
+      );
+    }
+    return map;
+  }, [userChatFolders, filteredConversations, sortMode]);
 
   // One nav definition for both render paths. The collapsed icon rail is built from
   // this same list (see below) so the two can never drift out of sync — the rail used
@@ -815,13 +898,54 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             </SidebarSection>
           )}
 
-          {/* Recents section — always visible, collapsible, persisted to localStorage */}
+          {/* Folders section — only rendered when at least one user folder exists */}
+          {userChatFolders.length > 0 && (
+            <SidebarSection
+              label="Folders"
+              isCollapsible
+              storageKey="amplify_sidebar_folders_collapsed"
+            >
+              <div className="flex flex-col gap-[2px] px-[10px]">
+                {userChatFolders.map((f) => (
+                  <FolderRow
+                    key={f.id}
+                    folder={f}
+                    conversations={conversationsByFolderId.get(f.id) ?? []}
+                    isOpen={openFolderIds[f.id] ?? true}
+                    onToggle={() => toggleFolderOpen(f.id)}
+                    selectedConversationId={selectedConversation?.id}
+                    onSelectConversation={handleSelectConversation}
+                    onDeleteConversation={handleDeleteConversation}
+                    onRenameFolder={handleRenameFolderRow}
+                    onDeleteFolder={handleDeleteFolderRow}
+                    onPinFolder={handlePinFolderRow}
+                    startInRename={f.id === newlyCreatedFolderId}
+                  />
+                ))}
+              </div>
+            </SidebarSection>
+          )}
+
+          {/* Recents section — always visible, collapsible, persisted to localStorage.
+              Wrapped for hover tracking: "New folder" only appears on hover. */}
+          <div
+            onMouseEnter={() => setIsRecentsHeaderHovered(true)}
+            onMouseLeave={() => setIsRecentsHeaderHovered(false)}
+          >
           <SidebarSection
             label="Recents"
             isCollapsible
             storageKey="amplify_sidebar_recents_collapsed"
             rightSlot={
               <div className="flex items-center gap-1">
+                <IconButton
+                  size="sm"
+                  title="New folder"
+                  onClick={handleCreateNewFolder}
+                  className={`transition-opacity duration-100 ${isRecentsHeaderHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                >
+                  <IconFolderPlus size={13} />
+                </IconButton>
                 <IconButton
                   size="sm"
                   title="Open chats and tasks"
@@ -888,6 +1012,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
               </div>
             )}
           </SidebarSection>
+          </div>
 
           {/* Bottom padding for scroll */}
           <div className="h-4" />
