@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import { LucideAlertCircle, LucideChevronDown, LucideLoader2 } from './LucideIcons';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import {
     ContextSelections,
     EpisodeProfile,
@@ -20,6 +20,7 @@ import {
 } from '@/services/notebookService';
 import { formatModelName } from './modelDisplay';
 import { formatTokenLimit, getContextUsageStatus, resolveContextWindow } from './modelContext';
+import { outlineBadgeClass } from './notebookUI';
 
 type SourceMode = 'off' | 'insights' | 'full';
 type NoteMode = 'off' | 'full';
@@ -48,11 +49,9 @@ const getSourceDefaultMode = (source: SourceListItem): SourceMode =>
     source.insights_count && source.insights_count > 0 ? 'insights' : 'full';
 
 const inputClass =
-    'rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 dark:placeholder-gray-500';
+    'rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary] shadow-sm placeholder-[--text-muted] outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent]';
 const uppercaseLabelClass =
-    'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
-const outlineBadgeClass =
-    'inline-flex items-center rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium dark:border-neutral-600';
+    'text-xs font-semibold uppercase tracking-wide text-[--text-muted]';
 
 // Mirrors the reference GeneratePodcastDialog: a wide two-column layout with a
 // multi-notebook content accordion on the left (per-source Summary/Full mode)
@@ -377,16 +376,9 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
     };
 
     return (
-        <Modal
-            title="Generate Podcast Episode"
-            onCancel={onClose}
-            showSubmit={false}
-            showCancel={false}
-            width={() => Math.min(1080, window.innerWidth * 0.9)}
-            height={() => window.innerHeight * 0.9}
-            content={
-                <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+        <CreationModalShell title="Generate Podcast Episode" onClose={onClose}>
+                <div className="flex flex-col gap-4 p-2 text-[--text-primary]">
+                    <p className="text-sm text-[--text-muted]">
                         Select the content to include and configure the episode details
                         before generating a new podcast episode.
                     </p>
@@ -397,7 +389,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h3 className={`text-sm ${uppercaseLabelClass}`}>Content</h3>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    <p className="text-xs text-[--text-muted]">
                                         Pick notebooks, sources, and notes to include in this
                                         episode.
                                     </p>
@@ -410,10 +402,8 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                         <span
                                             className={`text-xs ${
                                                 contextUsage === 'over'
-                                                    ? 'text-red-600 dark:text-red-400'
-                                                    : contextUsage === 'warn'
-                                                      ? 'text-amber-600 dark:text-amber-400'
-                                                      : 'text-gray-500 dark:text-gray-400'
+                                                    ? 'text-[--text-error]'
+                                                    : 'text-[--text-muted]'
                                             }`}
                                         >
                                             {tokenCount > 0 &&
@@ -429,9 +419,9 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                 </div>
                             </div>
 
-                            <div className="rounded-lg border border-gray-200 bg-gray-50/60 dark:border-neutral-700 dark:bg-neutral-800/30">
+                            <div className="rounded-lg border border-[--border-subtle] bg-[--bg-sidebar]/60">
                                 {loading ? (
-                                    <div className="flex items-center justify-center py-16 text-sm text-gray-500 dark:text-gray-400">
+                                    <div className="flex items-center justify-center py-16 text-sm text-[--text-muted]">
                                         <LucideLoader2
                                             size={16}
                                             className="mr-2 animate-spin"
@@ -439,7 +429,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                         Loading notebooks...
                                     </div>
                                 ) : notebooks.length === 0 ? (
-                                    <div className="p-6 text-sm text-gray-500 dark:text-gray-400">
+                                    <div className="p-6 text-sm text-[--text-muted]">
                                         No notebooks found. Create a notebook and add content
                                         before generating a podcast.
                                     </div>
@@ -462,7 +452,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                             return (
                                                 <div
                                                     key={notebook.id}
-                                                    className="border-b border-gray-200 last:border-b-0 dark:border-neutral-700"
+                                                    className="border-b border-[--border-subtle] last:border-b-0"
                                                 >
                                                     <div className="flex items-start gap-3 px-4 pt-3">
                                                         <input
@@ -474,7 +464,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                     e.target.checked,
                                                                 )
                                                             }
-                                                            className="mt-1 h-4 w-4 accent-purple-500"
+                                                            className="mt-1 h-4 w-4 accent-[--accent]"
                                                         />
                                                         <button
                                                             onClick={() =>
@@ -487,7 +477,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                     {notebook.name ||
                                                                         '(untitled)'}
                                                                 </p>
-                                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                <p className="text-xs text-[--text-muted]">
                                                                     {checked
                                                                         ? `${summary.sources} Sources, ${summary.notes} Notes`
                                                                         : 'No content selected'}
@@ -506,7 +496,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                 </span>
                                                                 <LucideChevronDown
                                                                     size={16}
-                                                                    className={`text-gray-400 transition-transform ${
+                                                                    className={`text-[--text-muted] transition-transform ${
                                                                         expanded
                                                                             ? 'rotate-180'
                                                                             : ''
@@ -526,12 +516,12 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                     {fetchingNb && (
                                                                         <LucideLoader2
                                                                             size={12}
-                                                                            className="animate-spin text-gray-400"
+                                                                            className="animate-spin text-[--text-muted]"
                                                                         />
                                                                     )}
                                                                 </div>
                                                                 {srcs.length === 0 ? (
-                                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                    <p className="text-xs text-[--text-muted]">
                                                                         {fetchingNb
                                                                             ? 'Loading…'
                                                                             : 'No sources available in this notebook.'}
@@ -550,7 +540,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                             return (
                                                                                 <div
                                                                                     key={source.id}
-                                                                                    className="flex items-center gap-3 rounded border border-gray-200 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-[#2b2c36]"
+                                                                                    className="flex items-center gap-3 rounded border border-[--border-subtle] bg-[--bg-raised] px-3 py-2"
                                                                                 >
                                                                                     <input
                                                                                         type="checkbox"
@@ -573,14 +563,14 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                                                     : 'off',
                                                                                             )
                                                                                         }
-                                                                                        className="h-4 w-4 accent-purple-500"
+                                                                                        className="h-4 w-4 accent-[--accent]"
                                                                                     />
                                                                                     <div className="flex min-w-0 flex-1 flex-col gap-1">
                                                                                         <span className="truncate text-sm font-medium">
                                                                                             {source.title ||
                                                                                                 'Untitled source'}
                                                                                         </span>
-                                                                                        <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                                        <div className="flex items-center gap-2 text-xs text-[--text-muted]">
                                                                                             <span>
                                                                                                 {source
                                                                                                     .asset
@@ -642,14 +632,14 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                 )}
                                                             </div>
 
-                                                            <div className="h-px bg-gray-200 dark:bg-neutral-700" />
+                                                            <div className="h-px bg-[--border-subtle]" />
 
                                                             <div className="space-y-2">
                                                                 <h4 className={uppercaseLabelClass}>
                                                                     Notes
                                                                 </h4>
                                                                 {nts.length === 0 ? (
-                                                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                                    <p className="text-xs text-[--text-muted]">
                                                                         {fetchingNb
                                                                             ? 'Loading…'
                                                                             : 'No notes available in this notebook.'}
@@ -665,7 +655,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                             return (
                                                                                 <div
                                                                                     key={note.id}
-                                                                                    className="flex items-center gap-3 rounded border border-gray-200 bg-white px-3 py-2 dark:border-neutral-700 dark:bg-[#2b2c36]"
+                                                                                    className="flex items-center gap-3 rounded border border-[--border-subtle] bg-[--bg-raised] px-3 py-2"
                                                                                 >
                                                                                     <input
                                                                                         type="checkbox"
@@ -684,7 +674,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                                                     .checked,
                                                                                             )
                                                                                         }
-                                                                                        className="h-4 w-4 accent-purple-500"
+                                                                                        className="h-4 w-4 accent-[--accent]"
                                                                                     />
                                                                                     <div className="flex min-w-0 flex-1 flex-col">
                                                                                         <span className="truncate text-sm font-medium">
@@ -692,7 +682,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                                                                 'Untitled note'}
                                                                                         </span>
                                                                                         {note.updated && (
-                                                                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                                                            <span className="text-xs text-[--text-muted]">
                                                                                                 Updated{' '}
                                                                                                 {new Date(
                                                                                                     note.updated.replace(
@@ -726,12 +716,12 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                     Episode Settings
                                 </h3>
                                 {loading ? (
-                                    <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                                    <div className="flex items-center gap-2 text-sm text-[--text-muted]">
                                         <LucideLoader2 size={16} className="animate-spin" />
                                         Loading episode profiles...
                                     </div>
                                 ) : profiles.length === 0 ? (
-                                    <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-600 dark:bg-neutral-800/40 dark:text-gray-400">
+                                    <div className="rounded-lg border border-dashed border-[--border-subtle] bg-[--bg-sidebar] p-4 text-sm text-[--text-muted]">
                                         {isAdmin
                                             ? 'No episode profiles found. Create an episode profile before generating a podcast.'
                                             : 'Podcast generation is not set up yet. Please contact an administrator.'}
@@ -762,7 +752,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                                 ))}
                                             </select>
                                             {selectedProfile && isAdmin && (
-                                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                                <p className="text-xs text-[--text-muted]">
                                                     Uses speaker profile{' '}
                                                     <strong>
                                                         {selectedProfile.speaker_config}
@@ -807,10 +797,8 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
 
                             {contextUsage && contextUsage !== 'ok' && contextLimit && (
                                 <div
-                                    className={`flex items-start gap-2 rounded-lg border p-3 text-sm ${
-                                        contextUsage === 'over'
-                                            ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300'
-                                            : 'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300'
+                                    className={`flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm ${
+                                        contextUsage === 'over' ? 'text-[--text-error]' : 'text-[--text-secondary]'
                                     }`}
                                 >
                                     <LucideAlertCircle
@@ -826,7 +814,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                             )}
 
                             {error && (
-                                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                                <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                                     <LucideAlertCircle
                                         size={16}
                                         className="mt-0.5 flex-none"
@@ -839,7 +827,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                 <button
                                     onClick={handleSubmit}
                                     disabled={submitting}
-                                    className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50"
+                                    className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-[--accent] px-4 text-sm font-medium text-[--accent-fg] shadow-sm transition-colors hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
                                 >
                                     {submitting && (
                                         <LucideLoader2
@@ -852,7 +840,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                                 <button
                                     onClick={onClose}
                                     disabled={submitting}
-                                    className="inline-flex h-9 w-full items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                                    className="inline-flex h-9 w-full items-center justify-center rounded-md border border-[--border-subtle] bg-transparent px-4 text-sm font-medium text-[--text-primary] shadow-sm transition-colors hover:bg-[--bg-hover] disabled:pointer-events-none disabled:opacity-50"
                                 >
                                     Cancel
                                 </button>
@@ -860,8 +848,7 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
                         </div>
                     </div>
                 </div>
-            }
-        />
+        </CreationModalShell>
     );
 };
 

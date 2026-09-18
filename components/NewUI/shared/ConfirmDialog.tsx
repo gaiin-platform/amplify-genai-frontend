@@ -46,6 +46,8 @@ export interface ConfirmDialogProps {
   onConfirm: () => void;
   /** Called when the user cancels (Escape, backdrop click, Cancel button) */
   onCancel: () => void;
+  /** Disables the confirm button (e.g. while an async preview is still loading) */
+  confirmDisabled?: boolean;
   /**
    * Visual variant for the confirm button:
    *   danger  → red   (default — for irreversible destructive actions)
@@ -63,6 +65,7 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   cancelLabel = 'Cancel',
   onConfirm,
   onCancel,
+  confirmDisabled = false,
   variant = 'danger',
 }) => {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -184,7 +187,8 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
           <button
             onClick={onConfirm}
-            className={`h-[34px] px-4 rounded-[8px] text-[13.5px] font-medium transition-colors focus:outline-none focus-visible:ring-2 ${confirmCls}`}
+            disabled={confirmDisabled}
+            className={`h-[34px] px-4 rounded-[8px] text-[13.5px] font-medium transition-colors focus:outline-none focus-visible:ring-2 disabled:pointer-events-none disabled:opacity-50 ${confirmCls}`}
           >
             {confirmLabel}
           </button>

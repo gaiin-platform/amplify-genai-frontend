@@ -18,8 +18,16 @@ import {
     LucideVolume2,
     LucideX,
 } from './LucideIcons';
-import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
+import { SegmentedControl, SegmentItem } from '@/components/NewUI/shared/SegmentedControl';
+import {
+    cardClass,
+    primaryButtonClass,
+    outlineSmButtonClass,
+    outlineBadgeClass,
+    secondaryBadgeClass,
+} from './notebookUI';
 import {
     createEpisodeProfile,
     createSpeakerProfile,
@@ -63,50 +71,43 @@ const STATUS_META: Record<
 > = {
     running: {
         label: 'Processing',
-        className:
-            'border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/30 dark:text-amber-300',
+        className: 'border-transparent bg-[--bg-active] text-[--text-muted]',
         group: 'running',
     },
     processing: {
         label: 'Processing',
-        className:
-            'border-amber-200 bg-amber-100 text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/30 dark:text-amber-300',
+        className: 'border-transparent bg-[--bg-active] text-[--text-muted]',
         group: 'running',
     },
     pending: {
         label: 'Pending',
-        className:
-            'border-sky-200 bg-sky-100 text-sky-800 dark:border-sky-900/50 dark:bg-sky-900/30 dark:text-sky-300',
+        className: 'border-transparent bg-[--bg-active] text-[--text-muted]',
         group: 'pending',
     },
     submitted: {
         label: 'Pending',
-        className:
-            'border-sky-200 bg-sky-100 text-sky-800 dark:border-sky-900/50 dark:bg-sky-900/30 dark:text-sky-300',
+        className: 'border-transparent bg-[--bg-active] text-[--text-muted]',
         group: 'pending',
     },
     completed: {
         label: 'Completed',
-        className:
-            'border-emerald-200 bg-emerald-100 text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-900/30 dark:text-emerald-300',
+        className: 'border-transparent bg-[--bg-active] text-[--text-muted]',
         group: 'completed',
     },
     failed: {
         label: 'Failed',
-        className:
-            'border-red-200 bg-red-100 text-red-800 dark:border-red-900/50 dark:bg-red-900/30 dark:text-red-300',
+        className: 'border-transparent bg-[--bg-active] text-[--text-error]',
         group: 'failed',
     },
     error: {
         label: 'Failed',
-        className:
-            'border-red-200 bg-red-100 text-red-800 dark:border-red-900/50 dark:bg-red-900/30 dark:text-red-300',
+        className: 'border-transparent bg-[--bg-active] text-[--text-error]',
         group: 'failed',
     },
     unknown: {
         label: 'Unknown',
         className:
-            'border-transparent bg-gray-100 text-gray-500 dark:bg-neutral-700 dark:text-gray-400',
+            'border-transparent bg-[--bg-active] text-[--text-muted]',
         group: 'pending',
     },
 };
@@ -121,25 +122,14 @@ const episodeProfileNeedsSetup = (p: EpisodeProfile): boolean =>
 const speakerProfileNeedsSetup = (p: SpeakerProfile): boolean =>
     !p.voice_model && !(p.tts_provider && p.tts_model);
 
-// Shared button/badge classes mirroring the reference shadcn sizes.
-const primaryButtonClass =
-    'inline-flex h-9 items-center justify-center gap-2 rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50';
-const outlineSmButtonClass =
-    'inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700';
 const ghostSmButtonClass =
-    'inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium transition-colors hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:hover:bg-neutral-700';
-const outlineBadgeClass =
-    'inline-flex items-center rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium dark:border-neutral-600';
-const secondaryBadgeClass =
-    'inline-flex items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200';
+    'inline-flex h-8 items-center justify-center rounded-md px-3 text-sm font-medium transition-colors hover:bg-[--bg-hover] disabled:pointer-events-none disabled:opacity-50';
 const setupBadge = (
-    <span className="inline-flex items-center gap-1 rounded-md border border-amber-300 px-2 py-0.5 text-xs font-medium text-amber-600 dark:border-amber-700 dark:text-amber-400">
+    <span className="inline-flex items-center gap-1 rounded-md border border-[--border-subtle] px-2 py-0.5 text-xs font-medium text-[--text-secondary]">
         <LucideAlertTriangle size={12} />
         Setup required
     </span>
 );
-const cardClass =
-    'flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]';
 
 // Memoized so the <audio> DOM node is created once per episode and never
 // re-mounted on parent re-renders (polling, modal open, etc.). Re-mounting an
@@ -186,12 +176,12 @@ const EpisodeAudio = memo(({ episodeId }: { episodeId: string }) => {
 
     if (errorStatus !== undefined) {
         return (
-            <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-300">
+            <div className="flex items-start gap-2 rounded-md border border-[--border-subtle] bg-[--bg-raised] p-2 text-xs text-[--text-error]">
                 <LucideAlertCircle size={14} className="mt-0.5 flex-none" />
                 <span className="flex-1">{audioErrorMessage(errorStatus)}</span>
                 <button
                     onClick={() => setAttempt((n) => n + 1)}
-                    className="flex items-center gap-1 rounded border border-amber-300 bg-white px-2 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100 dark:border-amber-800/50 dark:bg-transparent dark:text-amber-200 dark:hover:bg-amber-900/30"
+                    className="flex items-center gap-1 rounded border border-[--border-subtle] bg-transparent px-2 py-0.5 text-[11px] font-medium text-[--text-secondary] hover:bg-[--bg-hover]"
                 >
                     <LucideRefreshCcw size={12} />
                     Retry
@@ -201,7 +191,7 @@ const EpisodeAudio = memo(({ episodeId }: { episodeId: string }) => {
     }
     if (!src) {
         return (
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-neutral-400">
+            <div className="flex items-center gap-2 text-xs text-[--text-muted]">
                 <LucideLoader2 size={14} className="animate-spin" />
                 Loading audio...
             </div>
@@ -225,7 +215,7 @@ const StatusBadge = ({ status }: { status?: EpisodeStatus | null }) => {
 
 const SummaryBadge = ({ label, value }: { label: string; value: number }) => (
     <span className={`${outlineBadgeClass} font-medium`}>
-        <span className="mr-1.5 text-gray-500 dark:text-gray-400">{label}</span>
+        <span className="mr-1.5 text-[--text-muted]">{label}</span>
         <span>{value}</span>
     </span>
 );
@@ -273,44 +263,30 @@ const EpisodeDetailsModal = ({
         ? `Created ${formatDistanceToNow(episode.created)}`
         : null;
 
-    const tabBtn = (id: typeof activeTab, label: string) => (
-        <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={`inline-flex h-9 flex-1 items-center justify-center whitespace-nowrap rounded-lg border px-4 text-sm font-medium transition-all ${
-                activeTab === id
-                    ? 'border-gray-200 bg-white text-gray-900 shadow-sm dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-100'
-                    : 'border-transparent text-gray-500 dark:text-gray-400'
-            }`}
-        >
-            {label}
-        </button>
-    );
+    const tabItems: SegmentItem[] = [
+        { id: 'summary', label: 'Summary' },
+        { id: 'outline', label: 'Outline' },
+        { id: 'transcript', label: 'Transcript' },
+    ];
 
-    const infoBox = 'rounded-md border border-gray-200 bg-gray-50 p-3 text-xs dark:border-neutral-700 dark:bg-[#343541]';
+    const infoBox = 'rounded-md border border-[--border-subtle] bg-[--bg-active] p-3 text-xs';
 
     return (
-        <Modal
-            title={episode.name}
-            onCancel={onClose}
-            showSubmit={false}
-            cancelLabel="Close"
-            width={() => Math.min(720, window.innerWidth * 0.9)}
-            height={() => Math.min(640, window.innerHeight * 0.85)}
-            content={
-                <div className="flex h-full flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+        <CreationModalShell title={episode.name} onClose={onClose}>
+            <div className="flex h-full flex-col gap-4 pt-2 text-[--text-primary]">
+                    <p className="text-sm text-[--text-muted]">
                         {profile?.name || 'Unknown'}
                         {createdLabel ? ` • ${createdLabel}` : ''}
                     </p>
 
                     {isCompleted && <EpisodeAudio episodeId={episode.id} />}
 
-                    <div className="grid w-full grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-gray-100/80 p-1 shadow-sm dark:border-neutral-700 dark:bg-neutral-800/80">
-                        {tabBtn('summary', 'Summary')}
-                        {tabBtn('outline', 'Outline')}
-                        {tabBtn('transcript', 'Transcript')}
-                    </div>
+                    <SegmentedControl
+                        items={tabItems}
+                        value={activeTab}
+                        onChange={(id) => setActiveTab(id as typeof activeTab)}
+                        aria-label="Episode detail view"
+                    />
 
                     <div className="flex-1 overflow-y-auto pr-1 text-sm">
                         {activeTab === 'summary' && (
@@ -319,7 +295,7 @@ const EpisodeDetailsModal = ({
                                     <h4 className="text-sm font-semibold">Episode profile</h4>
                                     <div className="grid gap-2 text-sm md:grid-cols-2">
                                         <div>
-                                            <p className="text-gray-500 dark:text-gray-400">
+                                            <p className="text-[--text-muted]">
                                                 Outline model
                                             </p>
                                             <p>
@@ -331,7 +307,7 @@ const EpisodeDetailsModal = ({
                                             </p>
                                         </div>
                                         <div>
-                                            <p className="text-gray-500 dark:text-gray-400">
+                                            <p className="text-[--text-muted]">
                                                 Transcript model
                                             </p>
                                             <p>
@@ -343,7 +319,7 @@ const EpisodeDetailsModal = ({
                                             </p>
                                         </div>
                                         <div>
-                                            <p className="text-gray-500 dark:text-gray-400">
+                                            <p className="text-[--text-muted]">
                                                 Segments
                                             </p>
                                             <p>{profile?.num_segments ?? '—'}</p>
@@ -358,7 +334,7 @@ const EpisodeDetailsModal = ({
 
                                 <section className="space-y-2">
                                     <h4 className="text-sm font-semibold">Speaker profile</h4>
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    <p className="text-xs text-[--text-muted]">
                                         {modelName(
                                             speakerProfile?.voice_model,
                                             speakerProfile?.tts_provider,
@@ -368,11 +344,11 @@ const EpisodeDetailsModal = ({
                                     {(speakerProfile?.speakers || []).map((sp, i) => (
                                         <div key={`${sp.name}-${i}`} className={infoBox}>
                                             <p className="font-semibold">{sp.name}</p>
-                                            <p className="text-gray-500 dark:text-gray-400">
+                                            <p className="text-[--text-muted]">
                                                 Voice ID: {sp.voice_id}
                                             </p>
                                             {sp.backstory && (
-                                                <p className="mt-2 whitespace-pre-wrap text-gray-500 dark:text-gray-400">
+                                                <p className="mt-2 whitespace-pre-wrap text-[--text-muted]">
                                                     <span className="font-semibold">
                                                         Backstory:
                                                     </span>{' '}
@@ -380,7 +356,7 @@ const EpisodeDetailsModal = ({
                                                 </p>
                                             )}
                                             {sp.personality && (
-                                                <p className="mt-2 whitespace-pre-wrap text-gray-500 dark:text-gray-400">
+                                                <p className="mt-2 whitespace-pre-wrap text-[--text-muted]">
                                                     <span className="font-semibold">
                                                         Personality:
                                                     </span>{' '}
@@ -404,7 +380,7 @@ const EpisodeDetailsModal = ({
 
                         {activeTab === 'outline' &&
                             (outlineSegments.length === 0 ? (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <p className="text-xs text-[--text-muted]">
                                     No outline available.
                                 </p>
                             ) : (
@@ -416,12 +392,12 @@ const EpisodeDetailsModal = ({
                                                     {seg.name || `Segment ${i + 1}`}
                                                 </p>
                                                 {seg.size && (
-                                                    <span className="inline-flex items-center rounded-md border border-gray-300 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide dark:border-neutral-600">
+                                                    <span className="inline-flex items-center rounded-md border border-[--border-subtle] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[--text-secondary]">
                                                         {seg.size}
                                                     </span>
                                                 )}
                                             </div>
-                                            <p className="whitespace-pre-wrap text-gray-500 dark:text-gray-400">
+                                            <p className="whitespace-pre-wrap text-[--text-muted]">
                                                 {seg.description || 'No description'}
                                             </p>
                                         </div>
@@ -431,7 +407,7 @@ const EpisodeDetailsModal = ({
 
                         {activeTab === 'transcript' &&
                             (transcriptEntries.length === 0 ? (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <p className="text-xs text-[--text-muted]">
                                     No transcript available.
                                 </p>
                             ) : (
@@ -441,7 +417,7 @@ const EpisodeDetailsModal = ({
                                             <p className="font-semibold">
                                                 {e.speaker || 'Speaker'}
                                             </p>
-                                            <p className="whitespace-pre-wrap text-gray-500 dark:text-gray-400">
+                                            <p className="whitespace-pre-wrap text-[--text-muted]">
                                                 {e.dialogue || ''}
                                             </p>
                                         </div>
@@ -449,9 +425,8 @@ const EpisodeDetailsModal = ({
                                 </div>
                             ))}
                     </div>
-                </div>
-            }
-        />
+            </div>
+        </CreationModalShell>
     );
 };
 
@@ -481,15 +456,15 @@ const EpisodeCard = ({
         (episode.episode_profile as EpisodeProfile)?.name || 'Unknown';
 
     return (
-        <div className="rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
+        <div className="rounded-xl border border-[--border-subtle] bg-[--bg-raised] shadow-sm">
             <div className="space-y-4 p-4">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-base font-semibold">{episode.name}</h3>
+                            <h3 className="text-[14px] font-semibold">{episode.name}</h3>
                             <StatusBadge status={status} />
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-[--text-muted]">
                             Profile: {profileName}
                             {episode.created &&
                                 ` • Created ${formatDistanceToNow(episode.created)}`}
@@ -519,7 +494,7 @@ const EpisodeCard = ({
                             <button
                                 onClick={onDelete}
                                 disabled={deleting}
-                                className={`${ghostSmButtonClass} text-red-600 dark:text-red-400`}
+                                className={`${ghostSmButtonClass} text-[--text-error]`}
                             >
                                 <LucideTrash2 size={16} className="mr-2" />
                                 Delete
@@ -531,11 +506,11 @@ const EpisodeCard = ({
                 {isCompleted && <EpisodeAudio episodeId={episode.id} />}
 
                 {isFailed && episode.error_message && (
-                    <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-900 dark:bg-red-950/30">
-                        <p className="text-xs font-medium text-red-800 dark:text-red-300">
+                    <div className="rounded-md border border-[--border-subtle] bg-[--bg-raised] p-3">
+                        <p className="text-xs font-medium text-[--text-error]">
                             Error Details
                         </p>
-                        <p className="mt-1 whitespace-pre-wrap text-xs text-red-700 dark:text-red-400">
+                        <p className="mt-1 whitespace-pre-wrap text-xs text-[--text-secondary]">
                             {episode.error_message}
                         </p>
                     </div>
@@ -621,8 +596,8 @@ const EpisodesTab = ({
         <div className="space-y-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div className="space-y-1">
-                    <h2 className="text-xl font-semibold">Episodes overview</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <h2 className="text-[16px] font-semibold">Episodes overview</h2>
+                    <p className="text-sm text-[--text-muted]">
                         Monitor podcast generation jobs and review the final artifacts.
                     </p>
                 </div>
@@ -654,7 +629,7 @@ const EpisodesTab = ({
             </div>
 
             {error && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-4 text-sm text-[--text-error]">
                     <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                     <div>
                         <div className="font-medium">Failed to load episodes</div>
@@ -666,15 +641,15 @@ const EpisodesTab = ({
             )}
 
             {loading && episodes.length === 0 && (
-                <div className="flex items-center gap-3 rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-neutral-600 dark:text-gray-400">
+                <div className="flex items-center gap-3 rounded-lg border border-dashed border-[--border-subtle] p-6 text-sm text-[--text-muted]">
                     <LucideLoader2 size={16} className="animate-spin" />
                     Loading episodes…
                 </div>
             )}
 
             {!loading && !error && episodes.length === 0 && (
-                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-10 text-center dark:border-neutral-600 dark:bg-neutral-800/40">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                <div className="rounded-lg border border-dashed border-[--border-subtle] bg-[--bg-hover] p-10 text-center">
+                    <p className="text-sm text-[--text-muted]">
                         No podcast episodes yet. Generate your first one from the notebook or
                         source chat interfaces.
                     </p>
@@ -688,11 +663,11 @@ const EpisodesTab = ({
                     <section key={key} className="space-y-4">
                         <div>
                             <h3 className="text-lg font-semibold leading-tight">{title}</h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-[--text-muted]">
                                 {description}
                             </p>
                         </div>
-                        <div className="h-px bg-gray-200 dark:bg-neutral-700" />
+                        <div className="h-px bg-[--border-subtle]" />
                         <div className="space-y-4">
                             {list.map((e) => (
                                 <EpisodeCard
@@ -718,7 +693,7 @@ const EpisodesTab = ({
 const TemplatesExplainer = () => {
     const [open, setOpen] = useState<boolean>(false);
     return (
-        <div className="overflow-hidden rounded-xl border border-gray-200 bg-gray-50/80 px-4 dark:border-neutral-700 dark:bg-neutral-800/40">
+        <div className="overflow-hidden rounded-xl border border-[--border-subtle] bg-[--bg-hover]/80 px-4">
             <button
                 onClick={() => setOpen((v) => !v)}
                 className="flex w-full items-center justify-between gap-2 py-4 text-left text-sm font-semibold"
@@ -726,24 +701,24 @@ const TemplatesExplainer = () => {
                 <span className="flex items-center gap-2">
                     <LucideLightbulb
                         size={16}
-                        className="text-purple-600 dark:text-purple-400"
+                        className="text-[--accent]"
                     />
                     How profiles power podcast generation
                 </span>
                 <LucideChevronDown
                     size={16}
-                    className={`text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}
+                    className={`text-[--text-muted] transition-transform ${open ? 'rotate-180' : ''}`}
                 />
             </button>
             {open && (
-                <div className="space-y-4 pb-4 text-sm text-gray-500 dark:text-gray-400">
+                <div className="space-y-4 pb-4 text-sm text-[--text-muted]">
                     <p>
                         Profiles split the podcast workflow into two reusable building blocks.
                         Mix and match them whenever you generate a new episode.
                     </p>
 
                     <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                        <h4 className="font-medium text-[--text-primary]">
                             Episode profiles set the format
                         </h4>
                         <ul className="list-disc space-y-1 pl-5">
@@ -760,7 +735,7 @@ const TemplatesExplainer = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                        <h4 className="font-medium text-[--text-primary]">
                             Speaker profiles bring voices to life
                         </h4>
                         <ul className="list-disc space-y-1 pl-5">
@@ -777,7 +752,7 @@ const TemplatesExplainer = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <h4 className="font-medium text-gray-900 dark:text-gray-100">
+                        <h4 className="font-medium text-[--text-primary]">
                             Recommended workflow
                         </h4>
                         <ol className="list-decimal space-y-1 pl-5">
@@ -788,7 +763,7 @@ const TemplatesExplainer = () => {
                                 the story
                             </li>
                         </ol>
-                        <p className="text-xs text-gray-400 dark:text-gray-500">
+                        <p className="text-xs text-[--text-muted]">
                             Episode profiles reference speaker profiles by name, so starting
                             with speakers avoids missing voice assignments later.
                         </p>
@@ -837,7 +812,7 @@ const SpeakerProfilesPanel = ({
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-lg font-semibold">Speaker profiles</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-[--text-muted]">
                         Configure voices and personalities for generated episodes.
                     </p>
                 </div>
@@ -847,7 +822,7 @@ const SpeakerProfilesPanel = ({
             </div>
 
             {sorted.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-8 text-center text-sm text-gray-500 dark:border-neutral-600 dark:bg-neutral-800/40 dark:text-gray-400">
+                <div className="rounded-lg border border-dashed border-[--border-subtle] bg-[--bg-hover] p-8 text-center text-sm text-[--text-muted]">
                     No speaker profiles yet. Create one to make episode profiles available.
                 </div>
             ) : (
@@ -871,7 +846,7 @@ const SpeakerProfilesPanel = ({
                                                 </h3>
                                                 {speakerProfileNeedsSetup(profile) && setupBadge}
                                             </div>
-                                            <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+                                            <p className="mt-1.5 text-sm text-[--text-muted]">
                                                 {profile.description ||
                                                     'No description provided.'}
                                             </p>
@@ -900,7 +875,7 @@ const SpeakerProfilesPanel = ({
                                         {profile.speakers.map((speaker, i) => (
                                             <div
                                                 key={`${speaker.name}-${i}`}
-                                                className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-neutral-700 dark:bg-[#343541]"
+                                                className="rounded-md border border-[--border-subtle] bg-[--bg-active] p-3"
                                             >
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
@@ -910,7 +885,7 @@ const SpeakerProfilesPanel = ({
                                                         </span>
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                        <span className="text-xs text-[--text-muted]">
                                                             Voice ID: {speaker.voice_id}
                                                         </span>
                                                         {speaker.voice_model && (
@@ -924,13 +899,13 @@ const SpeakerProfilesPanel = ({
                                                         )}
                                                     </div>
                                                 </div>
-                                                <p className="mt-2 whitespace-pre-wrap text-xs text-gray-500 dark:text-gray-400">
+                                                <p className="mt-2 whitespace-pre-wrap text-xs text-[--text-muted]">
                                                     <span className="font-semibold">
                                                         Backstory:
                                                     </span>{' '}
                                                     {speaker.backstory}
                                                 </p>
-                                                <p className="mt-2 whitespace-pre-wrap text-xs text-gray-500 dark:text-gray-400">
+                                                <p className="mt-2 whitespace-pre-wrap text-xs text-[--text-muted]">
                                                     <span className="font-semibold">
                                                         Personality:
                                                     </span>{' '}
@@ -1047,14 +1022,14 @@ const EpisodeProfilesPanel = ({
 
     const disableCreate = speakerProfiles.length === 0;
     const labelClass =
-        'text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
+        'text-xs font-semibold uppercase tracking-wide text-[--text-muted]';
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-lg font-semibold">Episode profiles</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-[--text-muted]">
                         Define reusable generation settings for your shows.
                     </p>
                 </div>
@@ -1068,13 +1043,13 @@ const EpisodeProfilesPanel = ({
             </div>
 
             {disableCreate && (
-                <p className="rounded-lg border border-dashed border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+                <p className="rounded-lg border border-dashed border-[--border-subtle] bg-[--bg-raised] p-4 text-sm text-[--text-secondary]">
                     Create a speaker profile before adding an episode profile.
                 </p>
             )}
 
             {sorted.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-gray-300 bg-gray-50 p-10 text-center text-sm text-gray-500 dark:border-neutral-600 dark:bg-neutral-800/40 dark:text-gray-400">
+                <div className="rounded-lg border border-dashed border-[--border-subtle] bg-[--bg-hover] p-10 text-center text-sm text-[--text-muted]">
                     No episode profiles yet. Create one to kickstart podcast generation.
                 </div>
             ) : (
@@ -1089,7 +1064,7 @@ const EpisodeProfilesPanel = ({
                                         </h3>
                                         {episodeProfileNeedsSetup(profile) && setupBadge}
                                     </div>
-                                    <p className="mt-1.5 text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="mt-1.5 text-sm text-[--text-muted]">
                                         {profile.description || 'No description provided.'}
                                     </p>
                                 </div>
@@ -1182,7 +1157,7 @@ const EpisodeProfilesPanel = ({
                                 {profile.default_briefing && (
                                     <div>
                                         <p className={labelClass}>Default briefing</p>
-                                        <p className="mt-1 whitespace-pre-wrap text-gray-500 dark:text-gray-400">
+                                        <p className="mt-1 whitespace-pre-wrap text-[--text-muted]">
                                             {profile.default_briefing}
                                         </p>
                                     </div>
@@ -1346,8 +1321,8 @@ const TemplatesTab = ({
         <div className="space-y-6">
             <div className="flex items-start justify-between gap-3">
                 <div className="space-y-1">
-                    <h2 className="text-xl font-semibold">Profiles workspace</h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <h2 className="text-[16px] font-semibold">Profiles workspace</h2>
+                    <p className="text-sm text-[--text-muted]">
                         Build reusable episode and speaker configurations for fast podcast
                         production.
                     </p>
@@ -1372,7 +1347,7 @@ const TemplatesTab = ({
             <TemplatesExplainer />
 
             {error && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-4 text-sm text-[--text-error]">
                     <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                     <div>
                         <div className="font-medium">Failed to load profiles data</div>
@@ -1385,13 +1360,13 @@ const TemplatesTab = ({
             )}
 
             {actionError && (
-                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                     <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                     <span className="flex-1">{actionError}</span>
                     <button
                         onClick={() => setActionError(null)}
                         title="Dismiss"
-                        className="rounded p-0.5 hover:bg-red-100 dark:hover:bg-red-900/40"
+                        className="rounded p-0.5 hover:bg-[--bg-hover]"
                     >
                         <LucideX size={14} />
                     </button>
@@ -1399,7 +1374,7 @@ const TemplatesTab = ({
             )}
 
             {loading ? (
-                <div className="flex items-center gap-3 rounded-lg border border-dashed border-gray-300 p-6 text-sm text-gray-500 dark:border-neutral-600 dark:text-gray-400">
+                <div className="flex items-center gap-3 rounded-lg border border-dashed border-[--border-subtle] p-6 text-sm text-[--text-muted]">
                     <LucideLoader2 size={16} className="animate-spin" />
                     Loading profiles…
                 </div>
@@ -1463,33 +1438,35 @@ const TemplatesTab = ({
                 />
             )}
 
-            {pendingProfileDelete && (
-                <ConfirmModal
-                    title={
-                        pendingProfileDelete.kind === 'speaker'
-                            ? 'Delete speaker profile?'
-                            : 'Delete profile?'
-                    }
-                    message={
-                        pendingProfileDelete.kind === 'speaker' ? (
-                            <span>
-                                Deleting &quot;<b>{pendingProfileDelete.name}</b>&quot; cannot
-                                be undone.
-                            </span>
-                        ) : (
-                            <span>
-                                This will remove &quot;<b>{pendingProfileDelete.name}</b>&quot;.
-                                Existing episodes keep their data, but new ones will no longer
-                                use this configuration.
-                            </span>
-                        )
-                    }
-                    confirmLabel={busyProfileId ? 'Deleting…' : 'Delete'}
-                    denyLabel="Cancel"
-                    onConfirm={confirmProfileDelete}
-                    onDeny={() => setPendingProfileDelete(null)}
-                />
-            )}
+            <ConfirmDialog
+                isOpen={!!pendingProfileDelete}
+                title={
+                    pendingProfileDelete?.kind === 'speaker'
+                        ? 'Delete speaker profile?'
+                        : 'Delete profile?'
+                }
+                message={
+                    !pendingProfileDelete ? (
+                        ''
+                    ) : pendingProfileDelete.kind === 'speaker' ? (
+                        <span>
+                            Deleting &quot;<b>{pendingProfileDelete.name}</b>&quot; cannot
+                            be undone.
+                        </span>
+                    ) : (
+                        <span>
+                            This will remove &quot;<b>{pendingProfileDelete.name}</b>&quot;.
+                            Existing episodes keep their data, but new ones will no longer
+                            use this configuration.
+                        </span>
+                    )
+                }
+                confirmLabel={busyProfileId ? 'Deleting…' : 'Delete'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={confirmProfileDelete}
+                onCancel={() => setPendingProfileDelete(null)}
+            />
         </div>
     );
 };
@@ -1684,25 +1661,16 @@ export const PodcastsPage = ({ isAdmin = false }: { isAdmin?: boolean }) => {
         await fetchEpisodes({ silent: true });
     };
 
-    const tabButton = (value: Tab, icon: React.ReactNode, label: string) => (
-        <button
-            onClick={() => setTab(value)}
-            className={`inline-flex h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-4 text-sm font-medium transition-all ${
-                tab === value
-                    ? 'border-gray-200 bg-white text-gray-900 shadow-sm dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-100'
-                    : 'border-transparent text-gray-500 dark:text-gray-400'
-            }`}
-        >
-            {icon}
-            {label}
-        </button>
-    );
+    const pageTabItems: SegmentItem[] = [
+        { id: 'episodes', label: 'Episodes', icon: <LucideMic size={16} /> },
+        { id: 'templates', label: 'Profiles', icon: <LucideLayoutTemplate size={16} /> },
+    ];
 
     return (
         <div className="w-full space-y-6">
             <header className="space-y-1">
-                <h1 className="text-2xl font-semibold tracking-tight">Podcasts</h1>
-                <p className="text-gray-500 dark:text-gray-400">
+                <h1 className="text-[16px] font-semibold">Podcasts</h1>
+                <p className="text-[--text-muted]">
                     {isAdmin
                         ? 'Keep track of generated episodes and manage reusable profiles.'
                         : 'Keep track of your generated episodes.'}
@@ -1711,7 +1679,7 @@ export const PodcastsPage = ({ isAdmin = false }: { isAdmin?: boolean }) => {
 
             {/* Only admins can edit profiles, so only they can act on this. */}
             {isAdmin && !profilesLoading && hasUnconfiguredProfiles && (
-                <div className="flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:border-amber-800/50 dark:bg-amber-900/20 dark:text-amber-300">
+                <div className="flex items-start gap-3 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-4 text-[--text-secondary]">
                     <LucideAlertTriangle size={16} className="mt-0.5 flex-none" />
                     <div>
                         <div className="mb-1 font-medium">Setup required</div>
@@ -1725,16 +1693,16 @@ export const PodcastsPage = ({ isAdmin = false }: { isAdmin?: boolean }) => {
 
             {isAdmin && (
                 <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-[--text-muted]">
                         Choose a view
                     </p>
-                    <div className="flex w-full max-w-md gap-1 rounded-xl border border-gray-200 bg-gray-100/80 p-1 shadow-sm dark:border-neutral-700 dark:bg-neutral-800/80">
-                        {tabButton('episodes', <LucideMic size={16} />, 'Episodes')}
-                        {tabButton(
-                            'templates',
-                            <LucideLayoutTemplate size={16} />,
-                            'Profiles',
-                        )}
+                    <div className="w-full max-w-md">
+                        <SegmentedControl
+                            items={pageTabItems}
+                            value={tab}
+                            onChange={(id) => setTab(id as Tab)}
+                            aria-label="Podcasts view"
+                        />
                     </div>
                 </div>
             )}
@@ -1772,21 +1740,25 @@ export const PodcastsPage = ({ isAdmin = false }: { isAdmin?: boolean }) => {
                 />
             )}
 
-            {pendingDelete && (
-                <ConfirmModal
-                    title="Delete episode?"
-                    message={
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                title="Delete episode?"
+                message={
+                    pendingDelete ? (
                         <span>
                             This will remove &quot;<b>{pendingDelete.name}</b>&quot; and its
                             audio file permanently.
                         </span>
-                    }
-                    confirmLabel={deletingId ? 'Deleting…' : 'Delete'}
-                    denyLabel="Cancel"
-                    onConfirm={handleDelete}
-                    onDeny={() => setPendingDelete(null)}
-                />
-            )}
+                    ) : (
+                        ''
+                    )
+                }
+                confirmLabel={deletingId ? 'Deleting…' : 'Delete'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={handleDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
 
             {viewing && (
                 <EpisodeDetailsModal

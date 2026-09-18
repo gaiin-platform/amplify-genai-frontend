@@ -1714,14 +1714,14 @@ const Home = ({
                                     new-chat view. */}
                                 <LastChatRestore />
 
-                                {/* Unified new sidebar */}
-                                {page !== 'notebook' && (
-                                    <NewSidebar
-                                        email={user?.email}
-                                        name={session?.user?.name}
-                                        username={(session?.user as any)?.username}
-                                    />
-                                )}
+                                {/* Unified new sidebar — stays visible on every page, Notebook included,
+                                    so Notebook behaves like Library/Assistants/Workflows (a page inside
+                                    the persistent shell) rather than a full-bleed takeover. */}
+                                <NewSidebar
+                                    email={user?.email}
+                                    name={session?.user?.name}
+                                    username={(session?.user as any)?.username}
+                                />
 
                                 {/* Main content area */}
                                 <div id="main-content" tabIndex={-1} className="flex flex-1 overflow-hidden">

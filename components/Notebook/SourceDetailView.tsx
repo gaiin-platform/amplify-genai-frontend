@@ -40,14 +40,16 @@ import {
     updateSource,
     waitForCommand,
 } from '@/services/notebookService';
-import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
+import { SegmentedControl, SegmentItem } from '@/components/NewUI/shared/SegmentedControl';
 import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
 import { filterTransformationsForRole } from './transformationAccess';
 import { InlineEditText } from './InlineEditText';
 import { DropdownButton, DropdownItem } from './DropdownButton';
 import { SourceChatPanel } from './SourceChatPanel';
 import { formatDistanceToNow } from './relativeTime';
+import { outlineSmButtonClass as outlineButtonClass, primaryButtonSmClass as primaryButtonClass } from './notebookUI';
 
 type Tab = 'content' | 'insights' | 'details';
 
@@ -118,7 +120,7 @@ const getYouTubeVideoId = (url: string): string | null => {
 // (rounded-xl border py-6 shadow-sm, px-6 sections).
 const Card = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
     <div
-        className={`flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36] ${className}`}
+        className={`flex flex-col gap-6 rounded-xl border border-[--border-subtle] bg-[--bg-raised] py-6 shadow-sm ${className}`}
     >
         {children}
     </div>
@@ -130,7 +132,7 @@ const CardTitle = ({ children, className = '' }: { children: ReactNode; classNam
     <div className={`font-semibold leading-none ${className}`}>{children}</div>
 );
 const CardDescription = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
-    <div className={`text-sm text-gray-500 dark:text-gray-400 ${className}`}>{children}</div>
+    <div className={`text-sm text-[--text-muted] ${className}`}>{children}</div>
 );
 const CardContent = ({ children, className = '' }: { children: ReactNode; className?: string }) => (
     <div className={`px-6 ${className}`}>{children}</div>
@@ -139,19 +141,13 @@ const CardContent = ({ children, className = '' }: { children: ReactNode; classN
 // Badge variants matching shadcn: rounded-md px-2 py-0.5 text-xs font-medium.
 const badgeClass = (variant: 'default' | 'secondary' | 'outline', extra = '') => {
     const variants = {
-        default: 'border-transparent bg-purple-500 text-white',
+        default: 'border-transparent bg-[--accent] text-[--accent-fg]',
         secondary:
-            'border-transparent bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-gray-200',
-        outline: 'border-gray-300 text-gray-800 dark:border-neutral-600 dark:text-gray-200',
+            'border-transparent bg-[--bg-active] text-[--text-primary]',
+        outline: 'border-[--border-subtle] text-[--text-secondary]',
     };
     return `inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${variants[variant]} ${extra}`;
 };
-
-// Button styles matching shadcn sizes: sm = h-8 px-3, default = h-9 px-4.
-const outlineButtonClass =
-    'inline-flex h-8 items-center justify-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700';
-const primaryButtonClass =
-    'inline-flex h-8 items-center justify-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50';
 
 // Full-page source viewer mirroring open-notebook's sources/[id] page:
 // editable title header with the ⋯ actions menu, Content/Insights/Details
@@ -311,18 +307,11 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
         },
     ];
 
-    const tabButton = (value: Tab, label: string) => (
-        <button
-            onClick={() => setTab(value)}
-            className={`inline-flex h-9 flex-1 items-center justify-center whitespace-nowrap rounded-lg border px-4 text-sm font-medium transition-all ${
-                tab === value
-                    ? 'border-gray-200 bg-white text-gray-900 shadow-sm dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-100'
-                    : 'border-transparent text-gray-500 dark:text-gray-400'
-            }`}
-        >
-            {label}
-        </button>
-    );
+    const tabItems: SegmentItem[] = [
+        { id: 'content', label: 'Content' },
+        { id: 'insights', label: insightsCount > 0 ? `Insights (${insightsCount})` : 'Insights' },
+        { id: 'details', label: 'Details' },
+    ];
 
     return (
         // minmax(0,…) tracks: with the default minmax(auto,…), any content
@@ -341,7 +330,7 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
                             <InlineEditText
                                 value={src.title || ''}
                                 placeholder="Give your source a descriptive title"
-                                className="text-2xl font-bold"
+                                className="text-[18px] font-semibold"
                                 onSave={handleRename}
                             />
                         </div>
@@ -359,7 +348,7 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
                         </div>
                     </div>
                     {actionError && (
-                        <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                        <div className="mt-3 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                             {actionError}
                         </div>
                     )}
@@ -367,13 +356,13 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
 
                 {/* Tabs */}
                 <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2">
-                    <div className="sticky top-0 z-10 grid w-full grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-gray-100/90 p-1 shadow-sm backdrop-blur dark:border-neutral-700 dark:bg-neutral-800/90">
-                        {tabButton('content', 'Content')}
-                        {tabButton(
-                            'insights',
-                            insightsCount > 0 ? `Insights (${insightsCount})` : 'Insights',
-                        )}
-                        {tabButton('details', 'Details')}
+                    <div className="sticky top-0 z-10 backdrop-blur">
+                        <SegmentedControl
+                            items={tabItems}
+                            value={tab}
+                            onChange={(id) => setTab(id as Tab)}
+                            aria-label="Source view"
+                        />
                     </div>
 
                     <div className="mt-6 pb-6">
@@ -391,7 +380,7 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
                                                 href={externalHref}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                className="truncate text-blue-600 hover:underline"
+                                                className="truncate text-[--accent] hover:underline"
                                             >
                                                 {src.asset?.url}
                                             </a>
@@ -416,7 +405,7 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
                                                         href={externalHref}
                                                         target="_blank"
                                                         rel="noopener noreferrer"
-                                                        className="inline-flex items-center gap-1 text-sm text-gray-500 hover:underline dark:text-gray-400"
+                                                        className="inline-flex items-center gap-1 text-sm text-[--text-muted] hover:underline"
                                                     >
                                                         <LucideExternalLink size={12} />
                                                         Open on YouTube
@@ -433,7 +422,7 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
                                             {src.full_text}
                                         </MemoizedReactMarkdown>
                                     ) : (
-                                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                                        <p className="text-sm text-[--text-muted]">
                                             No content available
                                         </p>
                                     )}
@@ -475,22 +464,22 @@ export const SourceDetailView = ({ source, notebooks, onDeleted, onSourceUpdated
                 />
             </div>
 
-            {confirmDeleteSource && (
-                <ConfirmModal
-                    title="Delete Source"
-                    message={
-                        <span>
-                            Are you sure you want to delete{' '}
-                            <b>{src.title || 'Untitled Source'}</b>? This will remove it from
-                            every notebook it appears in.
-                        </span>
-                    }
-                    confirmLabel={deletingSource ? 'Deleting…' : 'Delete'}
-                    denyLabel="Cancel"
-                    onConfirm={handleDeleteSource}
-                    onDeny={() => setConfirmDeleteSource(false)}
-                />
-            )}
+            <ConfirmDialog
+                isOpen={confirmDeleteSource}
+                title="Delete Source"
+                message={
+                    <span>
+                        Are you sure you want to delete{' '}
+                        <b>{src.title || 'Untitled Source'}</b>? This will remove it from
+                        every notebook it appears in.
+                    </span>
+                }
+                confirmLabel={deletingSource ? 'Deleting…' : 'Delete'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={handleDeleteSource}
+                onCancel={() => setConfirmDeleteSource(false)}
+            />
         </div>
     );
 };
@@ -660,7 +649,7 @@ const InsightsTab = ({
     return (
         <div className="flex flex-col gap-4">
             {/* Create New Insight */}
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-neutral-700 dark:bg-[#343541]">
+            <div className="rounded-lg border border-[--border-subtle] bg-[--bg-sidebar] p-4">
                 <label className="mb-3 flex items-center gap-2 text-sm font-semibold">
                     <LucideSparkles size={16} />
                     Generate New Insight
@@ -671,7 +660,7 @@ const InsightsTab = ({
                             value={selectedTransformationId}
                             onChange={(e) => setSelectedTransformationId(e.target.value)}
                             disabled={generating || loading}
-                            className="h-9 w-full min-w-0 appearance-none rounded-md border border-gray-300 bg-white px-3 pr-8 text-sm shadow-sm disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                            className="h-9 w-full min-w-0 appearance-none rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 pr-8 text-sm text-[--text-primary] shadow-sm disabled:opacity-50"
                         >
                             <option value="">Select a transformation...</option>
                             {transformations.map((t) => (
@@ -682,7 +671,7 @@ const InsightsTab = ({
                         </select>
                         <LucideChevronDown
                             size={16}
-                            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+                            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[--text-muted]"
                         />
                     </div>
                     <button
@@ -704,7 +693,7 @@ const InsightsTab = ({
                     </button>
                 </div>
                 {generationError && (
-                    <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
+                    <div className="mt-2 flex items-start gap-1.5 text-xs text-[--text-error]">
                         <LucideAlertCircle size={14} className="mt-0.5 flex-none" />
                         <span>{generationError}</span>
                     </div>
@@ -721,16 +710,16 @@ const InsightsTab = ({
                 </CardHeader>
                 <CardContent className="flex flex-col gap-4">
                     {error && (
-                        <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+                        <div className="text-sm text-[--text-error]">{error}</div>
                     )}
 
                     {/* Insights List */}
                     {loading ? (
                         <div className="flex items-center justify-center py-8">
-                            <LucideLoader2 size={24} className="animate-spin text-gray-400" />
+                            <LucideLoader2 size={24} className="animate-spin text-[--text-muted]" />
                         </div>
                     ) : insights.length === 0 && !generating ? (
-                        <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        <div className="py-8 text-center text-[--text-muted]">
                             <LucideLightbulb size={48} className="mx-auto mb-3 opacity-50" />
                             <p className="text-sm">No insights yet</p>
                             <p className="mt-1 text-xs">
@@ -740,7 +729,7 @@ const InsightsTab = ({
                     ) : (
                         <div className="flex flex-col gap-3">
                             {generating && (
-                                <div className="flex items-center gap-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-600 dark:bg-[#343541] dark:text-gray-400">
+                                <div className="flex items-center gap-2 rounded-lg border border-dashed border-[--border-subtle] bg-[--bg-sidebar] p-4 text-sm text-[--text-muted]">
                                     <LucideLoader2 size={16} className="animate-spin flex-none" />
                                     Generating insight…
                                 </div>
@@ -749,14 +738,14 @@ const InsightsTab = ({
                                 <div
                                     key={insight.id}
                                     id={`ref-source_insight-${insight.id.split(':')[1] ?? insight.id}`}
-                                    className="rounded-lg border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-[#2b2c36]"
+                                    className="rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-4"
                                 >
                                     <div className="flex items-start justify-between">
                                         <span className={badgeClass('outline', 'uppercase')}>
                                             {insight.insight_type}
                                         </span>
                                     </div>
-                                    <div className="mt-2 line-clamp-3 text-sm text-gray-500 dark:text-gray-400">
+                                    <div className="mt-2 line-clamp-3 text-sm text-[--text-muted]">
                                         <MemoizedReactMarkdown
                                             className="prose prose-sm dark:prose-invert max-w-none break-words [&_*]:my-0 [&_*]:text-sm [&_*]:font-normal [&_*]:leading-normal"
                                             remarkPlugins={[remarkGfm]}
@@ -773,7 +762,7 @@ const InsightsTab = ({
                                         </button>
                                         <button
                                             onClick={() => setPendingDelete(insight)}
-                                            className={`${outlineButtonClass} text-red-600 hover:text-red-600 dark:text-red-400`}
+                                            className={`${outlineButtonClass} text-[--text-error] hover:text-[--text-error]`}
                                         >
                                             <LucideTrash2 size={16} />
                                         </button>
@@ -786,41 +775,36 @@ const InsightsTab = ({
             </Card>
 
             {viewInsight && (
-                <Modal
+                <CreationModalShell
                     title="Source Insight"
-                    onCancel={() => setViewInsight(null)}
-                    showSubmit={false}
-                    cancelLabel="Close"
-                    width={() => Math.min(768, window.innerWidth * 0.9)}
-                    height={() => window.innerHeight * 0.85}
-                    content={
-                        <div className="flex flex-col gap-3 p-2 text-neutral-800 dark:text-neutral-100">
-                            <div>
-                                <span className={badgeClass('outline', 'uppercase')}>
-                                    {viewInsight.insight_type}
-                                </span>
-                            </div>
-                            <MemoizedReactMarkdown
-                                className="prose prose-sm dark:prose-invert max-w-none break-words"
-                                remarkPlugins={[remarkGfm]}
-                            >
-                                {viewInsight.content}
-                            </MemoizedReactMarkdown>
+                    onClose={() => setViewInsight(null)}
+                >
+                    <div className="flex flex-col gap-3 pt-2 text-[--text-primary]">
+                        <div>
+                            <span className={badgeClass('outline', 'uppercase')}>
+                                {viewInsight.insight_type}
+                            </span>
                         </div>
-                    }
-                />
+                        <MemoizedReactMarkdown
+                            className="prose prose-sm dark:prose-invert max-w-none break-words"
+                            remarkPlugins={[remarkGfm]}
+                        >
+                            {viewInsight.content}
+                        </MemoizedReactMarkdown>
+                    </div>
+                </CreationModalShell>
             )}
 
-            {pendingDelete && (
-                <ConfirmModal
-                    title="Delete Insight"
-                    message="Are you sure you want to delete this insight? This action cannot be undone."
-                    confirmLabel={deleting ? 'Deleting…' : 'Delete'}
-                    denyLabel="Cancel"
-                    onConfirm={confirmDelete}
-                    onDeny={() => setPendingDelete(null)}
-                />
-            )}
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                title="Delete Insight"
+                message="Are you sure you want to delete this insight? This action cannot be undone."
+                confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
         </div>
     );
 };
@@ -874,12 +858,12 @@ const DetailsTab = ({
                 <CardContent className="flex flex-col gap-6">
                     {/* Embedding Alert */}
                     {!source.embedded && (
-                        <div className="rounded-lg border border-gray-200 p-4 dark:border-neutral-700">
+                        <div className="rounded-lg border border-[--border-subtle] p-4">
                             <div className="flex gap-3">
                                 <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                                 <div className="min-w-0">
                                     <div className="mb-1 font-medium">Content Not Embedded</div>
-                                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                                    <div className="text-sm text-[--text-muted]">
                                         This content hasn&apos;t been embedded for vector search.
                                         Embedding enables advanced search capabilities and better
                                         content discovery.
@@ -905,7 +889,7 @@ const DetailsTab = ({
                             <div>
                                 <h3 className="mb-2 text-sm font-semibold">URL</h3>
                                 <div className="flex items-center gap-2">
-                                    <code className="min-w-0 flex-1 truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700">
+                                    <code className="min-w-0 flex-1 truncate rounded bg-[--bg-active] px-2 py-1 text-sm">
                                         {source.asset.url}
                                     </code>
                                     <button
@@ -945,7 +929,7 @@ const DetailsTab = ({
                                 <div className="flex flex-wrap items-center gap-2">
                                     <code
                                         title={source.asset.file_path}
-                                        className="min-w-0 max-w-full truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700"
+                                        className="min-w-0 max-w-full truncate rounded bg-[--bg-active] px-2 py-1 text-sm"
                                     >
                                         {fileBaseName(source.asset.file_path)}
                                     </code>
@@ -963,7 +947,7 @@ const DetailsTab = ({
                                     </button>
                                 </div>
                                 {fileAvailable === false && (
-                                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                                    <p className="text-xs text-[--text-muted]">
                                         This file is currently unavailable due to storage system
                                         reasons.
                                     </p>
@@ -992,7 +976,7 @@ const DetailsTab = ({
                             <div className="flex items-center gap-2">
                                 <LucideDatabase
                                     size={14}
-                                    className="text-gray-500 dark:text-gray-400"
+                                    className="text-[--text-muted]"
                                 />
                                 <span
                                     className={badgeClass(
@@ -1005,30 +989,30 @@ const DetailsTab = ({
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
                             <div>
-                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <p className="text-xs font-medium text-[--text-muted]">
                                     Created
                                 </p>
                                 <p className="text-sm">{formatDistanceToNow(source.created)}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <p className="text-xs text-[--text-muted]">
                                     {created ? created.toLocaleString() : '—'}
                                 </p>
                             </div>
                             <div>
-                                <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                <p className="text-xs font-medium text-[--text-muted]">
                                     Updated
                                 </p>
                                 <p className="text-sm">{formatDistanceToNow(source.updated)}</p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                <p className="text-xs text-[--text-muted]">
                                     {updated ? updated.toLocaleString() : '—'}
                                 </p>
                             </div>
                         </div>
                         <div className="mt-4">
-                            <p className="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                            <p className="mb-2 text-xs font-medium text-[--text-muted]">
                                 Source ID
                             </p>
                             <div className="flex items-center gap-2">
-                                <code className="min-w-0 flex-1 truncate rounded bg-gray-100 px-2 py-1 text-sm dark:bg-neutral-700">
+                                <code className="min-w-0 flex-1 truncate rounded bg-[--bg-active] px-2 py-1 text-sm">
                                     {source.id}
                                 </code>
                                 <button
@@ -1129,11 +1113,11 @@ const ManageNotebooksCard = ({
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
                 {visibleNotebooks.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-[--text-muted]">
                         No notebooks available
                     </p>
                 ) : (
-                    <div className="h-[300px] overflow-y-auto rounded-md border border-gray-200 p-4 dark:border-neutral-700">
+                    <div className="h-[300px] overflow-y-auto rounded-md border border-[--border-subtle] p-4">
                         <div className="flex flex-col gap-3">
                             {visibleNotebooks.map((nb) => {
                                 const isSelected = selectedIds.includes(nb.id);
@@ -1143,15 +1127,15 @@ const ManageNotebooksCard = ({
                                         key={nb.id}
                                         className={`flex items-start gap-3 rounded-lg border p-3 transition-colors ${
                                             isSelected
-                                                ? 'border-gray-300 bg-gray-100 dark:border-neutral-500 dark:bg-neutral-700/60'
-                                                : 'border-gray-200 hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-700/30'
+                                                ? 'border-[--accent]/50 bg-[--bg-active]'
+                                                : 'border-[--border-subtle] hover:bg-[--bg-hover]'
                                         }`}
                                     >
                                         <input
                                             type="checkbox"
                                             checked={isSelected}
                                             onChange={() => toggle(nb.id)}
-                                            className="mt-0.5 h-4 w-4 accent-purple-500"
+                                            className="mt-0.5 h-4 w-4 accent-[--accent]"
                                         />
                                         <div className="min-w-0 flex-1">
                                             <div className="flex items-center gap-2">
@@ -1171,12 +1155,12 @@ const ManageNotebooksCard = ({
                                                 {isLinked && isSelected && (
                                                     <LucideCheck
                                                         size={16}
-                                                        className="flex-none text-green-600"
+                                                        className="flex-none text-[--accent]"
                                                     />
                                                 )}
                                             </div>
                                             {nb.description && (
-                                                <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                                <p className="truncate text-xs text-[--text-muted]">
                                                     {nb.description}
                                                 </p>
                                             )}
@@ -1189,11 +1173,11 @@ const ManageNotebooksCard = ({
                 )}
 
                 {error && (
-                    <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+                    <div className="text-sm text-[--text-error]">{error}</div>
                 )}
 
                 {hasChanges && (
-                    <div className="flex items-center justify-end gap-2 border-t border-gray-200 pt-2 dark:border-neutral-700">
+                    <div className="flex items-center justify-end gap-2 border-t border-[--border-subtle] pt-2">
                         <button
                             onClick={() => setSelectedIds(currentIds)}
                             disabled={saving}
