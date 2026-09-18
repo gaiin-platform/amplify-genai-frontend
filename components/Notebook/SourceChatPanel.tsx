@@ -23,7 +23,7 @@ import {
     sendSourceChatMessage,
     updateSourceChatSession,
 } from '@/services/notebookService';
-import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
 import { ChatModelSelect } from './ChatModelSelect';
 import { SessionManagerModal } from './SessionManagerModal';
@@ -450,7 +450,7 @@ export const SourceChatPanel = ({ source, onBeforeFocusReference }: Props) => {
     };
 
     return (
-        <div className="flex h-[640px] flex-col rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36] lg:h-full lg:min-h-0">
+        <div className="flex h-[640px] flex-col rounded-xl border border-[--border-subtle] bg-[--bg-raised] py-6 shadow-sm lg:h-full lg:min-h-0">
             {/* Header — mirrors the reference ChatPanel CardHeader */}
             <div className="flex flex-none items-center justify-between px-6 pb-3">
                 <div className="flex items-center gap-2 font-semibold leading-none">
@@ -460,7 +460,7 @@ export const SourceChatPanel = ({ source, onBeforeFocusReference }: Props) => {
                 <button
                     onClick={() => setShowSessions(true)}
                     disabled={loadingSessions}
-                    className="inline-flex h-8 items-center gap-2 rounded-md px-3 text-gray-700 transition-colors hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-200 dark:hover:bg-neutral-700"
+                    className="inline-flex h-8 items-center gap-2 rounded-md px-3 text-[--text-secondary] transition-colors hover:bg-[--bg-hover] hover:text-[--text-primary] disabled:pointer-events-none disabled:opacity-50"
                 >
                     <LucideClock size={16} />
                     <span className="text-xs">Sessions</span>
@@ -470,12 +470,12 @@ export const SourceChatPanel = ({ source, onBeforeFocusReference }: Props) => {
             <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-4">
                 <div className="flex flex-col gap-4 py-4">
                     {loadingMessages && messages.length === 0 && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
+                        <div className="text-xs text-[--text-muted]">
                             Loading messages…
                         </div>
                     )}
                     {!loadingMessages && messages.length === 0 && !isSending && (
-                        <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        <div className="py-8 text-center text-[--text-muted]">
                             <LucideBot size={48} className="mx-auto mb-4 opacity-50" />
                             <p className="text-sm">Start a conversation about this source</p>
                             <p className="mt-2 text-xs">
@@ -495,17 +495,17 @@ export const SourceChatPanel = ({ source, onBeforeFocusReference }: Props) => {
                     {isSending && (
                         <div className="flex justify-start gap-3">
                             <div className="flex-none">
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/40">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[--accent]/10">
                                     <LucideBot
                                         size={16}
-                                        className="text-purple-600 dark:text-purple-300"
+                                        className="text-[--accent]"
                                     />
                                 </div>
                             </div>
-                            <div className="rounded-lg bg-gray-100 px-4 py-2 dark:bg-neutral-700">
+                            <div className="rounded-lg bg-[--bg-active] px-4 py-2">
                                 <LucideLoader2
                                     size={16}
-                                    className="animate-spin text-gray-500 dark:text-gray-300"
+                                    className="animate-spin text-[--text-muted]"
                                 />
                             </div>
                         </div>
@@ -514,16 +514,16 @@ export const SourceChatPanel = ({ source, onBeforeFocusReference }: Props) => {
             </div>
 
             {error && (
-                <div className="border-t border-red-200 bg-red-50 px-6 py-2 text-xs text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+                <div className="border-t border-[--border-subtle] bg-[--bg-raised] px-6 py-2 text-xs text-[--text-error]">
                     {error}
                 </div>
             )}
 
             {/* Input Area */}
-            <div className="flex flex-none flex-col gap-3 border-t border-gray-200 p-4 dark:border-neutral-700">
+            <div className="flex flex-none flex-col gap-3 border-t border-[--border-subtle] p-4">
                 {hasModelAlternatives && (
                     <div className="flex items-center justify-between gap-2">
-                        <span className="text-xs text-gray-500 dark:text-gray-400">Model</span>
+                        <span className="text-xs text-[--text-muted]">Model</span>
                         <ChatModelSelect
                             value={modelOverride}
                             onChange={setModelOverride}
@@ -543,13 +543,13 @@ export const SourceChatPanel = ({ source, onBeforeFocusReference }: Props) => {
                         placeholder="Ask anything about your sources... (Enter to send)"
                         rows={1}
                         disabled={isSending}
-                        className="min-h-[40px] min-w-0 flex-1 resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-purple-400 focus:outline-none focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                        className="min-h-[40px] min-w-0 flex-1 resize-none rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary] shadow-sm focus:border-[--accent] focus:outline-none focus:ring-1 focus:ring-[--accent]"
                     />
                     <button
                         onClick={handleSend}
                         disabled={!draft.trim() || isSending}
                         title="Send"
-                        className="flex h-[40px] w-[40px] flex-none items-center justify-center rounded-md bg-purple-500 text-white shadow-sm transition-colors hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex h-[40px] w-[40px] flex-none items-center justify-center rounded-md bg-[--accent] text-[--accent-fg] shadow-sm transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {isSending ? (
                             <LucideLoader2 size={16} className="animate-spin" />
@@ -579,16 +579,16 @@ export const SourceChatPanel = ({ source, onBeforeFocusReference }: Props) => {
                 />
             )}
 
-            {pendingDelete && (
-                <ConfirmModal
-                    title="Delete Session"
-                    message="Are you sure you want to delete this chat session? This action cannot be undone."
-                    confirmLabel={deleting ? 'Deleting…' : 'Delete'}
-                    denyLabel="Cancel"
-                    onConfirm={confirmDelete}
-                    onDeny={() => setPendingDelete(null)}
-                />
-            )}
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                title="Delete Session"
+                message="Are you sure you want to delete this chat session? This action cannot be undone."
+                confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
         </div>
     );
 };
@@ -656,8 +656,8 @@ const MessageBubble = ({
         <div className={`flex gap-3 ${isHuman ? 'justify-end' : 'justify-start'}`}>
             {!isHuman && (
                 <div className="flex-none">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 dark:bg-purple-900/40">
-                        <LucideBot size={16} className="text-purple-600 dark:text-purple-300" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[--accent]/10">
+                        <LucideBot size={16} className="text-[--accent]" />
                     </div>
                 </div>
             )}
@@ -665,8 +665,8 @@ const MessageBubble = ({
                 <div
                     className={`rounded-lg px-4 py-2 ${
                         isHuman
-                            ? 'whitespace-pre-wrap bg-purple-500 text-sm text-white'
-                            : 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-neutral-100'
+                            ? 'whitespace-pre-wrap bg-[--accent] text-sm text-[--accent-fg]'
+                            : 'bg-[--bg-active] text-[--text-primary]'
                     }`}
                 >
                     {isHuman ? (
@@ -701,7 +701,7 @@ const MessageBubble = ({
                                                                 onBeforeFocusReference,
                                                             );
                                                         }}
-                                                        className="mx-0.5 inline-flex items-baseline rounded bg-purple-200 px-1 font-mono text-[11px] font-medium text-purple-800 hover:bg-purple-300 dark:bg-purple-900/40 dark:text-purple-300 dark:hover:bg-purple-900/60"
+                                                        className="mx-0.5 inline-flex items-baseline rounded bg-[--accent]/10 px-1 font-mono text-[11px] font-medium text-[--accent] hover:bg-[--accent]/20"
                                                         title="Jump to reference"
                                                     >
                                                         {children}
@@ -709,7 +709,7 @@ const MessageBubble = ({
                                                 );
                                             }
                                             return (
-                                                <span className="mx-0.5 inline-flex items-baseline rounded bg-purple-200 px-1 font-mono text-[11px] font-medium text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
+                                                <span className="mx-0.5 inline-flex items-baseline rounded bg-[--accent]/10 px-1 font-mono text-[11px] font-medium text-[--accent]">
                                                     {children}
                                                 </span>
                                             );
@@ -730,7 +730,7 @@ const MessageBubble = ({
                                 {rendered.markdown}
                             </MemoizedReactMarkdown>
                             {rendered.citations.length > 0 && (
-                                <div className="mt-2 border-t border-gray-300 pt-1.5 text-[11px] text-gray-600 dark:border-neutral-600 dark:text-gray-300">
+                                <div className="mt-2 border-t border-[--border-subtle] pt-1.5 text-[11px] text-[--text-secondary]">
                                     <div className="mb-0.5 font-medium">Sources</div>
                                     <ol className="m-0 list-none space-y-0.5 p-0">
                                         {rendered.citations.map((c) =>
@@ -778,10 +778,10 @@ const MessageBubble = ({
                         <button
                             onClick={handleCopy}
                             title="Copy to clipboard"
-                            className="inline-flex h-7 items-center rounded-md px-2 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-gray-200"
+                            className="inline-flex h-7 items-center rounded-md px-2 text-[--text-muted] transition-colors hover:bg-[--bg-hover] hover:text-[--text-primary]"
                         >
                             {copied ? (
-                                <LucideCheck size={14} className="text-green-500" />
+                                <LucideCheck size={14} className="text-[--text-secondary]" />
                             ) : (
                                 <LucideCopy size={14} />
                             )}
@@ -791,8 +791,8 @@ const MessageBubble = ({
             </div>
             {isHuman && (
                 <div className="flex-none">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-500">
-                        <LucideUser size={16} className="text-white" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[--accent]">
+                        <LucideUser size={16} className="text-[--accent-fg]" />
                     </div>
                 </div>
             )}
