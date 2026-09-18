@@ -38,6 +38,7 @@ import { lzwCompress } from '@/utils/app/lzwCompression';
 import { resolveContextString, messagesToCached } from '@/utils/app/contextConversations';
 import { saveContextCache } from '@/utils/app/storage';
 import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
+import { getFullTimestamp } from '@/utils/app/date';
 import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
 
@@ -250,11 +251,13 @@ export function useSendService() {
                         updatedConversation = {
                             ...selectedConversation,
                             messages: [...updatedMessages, message],
+                            date: getFullTimestamp(),
                         };
                     } else {
                         updatedConversation = {
                             ...selectedConversation,
                             messages: [...(selectedConversation.messages ?? []), message],
+                            date: getFullTimestamp(),
                         };
                     }
 
