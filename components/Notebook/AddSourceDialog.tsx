@@ -1,7 +1,8 @@
 import { ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import HomeContext from '@/pages/api/home/home.context';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
+import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import {
     LucideCheckCircle,
     LucideFile,
@@ -23,6 +24,7 @@ import {
     listTransformations,
 } from '@/services/notebookService';
 import { filterTransformationsForRole } from './transformationAccess';
+import { outlineButtonClass, primaryButtonClass, secondaryBadgeClass } from './notebookUI';
 
 type SourceType = 'link' | 'upload' | 'text';
 
@@ -46,19 +48,13 @@ const WIZARD_STEPS = [
 ] as const;
 
 const fieldClass =
-    'rounded-md border border-gray-300 bg-white text-sm shadow-sm placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 dark:placeholder-gray-500';
+    'rounded-[--radius-button] border border-[--border-subtle] bg-[--bg-composer] text-sm text-[--text-primary] shadow-sm placeholder-[--text-muted] outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent]';
 // Reference (shadcn) sizing: inputs are a fixed h-9; textareas auto-grow with
 // their content (field-sizing: content) from a 64px minimum.
 const inputClass = `h-9 px-3 py-1 ${fieldClass}`;
 const textareaClass = `min-h-[64px] [field-sizing:content] px-3 py-2 ${fieldClass}`;
-const outlineButtonClass =
-    'inline-flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700';
-const primaryButtonClass =
-    'inline-flex h-9 items-center justify-center rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50';
-const secondaryBadgeClass =
-    'inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-neutral-700 dark:bg-neutral-700 dark:text-neutral-200';
 const destructiveBadgeClass =
-    'inline-flex items-center rounded-md bg-red-500 px-2 py-0.5 text-xs font-medium text-white';
+    'inline-flex items-center rounded-[--radius-row] bg-[--bg-active] px-2 py-0.5 text-xs font-medium text-[--text-error]';
 
 // Mirrors the reference SourceTypeStep helper: split textarea input into
 // lines and validate each as a URL.
@@ -99,7 +95,7 @@ const StepIndicator = ({
     onStepClick: (step: number) => void;
     canAdvance: boolean;
 }) => (
-    <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-neutral-700 dark:bg-neutral-800/40">
+    <div className="flex items-center justify-between border-b border-[--border-subtle] bg-[--bg-sidebar] px-6 py-4">
         {WIZARD_STEPS.map((step, index) => {
             const isCompleted = currentStep > step.number;
             const isCurrent = currentStep === step.number;
@@ -114,10 +110,10 @@ const StepIndicator = ({
                         <div
                             className={`flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-medium transition-colors ${
                                 isCompleted
-                                    ? 'border-purple-500 bg-purple-500 text-white'
+                                    ? 'border-[--accent] bg-[--accent] text-[--accent-fg]'
                                     : isCurrent
-                                      ? 'border-purple-500 bg-purple-500/10 text-purple-500'
-                                      : 'border-gray-300 bg-white text-gray-500 dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-400'
+                                      ? 'border-[--accent] bg-[--accent]/10 text-[--accent]'
+                                      : 'border-[--border-subtle] bg-[--bg-raised] text-[--text-muted]'
                             }`}
                         >
                             {isCompleted ? '✓' : step.number}
@@ -126,13 +122,13 @@ const StepIndicator = ({
                             <p
                                 className={`text-sm font-medium ${
                                     isCurrent
-                                        ? 'text-neutral-900 dark:text-neutral-100'
-                                        : 'text-gray-500 dark:text-gray-400'
+                                        ? 'text-[--text-primary]'
+                                        : 'text-[--text-muted]'
                                 }`}
                             >
                                 {step.title}
                             </p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-[--text-muted]">
                                 {step.description}
                             </p>
                         </div>
@@ -141,8 +137,8 @@ const StepIndicator = ({
                         <div
                             className={`mx-4 flex-1 border-t-2 transition-colors ${
                                 isCompleted
-                                    ? 'border-purple-500'
-                                    : 'border-gray-200 dark:border-neutral-700'
+                                    ? 'border-[--accent]'
+                                    : 'border-[--border-subtle]'
                             }`}
                         />
                     )}
@@ -163,9 +159,9 @@ const FormSection = ({
 }) => (
     <div className="mb-6 last:mb-0">
         <div className="mb-4">
-            <h3 className="mb-1 block text-base font-medium">{title}</h3>
+            <h3 className="mb-1 block text-[14px] font-medium">{title}</h3>
             {description && (
-                <p className="text-sm text-gray-500 dark:text-gray-400">{description}</p>
+                <p className="text-sm text-[--text-muted]">{description}</p>
             )}
         </div>
         <div className="space-y-3">{children}</div>
@@ -187,14 +183,14 @@ const CheckboxList = ({
 }) => {
     if (loading) {
         return (
-            <div className="rounded-md border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-[#2b2c36]">
+            <div className="rounded-md border border-[--border-subtle] bg-[--bg-raised] p-4">
                 <div className="animate-pulse space-y-3">
                     {[...Array(3)].map((_, i) => (
                         <div key={i} className="flex items-center gap-3">
-                            <div className="h-4 w-4 rounded bg-gray-200 dark:bg-neutral-700" />
+                            <div className="h-4 w-4 rounded bg-[--bg-active]" />
                             <div className="flex-1">
-                                <div className="mb-1 h-4 w-3/4 rounded bg-gray-200 dark:bg-neutral-700" />
-                                <div className="h-3 w-1/2 rounded bg-gray-200 dark:bg-neutral-700" />
+                                <div className="mb-1 h-4 w-3/4 rounded bg-[--bg-active]" />
+                                <div className="h-3 w-1/2 rounded bg-[--bg-active]" />
                             </div>
                         </div>
                     ))}
@@ -205,31 +201,31 @@ const CheckboxList = ({
 
     if (items.length === 0) {
         return (
-            <div className="rounded-md border border-gray-200 bg-white p-4 dark:border-neutral-700 dark:bg-[#2b2c36]">
-                <p className="text-sm text-gray-500 dark:text-gray-400">{emptyMessage}</p>
+            <div className="rounded-md border border-[--border-subtle] bg-[--bg-raised] p-4">
+                <p className="text-sm text-[--text-muted]">{emptyMessage}</p>
             </div>
         );
     }
 
     return (
-        <div className="rounded-md border border-gray-200 bg-white dark:border-neutral-700 dark:bg-[#2b2c36]">
+        <div className="rounded-md border border-[--border-subtle] bg-[--bg-raised]">
             <div className="max-h-48 overflow-y-auto p-4">
                 <div className="space-y-3">
                     {items.map((item) => (
                         <label
                             key={item.id}
-                            className="-m-2 flex cursor-pointer items-start gap-3 rounded-md p-2 transition-colors hover:bg-gray-100 dark:hover:bg-neutral-700/50"
+                            className="-m-2 flex cursor-pointer items-start gap-3 rounded-md p-2 transition-colors hover:bg-[--bg-hover]"
                         >
                             <input
                                 type="checkbox"
                                 checked={selectedIds.includes(item.id)}
                                 onChange={() => onToggle(item.id)}
-                                className="mt-0.5 h-4 w-4 accent-purple-500"
+                                className="mt-0.5 h-4 w-4 accent-[--accent]"
                             />
                             <div className="min-w-0 flex-1">
                                 <span className="block text-sm font-medium">{item.title}</span>
                                 {item.description && (
-                                    <p className="mt-1 text-xs text-gray-500 line-clamp-2 dark:text-gray-400">
+                                    <p className="mt-1 text-xs text-[--text-muted] line-clamp-2">
                                         {item.description}
                                     </p>
                                 )}
@@ -587,16 +583,12 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
             : undefined;
 
         return (
-            <Modal
+            <CreationModalShell
                 title={batchProgress ? 'Processing your files...' : 'Processing'}
-                onCancel={onClose}
-                showSubmit={false}
-                showCancel={false}
-                width={() => 500}
-                height={() => 320}
-                content={
-                    <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                onClose={onClose}
+            >
+                    <div className="flex flex-col gap-4 p-2 text-[--text-primary]">
+                        <p className="text-sm text-[--text-muted]">
                             {processingFailed
                                 ? "Something went wrong and your source wasn't created."
                                 : batchProgress
@@ -608,16 +600,16 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                             {processingFailed ? (
                                 <LucideXCircle
                                     size={20}
-                                    className="flex-none text-red-600 dark:text-red-400"
+                                    className="flex-none text-[--text-error]"
                                 />
                             ) : (
-                                <LucideLoader2 size={20} className="animate-spin flex-none text-purple-500" />
+                                <LucideLoader2 size={20} className="animate-spin flex-none text-[--text-muted]" />
                             )}
                             <span
                                 className={`text-sm ${
                                     processingFailed
-                                        ? 'text-red-600 dark:text-red-400'
-                                        : 'text-gray-500 dark:text-gray-400'
+                                        ? 'text-[--text-error]'
+                                        : 'text-[--text-muted]'
                                 }`}
                             >
                                 {processingMessage || 'Processing...'}
@@ -626,62 +618,54 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
 
                         {batchProgress && (
                             <>
-                                <div className="h-2 w-full rounded-full bg-gray-200 dark:bg-neutral-700">
+                                <div className="h-2 w-full rounded-full bg-[--bg-active]">
                                     <div
-                                        className="h-2 rounded-full bg-purple-500 transition-all duration-300"
+                                        className="h-2 rounded-full bg-[--accent] transition-all duration-300"
                                         style={{ width: `${progressPercent}%` }}
                                     />
                                 </div>
 
                                 <div className="flex items-center justify-between text-sm">
                                     <div className="flex items-center gap-4">
-                                        <span className="flex items-center gap-1.5 text-green-600">
+                                        <span className="flex items-center gap-1.5 text-[--text-secondary]">
                                             <LucideCheckCircle size={16} />
                                             {batchProgress.completed} completed
                                         </span>
                                         {batchProgress.failed > 0 && (
-                                            <span className="flex items-center gap-1.5 text-red-600 dark:text-red-400">
+                                            <span className="flex items-center gap-1.5 text-[--text-error]">
                                                 <LucideXCircle size={16} />
                                                 {batchProgress.failed} failed
                                             </span>
                                         )}
                                     </div>
-                                    <span className="text-gray-500 dark:text-gray-400">
+                                    <span className="text-[--text-muted]">
                                         {batchProgress.completed + batchProgress.failed} /{' '}
                                         {batchProgress.total}
                                     </span>
                                 </div>
 
                                 {batchProgress.currentItem && (
-                                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                    <p className="truncate text-xs text-[--text-muted]">
                                         Current: {batchProgress.currentItem}
                                     </p>
                                 )}
                             </>
                         )}
                     </div>
-                }
-            />
+            </CreationModalShell>
         );
     }
 
     const currentStepValid = isStepValid(currentStep);
 
     return (
-        <Modal
-            title="Add New Source"
-            onCancel={onClose}
-            showSubmit={false}
-            showCancel={false}
-            width={() => Math.min(700, window.innerWidth * 0.95)}
-            height={() => Math.min(740, window.innerHeight * 0.95)}
-            content={
-                <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+        <CreationModalShell title="Add New Source" onClose={onClose}>
+                <div className="flex flex-col gap-4 p-2 text-[--text-primary]">
+                    <p className="text-sm text-[--text-muted]">
                         Content will be processed and analyzed by AI.
                     </p>
 
-                    <div className="flex h-[560px] flex-col overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-neutral-700 dark:bg-[#343541]">
+                    <div className="flex h-[560px] flex-col overflow-hidden rounded-lg border border-[--border-subtle] bg-[--bg-app]">
                         <StepIndicator
                             currentStep={currentStep}
                             onStepClick={handleStepClick}
@@ -695,27 +679,20 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                         title="Sources"
                                         description="Content will be processed and analyzed by AI."
                                     >
-                                        <div className="grid w-full grid-cols-3 gap-1 rounded-xl border border-gray-200 bg-gray-100/80 p-1 shadow-sm dark:border-neutral-700 dark:bg-neutral-800/80">
-                                            {SOURCE_TYPES.map(({ value, label, Icon }) => (
-                                                <button
-                                                    key={value}
-                                                    type="button"
-                                                    onClick={() => setType(value)}
-                                                    className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg border px-4 text-sm font-medium transition-all duration-150 ${
-                                                        type === value
-                                                            ? 'border-gray-200 bg-white text-neutral-900 shadow-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100'
-                                                            : 'border-transparent text-gray-500 hover:text-neutral-800 dark:text-gray-400 dark:hover:text-neutral-200'
-                                                    }`}
-                                                >
-                                                    <Icon size={16} />
-                                                    {label}
-                                                </button>
-                                            ))}
-                                        </div>
+                                        <SegmentedControl
+                                            items={SOURCE_TYPES.map(({ value, label, Icon }) => ({
+                                                id: value,
+                                                label,
+                                                icon: <Icon size={16} />,
+                                            }))}
+                                            value={type || 'link'}
+                                            onChange={(id) => setType(id as SourceType)}
+                                            aria-label="Source type"
+                                        />
 
                                         {type && (
                                             <div className="mt-4">
-                                                <p className="mb-4 text-sm text-gray-500 dark:text-gray-400">
+                                                <p className="mb-4 text-sm text-[--text-muted]">
                                                     Content will be processed and analyzed by AI.
                                                 </p>
 
@@ -756,13 +733,13 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                                             rows={urlCount > 1 ? 6 : 2}
                                                             className={`w-full font-mono ${textareaClass}`}
                                                         />
-                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        <p className="mt-1 text-xs text-[--text-muted]">
                                                             Paste multiple URLs (one per line) to
                                                             batch import
                                                         </p>
                                                         {urlValidationErrors.length > 0 && (
-                                                            <div className="mt-2 rounded-md border border-red-500/20 bg-red-500/10 p-3">
-                                                                <p className="mb-2 text-sm font-medium text-red-600 dark:text-red-400">
+                                                            <div className="mt-2 rounded-md border border-[--border-subtle] bg-[--bg-raised] p-3">
+                                                                <p className="mb-2 text-sm font-medium text-[--text-error]">
                                                                     Invalid URLs detected:
                                                                 </p>
                                                                 <ul className="space-y-1">
@@ -770,9 +747,9 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                                                         (err, idx) => (
                                                                             <li
                                                                                 key={idx}
-                                                                                className="flex items-start gap-2 text-xs text-red-600 dark:text-red-400"
+                                                                                className="flex items-start gap-2 text-xs text-[--text-error]"
                                                                             >
-                                                                                <span className="rounded bg-red-500/20 px-1 font-mono">
+                                                                                <span className="rounded bg-[--bg-active] px-1 font-mono">
                                                                                     Line {err.line}
                                                                                 </span>
                                                                                 <span className="truncate">
@@ -782,7 +759,7 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                                                         ),
                                                                     )}
                                                                 </ul>
-                                                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                                                <p className="mt-2 text-xs text-[--text-muted]">
                                                                     Please fix or remove invalid
                                                                     URLs to continue
                                                                 </p>
@@ -826,9 +803,9 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                                                     ),
                                                                 )
                                                             }
-                                                            className={`w-full file:mr-3 file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-neutral-800 dark:file:text-neutral-200 ${inputClass}`}
+                                                            className={`w-full file:mr-3 file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-[--text-primary] ${inputClass}`}
                                                         />
-                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        <p className="mt-1 text-xs text-[--text-muted]">
                                                             Select multiple files to batch import.
                                                             Supported: Documents (PDF, DOC, DOCX,
                                                             PPT, XLS, EPUB, TXT, MD), Media (MP4,
@@ -836,7 +813,7 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                                             Archives (ZIP)
                                                         </p>
                                                         {fileCount > 1 && (
-                                                            <div className="mt-2 rounded-md bg-gray-100 p-3 dark:bg-neutral-800">
+                                                            <div className="mt-2 rounded-md bg-[--bg-active] p-3">
                                                                 <p className="mb-2 text-xs font-medium">
                                                                     Selected files:
                                                                 </p>
@@ -844,13 +821,13 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                                                     {files.map((file, idx) => (
                                                                         <li
                                                                             key={idx}
-                                                                            className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+                                                                            className="flex items-center gap-2 text-xs text-[--text-muted]"
                                                                         >
                                                                             <LucideFile size={12} />
                                                                             <span className="truncate">
                                                                                 {file.name}
                                                                             </span>
-                                                                            <span className="text-gray-400 dark:text-gray-500">
+                                                                            <span className="text-[--text-muted]">
                                                                                 (
                                                                                 {(
                                                                                     file.size / 1024
@@ -863,7 +840,7 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                                             </div>
                                                         )}
                                                         {isOverLimit && (
-                                                            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                                            <p className="mt-1 text-sm text-[--text-error]">
                                                                 Maximum {MAX_BATCH_SIZE} files
                                                                 allowed per batch
                                                             </p>
@@ -880,8 +857,8 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                                             Text Content *
                                                         </label>
                                                         {hasHtmlContent && (
-                                                            <div className="mb-2 rounded-md border border-blue-200 bg-blue-50 p-2 dark:border-blue-800 dark:bg-blue-950">
-                                                                <p className="text-sm text-blue-700 dark:text-blue-300">
+                                                            <div className="mb-2 rounded-md border border-[--border-subtle] bg-[--bg-active] p-2">
+                                                                <p className="text-sm text-[--text-secondary]">
                                                                     HTML content detected. It will
                                                                     be converted to Markdown after
                                                                     processing.
@@ -931,9 +908,9 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                     )}
 
                                     {isBatchMode && (
-                                        <div className="rounded-lg border border-purple-500/20 bg-purple-500/5 p-4">
+                                        <div className="rounded-lg border border-[--accent]/20 bg-[--accent]/5 p-4">
                                             <div className="mb-2 flex items-center gap-2">
-                                                <span className="inline-flex items-center rounded-md bg-purple-500 px-2 py-0.5 text-xs font-medium text-white">
+                                                <span className="inline-flex items-center rounded-md bg-[--accent] px-2 py-0.5 text-xs font-medium text-[--accent-fg]">
                                                     Batch Mode
                                                 </span>
                                                 <span className="text-sm font-medium">
@@ -942,7 +919,7 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                                     will be processed
                                                 </span>
                                             </div>
-                                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                                            <p className="text-xs text-[--text-muted]">
                                                 Titles will be automatically generated for each
                                                 source. The same notebooks and transformations
                                                 will be applied to all items.
@@ -1000,20 +977,20 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                             {(!settings ||
                                                 settings.default_embedding_option === 'ask' ||
                                                 !settings.default_embedding_option) && (
-                                                <label className="flex cursor-pointer items-start gap-3 rounded-md p-3 hover:bg-gray-100 dark:hover:bg-neutral-700/50">
+                                                <label className="flex cursor-pointer items-start gap-3 rounded-md p-3 hover:bg-[--bg-hover]">
                                                     <input
                                                         type="checkbox"
                                                         checked={embed}
                                                         onChange={(e) =>
                                                             setEmbed(e.target.checked)
                                                         }
-                                                        className="mt-0.5 h-4 w-4 accent-purple-500"
+                                                        className="mt-0.5 h-4 w-4 accent-[--accent]"
                                                     />
                                                     <div className="flex-1">
                                                         <span className="block text-sm font-medium">
                                                             Enable embedding for search
                                                         </span>
-                                                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                        <p className="mt-1 text-xs text-[--text-muted]">
                                                             Allows this source to be found in
                                                             vector searches and AI queries
                                                         </p>
@@ -1022,14 +999,14 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                             )}
 
                                             {settings?.default_embedding_option === 'always' && (
-                                                <div className="rounded-md border border-purple-500/30 bg-purple-500/10 p-3">
+                                                <div className="rounded-md border border-[--accent]/30 bg-[--accent]/10 p-3">
                                                     <div className="flex items-start gap-3">
-                                                        <div className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full bg-purple-500" />
+                                                        <div className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full bg-[--accent]" />
                                                         <div className="flex-1">
-                                                            <span className="block text-sm font-medium text-purple-600 dark:text-purple-400">
+                                                            <span className="block text-sm font-medium text-[--accent]">
                                                                 Embedding enabled automatically
                                                             </span>
-                                                            <p className="mt-1 text-xs text-purple-600 dark:text-purple-400">
+                                                            <p className="mt-1 text-xs text-[--accent]">
                                                                 Your settings are configured to
                                                                 always embed content for vector
                                                                 search. You can change this in
@@ -1045,14 +1022,14 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                                             )}
 
                                             {settings?.default_embedding_option === 'never' && (
-                                                <div className="rounded-md border border-gray-200 bg-gray-100 p-3 dark:border-neutral-700 dark:bg-neutral-800">
+                                                <div className="rounded-md border border-[--border-subtle] bg-[--bg-active] p-3">
                                                     <div className="flex items-start gap-3">
-                                                        <div className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" />
+                                                        <div className="mt-0.5 h-4 w-4 flex-shrink-0 rounded-full bg-[--text-muted]" />
                                                         <div className="flex-1">
                                                             <span className="block text-sm font-medium">
                                                                 Embedding disabled
                                                             </span>
-                                                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                                                            <p className="mt-1 text-xs text-[--text-muted]">
                                                                 Your settings are configured to
                                                                 skip embedding. Vector search
                                                                 won&apos;t be available for this
@@ -1073,48 +1050,51 @@ export const AddSourceDialog = ({ notebookId, onClose, onCreated }: Props) => {
                             )}
                         </div>
                     </div>
-                </div>
-            }
-            customFooter={
-                <div className="flex w-full items-center justify-between">
-                    <button type="button" onClick={onClose} className={outlineButtonClass}>
-                        Cancel
-                    </button>
 
-                    <div className="flex gap-2">
-                        {currentStep > 1 && (
-                            <button
-                                type="button"
-                                onClick={() => setCurrentStep(currentStep - 1)}
-                                className={outlineButtonClass}
-                            >
-                                Back
-                            </button>
-                        )}
-
-                        {currentStep < 3 && (
-                            <button
-                                type="button"
-                                onClick={handleNextStep}
-                                disabled={!currentStepValid}
-                                className={outlineButtonClass}
-                            >
-                                Next
-                            </button>
-                        )}
-
-                        <button
-                            type="button"
-                            onClick={handleSubmit}
-                            disabled={!currentStepValid || processing}
-                            className={`min-w-[120px] ${primaryButtonClass}`}
-                        >
-                            Done
+                    {/* Sticky footer — CreationModalShell's body scrolls, but this wizard
+                        needs 4 footer buttons (Cancel/Back/Next/Done), more than the shell's
+                        built-in Cancel+Save footer supports. Keeping it `sticky bottom-0`
+                        inside the scroll body preserves the old Modal's always-visible
+                        footer instead of letting it scroll away with long step content. */}
+                    <div className="sticky bottom-0 -mx-2 -mb-2 flex items-center justify-between border-t border-[--border-subtle] bg-[--bg-raised] px-2 pb-2 pt-4">
+                        <button type="button" onClick={onClose} className={outlineButtonClass}>
+                            Cancel
                         </button>
+
+                        <div className="flex gap-2">
+                            {currentStep > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => setCurrentStep(currentStep - 1)}
+                                    className={outlineButtonClass}
+                                >
+                                    Back
+                                </button>
+                            )}
+
+                            {currentStep < 3 && (
+                                <button
+                                    type="button"
+                                    onClick={handleNextStep}
+                                    disabled={!currentStepValid}
+                                    className={outlineButtonClass}
+                                >
+                                    Next
+                                </button>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={handleSubmit}
+                                disabled={!currentStepValid || processing}
+                                className={`min-w-[120px] ${primaryButtonClass}`}
+                            >
+                                Done
+                            </button>
+                        </div>
                     </div>
                 </div>
-            }
-        />
+        </CreationModalShell>
     );
 };
 

@@ -9,8 +9,8 @@ import {
     IconRefresh,
     IconTrash,
 } from '@tabler/icons-react';
-import { Modal } from '@/components/ReusableComponents/Modal';
-import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import {
     Note,
     SourceInsight,
@@ -180,9 +180,9 @@ export const SourceInsightsDialog = ({
         : '(Untitled source)';
 
     const content = (
-        <div className="flex h-full flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
-            <div className="rounded-lg border border-gray-200 bg-gray-50 p-3 dark:border-neutral-700 dark:bg-[#343541]">
-                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        <div className="flex h-full flex-col gap-4 p-2 text-[--text-primary]">
+            <div className="rounded-lg border border-[--border-subtle] bg-[--bg-app] p-3">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-[--text-muted]">
                     Run a transformation
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
@@ -190,7 +190,7 @@ export const SourceInsightsDialog = ({
                         value={selectedTransformationId}
                         onChange={(e) => setSelectedTransformationId(e.target.value)}
                         disabled={loading || transformations.length === 0 || generating}
-                        className="flex-1 min-w-[200px] rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 disabled:opacity-60"
+                        className="flex-1 min-w-[200px] rounded border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary] disabled:opacity-60"
                     >
                         {transformations.length === 0 ? (
                             <option value="">No transformations available</option>
@@ -205,7 +205,7 @@ export const SourceInsightsDialog = ({
                     <button
                         onClick={handleGenerate}
                         disabled={!selectedTransformationId || generating || loading}
-                        className="flex items-center gap-1.5 rounded-md bg-purple-500 px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-purple-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="flex items-center gap-1.5 rounded-md bg-[--accent] px-3 py-2 text-sm font-medium text-[--accent-fg] shadow-sm hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                         {generating ? (
                             <IconLoader2 size={14} className="animate-spin" />
@@ -216,18 +216,18 @@ export const SourceInsightsDialog = ({
                     </button>
                 </div>
                 {selectedTransformation?.description && (
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                    <p className="mt-2 text-xs text-[--text-muted]">
                         {selectedTransformation.description}
                     </p>
                 )}
                 {pendingJobLabel && (
-                    <div className="mt-2 flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-300">
+                    <div className="mt-2 flex items-center gap-1.5 text-xs text-[--accent]">
                         <IconLoader2 size={12} className="animate-spin" />
                         Running <span className="font-medium">{pendingJobLabel}</span> against this source…
                     </div>
                 )}
                 {generationError && (
-                    <div className="mt-2 flex items-start gap-1.5 text-xs text-red-600 dark:text-red-400">
+                    <div className="mt-2 flex items-start gap-1.5 text-xs text-[--text-error]">
                         <IconAlertCircle size={14} className="mt-0.5 shrink-0" />
                         <span>{generationError}</span>
                     </div>
@@ -235,14 +235,14 @@ export const SourceInsightsDialog = ({
             </div>
 
             <div className="flex items-center justify-between">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-[--text-muted]">
                     Existing insights {insights.length > 0 && <span>({insights.length})</span>}
                 </p>
                 <button
                     onClick={() => refreshInsights(true)}
                     title="Refresh"
                     disabled={refreshing || loading}
-                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white disabled:opacity-50"
+                    className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[--text-muted] hover:bg-[--bg-hover] hover:text-[--text-secondary] disabled:opacity-50"
                 >
                     <IconRefresh size={12} className={refreshing ? 'animate-spin' : ''} />
                     Refresh
@@ -251,22 +251,22 @@ export const SourceInsightsDialog = ({
 
             <div className="-mr-2 flex-1 overflow-y-auto pr-2">
                 {loading && (
-                    <div className="text-sm text-gray-500 dark:text-gray-400">Loading insights…</div>
+                    <div className="text-sm text-[--text-muted]">Loading insights…</div>
                 )}
 
                 {!loading && error && (
-                    <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+                    <div className="text-sm text-[--text-error]">{error}</div>
                 )}
 
                 {!loading && !error && insights.length === 0 && (
-                    <div className="rounded-md border border-dashed border-gray-300 p-6 text-center text-sm text-gray-500 dark:border-neutral-600 dark:text-gray-400">
+                    <div className="rounded-md border border-dashed border-[--border-subtle] p-6 text-center text-sm text-[--text-muted]">
                         No insights yet. Pick a transformation above and click{' '}
                         <span className="font-medium">Generate</span> to create one.
                     </div>
                 )}
 
                 {!loading && !error && insights.length > 0 && (
-                    <ul className="divide-y divide-gray-100 dark:divide-neutral-700/60">
+                    <ul className="divide-y divide-[--border-subtle]">
                         {insights.map((insight) => {
                             const isOpen = !!expanded[insight.id];
                             const preview = insight.content.length > 220
@@ -277,18 +277,18 @@ export const SourceInsightsDialog = ({
                                     <div className="flex items-start gap-2">
                                         <button
                                             onClick={() => toggleExpanded(insight.id)}
-                                            className="mt-0.5 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-neutral-700 dark:hover:text-white"
+                                            className="mt-0.5 rounded p-0.5 text-[--text-muted] hover:bg-[--bg-hover] hover:text-[--text-primary]"
                                             title={isOpen ? 'Collapse' : 'Expand'}
                                         >
                                             {isOpen ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
                                         </button>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex flex-wrap items-center gap-2">
-                                                <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[11px] font-medium text-violet-700 dark:bg-violet-900/40 dark:text-violet-300">
+                                                <span className="rounded-full bg-[--accent]/10 px-2 py-0.5 text-[11px] font-medium text-[--accent]">
                                                     {insight.insight_type}
                                                 </span>
                                                 {insight.created && (
-                                                    <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                                                    <span className="text-[11px] text-[--text-muted]">
                                                         {new Date(insight.created.replace(' ', 'T')).toLocaleString()}
                                                     </span>
                                                 )}
@@ -298,7 +298,7 @@ export const SourceInsightsDialog = ({
                                                     {insight.content}
                                                 </pre>
                                             ) : (
-                                                <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                                                <p className="mt-1 text-sm text-[--text-secondary]">
                                                     {preview}
                                                 </p>
                                             )}
@@ -307,7 +307,7 @@ export const SourceInsightsDialog = ({
                                                     onClick={() => handleSaveAsNote(insight)}
                                                     disabled={savingNoteId === insight.id || !notebookId}
                                                     title={notebookId ? undefined : 'Open this source from within a notebook to save insights as notes'}
-                                                    className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-50 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-neutral-700 disabled:opacity-50"
+                                                    className="flex items-center gap-1 rounded-md border border-[--border-subtle] px-2 py-1 text-[11px] text-[--text-secondary] hover:bg-[--bg-hover] disabled:opacity-50"
                                                 >
                                                     {savingNoteId === insight.id ? (
                                                         <IconLoader2 size={12} className="animate-spin" />
@@ -318,7 +318,7 @@ export const SourceInsightsDialog = ({
                                                 </button>
                                                 <button
                                                     onClick={() => setPendingDelete(insight)}
-                                                    className="flex items-center gap-1 rounded-md border border-gray-200 px-2 py-1 text-[11px] text-gray-600 hover:bg-red-50 hover:text-red-600 dark:border-neutral-600 dark:text-gray-300 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                                    className="flex items-center gap-1 rounded-md border border-[--border-subtle] px-2 py-1 text-[11px] text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-error]"
                                                 >
                                                     <IconTrash size={12} />
                                                     Delete
@@ -337,30 +337,28 @@ export const SourceInsightsDialog = ({
 
     return (
         <>
-            <Modal
-                title={`Insights — ${sourceTitle}`}
-                onCancel={onClose}
-                showSubmit={false}
-                cancelLabel="Close"
-                width={() => 640}
-                height={() => 620}
-                content={content}
-            />
+            <CreationModalShell title={`Insights — ${sourceTitle}`} onClose={onClose}>
+                {content}
+            </CreationModalShell>
 
-            {pendingDelete && (
-                <ConfirmModal
-                    title="Delete insight?"
-                    message={
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                title="Delete insight?"
+                message={
+                    pendingDelete ? (
                         <span>
                             Delete this <b>{pendingDelete.insight_type}</b> insight? This can&apos;t be undone.
                         </span>
-                    }
-                    confirmLabel={deleting ? 'Deleting…' : 'Delete'}
-                    denyLabel="Cancel"
-                    onConfirm={confirmDelete}
-                    onDeny={() => setPendingDelete(null)}
-                />
-            )}
+                    ) : (
+                        ''
+                    )
+                }
+                confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
         </>
     );
 };

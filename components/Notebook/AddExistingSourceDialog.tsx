@@ -7,7 +7,8 @@ import {
     IconSearch,
     IconUpload,
 } from '@tabler/icons-react';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
+import { Badge } from '@/components/NewUI/shared/Badge';
 import {
     SourceListItem,
     addSourceToNotebook,
@@ -167,15 +168,15 @@ export const AddExistingSourceDialog = ({
     const truncated = !debouncedQuery && allSources.length >= PAGE_LIMIT;
 
     const content = (
-        <div className="flex h-full flex-col gap-3 p-2 text-neutral-800 dark:text-neutral-100">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+        <div className="flex h-full flex-col gap-3 p-2 text-[--text-primary]">
+            <p className="text-sm text-[--text-muted]">
                 Select existing sources from across all your notebooks to add to the current one.
             </p>
 
             <div className="relative">
                 <IconSearch
                     size={14}
-                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[--text-muted]"
                 />
                 <input
                     type="text"
@@ -183,29 +184,29 @@ export const AddExistingSourceDialog = ({
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search sources by name or URL…"
-                    className="w-full rounded border border-neutral-300 bg-white py-2 pl-9 pr-8 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                    className="w-full rounded border border-[--border-subtle] bg-[--bg-composer] py-2 pl-9 pr-8 text-sm text-[--text-primary]"
                 />
                 {loading && (
                     <IconLoader2
                         size={14}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-gray-400"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-[--text-muted]"
                     />
                 )}
             </div>
 
-            <div className="-mr-2 min-h-0 flex-1 overflow-y-auto rounded-md border border-gray-200 pr-2 dark:border-neutral-700">
+            <div className="-mr-2 min-h-0 flex-1 overflow-y-auto rounded-md border border-[--border-subtle] pr-2">
                 {loading && sources.length === 0 ? (
-                    <div className="flex h-40 flex-col items-center justify-center gap-2 text-gray-500 dark:text-gray-400">
+                    <div className="flex h-40 flex-col items-center justify-center gap-2 text-[--text-muted]">
                         <IconLoader2 size={28} className="animate-spin" />
                         <span className="text-sm">Loading…</span>
                     </div>
                 ) : sources.length === 0 ? (
-                    <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-gray-500 dark:text-gray-400">
+                    <div className="flex h-40 flex-col items-center justify-center gap-2 text-center text-[--text-muted]">
                         <IconFileText size={32} className="opacity-50" />
                         <span className="text-sm">No sources found.</span>
                     </div>
                 ) : (
-                    <ul className="divide-y divide-gray-100 p-2 dark:divide-neutral-700/60">
+                    <ul className="divide-y divide-[--border-subtle] p-2">
                         {sources.map((s) => {
                             const isLinked = currentSourceIds.has(s.id);
                             const isSelected = selected.has(s.id);
@@ -217,8 +218,8 @@ export const AddExistingSourceDialog = ({
                                             isLinked
                                                 ? 'cursor-not-allowed opacity-60'
                                                 : isSelected
-                                                  ? 'bg-purple-50 dark:bg-purple-900/20'
-                                                  : 'hover:bg-gray-50 dark:hover:bg-neutral-700/40'
+                                                  ? 'bg-[--accent]/10'
+                                                  : 'hover:bg-[--bg-hover]'
                                         }`}
                                     >
                                         <input
@@ -226,9 +227,9 @@ export const AddExistingSourceDialog = ({
                                             checked={isSelected || isLinked}
                                             disabled={isLinked}
                                             onChange={() => toggle(s.id)}
-                                            className="mt-1 h-3.5 w-3.5 flex-none accent-purple-500"
+                                            className="mt-1 h-3.5 w-3.5 flex-none accent-[--accent]"
                                         />
-                                        <span className="mt-0.5 flex-none text-gray-400 dark:text-gray-500">
+                                        <span className="mt-0.5 flex-none text-[--text-muted]">
                                             <KindIcon kind={kind} />
                                         </span>
                                         <div className="min-w-0 flex-1">
@@ -237,12 +238,10 @@ export const AddExistingSourceDialog = ({
                                                     {s.title || 'Untitled'}
                                                 </span>
                                                 {isLinked && (
-                                                    <span className="flex-none rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-                                                        Linked
-                                                    </span>
+                                                    <Badge className="flex-none">Linked</Badge>
                                                 )}
                                             </div>
-                                            <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-gray-400">
+                                            <p className="mt-0.5 truncate text-xs text-[--text-muted]">
                                                 Added on {formatDate(s.created)}
                                             </p>
                                         </div>
@@ -255,34 +254,32 @@ export const AddExistingSourceDialog = ({
             </div>
 
             {truncated && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-[--text-muted]">
                     Showing the first {PAGE_LIMIT} sources. Search to narrow the list.
                 </p>
             )}
 
             {selectedCount > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-[--text-muted]">
                     {selectedCount} source{selectedCount === 1 ? '' : 's'} selected
                 </p>
             )}
 
-            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            {error && <p className="text-sm text-[--text-error]">{error}</p>}
         </div>
     );
 
     return (
-        <Modal
+        <CreationModalShell
             title="Add Existing Sources"
-            onCancel={onClose}
-            onSubmit={handleSubmit}
-            submitLabel={
-                submitting ? 'Adding…' : `Add Selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`
-            }
-            disableSubmit={selectedCount === 0 || submitting}
-            width={() => 560}
-            height={() => 620}
-            content={content}
-        />
+            onClose={onClose}
+            onSave={handleSubmit}
+            saveLabel={`Add Selected${selectedCount > 0 ? ` (${selectedCount})` : ''}`}
+            isSaving={submitting}
+            saveDisabled={selectedCount === 0}
+        >
+            {content}
+        </CreationModalShell>
     );
 };
 
