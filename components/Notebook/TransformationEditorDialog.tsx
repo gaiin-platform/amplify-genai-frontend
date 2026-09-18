@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { LucideAlertCircle, LucideLoader2 } from './LucideIcons';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import { MarkdownEditor } from './MarkdownEditor';
 import {
     Transformation,
@@ -16,7 +16,7 @@ interface Props {
 }
 
 const inputClass =
-    'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 dark:placeholder-gray-500';
+    'w-full rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary] shadow-sm placeholder-[--text-muted] outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent]';
 
 // Mirrors the reference TransformationEditorDialog: name row, title +
 // suggest-by-default row, description, then a markdown editor for the prompt.
@@ -85,26 +85,17 @@ export const TransformationEditorDialog = ({ transformation, onClose, onSaved }:
     };
 
     return (
-        <Modal
+        <CreationModalShell
             title={isEdit ? 'Edit Transformation' : 'Create New'}
-            onCancel={onClose}
-            onSubmit={handleSubmit}
-            submitLabel={
-                submitting
-                    ? isEdit
-                        ? 'Saving...'
-                        : 'Creating...'
-                    : isEdit
-                      ? 'Save Changes'
-                      : 'Create New'
-            }
-            disableSubmit={!canSubmit}
-            width={() => Math.min(896, window.innerWidth * 0.95)}
-            height={() => window.innerHeight * 0.9}
-            content={
-                <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
+            onClose={onClose}
+            onSave={handleSubmit}
+            saveLabel={isEdit ? 'Save Changes' : 'Create New'}
+            isSaving={submitting}
+            saveDisabled={!canSubmit}
+        >
+                <div className="flex flex-col gap-4 p-2 text-[--text-primary]">
                     {loadingFull ? (
-                        <div className="flex items-center justify-center py-10 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center justify-center py-10 text-sm text-[--text-muted]">
                             Loading...
                         </div>
                     ) : (
@@ -139,7 +130,7 @@ export const TransformationEditorDialog = ({ transformation, onClose, onSaved }:
                                         type="checkbox"
                                         checked={applyDefault}
                                         onChange={(e) => setApplyDefault(e.target.checked)}
-                                        className="h-4 w-4 accent-purple-500"
+                                        className="h-4 w-4 accent-[--accent]"
                                     />
                                     <label htmlFor="apply-default" className="text-sm">
                                         Suggest by default on new sources
@@ -167,7 +158,7 @@ export const TransformationEditorDialog = ({ transformation, onClose, onSaved }:
                                     height={340}
                                     placeholder="Write the prompt that will power this transformation..."
                                 />
-                                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                                <p className="mt-2 text-xs text-[--text-muted]">
                                     Prompts should be written with the source content in mind.
                                     You can ask the model to summarize, extract insights, or
                                     produce structured outputs such as tables.
@@ -175,13 +166,13 @@ export const TransformationEditorDialog = ({ transformation, onClose, onSaved }:
                             </div>
 
                             {error && (
-                                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-2 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                                <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-2 text-sm text-[--text-error]">
                                     <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                                     <span>{error}</span>
                                 </div>
                             )}
                             {submitting && (
-                                <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                <div className="flex items-center gap-2 text-xs text-[--text-muted]">
                                     <LucideLoader2 size={14} className="animate-spin" />
                                     Saving…
                                 </div>
@@ -189,8 +180,7 @@ export const TransformationEditorDialog = ({ transformation, onClose, onSaved }:
                         </>
                     )}
                 </div>
-            }
-        />
+        </CreationModalShell>
     );
 };
 

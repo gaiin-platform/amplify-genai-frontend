@@ -29,16 +29,17 @@ import { DropdownButton } from './DropdownButton';
 import { NotebookDeleteDialog } from './NotebookDeleteDialog';
 import { AddSourceDialog } from './AddSourceDialog';
 import { CreateNotebookDialog } from './CreateNotebookDialog';
-import { GeneratePodcastDialog } from './GeneratePodcastDialog';
 import { NotebookDetail } from './NotebookDetail';
 import { SourceDetailView } from './SourceDetailView';
-import { NotebookSidebar, NotebookSection, CreateTarget } from './NotebookSidebar';
+import { NotebookTopbar, NotebookSection } from './NotebookTopbar';
 import { SourcesPage } from './SourcesPage';
 import { AskSearchPage } from './AskSearchPage';
 import { PodcastsPage } from './PodcastsPage';
 import { TransformationsPage } from './TransformationsPage';
 import { SettingsPage } from './SettingsPage';
 import { AdvancedPage } from './AdvancedPage';
+import { primaryButtonClass, outlineButtonClass, outlineSmButtonClass, secondaryBadgeClass } from './notebookUI';
+import { SearchInput } from '@/components/NewUI/shared/SearchInput';
 
 const SECTION_TITLES: Record<NotebookSection, string> = {
     notebooks: 'Notebooks',
@@ -62,12 +63,12 @@ const SECTION_DESCRIPTIONS: Record<NotebookSection, string> = {
 
 const ComingSoonPanel: React.FC<{ section: NotebookSection }> = ({ section }) => (
     <div className="flex h-full items-center justify-center">
-        <div className="max-w-md rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
-            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 text-white shadow-sm">
+        <div className="max-w-md rounded-xl border border-dashed border-[--border-subtle] bg-[--bg-raised] p-8 text-center shadow-sm">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[--accent] text-white shadow-sm">
                 <IconNotebook size={22} />
             </div>
             <h2 className="text-lg font-semibold">{SECTION_TITLES[section]}</h2>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-sm text-[--text-muted]">
                 {SECTION_DESCRIPTIONS[section]}
             </p>
         </div>
@@ -87,15 +88,15 @@ interface NotebookItemProps {
 
 // Reference's .card-hover: lift + shadow + muted background on hover.
 const cardHoverClass =
-    'cursor-pointer transition-all duration-200 hover:-translate-y-px hover:bg-gray-50 hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)] dark:hover:bg-neutral-700/40 dark:hover:shadow-[0_4px_12px_rgba(0,0,0,0.3)]';
+    'cursor-pointer transition-all duration-200 hover:-translate-y-px hover:bg-[--bg-hover] hover:shadow-[0_4px_12px_rgba(0,0,0,0.1)]';
 
-// Count badges matching the reference: outline badge tinted with the primary
-// accent, 12px icon + count.
+// Count badges: neutral, matching NewUI's Badge component convention
+// (components/NewUI/shared/Badge.tsx uses --bg-active/--text-muted, never
+// an accent tint on a non-interactive count chip).
 const countBadgeClass =
-    'inline-flex items-center gap-1 rounded-md border border-purple-500/50 px-1.5 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400';
+    'inline-flex items-center gap-1 rounded-[--radius-row] bg-[--bg-active] px-1.5 py-0.5 text-xs font-medium text-[--text-muted]';
 
-const archivedBadgeClass =
-    'inline-flex items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200';
+const archivedBadgeClass = secondaryBadgeClass;
 
 // The ⋯ menu shared by the tile and list renderings (reference uses a
 // DropdownMenu with MoreHorizontal, revealed on hover).
@@ -135,7 +136,7 @@ const NotebookItemMenu = ({
 const NotebookCard = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProps) => (
     <div
         onClick={onOpen}
-        className={`group rounded-xl border border-gray-200 bg-white shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36] ${cardHoverClass}`}
+        className={`group rounded-xl border border-[--border-subtle] bg-[--bg-raised] shadow-sm ${cardHoverClass}`}
     >
         <div className="p-6 pb-3">
             <div className="flex items-start justify-between">
@@ -143,7 +144,7 @@ const NotebookCard = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProp
                     {/* leading-tight, not leading-none: `truncate` sets
                         overflow-hidden, and a line-height of exactly 1 clips
                         glyph descenders (g/y/p/j) off the bottom. */}
-                    <div className="truncate text-base font-semibold leading-tight transition-colors group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                    <div className="truncate text-[14px] font-semibold leading-tight transition-colors group-hover:text-[--accent]">
                         {nb.name || '(untitled)'}
                     </div>
                     {nb.archived && (
@@ -155,15 +156,15 @@ const NotebookCard = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProp
         </div>
 
         <div className="px-6 pb-6">
-            <p className="line-clamp-2 text-sm text-gray-500 dark:text-gray-400">
+            <p className="line-clamp-2 text-sm text-[--text-muted]">
                 {nb.description || 'No description'}
             </p>
 
-            <div className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            <div className="mt-3 text-xs text-[--text-muted]">
                 Updated {formatDistanceToNow(nb.updated)}
             </div>
 
-            <div className="mt-3 flex items-center gap-1.5 border-t border-gray-200 pt-3 dark:border-neutral-700">
+            <div className="mt-3 flex items-center gap-1.5 border-t border-[--border-subtle] pt-3">
                 <span className={countBadgeClass}>
                     <LucideFileText size={12} />
                     <span>{nb.source_count ?? 0}</span>
@@ -180,17 +181,17 @@ const NotebookCard = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProp
 const NotebookRow = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProps) => (
     <div
         onClick={onOpen}
-        className={`group flex items-center gap-4 rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36] ${cardHoverClass}`}
+        className={`group flex items-center gap-4 rounded-lg border border-[--border-subtle] bg-[--bg-raised] px-4 py-3 shadow-sm ${cardHoverClass}`}
     >
         <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-                <span className="truncate font-medium transition-colors group-hover:text-purple-600 dark:group-hover:text-purple-400">
+                <span className="truncate font-medium transition-colors group-hover:text-[--accent]">
                     {nb.name || '(untitled)'}
                 </span>
                 {nb.archived && <span className={archivedBadgeClass}>Archived</span>}
             </div>
             {nb.description && (
-                <p className="truncate text-sm text-gray-500 dark:text-gray-400">
+                <p className="truncate text-sm text-[--text-muted]">
                     {nb.description}
                 </p>
             )}
@@ -207,7 +208,7 @@ const NotebookRow = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProps
             </span>
         </div>
 
-        <div className="hidden w-40 shrink-0 text-right text-xs text-gray-500 dark:text-gray-400 sm:block">
+        <div className="hidden w-40 shrink-0 text-right text-xs text-[--text-muted] sm:block">
             Updated {formatDistanceToNow(nb.updated)}
         </div>
 
@@ -216,7 +217,7 @@ const NotebookRow = ({ notebook: nb, onOpen, ...actionProps }: NotebookItemProps
 );
 
 export const NotebookApp = () => {
-    const { dispatch, state } = useContext(HomeContext);
+    const { state } = useContext(HomeContext);
     // Transformations/Settings/Advanced edit shared, global backend records that
     // apply to every user of the notebook feature — gate them behind the same
     // admin feature flag used elsewhere in the app (e.g. the "Admin" menu) so a
@@ -229,11 +230,9 @@ export const NotebookApp = () => {
     const [selected, setSelected] = useState<NotebookSummary | null>(null);
     const [showCreate, setShowCreate] = useState<boolean>(false);
     const [showAddSource, setShowAddSource] = useState<boolean>(false);
-    const [showPodcast, setShowPodcast] = useState<boolean>(false);
     // Bumped after a global create so the target section's page remounts and
     // re-fetches (the pages only load their data on mount).
     const [sourcesRefreshKey, setSourcesRefreshKey] = useState<number>(0);
-    const [podcastsRefreshKey, setPodcastsRefreshKey] = useState<number>(0);
     // Source opened from the Sources page — renders the full-page source
     // viewer (content + insights + source-scoped chat) in place of the list.
     const [viewingSource, setViewingSource] = useState<SourceListItem | null>(null);
@@ -244,7 +243,6 @@ export const NotebookApp = () => {
     const viewingSourceRequestIdRef = useRef<string | null>(null);
     const [pendingDelete, setPendingDelete] = useState<NotebookSummary | null>(null);
     const [section, setSection] = useState<NotebookSection>('notebooks');
-    const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
     const [searchQuery, setSearchQuery] = useState<string>('');
     const [viewMode, setViewMode] = useState<ViewMode>('tile');
     const [archivedOpen, setArchivedOpen] = useState<boolean>(false);
@@ -291,8 +289,6 @@ export const NotebookApp = () => {
             setArchivingId(null);
         }
     };
-
-    const goBackToChat = () => dispatch({ field: 'page', value: 'chat' });
 
     const handleSectionChange = (next: NotebookSection) => {
         setSection(next);
@@ -345,16 +341,6 @@ export const NotebookApp = () => {
         fetchNotebooks();
     }, []);
 
-    const handleCreate = (target: CreateTarget) => {
-        if (target === 'notebook') {
-            setShowCreate(true);
-        } else if (target === 'source') {
-            setShowAddSource(true);
-        } else if (target === 'podcast') {
-            setShowPodcast(true);
-        }
-    };
-
     const handleCreated = (created: NotebookSummary) => {
         // Add it to the list and land on the notebooks list — the user opens it
         // by clicking its card (setSelected). Don't auto-navigate into it.
@@ -369,12 +355,6 @@ export const NotebookApp = () => {
         setSelected(null);
         setViewingSource(null);
         setSourcesRefreshKey((k) => k + 1);
-    };
-
-    const handlePodcastSubmitted = () => {
-        setSection('podcasts');
-        setSelected(null);
-        setPodcastsRefreshKey((k) => k + 1);
     };
 
     const isNotebooksSection = section === 'notebooks';
@@ -436,33 +416,38 @@ export const NotebookApp = () => {
         );
 
     return (
-        <div className="notebook-app flex flex-1 h-full bg-white dark:bg-[#343541] text-neutral-800 dark:text-neutral-100">
-            <NotebookSidebar
+        <div className="notebook-app flex h-full flex-1 flex-col bg-[--bg-app] text-[--text-primary]">
+            <NotebookTopbar
                 section={section}
                 onSection={handleSectionChange}
-                onCreate={handleCreate}
-                onBack={goBackToChat}
-                collapsed={sidebarCollapsed}
-                onToggleCollapse={() => setSidebarCollapsed((v) => !v)}
                 isAdmin={isAdmin}
             />
-            <div className="flex flex-col flex-1 min-w-0">
+            <div className="flex flex-col flex-1 min-h-0">
             {showAppBar && (
-            <div className="flex items-center gap-3 border-b border-gray-200 dark:border-neutral-700 bg-gradient-to-b from-gray-50 to-white dark:from-gray-800 dark:to-[#343541] pl-4 pr-20 py-3">
+            <div className="flex items-center justify-between gap-3 border-b border-[--border-subtle] bg-[--bg-sidebar] pl-4 pr-20 py-3">
                 <div className="flex flex-col min-w-0">
                     <h1 className="text-base font-semibold leading-tight truncate">
                         {SECTION_TITLES[section]}
                     </h1>
                     {SECTION_DESCRIPTIONS[section] && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400 line-clamp-1 max-w-xl">
+                        <span className="text-xs text-[--text-muted] line-clamp-1 max-w-xl">
                             {SECTION_DESCRIPTIONS[section]}
                         </span>
                     )}
                 </div>
+                {section === 'sources' && (
+                    <button
+                        onClick={() => setShowAddSource(true)}
+                        className={`flex-shrink-0 ${primaryButtonClass}`}
+                    >
+                        <LucidePlus size={16} className="mr-1.5" />
+                        New Source
+                    </button>
+                )}
             </div>
             )}
 
-            <div className="flex-1 overflow-auto px-6 py-6 bg-neutral-50 dark:bg-[#343541]">
+            <div className="flex-1 overflow-auto px-6 py-6 bg-[--bg-app]">
                 {viewingSource ? (
                     // A source can be opened from the global Sources page or from
                     // inside a notebook — either way it takes over the content
@@ -473,7 +458,7 @@ export const NotebookApp = () => {
                         <div className="flex-none pb-4">
                             <button
                                 onClick={() => setViewingSource(null)}
-                                className="flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-neutral-700 dark:hover:text-white transition-colors"
+                                className="flex h-8 items-center gap-2 rounded-md px-3 text-sm font-medium text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] transition-colors"
                             >
                                 <IconArrowLeft size={16} />
                                 {sourceFromNotebook ? 'Back to Notebook' : 'Back to Sources'}
@@ -499,7 +484,7 @@ export const NotebookApp = () => {
                 ) : section === 'ask' ? (
                     <AskSearchPage onOpenSource={handleOpenSourceFromGlobalList} />
                 ) : section === 'podcasts' ? (
-                    <PodcastsPage key={podcastsRefreshKey} isAdmin={isAdmin} />
+                    <PodcastsPage isAdmin={isAdmin} />
                 ) : section === 'transformations' && isAdmin ? (
                     <TransformationsPage />
                 ) : section === 'settings' && isAdmin ? (
@@ -533,25 +518,25 @@ export const NotebookApp = () => {
                             UserMenu avatar (fixed top-4 right-4). */}
                         <div className="flex items-center justify-between pr-12">
                             <div className="flex items-center gap-4">
-                                <h1 className="text-2xl font-bold">Notebooks</h1>
+                                <h1 className="text-[16px] font-semibold">Notebooks</h1>
                                 <button
                                     onClick={fetchNotebooks}
                                     title="Refresh"
-                                    className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                                    className={outlineSmButtonClass}
                                 >
                                     <LucideRefreshCw size={16} />
                                 </button>
                             </div>
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                                <div className="flex items-center rounded-md border border-gray-200 p-0.5 dark:border-neutral-700">
+                                <div className="flex items-center rounded-md border border-[--border-subtle] p-0.5">
                                     <button
                                         onClick={() => changeViewMode('tile')}
                                         title="Tile view"
                                         aria-pressed={viewMode === 'tile'}
                                         className={`inline-flex h-8 items-center justify-center rounded-md px-3 transition-colors ${
                                             viewMode === 'tile'
-                                                ? 'bg-gray-100 text-gray-900 dark:bg-neutral-700 dark:text-gray-100'
-                                                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-gray-200'
+                                                ? 'bg-[--bg-active] text-[--text-primary]'
+                                                : 'text-[--text-muted] hover:bg-[--bg-hover] hover:text-[--text-primary]'
                                         }`}
                                     >
                                         <LucideLayoutGrid size={16} />
@@ -562,24 +547,23 @@ export const NotebookApp = () => {
                                         aria-pressed={viewMode === 'list'}
                                         className={`inline-flex h-8 items-center justify-center rounded-md px-3 transition-colors ${
                                             viewMode === 'list'
-                                                ? 'bg-gray-100 text-gray-900 dark:bg-neutral-700 dark:text-gray-100'
-                                                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-gray-200'
+                                                ? 'bg-[--bg-active] text-[--text-primary]'
+                                                : 'text-[--text-muted] hover:bg-[--bg-hover] hover:text-[--text-primary]'
                                         }`}
                                     >
                                         <LucideList size={16} />
                                     </button>
                                 </div>
-                                <input
-                                    type="text"
+                                <SearchInput
                                     value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                    placeholder="Search notebooks..."
-                                    autoComplete="off"
-                                    className="h-9 w-full rounded-md border border-gray-300 bg-white px-3 text-sm shadow-sm placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-100 dark:placeholder-gray-500 sm:w-64"
+                                    onChange={setSearchQuery}
+                                    placeholder="Search notebooks…"
+                                    onClear={() => setSearchQuery('')}
+                                    aria-label="Search notebooks"
                                 />
                                 <button
                                     onClick={() => setShowCreate(true)}
-                                    className="inline-flex h-9 items-center justify-center rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600"
+                                    className={primaryButtonClass}
                                 >
                                     <LucidePlus size={16} className="mr-2" />
                                     New Notebook
@@ -588,12 +572,12 @@ export const NotebookApp = () => {
                         </div>
 
                         {actionError && (
-                            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                            <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                                 <span className="flex-1">{actionError}</span>
                                 <button
                                     onClick={() => setActionError(null)}
                                     title="Dismiss"
-                                    className="rounded p-0.5 hover:bg-red-100 dark:hover:bg-red-900/40"
+                                    className="rounded p-0.5 hover:bg-[--bg-hover]"
                                 >
                                     <IconX size={14} />
                                 </button>
@@ -604,11 +588,11 @@ export const NotebookApp = () => {
                             <div className="flex items-center justify-center py-12">
                                 <LucideLoader2
                                     size={32}
-                                    className="animate-spin text-gray-400"
+                                    className="animate-spin text-[--text-muted]"
                                 />
                             </div>
                         ) : error ? (
-                            <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                            <div className="rounded-xl border border-[--border-subtle] bg-[--bg-raised] p-4 text-[--text-error]">
                                 <div className="font-medium">Couldn&apos;t load notebooks</div>
                                 <div className="mt-1 text-sm opacity-80">{error}</div>
                             </div>
@@ -619,12 +603,12 @@ export const NotebookApp = () => {
                                     <div className="py-12 text-center">
                                         <LucideBook
                                             size={48}
-                                            className="mx-auto mb-4 text-gray-400/60 dark:text-gray-500/60"
+                                            className="mx-auto mb-4 text-[--text-muted] opacity-60"
                                         />
                                         <h3 className="mb-2 text-lg font-medium">
                                             {isSearching ? 'No matches found' : 'No results'}
                                         </h3>
-                                        <p className="mb-4 text-gray-500 dark:text-gray-400">
+                                        <p className="mb-4 text-[--text-muted]">
                                             {isSearching
                                                 ? 'Try using a different search term.'
                                                 : 'Start by creating your first notebook to organize your research.'}
@@ -632,7 +616,7 @@ export const NotebookApp = () => {
                                         {!isSearching && (
                                             <button
                                                 onClick={() => setShowCreate(true)}
-                                                className="mt-4 inline-flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                                                className={`mt-4 ${outlineButtonClass}`}
                                             >
                                                 <LucidePlus size={16} className="mr-2" />
                                                 New Notebook
@@ -645,7 +629,7 @@ export const NotebookApp = () => {
                                             <h2 className="text-lg font-semibold">
                                                 Active Notebooks
                                             </h2>
-                                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                                            <span className="text-sm text-[--text-muted]">
                                                 ({activeNotebooks.length})
                                             </span>
                                         </div>
@@ -659,12 +643,12 @@ export const NotebookApp = () => {
                                         <div className="py-12 text-center">
                                             <LucideBook
                                                 size={48}
-                                                className="mx-auto mb-4 text-gray-400/60 dark:text-gray-500/60"
+                                                className="mx-auto mb-4 text-[--text-muted] opacity-60"
                                             />
                                             <h3 className="mb-2 text-lg font-medium">
                                                 No matches found
                                             </h3>
-                                            <p className="mb-4 text-gray-500 dark:text-gray-400">
+                                            <p className="mb-4 text-[--text-muted]">
                                                 Try using a different search term.
                                             </p>
                                         </div>
@@ -673,7 +657,7 @@ export const NotebookApp = () => {
                                             <div className="flex items-center gap-2">
                                                 <button
                                                     onClick={() => setArchivedOpen((v) => !v)}
-                                                    className="inline-flex h-8 items-center justify-center rounded-md px-3 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-gray-200"
+                                                    className="inline-flex h-8 items-center justify-center rounded-md px-3 text-[--text-muted] transition-colors hover:bg-[--bg-hover] hover:text-[--text-primary]"
                                                 >
                                                     {archivedOpen ? (
                                                         <LucideChevronDown size={16} />
@@ -684,7 +668,7 @@ export const NotebookApp = () => {
                                                 <h2 className="text-lg font-semibold">
                                                     Archived Notebooks
                                                 </h2>
-                                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                                <span className="text-sm text-[--text-muted]">
                                                     ({archivedNotebooks.length})
                                                 </span>
                                             </div>
@@ -709,14 +693,6 @@ export const NotebookApp = () => {
                 <AddSourceDialog
                     onClose={() => setShowAddSource(false)}
                     onCreated={handleGlobalSourceCreated}
-                />
-            )}
-
-            {showPodcast && (
-                <GeneratePodcastDialog
-                    onClose={() => setShowPodcast(false)}
-                    onSubmitted={handlePodcastSubmitted}
-                    isAdmin={isAdmin}
                 />
             )}
 

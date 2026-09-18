@@ -475,8 +475,19 @@ NEXT_PUBLIC_BRAND_NAME=Acme AI Assistant
 
 ### tailwind.config.js
 ```javascript
-// No changes needed - Tailwind config already set up to use CSS variables
-// Colors are customized via styles/globals.css instead
+// The application uses theme.extend.colors to wire CSS variables into Tailwind.
+// No manual changes are needed — colors are driven by styles/globals.css variables.
+// Example of the pattern already in place:
+//
+// theme: {
+//   extend: {
+//     colors: {
+//       blue: {
+//         500: 'var(--color-primary-500, #3b82f6)',
+//       }
+//     }
+//   }
+// }
 ```
 
 ### styles/globals.css (modifications)

@@ -13,12 +13,10 @@ import {
     getRebuildStatus,
     rebuildEmbeddings,
 } from '@/services/notebookService';
+import { cardClass } from './notebookUI';
 
-// Shared classes mirroring the reference shadcn sizes.
-const cardClass =
-    'flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]';
 const selectClass =
-    'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100';
+    'w-full rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm shadow-sm outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent] text-[--text-primary]';
 
 const FAQ_ITEMS: { id: string; question: string; answer: string }[] = [
     {
@@ -52,7 +50,7 @@ const CheckboxRow = ({
             type="checkbox"
             checked={checked}
             onChange={(e) => onChange(e.target.checked)}
-            className="h-4 w-4 accent-purple-500"
+            className="h-4 w-4 accent-[--accent]"
         />
         {label}
     </label>
@@ -64,7 +62,7 @@ const StatusHeader = ({ status }: { status: RebuildStatusResponse }) => {
     if (status.status === 'queued') {
         return (
             <div className="flex items-center gap-2">
-                <LucideClock size={20} className="text-yellow-500" />
+                <LucideClock size={20} className="text-[--text-muted]" />
                 <span className="font-medium">Queued</span>
             </div>
         );
@@ -72,10 +70,10 @@ const StatusHeader = ({ status }: { status: RebuildStatusResponse }) => {
     if (status.status === 'running') {
         return (
             <div className="flex items-center gap-2">
-                <LucideLoader2 size={20} className="animate-spin text-blue-500" />
+                <LucideLoader2 size={20} className="animate-spin text-[--text-muted]" />
                 <div className="flex flex-col">
                     <span className="font-medium">Submitting jobs...</span>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                    <span className="text-sm text-[--text-muted]">
                         You can leave this page as this will run in the background
                     </span>
                 </div>
@@ -85,14 +83,14 @@ const StatusHeader = ({ status }: { status: RebuildStatusResponse }) => {
     if (status.status === 'completed') {
         return (
             <div className="flex items-center gap-2">
-                <LucideCheckCircle2 size={20} className="text-green-500" />
+                <LucideCheckCircle2 size={20} className="text-[--text-secondary]" />
                 <span className="font-medium">Jobs Submitted!</span>
             </div>
         );
     }
     return (
         <div className="flex items-center gap-2">
-            <LucideXCircle size={20} className="text-red-500" />
+            <LucideXCircle size={20} className="text-[--text-error]" />
             <span className="font-medium">Failed</span>
         </div>
     );
@@ -217,7 +215,7 @@ const RebuildEmbeddings = () => {
         <div className={cardClass}>
             <div className="flex flex-col gap-1.5 px-6">
                 <h2 className="text-lg font-semibold leading-none">Rebuild Embeddings</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-[--text-muted]">
                     Rebuild vector search index for all sources
                 </p>
             </div>
@@ -238,7 +236,7 @@ const RebuildEmbeddings = () => {
                                 <option value="existing">Existing</option>
                                 <option value="all">All</option>
                             </select>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-[--text-muted]">
                                 {mode === 'existing'
                                     ? 'Re-embed only items that already have embeddings (faster, for model switching)'
                                     : 'Re-embed existing items + create embeddings for items without any (slower, comprehensive)'}
@@ -267,7 +265,7 @@ const RebuildEmbeddings = () => {
                                 />
                             </div>
                             {!anySelected && (
-                                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                                <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                                     <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                                     <span>Please select at least one item type to rebuild</span>
                                 </div>
@@ -277,7 +275,7 @@ const RebuildEmbeddings = () => {
                         <button
                             onClick={handleStart}
                             disabled={!anySelected || starting}
-                            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50"
+                            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-[--accent] px-4 text-sm font-medium text-[--accent-fg] shadow-sm transition-colors hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
                         >
                             {starting ? (
                                 <>
@@ -290,7 +288,7 @@ const RebuildEmbeddings = () => {
                         </button>
 
                         {error && (
-                            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                            <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                                 <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                                 <span>{error}</span>
                             </div>
@@ -300,13 +298,13 @@ const RebuildEmbeddings = () => {
 
                 {commandId && !status && !gaveUpWaiting && (
                     <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-2 text-sm text-[--text-muted]">
                             <LucideLoader2 size={16} className="animate-spin" />
                             Rebuild submitted — waiting for status…
                         </div>
                         <button
                             onClick={handleStopWatching}
-                            className="inline-flex h-8 flex-none items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                            className="inline-flex h-8 flex-none items-center justify-center rounded-md border border-[--border-subtle] bg-transparent px-3 text-sm font-medium shadow-sm transition-colors hover:bg-[--bg-hover]"
                         >
                             Stop Watching
                         </button>
@@ -314,10 +312,10 @@ const RebuildEmbeddings = () => {
                 )}
 
                 {gaveUpWaiting && (
-                    <div className="flex items-start justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm dark:border-neutral-700 dark:bg-[#343541]">
+                    <div className="flex items-start justify-between gap-3 rounded-lg border border-[--border-subtle] bg-[--bg-active] p-3 text-sm">
                         <div className="flex items-start gap-2">
-                            <LucideClock size={16} className="mt-0.5 flex-none text-gray-500 dark:text-gray-400" />
-                            <span className="text-gray-600 dark:text-gray-300">
+                            <LucideClock size={16} className="mt-0.5 flex-none text-[--text-muted]" />
+                            <span className="text-[--text-secondary]">
                                 Still waiting on this rebuild — it&apos;s likely still running on
                                 the server, but this page has stopped checking. You can safely
                                 leave this page; the rebuild isn&apos;t affected either way.
@@ -325,7 +323,7 @@ const RebuildEmbeddings = () => {
                         </div>
                         <button
                             onClick={handleReset}
-                            className="inline-flex h-8 flex-none items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                            className="inline-flex h-8 flex-none items-center justify-center rounded-md border border-[--border-subtle] bg-transparent px-3 text-sm font-medium shadow-sm transition-colors hover:bg-[--bg-hover]"
                         >
                             Dismiss
                         </button>
@@ -340,7 +338,7 @@ const RebuildEmbeddings = () => {
                             {(status.status === 'completed' || status.status === 'failed') && (
                                 <button
                                     onClick={handleReset}
-                                    className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                                    className="inline-flex h-8 items-center justify-center rounded-md border border-[--border-subtle] bg-transparent px-3 text-sm font-medium shadow-sm transition-colors hover:bg-[--bg-hover]"
                                 >
                                     Start New Rebuild
                                 </button>
@@ -348,7 +346,7 @@ const RebuildEmbeddings = () => {
                             {(status.status === 'queued' || status.status === 'running') && (
                                 <button
                                     onClick={handleStopWatching}
-                                    className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                                    className="inline-flex h-8 items-center justify-center rounded-md border border-[--border-subtle] bg-transparent px-3 text-sm font-medium shadow-sm transition-colors hover:bg-[--bg-hover]"
                                 >
                                     Stop Watching
                                 </button>
@@ -364,14 +362,14 @@ const RebuildEmbeddings = () => {
                                         {percent.toFixed(1)}%)
                                     </span>
                                 </div>
-                                <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-neutral-700">
+                                <div className="h-2 w-full overflow-hidden rounded-full bg-[--bg-active]">
                                     <div
-                                        className="h-full rounded-full bg-purple-500 transition-all duration-500"
+                                        className="h-full rounded-full bg-[--accent] transition-all duration-500"
                                         style={{ width: `${percent}%` }}
                                     />
                                 </div>
                                 {failedItems > 0 && (
-                                    <p className="text-sm text-yellow-600 dark:text-yellow-400">
+                                    <p className="text-sm text-[--text-error]">
                                         ⚠️ {failedItems} jobs failed to submit
                                     </p>
                                 )}
@@ -381,34 +379,34 @@ const RebuildEmbeddings = () => {
                         {stats && (
                             <div className="grid grid-cols-4 gap-4">
                                 <div className="space-y-1">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm text-[--text-muted]">
                                         Sources
                                     </p>
-                                    <p className="text-2xl font-bold">
+                                    <p className="text-[20px] font-semibold">
                                         {stats.sources_processed ?? stats.sources ?? 0}
                                     </p>
                                 </div>
                                 <div className="space-y-1">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm text-[--text-muted]">
                                         Notes
                                     </p>
-                                    <p className="text-2xl font-bold">
+                                    <p className="text-[20px] font-semibold">
                                         {stats.notes_processed ?? stats.notes ?? 0}
                                     </p>
                                 </div>
                                 <div className="space-y-1">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm text-[--text-muted]">
                                         Insights
                                     </p>
-                                    <p className="text-2xl font-bold">
+                                    <p className="text-[20px] font-semibold">
                                         {stats.insights_processed ?? stats.insights ?? 0}
                                     </p>
                                 </div>
                                 <div className="space-y-1">
-                                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="text-sm text-[--text-muted]">
                                         Time
                                     </p>
-                                    <p className="text-2xl font-bold">
+                                    <p className="text-[20px] font-semibold">
                                         {processingTime !== undefined
                                             ? `${processingTime.toFixed(1)}s`
                                             : '—'}
@@ -418,14 +416,14 @@ const RebuildEmbeddings = () => {
                         )}
 
                         {status.error_message && (
-                            <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                            <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                                 <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                                 <span>{status.error_message}</span>
                             </div>
                         )}
 
                         {status.started_at && (
-                            <div className="space-y-1 text-sm text-gray-500 dark:text-gray-400">
+                            <div className="space-y-1 text-sm text-[--text-muted]">
                                 <p>Created {new Date(status.started_at).toLocaleString()}</p>
                                 {status.completed_at && (
                                     <p>
@@ -444,7 +442,7 @@ const RebuildEmbeddings = () => {
                         return (
                             <div
                                 key={item.id}
-                                className="border-b border-gray-200 dark:border-neutral-700"
+                                className="border-b border-[--border-subtle]"
                             >
                                 <button
                                     onClick={() => setOpenFaq(open ? null : item.id)}
@@ -453,7 +451,7 @@ const RebuildEmbeddings = () => {
                                     {item.question}
                                     <LucideChevronDown
                                         size={16}
-                                        className={`flex-none text-gray-500 transition-transform ${
+                                        className={`flex-none text-[--text-muted] transition-transform ${
                                             open ? 'rotate-180' : ''
                                         }`}
                                     />
@@ -473,10 +471,10 @@ const RebuildEmbeddings = () => {
 };
 
 export const AdvancedPage = () => (
-    <div className="mx-auto max-w-4xl space-y-6 text-neutral-800 dark:text-neutral-100">
+    <div className="mx-auto max-w-4xl space-y-6 text-[--text-primary]">
         <div>
-            <h1 className="text-3xl font-bold">Advanced Tools</h1>
-            <p className="mt-2 text-gray-500 dark:text-gray-400">
+            <h1 className="text-[16px] font-semibold">Advanced Tools</h1>
+            <p className="mt-2 text-[--text-muted]">
                 Advanced tools and utilities for power users
             </p>
         </div>

@@ -38,6 +38,7 @@ import { lzwCompress } from '@/utils/app/lzwCompression';
 import { resolveContextString, messagesToCached } from '@/utils/app/contextConversations';
 import { saveContextCache } from '@/utils/app/storage';
 import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
+import { getFullTimestamp } from '@/utils/app/date';
 import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
 
@@ -56,6 +57,41 @@ export type ChatRequest = {
     conversationId?: string;
 };
 
+/**
+ * Agent-run polling guards. BOTH are module-level (not useRef) on purpose.
+ *
+ * `useSendService()` is instantiated by MANY components at once — Chat.tsx,
+ * ConversationViewShell, ConversationComposer, and every AutonomousBlock /
+ * OpBlock / InvokeBlock rendered inside a streamed message. Each instance runs
+ * its own copy of the `isWaitingForAgentResponse` effect below, so a per-instance
+ * `useRef` guard cannot prevent N concurrent pollers for the SAME sessionId.
+ *
+ * That was the actual bug behind the endless `/vu-agent/get-latest-agent-state`
+ * flood: the first poller consumed the agent result and finished the chat, but
+ * the other pollers kept hitting the endpoint once per second for the full
+ * MAX_POLL_DURATION_MS (5 min) because the backend no longer returns a `result`
+ * for an already-consumed session (so `state.inProgress ?? true` stayed true).
+ *
+ * _activeAgentPolls    — a session currently being polled by SOME instance.
+ *                        Guarantees exactly one poller per session app-wide.
+ * _exhaustedAgentSessions — a session already polled to a terminal state
+ *                        (success, timeout, or error). Prevents a restart when
+ *                        `endTime` fails to persist (stale conversation closure,
+ *                        navigation mid-poll, etc.).
+ *
+ * A genuinely new agent task always gets a fresh sessionId, so neither set can
+ * block legitimate work.
+ */
+const _activeAgentPolls = new Set<string>();
+const _exhaustedAgentSessions = new Set<string>();
+
+/**
+ * An agentRun with no endTime that started longer ago than this is considered
+ * dead (tab closed mid-run, crash, WAF block) and is never resumed. Must be
+ * comfortably larger than MAX_POLL_DURATION_MS (5 min) in utils/app/agent.ts.
+ */
+const STALE_AGENT_RUN_MS = 10 * 60 * 1000;
+
 export function useSendService() {
     const {
         state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount, promptCostAlert },
@@ -68,8 +104,11 @@ export function useSendService() {
     const conversationsRef = useRef(conversations);
     const messageTimestampRef = useRef<string | undefined>(undefined);
 
-    // Add ref to track running agent sessions
-    const runningAgentSessions = useRef<Set<string>>(new Set());
+    // Always-fresh handle on the selected conversation so the agent poller (which
+    // can run for minutes) writes `endTime` back to the CURRENT conversation
+    // instead of the snapshot captured when the poll started.
+    const selectedConversationRef = useRef(selectedConversation);
+    selectedConversationRef.current = selectedConversation;
 
     useEffect(() => {
         conversationsRef.current = conversations;
@@ -101,22 +140,27 @@ export function useSendService() {
 
     useEffect(() => {
         const awaitAgentRun = async (sessionId: string) => {
-            // Check if this session is already running
-            if (runningAgentSessions.current.has(sessionId)) {
-                console.log(`Agent run for session ${sessionId} is already in progress`);
-                return;
-            }
+            // Already polled to a terminal state — never poll it again. Guards the
+            // case where `endTime` failed to persist back onto the conversation.
+            if (_exhaustedAgentSessions.has(sessionId)) return;
 
-            // Mark this session as running
-            runningAgentSessions.current.add(sessionId);
+            // Some other useSendService() instance is already polling this session.
+            // Only one poller per session may exist app-wide, otherwise the extra
+            // pollers keep hammering the endpoint after the winner consumes the
+            // result (the backend then stops returning `result`, so those loops run
+            // to the full 5-minute timeout).
+            if (_activeAgentPolls.has(sessionId)) return;
+            _activeAgentPolls.add(sessionId);
 
             try {
                 homeDispatch({ field: 'messageIsStreaming', value: true });
                 const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }));
-                if (agentResult && selectedConversation) {
-                    const lastIndex = selectedConversation.messages.length - 1;
-                    selectedConversation.messages[lastIndex].data.state.agentLog = lzwCompress(JSON.stringify(agentResult));
-                    const updatedConversation = await handleAgentRunResult(agentResult, selectedConversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
+                // Re-read the conversation: the poll may have run for minutes.
+                const conversation = selectedConversationRef.current ?? selectedConversation;
+                if (agentResult && conversation) {
+                    const lastIndex = conversation.messages.length - 1;
+                    conversation.messages[lastIndex].data.state.agentLog = lzwCompress(JSON.stringify(agentResult));
+                    const updatedConversation = await handleAgentRunResult(agentResult, conversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
                     handleUpdateSelectedConversation(updatedConversation);
                 } else {
                     console.error("Agent run failed or timed out");
@@ -127,24 +171,44 @@ export function useSendService() {
                         "The assistant did not respond in time. Please try again.",
                         { duration: 8000 }
                     );
-                    const updatedMessages = selectedConversation?.messages;
+                    const updatedMessages = conversation?.messages;
                     if (updatedMessages) {
                         const lastMsgIndex = updatedMessages.length - 1;
                         updatedMessages[lastMsgIndex].content = "No response from the agent. Please try again later.";
-                        updatedMessages[lastMsgIndex].data.state.agentRun.endTime = new Date();
-                        handleUpdateSelectedConversation({ ...selectedConversation, messages: updatedMessages });
+                        if (updatedMessages[lastMsgIndex].data?.state?.agentRun) {
+                            updatedMessages[lastMsgIndex].data.state.agentRun.endTime = new Date();
+                        }
+                        handleUpdateSelectedConversation({ ...conversation!, messages: updatedMessages });
                     }
                 }
+            } catch (e) {
+                // Never let a throw here leave the session eligible for re-polling.
+                console.error("Agent run handling failed:", e);
             } finally {
-                // Always remove the session from running set when done
-                runningAgentSessions.current.delete(sessionId);
+                _activeAgentPolls.delete(sessionId);
+                // Permanently mark as exhausted so future useEffect ticks (triggered
+                // by message changes while the poll was running) cannot restart it.
+                _exhaustedAgentSessions.add(sessionId);
                 cleanupHomeState();
             }
         }
 
         if (selectedConversation) {
             const agentRunData = isWaitingForAgentResponse(selectedConversation);
-            if (agentRunData?.sessionId) awaitAgentRun(agentRunData.sessionId);
+            if (agentRunData?.sessionId) {
+                // A conversation reloaded from storage can carry an agentRun that never
+                // got an endTime (tab closed mid-run, crash, WAF block). Polling it is
+                // pointless — the run is long dead — and it would burn a full 5-minute
+                // poll on every page load. Only resume runs that could plausibly still
+                // be alive.
+                const startedAt = agentRunData.startTime ? new Date(agentRunData.startTime).getTime() : NaN;
+                const isStale = !Number.isNaN(startedAt) && (Date.now() - startedAt) > STALE_AGENT_RUN_MS;
+                if (isStale) {
+                    _exhaustedAgentSessions.add(agentRunData.sessionId);
+                } else {
+                    awaitAgentRun(agentRunData.sessionId);
+                }
+            }
         }
     }, [selectedConversation?.messages]);
 
@@ -187,11 +251,13 @@ export function useSendService() {
                         updatedConversation = {
                             ...selectedConversation,
                             messages: [...updatedMessages, message],
+                            date: getFullTimestamp(),
                         };
                     } else {
                         updatedConversation = {
                             ...selectedConversation,
                             messages: [...(selectedConversation.messages ?? []), message],
+                            date: getFullTimestamp(),
                         };
                     }
 
@@ -1589,6 +1655,45 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                         }
 
                         if (!isWaitingForAgentResponse(updatedConversation)) homeDispatch({ field: 'messageIsStreaming', value: false });
+
+                        // Auto-rename "New Conversation" after the first exchange.
+                        // Chat.tsx does this too, but its useEffect([selectedConversation]) fires while
+                        // messageIsStreaming is still true (stale closure), so it never renames in the
+                        // new-UI path. We do it here where we know streaming has just ended.
+                        if (
+                            updatedConversation.name === 'New Conversation' &&
+                            updatedConversation.messages.length > 1 &&
+                            !isWaitingForAgentResponse(updatedConversation)
+                        ) {
+                            (async () => {
+                                try {
+                                    const promptMessages = updatedConversation.messages
+                                        .slice(0, 1)
+                                        .map(m => ({ ...m, data: {}, configuredTools: [] }));
+                                    promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`;
+                                    const customName = await promptForData(
+                                        chatEndpoint || '',
+                                        promptMessages,
+                                        getDefaultModel(DefaultModels.CHEAPEST),
+                                        'Respond with only the title name and nothing else.',
+                                        defaultAccount,
+                                        statsService,
+                                        10
+                                    );
+                                    const firstMsg = updatedConversation.messages[0].content;
+                                    const fallbackName = firstMsg && firstMsg.length > 30
+                                        ? firstMsg.substring(0, 30) + '...'
+                                        : firstMsg ?? updatedConversation.name;
+                                    const renamedConversation = {
+                                        ...updatedConversation,
+                                        name: customName?.trim() || fallbackName,
+                                    };
+                                    handleUpdateSelectedConversation(renamedConversation);
+                                } catch (e) {
+                                    console.warn('Auto-rename failed:', e);
+                                }
+                            })();
+                        }
 
                         // Run memory extraction after main response is processed
                         if (isMemoryOn && memoryExtractionEnabled) {

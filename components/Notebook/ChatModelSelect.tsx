@@ -1,10 +1,9 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
+import { useEffect, useMemo, useState } from 'react';
 import { IconSparkles } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
 import { NotebookModel, getDefaults, listModels } from '@/services/notebookService';
 import { filterSelectableChatModels, formatModelName, prepareModelOptions } from './modelDisplay';
 import { useCanSelectNotebookModel } from './modelAccess';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 
 interface Props {
     // Selected model record ID; '' means "use the deployment default".
@@ -59,9 +58,6 @@ export const ChatModelSelect = ({
     onResolvedModel,
     onHasAlternatives,
 }: Props) => {
-    const {
-        state: { lightMode },
-    } = useContext(HomeContext);
     const canSelectModel = useCanSelectNotebookModel();
 
     const [models, setModels] = useState<NotebookModel[]>([]);
@@ -170,7 +166,7 @@ export const ChatModelSelect = ({
         return (
             <span
                 title="Model used to answer"
-                className="flex h-[26px] items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-600 dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-300"
+                className="flex h-[26px] items-center gap-1.5 rounded-md border border-[--border-subtle] bg-[--bg-raised] px-2 text-xs text-[--text-secondary]"
             >
                 <IconModelSliders size={14} />
                 <span className="max-w-[160px] truncate">
@@ -187,7 +183,7 @@ export const ChatModelSelect = ({
                 onClick={openDialog}
                 disabled={disabled || loading}
                 title="Model used to answer"
-                className="flex h-[26px] items-center gap-1.5 rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-300 dark:hover:bg-neutral-700"
+                className="flex h-[26px] items-center gap-1.5 rounded-md border border-[--border-subtle] bg-[--bg-raised] px-2 text-xs text-[--text-secondary] transition-colors hover:bg-[--bg-hover] disabled:cursor-not-allowed disabled:opacity-60"
             >
                 <IconModelSliders size={14} />
                 <span className="max-w-[160px] truncate">
@@ -195,86 +191,73 @@ export const ChatModelSelect = ({
                 </span>
             </button>
 
-            {open &&
-                createPortal(
-                    <div className={`${lightMode} fixed inset-0 z-[9999] flex items-center justify-center`}>
-                        <div
-                            className="absolute inset-0 bg-black bg-opacity-50 backdrop-blur-sm"
-                            onClick={() => setOpen(false)}
-                        />
-                        <div className="relative w-[420px] max-w-[92vw] rounded-lg border border-gray-200 bg-white shadow-2xl dark:border-gray-700 dark:bg-gray-800">
-                            <div className="border-b border-gray-200 px-6 py-4 dark:border-gray-700">
-                                <h3 className="flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-                                    <IconSparkles size={18} />
-                                    Model Configuration
-                                </h3>
-                                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                                    Override the default model for this chat session. Leave empty to use
-                                    the system default.
-                                </p>
-                            </div>
-                            <div className="space-y-3 px-6 py-4">
-                                <div className="space-y-1.5">
-                                    <label
-                                        htmlFor="chat-model-select"
-                                        className="text-sm font-medium text-gray-700 dark:text-gray-200"
-                                    >
-                                        Model
-                                    </label>
-                                    <select
-                                        id="chat-model-select"
-                                        value={pending}
-                                        onChange={(e) => setPending(e.target.value)}
-                                        className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-gray-100"
-                                    >
-                                        <option value="">
-                                            {defaultName ? `Default (${defaultName})` : 'System default'}
-                                        </option>
-                                        {loading ? (
-                                            <option disabled>Loading models…</option>
-                                        ) : (
-                                            selectableModels.map((m) => (
-                                                <option key={m.id} value={m.id}>
-                                                    {formatModelName(m.name)}
-                                                </option>
-                                            ))
-                                        )}
-                                    </select>
-                                </div>
-                                {pending && (
-                                    <div className="rounded-lg bg-gray-100 p-3 dark:bg-neutral-700/40">
-                                        <p className="text-sm text-gray-600 dark:text-gray-300">
-                                            This session will use{' '}
-                                            <b>
-                                                {models.find((m) => m.id === pending)?.name
-                                                    ? formatModelName(
-                                                          models.find((m) => m.id === pending)!.name,
-                                                      )
-                                                    : pending}
-                                            </b>{' '}
-                                            instead of the default.
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="flex justify-between border-t border-gray-200 px-6 py-4 dark:border-gray-700">
+            {open && (
+                <CreationModalShell
+                    title="Model Configuration"
+                    onClose={() => setOpen(false)}
+                    onSave={handleSave}
+                    saveLabel="Save Changes"
+                >
+                    <p className="mb-4 flex items-center gap-2 text-sm text-[--text-muted]">
+                        <IconSparkles size={16} className="flex-none text-[--accent]" />
+                        Override the default model for this chat session. Leave empty to use the
+                        system default.
+                    </p>
+                    <div className="space-y-3">
+                        <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                                <label
+                                    htmlFor="chat-model-select"
+                                    className="text-sm font-medium text-[--text-secondary]"
+                                >
+                                    Model
+                                </label>
                                 <button
+                                    type="button"
                                     onClick={handleReset}
-                                    className="rounded-md bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+                                    className="text-xs font-medium text-[--text-muted] hover:text-[--text-primary]"
                                 >
                                     Reset to Default
                                 </button>
-                                <button
-                                    onClick={handleSave}
-                                    className="rounded-md bg-purple-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-purple-700"
-                                >
-                                    Save Changes
-                                </button>
                             </div>
+                            <select
+                                id="chat-model-select"
+                                value={pending}
+                                onChange={(e) => setPending(e.target.value)}
+                                className="w-full rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary] outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent]"
+                            >
+                                <option value="">
+                                    {defaultName ? `Default (${defaultName})` : 'System default'}
+                                </option>
+                                {loading ? (
+                                    <option disabled>Loading models…</option>
+                                ) : (
+                                    selectableModels.map((m) => (
+                                        <option key={m.id} value={m.id}>
+                                            {formatModelName(m.name)}
+                                        </option>
+                                    ))
+                                )}
+                            </select>
                         </div>
-                    </div>,
-                    document.body,
-                )}
+                        {pending && (
+                            <div className="rounded-lg bg-[--bg-active] p-3">
+                                <p className="text-sm text-[--text-secondary]">
+                                    This session will use{' '}
+                                    <b>
+                                        {models.find((m) => m.id === pending)?.name
+                                            ? formatModelName(
+                                                  models.find((m) => m.id === pending)!.name,
+                                              )
+                                            : pending}
+                                    </b>{' '}
+                                    instead of the default.
+                                </p>
+                            </div>
+                        )}
+                    </div>
+                </CreationModalShell>
+            )}
         </>
     );
 };
