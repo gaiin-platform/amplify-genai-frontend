@@ -218,6 +218,17 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       const text = (editor.textContent ?? '').replace(new RegExp(ZWS, 'g'), '').trim();
       setHasContent(text.length > 0);
       onChange?.(text);
+
+      // Safety net: if the last child is a code block, silently append a fresh
+      // continuation line so the user can always navigate below the block (via
+      // Down arrow or Escape). We do NOT move the cursor — the user may have
+      // deliberately backspaced into the code block and should stay there.
+      const lastChild = editor.lastChild;
+      if (lastChild instanceof HTMLElement && lastChild.classList.contains(CODE_BLOCK_CLS)) {
+        const newLine = document.createElement('div');
+        newLine.innerHTML = '<br>';
+        editor.appendChild(newLine);
+      }
     }, [onChange]);
 
     // ── Paste: strip formatting; intercept large pastes + images (spec §6) ──
@@ -389,9 +400,12 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
 
         // --- Backspace: remove an empty code block on the first press ---
         if (e.key === 'Backspace') {
+          const editor = editorRef.current!;
+
+          // Case A: cursor is inside an empty code block — remove the whole block.
           const block = findAncestor(
             range.startContainer,
-            editorRef.current!,
+            editor,
             (n) => n instanceof HTMLElement && (n as HTMLElement).classList.contains(CODE_BLOCK_CLS)
           );
           if (block) {
@@ -405,6 +419,7 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
               return;
             }
           }
+
         }
 
         // --- Escape: exit code block ---
