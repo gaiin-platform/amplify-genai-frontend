@@ -1,6 +1,6 @@
 import { FC, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
+import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "@/components/Admin/AdminUI";
 import { AdminConfigTypes, FeatureFlagConfig } from "@/types/admin";
 import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport, IconUsers } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
@@ -277,13 +277,13 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     }
 
 
-    return <> 
-    <div className="admin-style-settings-card overflow-x-hidden">
-        <div className="admin-style-settings-card-header">
+    return <div data-new-ui-configurations="true" className="nui-configurations flex flex-col gap-4">
+    <div className="admin-style-settings-card nui-config-card overflow-x-hidden">
+        <div className="admin-style-settings-card-header nui-config-card-header">
                 <div className="flex items-center justify-between">
                     <div>
-                        <h3 className="admin-style-settings-card-title">Admins</h3>
-                        <p className="admin-style-settings-card-description">Manage the admins of the admin panel</p>
+                        <h3 className="admin-style-settings-card-title nui-config-title">Admins</h3>
+                        <p className="admin-style-settings-card-description nui-config-description">Manage the admins of the admin panel</p>
                     </div>
                     <button
                         title="Import Admins from CSV"
@@ -299,7 +299,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 </div>
             </div>
                 
-                <div className="settings-card-content px-6">
+                <div className="settings-card-content nui-config-card-content px-6">
                     <div className='w-full pr-20 relative'>
                         {/* Buttons on same line */}
                         <div className="flex items-start gap-4 mb-4">
@@ -441,9 +441,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
         </div>
             
             <div className="admin-style-settings-card">
-                <div className="admin-style-settings-card-header">
-                    <h3 className="admin-style-settings-card-title">Support Email</h3>
-                    <p className="admin-style-settings-card-description">Configure email support features and contact information</p>
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Support Email</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">Configure email support features and contact information</p>
                 </div>
                 
                 <div className="px-6 mr-4">
@@ -471,9 +471,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
        
             {setAiEmailDomain && 
             <div className="admin-style-settings-card">
-                <div className="admin-style-settings-card-header">
-                    <h3 className="admin-style-settings-card-title">AI Email Domain</h3>
-                    <p className="admin-style-settings-card-description">Set the email domain that allows users to email AI assistants directly (e.g., user+tag@domain.com)</p>
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">AI Email Domain</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">Set the email domain that allows users to email AI assistants directly (e.g., user+tag@domain.com)</p>
                 </div>
                 
                 <div className="mx-12">
@@ -489,9 +489,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             </div>}
 
             <div className="admin-style-settings-card">
-                <div className="admin-style-settings-card-header">
-                    <h3 className="admin-style-settings-card-title">Default Timezone</h3>
-                    <p className="admin-style-settings-card-description">System-wide default timezone used for scheduled tasks, calendar events, and email timestamps</p>
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Default Timezone</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">System-wide default timezone used for scheduled tasks, calendar events, and email timestamps</p>
                 </div>
                 <div className="mx-12 pb-4">
                     <select
@@ -530,9 +530,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             </div>
 
             <div className="admin-style-settings-card">
-                <div className="admin-style-settings-card-header">
+                <div className="admin-style-settings-card-header nui-config-card-header">
                     <div className="flex items-center gap-3 mb-2">
-                        <h3 className="admin-style-settings-card-title">Chat Rate Limits</h3>
+                        <h3 className="admin-style-settings-card-title nui-config-title">Chat Rate Limits</h3>
                         <button
                             title="Add Rate Limit"
                             disabled={addingAdminLimitRow !== null || rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).length >= 4}
@@ -546,7 +546,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             <IconPlus size={14} /> Add Limit
                         </button>
                     </div>
-                    <p className="admin-style-settings-card-description">
+                    <p className="admin-style-settings-card-description nui-config-description">
                         Configure one or more simultaneous rate limits (e.g. Monthly $300 <strong>AND</strong> Hourly $30). All limits must pass for a user to be allowed.
                     </p>
                 </div>
@@ -692,9 +692,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
 
             
             <div className="admin-style-settings-card flex flex-row gap-14">
-                <div className="admin-style-settings-card-header">
-                    <h3 className="admin-style-settings-card-title">Default User Conversation Storage</h3>
-                    <p className="admin-style-settings-card-description">Choose the default storage location for user conversations</p>
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Default User Conversation Storage</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">Choose the default storage location for user conversations</p>
                 </div>
                 
                 <div className="settings-theme-options">
@@ -728,9 +728,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
 
             
             <div className="admin-style-settings-card flex flex-row items-start gap-14">
-                <div className="admin-style-settings-card-header">
-                    <h3 className="admin-style-settings-card-title">Smart Focused Messages — Default Setting</h3>
-                    <p className="admin-style-settings-card-description">
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Smart Focused Messages — Default Setting</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">
                         {smartMessagesFlagOn
                             ? 'Default on/off for users without a saved preference'
                             : <span className="text-amber-500 dark:text-amber-400 text-xs font-semibold">⚠ Enable the <strong>smartMessages</strong> feature flag first to configure this</span>
@@ -766,9 +766,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             
 
             <div className="admin-style-settings-card">
-                <div className="admin-style-settings-card-header">
-                    <h3 className="admin-style-settings-card-title">Prompt Cost Alert</h3>
-                    <p className="admin-style-settings-card-description">Alert the user when the cost of their prompt exceeds the set threshold</p>
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Prompt Cost Alert</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">Alert the user when the cost of their prompt exceeds the set threshold</p>
                 </div>
                 
                 <div className="px-6 mr-6">
@@ -822,9 +822,9 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             </div>
 
             <div className="admin-style-settings-card">
-                <div className="admin-style-settings-card-header">
+                <div className="admin-style-settings-card-header nui-config-card-header">
                     <div className="flex items-center gap-3 mb-2">
-                        <h3 className="admin-style-settings-card-title">Amplify Groups</h3>
+                        <h3 className="admin-style-settings-card-title nui-config-title">Amplify Groups</h3>
                         <button
                             title={isAddingAmpGroups ? "" : 'Add Amplify Group'}
                             disabled={isAddingAmpGroups !== null}
@@ -870,7 +870,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                     />
                                 </div>}
                     </div>
-                    <p className="admin-style-settings-card-description">Create and manage Amplify Groups for user organization and permissions</p>
+                    <p className="admin-style-settings-card-description nui-config-description">Create and manage Amplify Groups for user organization and permissions</p>
                 </div>
                 
                 {isAddingAmpGroups && 
@@ -952,7 +952,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             title={'Manage Amplify Groups'} 
                             content={ 
                                 <>
-                                <table className="modern-table hide-last-column mt-4 w-full mr-10 " style={{boxShadow: 'none'}} id="groupTable">
+                                <div className="nui-config-table-scroll mt-4"><table className="modern-table hide-last-column nui-config-table w-full" style={{boxShadow: 'none'}} id="groupTable">
                                     <thead>
                                     <tr className="gradient-header hide-last-column">
                                         {['Group Name', 'Members', 'Membership by Amplify Groups', 'Billing Group', 'Rate Limit', 'Model Rate Limits', 'Created By'].map((title, i) => (
@@ -1268,8 +1268,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                         </tr>     
                                     )}
                                     </tbody>
-                                </table> 
-            
+                                </table></div>
+
                                 </>
                             }
                             isOpened={true}
@@ -1283,7 +1283,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
             {/* ── Manage Model Rate Limits Modal ── */}
             {editingModelRateGroup !== null && (
                 createPortal(
-                <div className="fixed inset-0 z-[999] flex items-start justify-center overflow-y-auto px-4 py-10 sm:py-16">
+                <div className="fixed inset-0 z-[10001] flex items-start justify-center overflow-y-auto px-4 py-10 sm:py-16">
                     <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={closeModelRateLimitEditor} />
                     <div className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-[#2b2c36]">
                         <div className="flex items-start justify-between border-b border-neutral-200 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 text-white dark:border-neutral-700">
@@ -1299,7 +1299,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             <span className="mx-2 text-neutral-400">•</span>
                             Limits apply to the current month and are checked in addition to the group-wide rate limit.
                         </div>
-                        <div className="max-h-[60vh] overflow-y-auto px-6 py-5 text-neutral-900 dark:text-neutral-100">
+                        <div className="max-h-[60vh] overflow-y-auto px-6 py-5 text-neutral-900 dark:text-neutral-100 nui-config-model-modal">
                         <div className="flex flex-col gap-4">
                             <p className="text-sm text-neutral-600 dark:text-neutral-300">
                                 Configure a monthly model limit for members of this group.
@@ -1386,7 +1386,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                     };
 
                     return (
-                        <div className="fixed inset-0 z-[999] flex items-center justify-center">
+                        <div className="fixed inset-0 z-[10001] flex items-center justify-center">
                             {/* Backdrop */}
                             <div
                                 className="absolute inset-0 bg-black/50"
@@ -1494,7 +1494,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
 
             {/* CSV Upload Modal */}
             {adminCsvUpload.showUpload && createPortal(
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
                     {/* Backdrop */}
                     <div className="absolute inset-0 bg-black bg-opacity-50" onClick={adminCsvUpload.handleCancel} />
                     
@@ -1524,7 +1524,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 document.body
             )}
                     
-    </>
+    </div>
 
 }
 

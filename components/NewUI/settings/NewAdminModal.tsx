@@ -57,7 +57,7 @@ import { noRateLimit, normalizeRateLimits, RateLimit, RateLimits } from '@/types
 import { OpenAIEndpointsTab } from '@/components/Admin/AdminComponents/OpenAIEndpoints';
 import { FeatureFlagsTab } from '@/components/Admin/AdminComponents/FeatureFlags';
 import { emptySupportedModel, SupportedModelsTab } from '@/components/Admin/AdminComponents/SupportedModels';
-import { ConfigurationsTab } from '@/components/Admin/AdminComponents/Configurations';
+import { ConfigurationsTab } from '@/components/NewUI/settings/admin/ConfigurationsTab';
 import { AdminsCard } from '@/components/NewUI/settings/admin/AdminsCard';
 import {
   Integration, IntegrationProviders, integrationProviders, integrationProvidersList,
@@ -777,6 +777,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
               ampGroups={ampGroups}
               setAmpGroups={setAmpGroups}
               amplifyUsers={amplifyUsers}
+              availableModels={availableModels}
               rateLimits={rateLimits}
               setRateLimits={setRateLimits}
               honorPersonalRateLimit={honorPersonalRateLimit}
