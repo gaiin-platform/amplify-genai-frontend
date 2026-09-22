@@ -805,6 +805,11 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                             },
                             state: (state: any) => {
                                 currentState = deepMerge(currentState, state);
+                                const notice = state?.modelRateLimit;
+                                if (notice?.reachedLimit === true && !currentState.modelRateLimitToastShown) {
+                                    toast.error(notice.message || "You have reached the rate limit for this model. Please use another model.", { duration: 8000 });
+                                    currentState = { ...currentState, modelRateLimitToastShown: true };
+                                }
                             },
                             shouldAbort: () => {
                                 if (shouldAbort()) {
@@ -836,8 +841,14 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                             let errorMessage = "";
                             try {
                                 // Clone the response to read the body (streams can only be read once)
-                                const clonedResponse = response.clone();
+                                    const clonedResponse = response.clone();
                                 errorMessage = (await clonedResponse.text())?.trim();
+                                try {
+                                    const parsed = JSON.parse(errorMessage);
+                                    if (parsed?.error) errorMessage = parsed.error;
+                                } catch {
+                                    // Legacy/plain-text error body.
+                                }
                             } catch (readError) {
                                 console.error("Error reading response body:", readError);
                             }
@@ -1171,6 +1182,11 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                                 },
                                 state: (state: any) => {
                                     currentState = deepMerge(currentState, state);
+                                    const notice = state?.modelRateLimit;
+                                    if (notice?.reachedLimit === true && !currentState.modelRateLimitToastShown) {
+                                        toast.error(notice.message || "You have reached the rate limit for this model. Please use another model.", { duration: 8000 });
+                                        currentState = { ...currentState, modelRateLimitToastShown: true };
+                                    }
                                 },
                                 shouldAbort: () => {
                                     if (shouldAbort()) {

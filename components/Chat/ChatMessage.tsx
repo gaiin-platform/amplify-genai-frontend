@@ -45,6 +45,7 @@ import { LargeTextDisplay } from './LargeTextDisplay';
 import { generatePlaceholderText } from '@/utils/app/largeText';
 import { MCPToolResultBlock } from './ChatContentBlocks/MCPToolResultBlock';
 import RemovedDataSourcesBlock from './ChatContentBlocks/RemovedDataSourcesBlock';
+import ModelRateLimitBlock from './ChatContentBlocks/ModelRateLimitBlock';
 
 export interface Props {
     message: Message;
@@ -859,6 +860,7 @@ export const ChatMessage: FC<Props> = memo(({
                                           </div>
 
                                           {!messageIsStreaming && <RemovedDataSourcesBlock message={message}  />}
+                                          {!messageIsStreaming && <ModelRateLimitBlock message={message} />}
 
                                           <AgentLogBlock
                                             messageIsStreaming={messageIsStreaming}
