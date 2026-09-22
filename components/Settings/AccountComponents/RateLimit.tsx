@@ -11,13 +11,14 @@ import { FC } from "react";
 interface RateLimitProps {
     period: PeriodType;
     setPeriod: (s:PeriodType) => void;
+    fixedPeriod?: PeriodType;
     rate: string;
     setRate: (s:string) => void;
     excludePeriods?: PeriodType[];
     allowUnlimited?: boolean;
 }
 
-export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRate, excludePeriods = [], allowUnlimited = false}) => {
+export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, fixedPeriod, rate, setRate, excludePeriods = [], allowUnlimited = false}) => {
     
     const calcCostWidth = () => {
         return Math.max(44 + ((rate.length - 5) * 9), 44);
@@ -37,7 +38,7 @@ export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRat
     
     return (
             <>
-            <select
+            {fixedPeriod ? null : <select
                 id="rateLimitType"
                 className="rounded border-gray-300 p-0.5 text-neutral-900 dark:text-neutral-100 shadow-sm dark:bg-[#40414F] focus:border-neutral-700 focus:ring focus:ring-neutral-500 focus:ring-opacity-50  custom-shadow"
                 style={{ width: '92px'}}
@@ -45,7 +46,7 @@ export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRat
                 onChange={(e) => setPeriod(e.target.value as PeriodType)}
             >
                 {periodTypes.filter(p => (allowUnlimited || p !== 'Unlimited') && (p === period || !excludePeriods.includes(p))).map(p =>  <option key={p} className="ml-6" value={p}>{p}</option>)}
-            </select>
+            </select>}
 
             {period !== UNLIMITED && (
                 <div className='mt-1'>
@@ -54,7 +55,7 @@ export const RateLimiter: FC<RateLimitProps> = ({period, setPeriod, rate, setRat
                         type="text"
                         placeholder="$0.00"
                         id="rateLimitAmount"
-                        className="rounded border-gray-300  text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50 w-full"
+                        className="rounded border-gray-300 bg-white text-neutral-900 shadow-sm focus:border-neutral-500 focus:ring focus:ring-neutral-500 focus:ring-opacity-50 w-full dark:border-neutral-700 dark:bg-[#40414F] dark:text-neutral-100 dark:placeholder:text-neutral-400"
                         value={rate}
                         onChange={(e) => setRate(formatDollar(e.target.value))}
                     />
