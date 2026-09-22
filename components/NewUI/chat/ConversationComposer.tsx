@@ -70,6 +70,7 @@ import {
   type LibraryFileSelection,
 } from '@/components/NewUI/shared/libraryAttachment';
 import { UploadPendingIndicator } from './UploadPendingIndicator';
+import { RichComposer, type RichComposerHandle } from '@/components/NewUI/shared/RichComposer';
 import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
@@ -108,6 +109,8 @@ function setNativeValue(el: HTMLTextAreaElement, value: string) {
  */
 interface PendingUploadSend {
   msgText: string;
+  /** Raw editor HTML snapshot, used to restore content if the user cancels. */
+  msgHTML: string;
   pastedAttachments: UIAttachment[];
   /** Docs that already had S3 keys when Send was clicked. */
   readyDocs: AttachedDocument[];
@@ -159,15 +162,15 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   }, [sendViaService]);
 
   // ── Local state ────────────────────────────────────────────────────────────
-  const [text, setText] = useState('');
-  // Tracks AttachedDocument objects for pasted images (mirroring NewHome).
-  // These are populated by handleFile callbacks inside addFileToRail.
+  /** Tracks AttachedDocument objects for pasted images (mirroring NewHome). */
   const [attachedDocs, setAttachedDocs] = useState<AttachedDocument[]>([]);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  /** True when the RichComposer has non-empty content (drives send-button visibility). */
+  const [richHasContent, setRichHasContent] = useState(false);
+  const richComposerRef = useRef<RichComposerHandle>(null);
   /** The composer's own file picker — see the AttachMenu onAddFiles comment. */
   const fileInputRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<{ focus: () => void }>({
-    focus: () => textareaRef.current?.focus(),
+    focus: () => richComposerRef.current?.focus(),
   });
 
   // Model/effort — mirror what the conversation is currently using
@@ -271,20 +274,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     }
     return result;
   }, [selectedConversation?.messages]);
-
-  // ── Auto-grow textarea ─────────────────────────────────────────────────────
-  const adjustHeight = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    const maxHeight = 12 * 24; // 12 lines at ~24px per line
-    el.style.height = Math.min(el.scrollHeight, maxHeight) + 'px';
-    el.style.overflowY = el.scrollHeight > maxHeight ? 'auto' : 'hidden';
-  }, []);
-
-  useEffect(() => {
-    adjustHeight();
-  }, [text, adjustHeight]);
 
   // ── Helpers: update attachedDocs state from handleFile callbacks ──────────
   const addDocCallback = useCallback((doc: AttachedDocument) => {
@@ -593,8 +582,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   // and re-send once the images finish uploading (or remove them).
   const handleCancelPendingSend = useCallback(() => {
     const pending = pendingUploadSendRef.current;
-    if (pending?.msgText) {
-      setText(pending.msgText);
+    if (pending?.msgHTML) {
+      richComposerRef.current?.setHTML(pending.msgHTML);
+      setRichHasContent(!!pending.msgText.trim());
     }
     pendingUploadSendRef.current = null;
     setPendingUploadState(null);
@@ -610,7 +600,10 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   //   B) no docs with keys → inject text + click #sendMessage (existing path)
   //
   const handleSend = useCallback(() => {
-    const hasText = text.trim().length > 0;
+    // Read text from the RichComposer before clearing
+    const msgText = richComposerRef.current?.getValue() ?? '';
+    const msgHTML = richComposerRef.current?.getHTML() ?? '';
+    const hasText = msgText.trim().length > 0;
     const docsWithKeys = attachedDocs.filter((d) => !!d.key);
     // Any kind of attachment can be mid-upload now that documents (not just
     // pasted images) land in the rail — filtering by kind here would let a
@@ -662,16 +655,18 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       });
     }
 
-    const msgText = text;
     const pastedAttachments = uiAttachments.filter((a) => a.kind === 'paste');
     const pastedMessage = buildPastedTextMessage(msgText, pastedAttachments);
-    setText('');
-    if (textareaRef.current) textareaRef.current.style.height = 'auto';
+    // Clear the composer immediately for UX — RichComposer's own onSend handler
+    // also clears after calling onSend, so a double-clear here is a harmless no-op.
+    richComposerRef.current?.clear();
+    setRichHasContent(false);
 
     // ── DEFERRED SEND: attachments still uploading ─────────────────────────
     if (uploadingAttachments.length > 0) {
       pendingUploadSendRef.current = {
         msgText,
+        msgHTML,
         pastedAttachments: [...pastedAttachments],
         readyDocs: [...docsWithKeys],
         newDocs: [],
@@ -776,7 +771,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       }, 60);
     }, 30);
   }, [
-    text,
     attachedDocs,
     uiAttachments,
     messageIsStreaming,
@@ -798,14 +792,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       'stopGenerating',
     ) as HTMLButtonElement | null;
     stopBtn?.click();
-  };
-
-  // ── Keyboard handler ──────────────────────────────────────────────────────
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
   };
 
   // ── Model change ──────────────────────────────────────────────────────────
@@ -1097,36 +1083,12 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     };
   }, [attachFilesRef, attachFiles]);
 
-  // Large-paste interception in the plain textarea (spec §6)
-  const handleTextareaPaste = useCallback(
-    (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-      // Check for image data first
-      const items = Array.from(e.clipboardData.items);
-      const imageItem = items.find((item) => item.type.startsWith('image/'));
-      if (imageItem) {
-        e.preventDefault();
-        const file = imageItem.getAsFile();
-        if (file) addFileToRail(file);
-        return;
-      }
-
-      const pastedText = e.clipboardData.getData('text/plain');
-      if (pastedText.length >= PASTE_AS_FILE_THRESHOLD) {
-        e.preventDefault(); // do not let text land in textarea
-        setUIAttachments((prev) => [...prev, createPasteAttachment(pastedText)]);
-        return;
-      }
-      // Smaller pastes fall through to the default textarea behaviour
-    },
-    [addFileToRail],
-  );
-
   // canSend:
-  //   — Send button visible when there's text OR any non-failed attachment
+  //   — Send button visible when RichComposer has content OR any non-failed attachment
   //   — Blocked while streaming or a deferred send is already in flight
   //   — No longer blocked by uploading attachments (two-phase send handles that)
   const hasContent =
-    text.trim().length > 0 || uiAttachments.some((a) => a.status !== 'failed');
+    richHasContent || uiAttachments.some((a) => a.status !== 'failed');
   const canSend =
     !messageIsStreaming && pendingUploadState === null && hasContent;
 
@@ -1166,7 +1128,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             minHeight: 88,
             transition: 'border-color 0.15s',
           }}
-          onClick={() => textareaRef.current?.focus()}
+          onClick={() => richComposerRef.current?.focus()}
         >
           {/* ── Upload progress indicator (shown while deferred send is waiting) ── */}
           {pendingUploadState && (
@@ -1203,33 +1165,18 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             }}
           />
 
-          {/* ── Band 2: Textarea ── */}
-          {/* aria-label because a visible <label> element isn't used in this layout (WCAG SC 1.3.1 / 4.1.2) */}
-          <textarea
-            ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={handleKeyDown}
-            onPaste={handleTextareaPaste}
-            data-composer-textarea="true"
-            placeholder={pendingUploadState ? '' : 'Write a message…'}
-            aria-label="Message input"
-            aria-multiline="true"
-            rows={1}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              outline: 'none',
-              resize: 'none',
-              width: '100%',
-              fontSize: 15,
-              lineHeight: '1.55',
-              color: 'var(--text-primary)',
-              fontFamily: 'Inter, sans-serif',
-              overflowY: 'hidden',
-              padding: 0,
-              minHeight: '1.55em',
+          {/* ── Band 2: Rich composer (contentEditable; supports ``` code blocks) ── */}
+          <RichComposer
+            ref={richComposerRef}
+            onSend={() => handleSend()}
+            onChange={(value) => setRichHasContent(value.trim().length > 0)}
+            onLargePaste={(pastedText) => {
+              setUIAttachments((prev) => [...prev, createPasteAttachment(pastedText)]);
             }}
+            onImagePaste={addFileToRail}
+            placeholder={pendingUploadState ? '' : 'Write a message…'}
+            hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
+            editorClassName="max-h-[288px] overflow-y-auto"
           />
 
           {/* ── Band 3: Toolbar (36px) ── */}

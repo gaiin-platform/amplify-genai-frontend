@@ -45,6 +45,10 @@ export interface RichComposerHandle {
   clear: () => void;
   focus: () => void;
   getValue: () => string;
+  /** Snapshot the editor's raw HTML for later restoration (e.g. cancel-pending-send). */
+  getHTML: () => string;
+  /** Restore a previously-snapshotted HTML state. */
+  setHTML: (html: string) => void;
 }
 
 interface RichComposerProps {
@@ -126,6 +130,25 @@ function domToMarkdown(editor: HTMLElement): string {
   return parts.join('\n').trim();
 }
 
+/** Place cursor at the end of `el` */
+function setCursorAtEnd(el: Node) {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let last: Text | null = null;
+  let n: Node | null;
+  while ((n = walker.nextNode())) last = n as Text;
+  if (last) {
+    range.setStart(last, last.length);
+  } else {
+    range.setStart(el, el.childNodes.length);
+  }
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
+}
+
 /** Place cursor at the start of `el` */
 function setCursorAtStart(el: Node) {
   const sel = window.getSelection();
@@ -166,10 +189,20 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
         if (editorRef.current) {
           editorRef.current.innerHTML = '';
           setHasContent(false);
+          onChange?.('');
         }
       },
       focus: () => editorRef.current?.focus(),
       getValue: () => (editorRef.current ? domToMarkdown(editorRef.current) : ''),
+      getHTML: () => editorRef.current?.innerHTML ?? '',
+      setHTML: (html: string) => {
+        if (editorRef.current) {
+          editorRef.current.innerHTML = html;
+          const t = (editorRef.current.textContent ?? '').replace(new RegExp(ZWS, 'g'), '').trim();
+          setHasContent(t.length > 0);
+          onChange?.(t);
+        }
+      },
     }));
 
     // Auto-focus on mount
@@ -212,6 +245,32 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
 
       // 3. Normal paste: strip rich formatting, insert plain text
       e.preventDefault();
+
+      // When inside a code block, insert directly as a text node so that
+      // newlines stay within the block (pre-wrap renders them correctly).
+      // execCommand('insertText') can cause Chrome to split the block element
+      // on newlines and clone the rich-code-block class onto each fragment.
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount && editorRef.current) {
+        const range = sel.getRangeAt(0);
+        const inBlock = findAncestor(
+          range.startContainer,
+          editorRef.current,
+          (n) => n instanceof HTMLElement && (n as HTMLElement).classList.contains(CODE_BLOCK_CLS)
+        );
+        if (inBlock) {
+          if (!range.collapsed) range.deleteContents();
+          const tn = document.createTextNode(text);
+          range.insertNode(tn);
+          range.setStartAfter(tn);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+          updateHasContent();
+          return;
+        }
+      }
+
       document.execCommand('insertText', false, text);
       updateHasContent();
     }, [updateHasContent, onLargePaste, onImagePaste]);
@@ -266,24 +325,27 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
         currentLine = wrapper;
       }
 
-      // If the current line is now completely empty, give it a <br> so it
-      // keeps its height and the user can still click onto it.
-      const lineText = (currentLine.textContent ?? '').replace(new RegExp(ZWS, 'g'), '').trim();
-      if (!lineText) {
-        currentLine.innerHTML = '<br>';
-      }
-
-      // --- 4. Build and insert the code block right after the current line ---
+      // --- 4. Build the code block ---
       const codeBlock = document.createElement('div');
       codeBlock.className = CODE_BLOCK_CLS;
       codeBlock.setAttribute('spellcheck', 'false');
       codeBlock.setAttribute('data-placeholder', 'Type code here…');
       codeBlock.textContent = ZWS;
-      currentLine.after(codeBlock);
 
       // --- 5. Insert an empty continuation line after the code block ---
       const afterDiv = document.createElement('div');
       afterDiv.innerHTML = '<br>';
+
+      // Insert the code block: if the current line was ONLY the ``` trigger
+      // (now empty after stripping), replace it directly so there is no extra
+      // blank line above the code block. Otherwise the line had real content
+      // before the ``` — keep it and insert the code block after it.
+      const lineText = (currentLine.textContent ?? '').replace(new RegExp(ZWS, 'g'), '').trim();
+      if (!lineText) {
+        currentLine.replaceWith(codeBlock);
+      } else {
+        currentLine.after(codeBlock);
+      }
       codeBlock.after(afterDiv);
 
       // --- 6. Place cursor inside the code block (after the ZWS) ---
@@ -324,6 +386,26 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
         const sel = window.getSelection();
         if (!sel || !sel.rangeCount) return;
         const range = sel.getRangeAt(0);
+
+        // --- Backspace: remove an empty code block on the first press ---
+        if (e.key === 'Backspace') {
+          const block = findAncestor(
+            range.startContainer,
+            editorRef.current!,
+            (n) => n instanceof HTMLElement && (n as HTMLElement).classList.contains(CODE_BLOCK_CLS)
+          );
+          if (block) {
+            const content = (block.textContent ?? '').replace(new RegExp(ZWS, 'g'), '').trim();
+            if (!content) {
+              e.preventDefault();
+              const prev = block.previousSibling;
+              block.remove();
+              if (prev) setCursorAtEnd(prev);
+              updateHasContent();
+              return;
+            }
+          }
+        }
 
         // --- Escape: exit code block ---
         if (e.key === 'Escape') {
