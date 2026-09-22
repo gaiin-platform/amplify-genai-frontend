@@ -24,7 +24,7 @@ export const NewLogin: React.FC = () => {
               Welcome to Amplify
             </h1>
             <p className="mt-4 text-lg leading-8 text-[--text-secondary]">
-              Log in with your Vanderbilt account.
+              Log in with your institution account.
             </p>
           </div>
 
@@ -34,7 +34,7 @@ export const NewLogin: React.FC = () => {
             className="flex h-14 w-full items-center justify-center gap-2.5 rounded-[12px] bg-[--accent] px-5 text-lg font-semibold text-[--accent-fg] transition-colors duration-150 hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-[--accent] focus:ring-offset-2 focus:ring-offset-[--bg-composer] active:brightness-90"
             type="button"
           >
-            <span>Continue with Vanderbilt</span>
+            <span>Log in with your institution</span>
             <IconArrowRight size={19} strokeWidth={2.25} aria-hidden="true" />
           </button>
         </div>
