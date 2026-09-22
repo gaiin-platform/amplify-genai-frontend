@@ -77,6 +77,7 @@ interface Props {
     features: FeatureFlagConfig;
 
     allEmails: Array<string> | null;
+    availableModels: { [modelId: string]: { id?: string; name?: string; isAvailable?: boolean } };
 
     admin_text: string;
     updateUnsavedConfigs: (t: AdminConfigTypes) => void;
@@ -89,7 +90,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                               defaultConversationStorage, setDefaultConversationStorage,
                                               emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
                                               defaultTimezone, setDefaultTimezone,
-                                              smartMessagesEnabled, setSmartMessagesEnabled, features,
+                                              smartMessagesEnabled, setSmartMessagesEnabled, features, availableModels,
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
 
     const smartMessagesFlagOn = features.smartMessages?.enabled !== false;
@@ -113,6 +114,57 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const [editingGroupLimitIdx, setEditingGroupLimitIdx] = useState<{idx: number, period: PeriodType, rate: string} | null>(null);
     const [hoveredRateLimit, setHoveredRateLimit] = useState<string | null>(null);
     const [showAddAdminInput, setShowAddAdminInput] = useState<boolean>(false);
+    const [editingModelRateGroup, setEditingModelRateGroup] = useState<string | null>(null);
+    const [tempModelRateLimits, setTempModelRateLimits] = useState<Record<string, RateLimit>>({});
+    const [newModelRateId, setNewModelRateId] = useState<string>('');
+    const [newModelRate, setNewModelRate] = useState<string>('$0.00');
+
+    const availableModelOptions = useMemo(
+        () => Object.entries(availableModels)
+            .filter(([modelId, model]) => model.isAvailable === true || modelId in (ampGroups[editingModelRateGroup || '']?.modelRateLimits || {}))
+            .map(([modelId, model]) => ({ id: model.id || modelId, name: model.name || model.id || modelId }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        [availableModels, ampGroups, editingModelRateGroup]
+    );
+
+    const openModelRateLimitEditor = (groupName: string) => {
+        setTempModelRateLimits({ ...(ampGroups[groupName]?.modelRateLimits || {}) });
+        setNewModelRateId('');
+        setNewModelRate('$0.00');
+        setEditingModelRateGroup(groupName);
+    };
+
+    const closeModelRateLimitEditor = () => {
+        setEditingModelRateGroup(null);
+        setNewModelRateId('');
+        setNewModelRate('$0.00');
+    };
+
+    const saveModelRateLimits = () => {
+        if (!editingModelRateGroup) return;
+        // Auto-commit any pending add row before saving
+        let pending = { ...tempModelRateLimits };
+        if (newModelRateId) {
+            const pendingRate = Number(newModelRate.replace(/[$,]/g, ''));
+            if (Number.isFinite(pendingRate) && pendingRate >= 0) {
+                pending = { ...pending, [newModelRateId]: { period: 'Monthly', rate: pendingRate } };
+            }
+        }
+        const validLimits = Object.fromEntries(
+            Object.entries(pending).filter(([, limit]) =>
+                limit?.period === 'Monthly' && Number.isFinite(Number(limit.rate)) && Number(limit.rate) >= 0
+            )
+        );
+        const group = ampGroups[editingModelRateGroup];
+        handleUpdateAmpGroups({
+            ...ampGroups,
+            [editingModelRateGroup]: {
+                ...group,
+                modelRateLimits: Object.keys(validLimits).length > 0 ? validLimits : undefined
+            }
+        });
+        closeModelRateLimitEditor();
+    };
 
     // Manage Members modal state
     const [manageMembersGroup, setManageMembersGroup] = useState<string | null>(null);
@@ -170,8 +222,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
 
     // Notify parent about modal state changes
     useEffect(() => {
-        onModalStateChange?.(adminCsvUpload.hasOpenModal);
-    }, [adminCsvUpload.hasOpenModal, onModalStateChange]);
+        onModalStateChange?.(adminCsvUpload.hasOpenModal || editingModelRateGroup !== null || manageMembersGroup !== null);
+    }, [adminCsvUpload.hasOpenModal, editingModelRateGroup, manageMembersGroup, onModalStateChange]);
 
     const handleUpdateAdmins = (updatedAdmins: string[]) => {
         setAdmins(updatedAdmins);
@@ -903,7 +955,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                 <table className="modern-table hide-last-column mt-4 w-full mr-10 " style={{boxShadow: 'none'}} id="groupTable">
                                     <thead>
                                     <tr className="gradient-header hide-last-column">
-                                        {['Group Name', 'Members', 'Membership by Amplify Groups', 'Billing Group', 'Rate Limit', 'Created By'].map((title, i) => (
+                                        {['Group Name', 'Members', 'Membership by Amplify Groups', 'Billing Group', 'Rate Limit', 'Model Rate Limits', 'Created By'].map((title, i) => (
                                         <th key={i}
                                             id={title}
                                             className="px-4 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
@@ -1184,6 +1236,13 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                 </div>
                                             </td>
 
+                                            <td className="text-center border border-neutral-500 px-2 py-2 break-words max-w-[300px]">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <span className="text-xs">{Object.keys(group.modelRateLimits || {}).length > 0 ? `${Object.keys(group.modelRateLimits || {}).length} model${Object.keys(group.modelRateLimits || {}).length === 1 ? '' : 's'}` : 'Unlimited'}</span>
+                                                    {hoveredAmpGroup === groupName && <button type="button" className="text-neutral-400 hover:text-blue-500 flex-shrink-0" title="Manage model rate limits" onClick={() => openModelRateLimitEditor(groupName)}><IconEdit size={15} /></button>}
+                                                </div>
+                                            </td>
+
                                             <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[300px]">
                                                 {resolveDisplay(group.createdBy)}
                                             </td>
@@ -1220,6 +1279,89 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                         }
                 </div>
             </div>
+
+            {/* ── Manage Model Rate Limits Modal ── */}
+            {editingModelRateGroup !== null && (
+                createPortal(
+                <div className="fixed inset-0 z-[999] flex items-start justify-center overflow-y-auto px-4 py-10 sm:py-16">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={closeModelRateLimitEditor} />
+                    <div className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-[#2b2c36]">
+                        <div className="flex items-start justify-between border-b border-neutral-200 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 text-white dark:border-neutral-700">
+                            <div>
+                                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-100">Amplify Group</div>
+                                <h2 className="mt-1 text-xl font-semibold">Model Rate Limits</h2>
+                                <p className="mt-1 max-w-lg text-sm text-blue-100">Set monthly model limits inherited by every member of this group.</p>
+                            </div>
+                            <button type="button" onClick={closeModelRateLimitEditor} className="rounded-lg p-2 text-blue-100 transition hover:bg-white/15 hover:text-white" title="Close"><IconX size={20} /></button>
+                        </div>
+                        <div className="border-b border-neutral-200 px-6 py-3 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
+                            <span className="font-medium text-neutral-900 dark:text-neutral-100">{editingModelRateGroup}</span>
+                            <span className="mx-2 text-neutral-400">•</span>
+                            Limits apply to the current month and are checked in addition to the group-wide rate limit.
+                        </div>
+                        <div className="max-h-[60vh] overflow-y-auto px-6 py-5 text-neutral-900 dark:text-neutral-100">
+                        <div className="flex flex-col gap-4">
+                            <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                                Configure a monthly model limit for members of this group.
+                            </p>
+                            {Object.entries(tempModelRateLimits).length > 0 && <div className="rounded border border-neutral-300 dark:border-neutral-700">
+                                {Object.entries(tempModelRateLimits).map(([modelId, limit]) => (
+                                    <div key={modelId} className="flex items-center gap-3 border-b border-neutral-200 dark:border-neutral-700 p-3 last:border-b-0">
+                                        <span className="min-w-0 flex-1 truncate text-sm" title={modelId}>{availableModelOptions.find(option => option.id === modelId)?.name || modelId}</span>
+                                        <RateLimiter
+                                            period="Monthly"
+                                            fixedPeriod="Monthly"
+                                            setPeriod={() => {}}
+                                            rate={`$${Number(limit.rate).toFixed(2)}`}
+                                            setRate={(value) => {
+                                                const parsed = Number(value.replace(/[$,]/g, ''));
+                                                if (Number.isFinite(parsed) && parsed >= 0) {
+                                                    setTempModelRateLimits({ ...tempModelRateLimits, [modelId]: { period: 'Monthly', rate: parsed } });
+                                                }
+                                            }}
+                                        />
+                                        <button type="button" className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" title="Remove model limit" onClick={() => {
+                                            const next = { ...tempModelRateLimits };
+                                            delete next[modelId];
+                                            setTempModelRateLimits(next);
+                                        }}><IconTrash size={15} /></button>
+                                    </div>
+                                ))}
+                            </div>}
+                            <div className="rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-[#23242d] p-3">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-300">Add model</div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <select className="min-w-0 flex-1 rounded border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-[#40414F] dark:text-neutral-100" value={newModelRateId} onChange={(e) => setNewModelRateId(e.target.value)}>
+                                        <option value="">Select a model</option>
+                                        {availableModelOptions.filter(({ id }) => !tempModelRateLimits[id]).map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+                                    </select>
+                                    <RateLimiter
+                                        period="Monthly"
+                                        fixedPeriod="Monthly"
+                                        setPeriod={() => {}}
+                                        rate={newModelRate}
+                                        setRate={setNewModelRate}
+                                    />
+                                    <button type="button" className="rounded-lg border border-blue-500 px-2 py-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 disabled:opacity-40" title="Add model limit" disabled={!newModelRateId} onClick={() => {
+                                        const rate = Number(newModelRate.replace(/[$,]/g, ''));
+                                        if (!newModelRateId || !Number.isFinite(rate) || rate < 0) return;
+                                        setTempModelRateLimits({ ...tempModelRateLimits, [newModelRateId]: { period: 'Monthly', rate } });
+                                        setNewModelRateId('');
+                                        setNewModelRate('$0.00');
+                                    }}><IconPlus size={15} /></button>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-3 border-t border-neutral-200 bg-neutral-50 px-6 py-4 dark:border-neutral-700 dark:bg-[#23242d]">
+                            <button type="button" onClick={closeModelRateLimitEditor} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700">Cancel</button>
+                            <button type="button" onClick={saveModelRateLimits} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">Save limits</button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+                )
+            )}
 
             {/* ── Manage Members Modal ── */}
             {manageMembersGroup !== null && createPortal(

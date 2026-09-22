@@ -356,14 +356,26 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                                                               amplifyGroups : g.amplifyGroups,
                                                               supportConvAnalysis: g.supportConvAnalysis
                                                             }));
-            case AdminConfigTypes.AMPLIFY_GROUPS:
-                Object.keys(ampGroups).forEach((key: string) => {
-                    if (!ampGroups[key].isBillingGroup) ampGroups[key].isBillingGroup = false;
-                    if (!ampGroups[key].rateLimit) ampGroups[key].rateLimit = [noRateLimit];
-                    else ampGroups[key].rateLimit = normalizeRateLimits(ampGroups[key].rateLimit as any);
-                    delete ampGroups[key].groupName;
+            case AdminConfigTypes.AMPLIFY_GROUPS: {
+                const sanitizedGroups: Amplify_Groups = {};
+                Object.entries(ampGroups).forEach(([groupName, group]) => {
+                    const { groupName: _frontendGroupName, modelRateLimits, ...groupData } = group;
+                    const normalizedModelRateLimits: { [modelId: string]: RateLimit } | undefined = modelRateLimits && Object.fromEntries(
+                        Object.entries(modelRateLimits)
+                            .filter(([, limit]) => limit?.period === 'Monthly' && limit.rate !== null && Number.isFinite(Number(limit.rate)) && Number(limit.rate) >= 0)
+                            .map(([modelId, limit]) => [modelId, { period: 'Monthly' as const, rate: Number(limit.rate) }])
+                    );
+                    sanitizedGroups[groupName] = {
+                        ...groupData,
+                        isBillingGroup: Boolean(group.isBillingGroup),
+                        rateLimit: group.rateLimit ? normalizeRateLimits(group.rateLimit as any) : [noRateLimit],
+                        ...(normalizedModelRateLimits && Object.keys(normalizedModelRateLimits).length > 0
+                            ? { modelRateLimits: normalizedModelRateLimits }
+                            : {})
+                    };
                 });
-                return ampGroups;
+                return sanitizedGroups;
+            }
             case AdminConfigTypes.PPTX_TEMPLATES:
                 return templates.filter((pptx:Pptx_TEMPLATES) => changedTemplates.includes(pptx.name));
             case AdminConfigTypes.INTEGRATIONS:
@@ -744,6 +756,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     ampGroups={ampGroups}
                     setAmpGroups={setAmpGroups}
                     amplifyUsers={amplifyUsers}
+                    availableModels={availableModels}
                     rateLimits={rateLimits}
                     setRateLimits={setRateLimits}
                     honorPersonalRateLimit={honorPersonalRateLimit}
@@ -1174,6 +1187,7 @@ export interface Amplify_Group { // can be a cognito group
     createdBy : string;
     includeFromOtherGroups? : string[]; // if is a cognito group, this will always be Absent
     rateLimit? : RateLimit | RateLimit[];  // supports both legacy single and new multi-limit format
+    modelRateLimits? : { [modelId: string]: RateLimit };
     isBillingGroup? : boolean;
 }
 

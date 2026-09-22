@@ -6,6 +6,7 @@ export const MemoizedChatMessage: FC<Props> = memo(
     (prevProps, nextProps) => (
         prevProps.message.content === nextProps.message.content &&
         prevProps.message.data?.mcpToolResults === nextProps.message.data?.mcpToolResults &&
+        prevProps.message.data?.state === nextProps.message.data?.state &&
         prevProps.message.codeInterpreterMessageData === nextProps.message.codeInterpreterMessageData
     )
 );
