@@ -255,6 +255,8 @@ function retryFromUserMessageEl(userMsgEl: HTMLElement) {
 interface ActionRowProps {
   slot: Slot;
   hovered: boolean;
+  /** When true the row is always visible (not just on hover/focus). Used for the last received assistant message. */
+  alwaysVisible?: boolean;
   /** Derived from live selectedConversation in the parent — never from the stale slot.message snapshot. */
   currentRating: 'good' | 'bad' | null;
   onHoverChange: (key: string, hovered: boolean) => void;
@@ -269,6 +271,7 @@ interface ActionRowProps {
 const ActionRow: React.FC<ActionRowProps> = ({
   slot,
   hovered,
+  alwaysVisible = false,
   currentRating,
   onHoverChange,
   onCopy,
@@ -283,9 +286,9 @@ const ActionRow: React.FC<ActionRowProps> = ({
   const relTime = useRelativeTime(slot.message.timestamp);
   const absTime = slot.message.timestamp ? formatAbsoluteTime(slot.message.timestamp) : '';
 
-  // Phase 33 §2: rows appear on hover (or keyboard focus) only — for every
-  // message including the last. No always-visible last-assistant behaviour.
-  const visible = hovered || focused;
+  // The last received assistant message is always visible; all others require
+  // hover or keyboard focus to reveal their action row.
+  const visible = hovered || focused || alwaysVisible;
 
   const handleCopyClick = async () => {
     const ok = await onCopy(slot);
@@ -906,6 +909,20 @@ export const NewUIMessageActionsLayer: React.FC = () => {
 
   if (!overlayEl || !slots.length) return null;
 
+  // Determine which assistant slot should always show its action row (the last
+  // received assistant message). During streaming the last assistant slot is
+  // the one currently being written — it is not yet "received" — so we skip it
+  // and let the previous assistant message be always-visible instead.
+  const lastAssistantSlot = [...slots].reverse().find((s) => s.role === 'assistant');
+  const isLastSlotStreamingAssistant =
+    messageIsStreaming &&
+    lastAssistantSlot != null &&
+    lastAssistantSlot.key === slots[slots.length - 1]?.key;
+  const alwaysVisibleKey = isLastSlotStreamingAssistant
+    ? // Find the second-to-last assistant slot (the one before the streaming one).
+      [...slots].reverse().find((s) => s.role === 'assistant' && s.key !== lastAssistantSlot!.key)?.key ?? null
+    : (lastAssistantSlot?.key ?? null);
+
   // Rows are portaled into the overlay div living inside .chatcontainer, so they
   // share the scroller's coordinate system and scroll with the content for free.
   return createPortal(
@@ -922,6 +939,7 @@ export const NewUIMessageActionsLayer: React.FC = () => {
             slot={slot}
             currentRating={currentRating}
             hovered={hoveredKey === slot.key}
+            alwaysVisible={alwaysVisibleKey !== null && slot.key === alwaysVisibleKey}
             onHoverChange={handleRowHoverChange}
             onCopy={handleCopy}
             onEdit={handleEdit}
