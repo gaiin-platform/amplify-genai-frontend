@@ -298,8 +298,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
             },
             a({href, title, children, ...props}) {
                 if (href) {
-                    console.log("enter");
-    
+                    const safeHref = DOMPurify.sanitize(href);
                     switch (true) {
                         case href.startsWith("#"):
                             return (
@@ -307,16 +306,28 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        // handleCustomLinkClick(message, href || "#");
                                     }}
                                     className={`dark:text-white hover:text-neutral-500 dark:hover:text-neutral-200 cursor-pointer underline`}
                                 >
                                     {children}
                                 </button>
                             );
-                            
-                        default:
+                        case href.startsWith('javascript:'):
+                            // Block javascript: hrefs entirely
                             return <>{children}</>;
+                        default:
+                            // External links — open in new tab (Bug 9 fix)
+                            return (
+                                <a
+                                    href={safeHref}
+                                    title={title}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: 'var(--accent)', textDecoration: 'underline' }}
+                                >
+                                    {children}
+                                </a>
+                            );
                     }
                 } else {
                     return <>{children}</>;
@@ -372,8 +383,13 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
             },
             table({children}) {
                 return (
-                    <div style={{ overflowX: 'auto'}}>
-                        <table className="w-full border-collapse border border-black px-3 py-1 dark:border-white">
+                    <div style={{ overflowX: 'auto', width: '100%' }}>
+                        <table style={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            borderColor: 'var(--border-subtle)',
+                            fontSize: '14px',
+                        }}>
                             {children}
                         </table>
                     </div>
@@ -381,15 +397,29 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
             },
             th({children}) {
                 return (
-                    <th className="break-words border border-black bg-gray-500 px-3 py-1 text-white dark:border-white">
+                    <th style={{
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-active)',
+                        color: 'var(--text-primary)',
+                        padding: '8px 12px',
+                        fontWeight: 600,
+                        textAlign: 'left',
+                        verticalAlign: 'middle',
+                        whiteSpace: 'nowrap',
+                    }}>
                         {children}
                     </th>
                 );
             },
             td({children}) {
-    
                 return (
-                    <td className="break-words border border-black px-3 py-1 dark:border-white">
+                    <td style={{
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)',
+                        padding: '6px 12px',
+                        verticalAlign: 'middle',
+                        wordBreak: 'break-word',
+                    }}>
                         {children}
                     </td>
                 );

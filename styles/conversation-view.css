@@ -4445,3 +4445,265 @@
     transition: none !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ARTIFACT PANEL — new-UI polish
+   All rules scoped to [data-new-ui="true"] except where noted.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ─── 1. Distinct surface — remove hard black divider, add card-style border ─
+   Bug 1 fix: use margin: 8px (all four sides, not just top/right/bottom)
+   so the bottom-left corner is not flush with any sibling's background.
+   Bug 6 fix: height: calc(100% - 16px) accounts for 8px top + 8px bottom
+   margin so the panel fills the grid row exactly without overflowing. */
+/* ─── 1. Panel container — flex column, rounded card ────────────────────────
+   display: flex + flex-direction: column lets us put a non-scrolling header
+   (flex: none) before the scrollable body (flex: 1) as direct children.
+   This is the structure the user confirmed:
+     #artifactsTab            ← flex column, bounded height
+       #nui-artifact-header-root  ← first child, flex: none
+       .flex.flex-col.h-full      ← second child, flex: 1, overflow-y: auto */
+[data-new-ui="true"] #artifactsTab {
+  border-left: none !important;
+  border: 1px solid var(--border-subtle) !important;
+  border-radius: 12px !important;
+  margin: 8px !important;
+  background: var(--bg-raised) !important;
+  overflow: hidden !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10) !important;
+  height: calc(100% - 16px) !important;
+  /* Flex column: header (non-scrolling) + body (scrolls) */
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* ─── 2. Panel header — non-scrolling first child ────────────────────────────
+   flex: none ensures it never grows or shrinks.  No position: sticky needed —
+   the flex layout keeps it pinned above the scroll body naturally. */
+[data-new-ui="true"] #nui-artifact-header-root {
+  flex: none !important;
+  z-index: 20;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border-subtle);
+  isolation: isolate;
+}
+
+/* ─── 3. Panel body — scrolling second child ─────────────────────────────────
+   flex: 1 + min-height: 0 fills all remaining height and prevents the flex
+   item from refusing to shrink below its content height.
+   overflow-y: auto is the actual scroll trigger.
+   height: auto overrides Tailwind's h-full (height: 100%) which would
+   conflict with flex: 1 sizing. */
+[data-new-ui="true"] #artifactsTab > .flex.flex-col.h-full {
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+  height: auto !important;
+  padding-top: 0 !important;
+}
+
+/* ─── 3a. Align body content from the TOP, not the center ────────────────────
+   The inner .flex.justify-center.items-center uses align-items: center which
+   vertically centres its children.  Inside a scroll container this makes the
+   beginning of tall content unreachable (it sits above scrollTop=0).
+   Fix: start from the top. */
+[data-new-ui="true"] #artifactsTab > .flex.flex-col.h-full > .flex.justify-center {
+  align-items: flex-start !important;
+  justify-content: flex-start !important;
+  padding-bottom: 16px !important;
+}
+
+/* ─── 3b. Disable the deeply-nested overflow-y scroll container ──────────────
+   Artifacts.tsx sets inline style={{height: innerHeight - 140}} on an inner
+   .overflow-y-auto div.  With the outer .flex.flex-col.h-full now being the
+   scroll container, that inner div no longer needs its own scroll — letting it
+   be auto-height and visible allows content to flow naturally into the outer
+   scroller.  overflow: visible + height: auto also unblock the outer scroll
+   from reading the correct scrollHeight. */
+[data-new-ui="true"] #artifactsTextDisplay .flex-grow.overflow-y-auto {
+  overflow: visible !important;
+  height: auto !important;
+}
+
+/* ─── 3. Hide old vertical toolbar ──────────────────────────────────────────
+   .enhanced-chat-icons-vertical is the right-edge icon button strip in
+   Artifacts.tsx. Replaced by the new panel header. */
+[data-new-ui="true"] .enhanced-chat-icons-vertical {
+  display: none !important;
+}
+
+/* ─── 4. Hide old "Artifacts" heading label + back-arrow button ─────────────
+   These are inside #artifactsTab. We inject a new header above content. */
+[data-new-ui="true"] #artifactsLabel {
+  display: none !important;
+}
+
+/* The absolute-positioned back button (.absolute.top-5 inside #artifactsTab) */
+[data-new-ui="true"] #artifactsTab > .flex.flex-col.h-full > .absolute.top-5 {
+  display: none !important;
+}
+
+/* ─── 5. Composer constraint — don't overlap the artifact panel ─────────────
+   ArtifactPanelLayer writes --nui-artifact-panel-w on the shell when open.
+   Overrides the existing `right: var(--nui-sb-clear)` rule for both the
+   composer dock and the jump-to-latest button wrapper. */
+[data-new-ui="true"] .new-ui-composer-dock {
+  right: var(--nui-artifact-panel-w, var(--nui-sb-clear)) !important;
+}
+
+/* Jump-to-latest button uses the same constraint so it stays in the chat column */
+[data-new-ui="true"] .new-ui-jump-wrapper {
+  right: var(--nui-artifact-panel-w, 0px) !important;
+}
+
+/* ─── 6. Old ArtifactsBlock pill — hide entirely (Bug 3) ────────────────────
+   The forbidden ArtifactsBlock.tsx renders a pill button below every artifact.
+   Our new ArtifactInlineCardLayer handles the same interaction. Remove both
+   the button and its containing wrapper div. */
+[data-new-ui="true"] #artifactsButtonBlock {
+  display: none !important;
+}
+/* Outer wrapper <div class="mt-1 flex flex-col gap-3"> that holds the buttons */
+[data-new-ui="true"] div:has(> #artifactsButtonBlock) {
+  display: none !important;
+}
+
+/* ─── 7. Hide "Creating Your Artifact…" original box ───────────────────────
+   ArtifactInlineCardLayer adds data-nui-artifact-creating="true" on the
+   wrapper div that AutoArtifactsBlock.tsx renders. Also hide the <pre>
+   that react-markdown wraps around the autoArtifacts code fence — once the
+   creating wrapper is marked and the inline card host is moved outside the
+   <pre>, the <pre> has no visible content and should not take up space.
+   (Bug 2) */
+[data-new-ui="true"] [data-nui-artifact-creating="true"] {
+  display: none !important;
+}
+
+/* Hide the <pre> that wraps the creating block once our layer has processed it.
+   The card host is inserted AFTER the <pre>, so the <pre> itself is empty. */
+[data-new-ui="true"] pre:has([data-nui-artifact-creating="true"]) {
+  display: none !important;
+}
+
+/* ─── 8. Inline card host — ensure correct flow + font (Bug 2) ──────────── */
+[data-nui-inline-card-host] {
+  display: block;
+  /* card renders outside any <pre>, so font is inherited from the prose
+     container (Inter/sans). Explicit font-family as belt-and-braces. */
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+/* ─── 9. Fullscreen override ─────────────────────────────────────────────── */
+[data-new-ui="true"] #artifactsTab[data-artifact-fullscreen="true"] {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  border-radius: 0 !important;
+  margin: 0 !important;
+  z-index: 150 !important;
+  min-width: unset !important;
+}
+
+/* ─── 10. Mobile: full-screen overlay on narrow viewports ────────────────── */
+@media (max-width: 900px) {
+  [data-new-ui="true"] #artifactsTab {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    border-radius: 0 !important;
+    margin: 0 !important;
+    z-index: 100 !important;
+    min-width: unset !important;
+  }
+}
+
+/* ─── 11. Inline card shimmer animation ─────────────────────────────────── */
+@keyframes nui-artifact-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+}
+
+/* ─── 12. Inline card spinner ───────────────────────────────────────────── */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ─── 13. Reduced-motion: disable shimmer and spinner ──────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  [data-nui-inline-card-host] div[style*="nui-artifact-shimmer"] {
+    animation: none !important;
+    display: none !important;
+  }
+  [data-nui-inline-card-host] svg[style*="spin"] {
+    animation: none !important;
+  }
+}
+
+/* ─── 14. Artifact content — table polish (Bug 10) ───────────────────────── */
+[data-new-ui="true"] #artifactsTab table {
+  border-collapse: collapse !important;
+  border-color: var(--border-subtle) !important;
+}
+[data-new-ui="true"] #artifactsTab th {
+  background: var(--bg-active) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important;
+  vertical-align: middle !important;
+  text-align: left !important;
+  font-weight: 600 !important;
+  padding: 8px 12px !important;
+}
+[data-new-ui="true"] #artifactsTab td {
+  border-color: var(--border-subtle) !important;
+  color: var(--text-primary) !important;
+  padding: 6px 12px !important;
+  vertical-align: middle !important;
+}
+[data-new-ui="true"] #artifactsTab tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--bg-active) 50%, transparent) !important;
+}
+
+/* ─── 15. Artifact links — themed, underline always visible ──────────────────
+   ArtifactsContentBlock.tsx renders links with inline color: var(--accent) and
+   textDecoration: underline.  Previously we set text-decoration: none !important
+   which overrode the inline style and made links look like plain text.
+   Restore always-on underline (slightly muted at rest, full-strength on hover)
+   so links are clearly distinguishable. */
+[data-new-ui="true"] #artifactsTab a {
+  color: var(--accent) !important;
+  text-decoration: underline !important;
+  text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent) !important;
+  text-underline-offset: 3px !important;
+}
+[data-new-ui="true"] #artifactsTab a:hover {
+  text-decoration-color: var(--accent) !important;
+  opacity: 0.85 !important;
+}
+[data-new-ui="true"] #artifactsTab a:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+  border-radius: 2px !important;
+}
+
+/* ─── 16. Panel height — make Chat's grid fill the flex-col parent ───────────
+   Chat.tsx renders .grid.grid-cols-2 as a flex child of .flex.flex-col.h-full.
+   Without explicit flex growth the grid is only as tall as its content, leaving
+   empty space below the artifact panel. flex: 1 + min-height: 0 fills the
+   parent, so #artifactsTab's height: calc(100% - 16px) resolves correctly. */
+[data-new-ui="true"] .flex.flex-col.h-full > .grid.grid-cols-2 {
+  flex: 1 !important;
+  min-height: 0 !important;
+}
+
+/* ─── 17. Chat-column header — constrain to chat column only ─────────────────
+   ConversationHeader (.new-ui-header) is position:absolute left:0 right:0 which
+   spans the full shell including the artifact panel column.  Apply the same
+   --nui-artifact-panel-w constraint already used by the composer dock so the
+   header stops at the chat/artifact boundary. */
+[data-new-ui="true"] .new-ui-header {
+  right: var(--nui-artifact-panel-w, var(--nui-sb-clear)) !important;
+}

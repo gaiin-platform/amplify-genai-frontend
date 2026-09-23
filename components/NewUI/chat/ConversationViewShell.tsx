@@ -37,6 +37,8 @@ import { NewUITranscriptAttachmentsLayer } from './NewUITranscriptAttachmentsLay
 import { NewUITranscriptPastedTextLayer } from './NewUITranscriptPastedTextLayer';
 import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
+import { ArtifactPanelLayer } from './ArtifactPanelLayer';
+import { ArtifactInlineCardLayer } from './ArtifactInlineCardLayer';
 import { getChatFont } from '@/components/NewUI/shared/userDisplayPrefs';
 import HomeContext from '@/pages/api/home/home.context';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
@@ -1552,6 +1554,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
       {/* Jump-to-latest button — centered on the message column, above the composer */}
       <div
+        className="new-ui-jump-wrapper"
         style={{
           position: 'absolute',
           bottom: 190,
@@ -1628,6 +1631,17 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       {/* Sources disclosure — replaces ChatSourcesBlock's ExpansionComponent
           with a compact, accessible pill + flat source-card panel. */}
       <NewUISourcesLayer />
+
+      {/* Artifact panel header overlay — injects a sticky header into #artifactsTab
+          with title/version dropdown, download button, expand, and close.
+          Also tracks the panel width and writes --nui-artifact-panel-w onto this
+          shell div so the composer and jump button constrain to the chat column. */}
+      <ArtifactPanelLayer shellRef={shellRef} />
+
+      {/* Inline artifact card layer — replaces "Creating Your Artifact…" boxes
+          with polished generating/completed/error cards, and adds data attributes
+          to ArtifactsBlock completed cards for CSS restyling. */}
+      <ArtifactInlineCardLayer />
     </div>
   );
 };

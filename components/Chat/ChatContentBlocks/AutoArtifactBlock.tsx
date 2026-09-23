@@ -10,6 +10,26 @@ import { getDateName } from "@/utils/app/date";
 import { fixJsonString } from "@/utils/app/errorHandling";
 import { DefaultModels, Model } from "@/types/model";
 import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
+import { saveArtifact, getAllArtifacts } from "@/services/artifactsService";
+
+/**
+ * Extract a human-readable title from generated artifact markdown.
+ * Priority: first H1 → first H2 → first non-empty non-structural line.
+ */
+function extractTitleFromContent(markdown: string): string {
+    if (!markdown || markdown.length < 3) return '';
+    const h1 = markdown.match(/^#\s+(.+)$/m);
+    if (h1) return h1[1].trim().slice(0, 120);
+    const h2 = markdown.match(/^##\s+(.+)$/m);
+    if (h2) return h2[1].trim().slice(0, 120);
+    for (const raw of markdown.split('\n')) {
+        const line = raw.trim();
+        if (!line || line.startsWith('```') || line.startsWith('|') || line.startsWith('---')) continue;
+        const stripped = line.replace(/^#+\s*/, '').replace(/^\*+\s*/, '').trim();
+        if (stripped.length > 3 && stripped.length < 100) return stripped;
+    }
+    return '';
+}
 
 
 interface Props {
@@ -91,10 +111,9 @@ const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictl
         ${"```"}
 
     - NOT EVERYTHING IS A CODE BLOCK, if you are asked to write a paper for example, and not explicitly told to make a txt or docx file, then you will respond with the text ONLY, NO code block. You must always determine if a \`\`\` code block is necessary or not
-    - If you need to say/comment anything to the user that is NOT part of the artifact, wrap it in a ${startMarker} <your comments not part of the artifact> ${endMarker} tag AT THE END OF YOUR ARTIFACT OUTPUT
-    
-    Example use: ${startMarker} some text you would like to tell the user ${endMarker}
-    
+    - REQUIRED: After your artifact you MUST include a brief 1–2 sentence summary for the user, wrapped in ${startMarker} ... ${endMarker} tags at the very end of your output. Never skip this — even a simple confirmation counts.
+      Example: ${startMarker} I've created a two-page research summary on climate change covering causes and policy responses. Let me know if you'd like any changes. ${endMarker}
+
     - **Do not** include explanations, overviews, or guidance outside the ${startMarker} and ${endMarker} tags. Any instructions, comments, or final steps should always be wrapped in these tags.
     - If your artifact consists of only text, place it in a text block. 
     - You are forbidden from using the start and end markers for any other use.
@@ -506,13 +525,48 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 homeDispatch({field: 'messageIsStreaming', value: false});
                 homeDispatch({field: 'artifactIsStreaming', value: false});
 
+                // ── Auto-title: if the JSON didn't include a name, extract one
+                //    from the generated content (first H1/H2 or first line).
+                if (!controller.signal.aborted && !artifactDetail.name) {
+                    const rawContent = lzwUncompress(
+                        selectArtifacts[selectArtifacts.length - 1].contents as any
+                    );
+                    const extracted = extractTitleFromContent(rawContent);
+                    if (extracted) {
+                        artifactDetail.name = extracted;
+                        selectArtifacts[selectArtifacts.length - 1].name = extracted;
+                        homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
+                    }
+                }
+
                 // update selectedConversation to include the completed selectArtifacts
                 updatedConversation.artifacts = {...(updatedConversation.artifacts ?? {}), [artifact.artifactId]: selectArtifacts };
                 const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
                 updatedConversation.messages.slice(-1)[0].data.artifactStatus = controller.signal.aborted ? ArtifactMessageStatus.STOPPED : ArtifactMessageStatus.COMPLETE;
                 updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), artifactDetail];
-                
+
                 handleUpdateSelectedConversation(updatedConversation);
+
+                // ── Auto-save to server (fire-and-forget) so the artifact is
+                //    immediately available in the library even without the user
+                //    clicking "Save Artifact" manually.
+                if (!controller.signal.aborted) {
+                    const artifactToSave = selectArtifacts[selectArtifacts.length - 1];
+                    saveArtifact({
+                        ...artifactToSave,
+                        // Store conversation reference for potential future "open in chat" navigation
+                        conversationId: selectedConversation?.id,
+                    } as any).then((result) => {
+                        if (result.success) {
+                            // Refresh the library so the new artifact appears immediately
+                            getAllArtifacts().then((response) => {
+                                if (response.success) {
+                                    homeDispatch({ field: 'artifacts', value: response.data });
+                                }
+                            }).catch(() => {/* non-critical */});
+                        }
+                    }).catch(() => {/* non-critical — manual save still available */});
+                }
             }
 
         } catch (e) {

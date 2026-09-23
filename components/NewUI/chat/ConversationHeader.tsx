@@ -192,11 +192,13 @@ export const ConversationHeader: React.FC = () => {
         )}
       </div>
 
-      {/* ── Right: Share button (spec §9: label only, no icon) ── */}
+      {/* ── Right: Share chat button ── */}
       <div className="flex items-center gap-2.5 flex-shrink-0">
         <button
           type="button"
           onClick={handleShare}
+          title="Share this conversation"
+          aria-label="Share this conversation"
           className="flex items-center justify-center rounded-[8px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
           style={{
             height: 30,
@@ -209,7 +211,7 @@ export const ConversationHeader: React.FC = () => {
           onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#45443F'; }}
           onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-active)'; }}
         >
-          Share
+          Share chat
         </button>
       </div>
 

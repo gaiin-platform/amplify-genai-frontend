@@ -97,6 +97,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewUITranscriptPreviewLayer.tsx` | Suppresses the classic `ImageModal` and mirrors post-send attachment previews into `shared/AttachmentPreview` (same component as the composer) |
 | `NewUISourcesLayer.tsx` | Portal-based replacement for `ChatSourcesBlock`/`ExpansionComponent` "Sources" — renders a compact "N source(s)" pill toggle + flat list of source cards; hides original via `data-nui-src-original` CSS attribute |
 | `UploadPendingIndicator.tsx` | Thin progress bar shown while uploads are in flight |
+| `ArtifactPanelLayer.tsx` | Injects a sticky header into `#artifactsTab` (the forbidden `Artifacts.tsx` panel): title/version dropdown, Download split button (Copy MD / Download .md / Download .docx), expand/fullscreen toggle, close (×). Also writes `--nui-artifact-panel-w` onto the shell so the composer and jump button constrain to the chat column. Listens to `openArtifactsTrigger`. |
+| `ArtifactInlineCardLayer.tsx` | MutationObserver layer that replaces the static "Creating Your Artifact…" box from `AutoArtifactsBlock.tsx` with a polished inline card (generating spinner → completed card with Open/Hide toggle). Also injects `data-nui-artifact-btn` on `#artifactsButtonBlock` elements for CSS restyling without touching forbidden files. |
 
 ### `home/`
 | File | Purpose |
