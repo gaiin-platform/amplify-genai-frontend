@@ -59,7 +59,8 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     
     
     const getArtifactContents = () => {
-        return selectArtifactList ? lzwUncompress(selectArtifactList[versionIndex].contents) : '';
+        const artifact = selectArtifactList?.[versionIndex];
+        return artifact ? lzwUncompress(artifact.contents) : '';
     }
     
     const [codeBlocks, setCodeBlocks] = useState<CodeBlockDetails[]>([]);
@@ -171,7 +172,11 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
 
 
     useEffect(() => {
-        if (selectedArtifacts)  setSelectArtifactList(selectedArtifacts);
+        if (selectedArtifacts) {
+            setSelectArtifactList(selectedArtifacts);
+            // Clamp versionIndex when the list changes length
+            setVersionIndex(i => Math.min(i, Math.max(0, selectedArtifacts.length - 1)));
+        }
     },[selectedArtifacts]);
 
     const artifactEndRef = useRef<HTMLDivElement>(null);
@@ -204,6 +209,16 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
     const copyHoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const artifactContentRef = useRef<HTMLDivElement>(null);
 
+    // Visualization Preview/Code toggle — driven by the ArtifactPanelLayer via custom event
+    const [showCodeView, setShowCodeView] = useState(false);
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (typeof detail?.showCode === 'boolean') setShowCodeView(detail.showCode);
+        };
+        window.addEventListener('vizCodeToggle', handler);
+        return () => window.removeEventListener('vizCodeToggle', handler);
+    }, []);
 
     useEffect(() => {
         const fetchEmails = async () => {
@@ -862,8 +877,16 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
 
 }
 
-   return ( 
-   <div 
+   // Safe accessor: never crashes on out-of-range index.
+   // We do NOT return null here — #artifactsTab must stay in the DOM so that
+   // ArtifactPanelLayer can inject its header.  Content sections guard themselves
+   // with `currentArtifact &&` before accessing version-specific data.
+   const currentArtifact = selectArtifactList && selectArtifactList.length > 0
+       ? selectArtifactList[Math.min(versionIndex, selectArtifactList.length - 1)]
+       : null;
+
+   return (
+   <div
         ref={artifactsRef}
         id="artifactsTab" 
         className={`text-base overflow-hidden h-full bg-gray-200 dark:bg-[#343541] text-black dark:text-white border-l border-black px-2`}
@@ -928,16 +951,17 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                     
                     <div className="flex flex-col flex-1 px-2 min-w-0" id="artifactsTextDisplay">
                         
-                        {!isEditing && !isPreviewing &&  selectArtifactList && (
+                        {!isEditing && !isPreviewing && currentArtifact && (
                             <div className="mt-8 flex flex-grow overflow-y-auto overflow-x-hidden justify-center" style={{height: innerHeight - 140}}
                                  ref={artifactContentRef}
                             >
                                 <ArtifactContentBlock
                                     artifactIsStreaming={artifactIsStreaming}
-                                    selectedArtifact={selectArtifactList[versionIndex]}
-                                    artifactId={selectArtifactList[versionIndex].artifactId}
+                                    selectedArtifact={currentArtifact}
+                                    artifactId={currentArtifact.artifactId}
                                     versionIndex={versionIndex}
                                     artifactEndRef={artifactEndRef}
+                                    showCodeView={showCodeView}
                                 />
                             </div>
                             
@@ -955,8 +979,8 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                             /> 
                             
                         )} 
-                        { isPreviewing  && 
-                            <ArtifactPreview codeBlocks={codeBlocks} artifactContent={getArtifactContents()} type={selectArtifactList[versionIndex].type} height={innerHeight - 160}/>
+                        { isPreviewing && currentArtifact &&
+                            <ArtifactPreview codeBlocks={codeBlocks} artifactContent={getArtifactContents()} type={currentArtifact.type} height={innerHeight - 160}/>
                         }
                         {selectArtifactList && 
                             <div className='mt-4 flex flex-row w-full'  title={`${versionIndex + 1} of ${selectArtifactList?.length}`}> 
@@ -977,10 +1001,10 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                         </div>
                                     }
                                     <div className=" ml-2 w-[550px] flex justify-center overflow-hidden">
-                                        <label className="mt-1.5 whitespace-nowrap max-w-[540px] block overflow-x-auto" id="versionNumber" title={selectArtifactList[versionIndex].createdAt}>
-                                            <span> {selectArtifactList[versionIndex].name} </span>
+                                        <label className="mt-1.5 whitespace-nowrap max-w-[540px] block overflow-x-auto" id="versionNumber" title={currentArtifact?.createdAt ?? ''}>
+                                            <span> {currentArtifact?.name ?? ''} </span>
                                             {"  - Version: "}
-                                            {selectArtifactList[versionIndex].version} 
+                                            {currentArtifact?.version ?? ''}
                                         </label>
                                     </div>
 
@@ -1007,7 +1031,7 @@ const CancelSubmitButtons: React.FC<SubmitButtonProps> = ( { submitText, onSubmi
                                 onClick={() => {
                                     setIsEditing(false); 
                                     setIsPreviewing(true);
-                                    statsService.previewArtifactEvent(selectArtifactList[versionIndex].type);
+                                    if (currentArtifact) statsService.previewArtifactEvent(currentArtifact.type);
                                 }}
                                 title="Preview Artifact"
                                 disabled={artifactIsStreaming}

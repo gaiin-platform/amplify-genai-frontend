@@ -1040,6 +1040,16 @@
 
 /* ─────────────────────────────────────────────────────────────────────────────
    Code blocks (spec §5)
+
+   Fix 1 — copy button space: CodeBlock.tsx already has a proper header bar
+   with the copy and download buttons. The floating overlay button has been
+   removed. No extra padding is needed.
+
+   Fix 2 — horizontal scroll: .codeblock uses overflow: hidden for visual
+   border-radius clipping. The second child (the code wrapper div) now uses
+   overflow-x: auto so long lines scroll horizontally with a visible scrollbar.
+   The !important beats the inline style="overflow: hidden" that CodeBlock
+   previously set on that wrapper.
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .codeblock,
 [data-new-ui="true"] pre:has(code) {
@@ -1048,6 +1058,13 @@
   overflow: hidden !important;
   background-color: var(--bg-sidebar) !important;
   border: 1px solid var(--border-subtle) !important;
+}
+
+/* The code content wrapper (2nd child of .codeblock) must scroll horizontally.
+   overflow-x: auto !important beats the inline overflow: hidden the component
+   used to set on this div. */
+[data-new-ui="true"] .codeblock > div:nth-child(2) {
+  overflow-x: auto !important;
 }
 
 [data-new-ui="true"] pre code {
@@ -4457,9 +4474,24 @@
    Bug 6 fix: height: calc(100% - 16px) accounts for 8px top + 8px bottom
    margin so the panel fills the grid row exactly without overflowing. */
 /* ─── 1. Panel container — flex column, rounded card ────────────────────────
-   display: flex + flex-direction: column lets us put a non-scrolling header
-   (flex: none) before the scrollable body (flex: 1) as direct children.
-   This is the structure the user confirmed:
+   Alignment: the ConversationHeader is `position:absolute; top:0` on the shell
+   and the shell has `paddingTop: 52px` so the grid area starts at y=52.
+   To make the artifact panel's top edge align with the chat header's top edge
+   (y=0 in the shell coordinate system), we extend the panel upward 44px above
+   the grid start with a negative top margin of -44px.  The height is grown to
+   compensate so the panel still fills from y=8 (header-top + 8px margin) to
+   the shell's bottom-8px (8px equal margin at top and bottom).
+
+   Why -44px and calc(100% + 36px)?
+     ─ Shell paddingTop = 52px  →  grid starts at y=52
+     ─ Desired panel top = y=8  →  margin-top = 8 - 52 = -44px
+     ─ Desired panel height = shell.H - 16 = (gridCell.H + 52) - 16 = gridCell.H + 36
+       Written in CSS: calc(100% + 36px) where 100% = gridCell.H
+
+   The header does NOT overlap the panel column (CSS rule 17 constrains the
+   header to the chat column width), so the panel's top border-radius is fully
+   visible at y=8, giving equal 8px margins at top, right, and bottom.
+
      #artifactsTab            ← flex column, bounded height
        #nui-artifact-header-root  ← first child, flex: none
        .flex.flex-col.h-full      ← second child, flex: 1, overflow-y: auto */
@@ -4467,11 +4499,14 @@
   border-left: none !important;
   border: 1px solid var(--border-subtle) !important;
   border-radius: 12px !important;
+  /* Base margins: 8px sides + bottom; top uses negative margin below */
   margin: 8px !important;
+  margin-top: -44px !important;          /* extend above grid start to align with header top */
   background: var(--bg-raised) !important;
   overflow: hidden !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10) !important;
-  height: calc(100% - 16px) !important;
+  /* Height: fill from panel-top (y=8) to shell-bottom-8px */
+  height: calc(100% + 36px) !important;
   /* Flex column: header (non-scrolling) + body (scrolls) */
   display: flex !important;
   flex-direction: column !important;
@@ -4503,27 +4538,53 @@
   padding-top: 0 !important;
 }
 
-/* ─── 3a. Align body content from the TOP, not the center ────────────────────
-   The inner .flex.justify-center.items-center uses align-items: center which
-   vertically centres its children.  Inside a scroll container this makes the
-   beginning of tall content unreachable (it sits above scrollTop=0).
-   Fix: start from the top. */
+/* ─── 3a. Panel body flex chain — fill full height correctly ─────────────────
+   Goal: the content scroll area fills the panel body all the way to the bottom.
+
+   Chain:
+     .flex.flex-col.h-full          flex: 1 within #artifactsTab ← fixed above
+       .flex.justify-center         flex: 1 (Tailwind flex-1); MUST use
+                                    align-items: stretch so its child row
+                                    inherits the full height
+         .w-full.flex.flex-row      single child; stretches with parent ✓
+           #artifactsTextDisplay    flex: 1 (Tailwind flex-1), flex-col
+             content div            flex: 1, min-height: 0, overflow-y: auto,
+                                    height: 0 ← the "flex scroll" pattern
+             version footer         display: none (replaced by header dropdown)
+
+   Why align-items: stretch (not flex-start)?
+   With flex-start the row is only as tall as its content, so no matter how
+   tall the panel is, the content div never fills past the artifact's natural
+   height. stretch propagates the definite height from flex-1 all the way down.
+
+   Why height: 0 on the content div?
+   Combined with flex: 1 this is the standard CSS trick for a flex child that
+   must scroll: the flex algorithm gives it all available space while height: 0
+   prevents it from escaping the container. */
 [data-new-ui="true"] #artifactsTab > .flex.flex-col.h-full > .flex.justify-center {
-  align-items: flex-start !important;
+  align-items: stretch !important;   /* was flex-start — key height propagation fix */
   justify-content: flex-start !important;
-  padding-bottom: 16px !important;
+  padding-bottom: 0 !important;      /* was 16px — let content set its own padding */
 }
 
-/* ─── 3b. Disable the deeply-nested overflow-y scroll container ──────────────
-   Artifacts.tsx sets inline style={{height: innerHeight - 140}} on an inner
-   .overflow-y-auto div.  With the outer .flex.flex-col.h-full now being the
-   scroll container, that inner div no longer needs its own scroll — letting it
-   be auto-height and visible allows content to flow naturally into the outer
-   scroller.  overflow: visible + height: auto also unblock the outer scroll
-   from reading the correct scrollHeight. */
+/* ─── 3b. Content scroll area — flex:1 fill with scroll ─────────────────────
+   Artifacts.tsx sets inline style={{height: innerHeight - 140}} on this div.
+   Override that hardcoded pixel value and apply the flex-scroll pattern. */
 [data-new-ui="true"] #artifactsTextDisplay .flex-grow.overflow-y-auto {
-  overflow: visible !important;
-  height: auto !important;
+  flex: 1 !important;
+  min-height: 0 !important;
+  overflow-y: auto !important;       /* scrollable, not visible */
+  overflow-x: hidden !important;
+  height: 0 !important;              /* flex-scroll pattern: height 0 + flex 1 */
+  margin-top: 0 !important;          /* remove Tailwind mt-8 (32px top gap) */
+}
+
+/* ─── 3c. Hide the old version footer ────────────────────────────────────────
+   The "- Version: X" line at the bottom is replaced by the version dropdown in
+   the new panel header.  Hide it entirely so it doesn't push up the content.
+   The :has() selector is supported in all modern browsers. */
+[data-new-ui="true"] #artifactsTextDisplay > div:has(#versionNumber) {
+  display: none !important;
 }
 
 /* ─── 3. Hide old vertical toolbar ──────────────────────────────────────────
@@ -4531,6 +4592,13 @@
    Artifacts.tsx. Replaced by the new panel header. */
 [data-new-ui="true"] .enhanced-chat-icons-vertical {
   display: none !important;
+}
+
+/* ─── 3d. #artifactsTextDisplay — explicit flex column so children can fill ──
+   Tailwind sets flex flex-col on this element but the height isn't propagated
+   from the parent unless we reinforce min-height: 0 here. */
+[data-new-ui="true"] #artifactsTextDisplay {
+  min-height: 0 !important;
 }
 
 /* ─── 4. Hide old "Artifacts" heading label + back-arrow button ─────────────
@@ -4569,28 +4637,40 @@
   display: none !important;
 }
 
-/* ─── 7. Hide "Creating Your Artifact…" original box ───────────────────────
-   ArtifactInlineCardLayer adds data-nui-artifact-creating="true" on the
-   wrapper div that AutoArtifactsBlock.tsx renders. Also hide the <pre>
-   that react-markdown wraps around the autoArtifacts code fence — once the
-   creating wrapper is marked and the inline card host is moved outside the
-   <pre>, the <pre> has no visible content and should not take up space.
-   (Bug 2) */
+/* ─── 7. Neutralize <pre> wrapper around direct artifact cards ───────────────
+   AutoArtifactsBlock now renders DirectArtifactCard directly (with attribute
+   data-nui-direct-artifact-card).  react-markdown wraps the code block in a
+   <pre> element, but we want the card to float as normal block content without
+   any monospace font, dark background, or border from the code-block CSS.
+
+   Both variants need the same treatment:
+     data-nui-direct-artifact-card="true"        — live or completed card
+     data-nui-direct-artifact-card="unavailable" — placeholder for missing artifact */
+[data-new-ui="true"] pre:has([data-nui-direct-artifact-card]) {
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: visible !important;
+  font-family: inherit !important;
+  white-space: normal !important;
+  box-shadow: none !important;
+}
+
+/* The old layer-based "Creating Your Artifact…" hide rules are kept for any
+   residual DOM observer invocations — they're now effectively no-ops since
+   AutoArtifactsBlock no longer emits that text, but they're harmless. */
 [data-new-ui="true"] [data-nui-artifact-creating="true"] {
   display: none !important;
 }
-
-/* Hide the <pre> that wraps the creating block once our layer has processed it.
-   The card host is inserted AFTER the <pre>, so the <pre> itself is empty. */
 [data-new-ui="true"] pre:has([data-nui-artifact-creating="true"]) {
   display: none !important;
 }
 
-/* ─── 8. Inline card host — ensure correct flow + font (Bug 2) ──────────── */
+/* ─── 8. Inline card host — ensure correct flow + font (legacy layer compat) */
 [data-nui-inline-card-host] {
   display: block;
-  /* card renders outside any <pre>, so font is inherited from the prose
-     container (Inter/sans). Explicit font-family as belt-and-braces. */
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
@@ -4701,9 +4781,41 @@
 
 /* ─── 17. Chat-column header — constrain to chat column only ─────────────────
    ConversationHeader (.new-ui-header) is position:absolute left:0 right:0 which
-   spans the full shell including the artifact panel column.  Apply the same
-   --nui-artifact-panel-w constraint already used by the composer dock so the
-   header stops at the chat/artifact boundary. */
+   spans the full shell including the artifact panel column.
+
+   --nui-artifact-panel-w = panel.offsetWidth (excludes the panel's left+right
+   margins = 8px each = 16px total).  Using that value raw puts the header's
+   right edge 8px PAST the panel's left border, making the opaque header
+   background cover the panel's top-left corner.
+
+   Fix: add 16px (= margin-left + margin-right) so the header stops at the
+   grid-column boundary (the empty 8px margin gap is left clear). */
 [data-new-ui="true"] .new-ui-header {
-  right: var(--nui-artifact-panel-w, var(--nui-sb-clear)) !important;
+  right: calc(var(--nui-artifact-panel-w, var(--nui-sb-clear)) + 16px) !important;
 }
+
+/* ─── 18. Spreadsheet renderer — sticky header, full height fill ────────────
+   The spreadsheet table must fill the panel body vertically and scroll both
+   axes.  The `#artifactsTextDisplay .flex-grow.overflow-y-auto` rule already
+   disables the inline height — these rules ensure the table container does not
+   shrink below its viewport height.  The sticky th is z-indexed above td. */
+[data-new-ui="true"] #artifactsTab .artifactContentBlock table {
+  border-collapse: collapse !important;
+  min-width: 100% !important;
+}
+[data-new-ui="true"] #artifactsTab .artifactContentBlock th {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 2 !important;
+}
+
+/* ─── 19. Visualization iframe — fill available height ──────────────────────
+   The sandboxed iframe should expand to fill the panel body.  A fixed
+   min-height is kept as a fallback; the flex-grow wrapper takes the rest. */
+[data-new-ui="true"] #artifactsTab .artifactContentBlock iframe {
+  flex-grow: 1 !important;
+  min-height: 400px !important;
+}
+
+/* Rule 9 (fullscreen) already resets margin: 0 and height: 100dvh,
+   so the new header-alignment margins are correctly overridden there. */

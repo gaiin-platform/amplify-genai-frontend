@@ -392,10 +392,12 @@ const ChatContentBlock: React.FC<Props> = (
                         }
                         break;
                     case 'autoArtifacts':
-                        if (featureFlags.artifacts) {
-                            return (<AutoArtifactsBlock content={String(children)} ready={!messageIsStreaming} message={message}/>);
-                        }
-                        break;
+                        // Always render — not gated on featureFlags.artifacts.
+                        // AutoArtifactsBlock renders the card directly (for both live and
+                        // history), so it never shows as a raw code block regardless of when
+                        // featureFlags loads.  Generation is still guarded inside the component
+                        // (message.data.artifactStatus check) so history never re-triggers.
+                        return (<AutoArtifactsBlock content={String(children)} ready={!messageIsStreaming} message={message}/>);
                     case 'assistant':
                         return (<AssistantBlock definition={String(children)}/>);
                     case 'toggle':

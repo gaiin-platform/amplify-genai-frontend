@@ -27,9 +27,10 @@ import React, {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { IconFileText } from '@tabler/icons-react';
+import { IconFileText, IconTable, IconCode, IconChartBar } from '@tabler/icons-react';
 import { IconEye, IconEyeOff } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
+import { resolveNUIType } from '@/types/artifacts';
 
 /* ─── Module-level panel open state so new cards start with the right value ── */
 let _panelIsOpen = false;
@@ -59,6 +60,22 @@ interface CardProps {
   version?: number;
 }
 
+/** Map artifact type to { label, Icon } for the inline card */
+function typeDisplay(type?: string, language?: string): { label: string; Icon: React.ElementType } {
+  const nui = resolveNUIType(type);
+  switch (nui) {
+    case 'spreadsheet': return { label: 'Spreadsheet', Icon: IconTable };
+    case 'code': {
+      const lang = language || (type && type !== 'code' ? type : '');
+      const langLabel = lang ? lang.charAt(0).toUpperCase() + lang.slice(1) : '';
+      return { label: langLabel ? `Code · ${langLabel}` : 'Code', Icon: IconCode };
+    }
+    case 'visualization': return { label: 'Visualization', Icon: IconChartBar };
+    case 'document':
+    default: return { label: 'Document', Icon: IconFileText };
+  }
+}
+
 const ArtifactInlineCard: React.FC<CardProps> = ({
   isGenerating,
   isPanelOpen,
@@ -68,7 +85,7 @@ const ArtifactInlineCard: React.FC<CardProps> = ({
   version,
 }) => {
   const displayTitle = title || 'Untitled artifact';
-  const displayType = type ? type.charAt(0).toUpperCase() + type.slice(1) : 'Document';
+  const { label: displayType, Icon: TypeIcon } = typeDisplay(type);
 
   return (
     <div
@@ -140,7 +157,7 @@ const ArtifactInlineCard: React.FC<CardProps> = ({
             />
           </svg>
         ) : (
-          <IconFileText size={18} style={{ color: 'var(--accent)' }} />
+          <TypeIcon size={18} style={{ color: 'var(--accent)' }} />
         )}
       </div>
 
