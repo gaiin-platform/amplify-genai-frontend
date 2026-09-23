@@ -4482,11 +4482,17 @@
    compensate so the panel still fills from y=8 (header-top + 8px margin) to
    the shell's bottom-8px (8px equal margin at top and bottom).
 
-   Why -44px and calc(100% + 36px)?
+   Why -44px and calc(100% + 36px + var(--nui-composer-inset, 180px))?
      ─ Shell paddingTop = 52px  →  grid starts at y=52
      ─ Desired panel top = y=8  →  margin-top = 8 - 52 = -44px
-     ─ Desired panel height = shell.H - 16 = (gridCell.H + 52) - 16 = gridCell.H + 36
-       Written in CSS: calc(100% + 36px) where 100% = gridCell.H
+     ─ Shell paddingBottom = P (= --nui-composer-inset) → gridCell.H = shell.H - 52 - P
+     ─ Desired panel height = shell.H - 16
+                            = (gridCell.H + 52 + P) - 16
+                            = gridCell.H + 36 + P
+       Written in CSS: calc(100% + 36px + var(--nui-composer-inset, 180px))
+       where 100% = gridCell.H.  Without the +P term the panel would stop
+       P pixels above the shell bottom (= above where the composer starts on
+       the left side), leaving a gap at the artifact panel's bottom edge.
 
    The header does NOT overlap the panel column (CSS rule 17 constrains the
    header to the chat column width), so the panel's top border-radius is fully
@@ -4505,8 +4511,12 @@
   background: var(--bg-raised) !important;
   overflow: hidden !important;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10) !important;
-  /* Height: fill from panel-top (y=8) to shell-bottom-8px */
-  height: calc(100% + 36px) !important;
+  /* Height: fill from panel-top (y=8) to shell-bottom-8px.
+     The +var(--nui-composer-inset) term compensates for the shell's
+     padding-bottom (= composer dock height), which shortens the grid cell
+     relative to the full shell height.  Without it, the panel bottom ends at
+     the top of the composer area rather than at the shell's visual bottom. */
+  height: calc(100% + 36px + var(--nui-composer-inset, 180px)) !important;
   /* Flex column: header (non-scrolling) + body (scrolls) */
   display: flex !important;
   flex-direction: column !important;
@@ -4769,14 +4779,60 @@
   border-radius: 2px !important;
 }
 
-/* ─── 16. Panel height — make Chat's grid fill the flex-col parent ───────────
-   Chat.tsx renders .grid.grid-cols-2 as a flex child of .flex.flex-col.h-full.
-   Without explicit flex growth the grid is only as tall as its content, leaving
-   empty space below the artifact panel. flex: 1 + min-height: 0 fills the
-   parent, so #artifactsTab's height: calc(100% - 16px) resolves correctly. */
-[data-new-ui="true"] .flex.flex-col.h-full > .grid.grid-cols-2 {
+/* ─── 16. Panel height + resizable split ─────────────────────────────────────
+   Chat.tsx line 1279 renders a single element that carries BOTH flex and grid
+   classes: className="flex h-full grid grid-cols-2 gap-0". There is no separate
+   flex-col parent wrapping the grid — the same element IS both the flex child
+   and the grid container. So we target it directly by its combined class set.
+
+   flex: 1 + min-height: 0 ensures the element grows to fill the shell's flex
+   column, so #artifactsTab's height: calc(…) resolves against the full height.
+
+   grid-template-columns: when the ArtifactSplitterLayer sets --nui-split-left
+   (a pixel value, inherited from the shell ancestor), the left chat column
+   becomes that fixed width and the right artifact column takes the remaining
+   space via 1fr.  When the variable is not set, the fallback 1fr keeps the
+   default 50/50 split (Tailwind's repeat(2, minmax(0,1fr)) also gives 50/50,
+   so the visual result is identical either way). */
+[data-new-ui="true"] .flex.h-full.grid.grid-cols-2 {
   flex: 1 !important;
   min-height: 0 !important;
+  grid-template-columns: var(--nui-split-left, 1fr) 1fr !important;
+}
+
+/* ─── 16a. Artifact splitter handle ──────────────────────────────────────────
+   Vertically full-height divider rendered by ArtifactSplitterLayer.tsx.
+   Positioned at the grid column boundary (left: var(--nui-split-left, 50%))
+   with a centered 1px visual line and a wider (10px) pointer-events hit area.
+   z-index 25 keeps it above normal content but below the ConversationHeader
+   (z-index 30) and artifact panel header (z-index 20 with isolation). */
+[data-new-ui="true"] .new-ui-artifact-splitter {
+  position: absolute;
+  top: 8px;          /* match artifact panel top margin */
+  bottom: 8px;       /* match artifact panel bottom margin */
+  left: var(--nui-split-left, 50%);
+  width: 10px;
+  transform: translateX(-50%);
+  cursor: ew-resize;
+  z-index: 25;
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  pointer-events: auto;
+}
+
+[data-new-ui="true"] .new-ui-artifact-splitter-line {
+  width: 2px;
+  border-radius: 2px;
+  background: var(--border-subtle);
+  flex-shrink: 0;
+  transition: background 0.12s, width 0.12s;
+}
+
+[data-new-ui="true"] .new-ui-artifact-splitter:hover .new-ui-artifact-splitter-line,
+[data-new-ui="true"] .new-ui-artifact-splitter[data-dragging="true"] .new-ui-artifact-splitter-line {
+  background: var(--accent, #6366f1);
+  width: 3px;
 }
 
 /* ─── 17. Chat-column header — constrain to chat column only ─────────────────

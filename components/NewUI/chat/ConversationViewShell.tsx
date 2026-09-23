@@ -38,6 +38,7 @@ import { NewUITranscriptPastedTextLayer } from './NewUITranscriptPastedTextLayer
 import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
 import { ArtifactPanelLayer } from './ArtifactPanelLayer';
+import { ArtifactSplitterLayer } from './ArtifactSplitterLayer';
 import { ArtifactInlineCardLayer } from './ArtifactInlineCardLayer';
 import { getChatFont } from '@/components/NewUI/shared/userDisplayPrefs';
 import HomeContext from '@/pages/api/home/home.context';
@@ -1637,6 +1638,12 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
           Also tracks the panel width and writes --nui-artifact-panel-w onto this
           shell div so the composer and jump button constrain to the chat column. */}
       <ArtifactPanelLayer shellRef={shellRef} />
+
+      {/* Resizable vertical divider between the chat and artifact columns.
+          Dragging sets --nui-split-left on the shell; conversation-view.css
+          rule 16 converts that into grid-template-columns: <px> 1fr.
+          Double-click resets to the default 50/50 split. */}
+      <ArtifactSplitterLayer shellRef={shellRef} />
 
       {/* Inline artifact card layer — replaces "Creating Your Artifact…" boxes
           with polished generating/completed/error cards, and adds data attributes
