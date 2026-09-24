@@ -59,7 +59,7 @@ export function buildArtifactSavePayload(artifact: Partial<ArtifactLibraryRecord
   return {
     artifactId,
     version: versionOf(artifact) ?? 1,
-    name: artifactDisplayName(artifact),
+    name: resolveArtifactName(artifact, decoded),
     type: typeof artifact.type === 'string' ? artifact.type : '',
     description: typeof artifact.description === 'string' ? artifact.description : '',
     contents: contents as number[],
@@ -110,6 +110,33 @@ export function artifactDisplayName(artifact: Partial<ArtifactLibraryRecord>): s
   const type = typeof artifact.type === 'string' ? artifact.type.trim() : '';
   if (type) return `${type.charAt(0).toUpperCase()}${type.slice(1)} Artifact`;
 
+  return 'Artifact';
+}
+
+export function extractArtifactTitle(content: string, nuiType: ReturnType<typeof resolveNUIType>): string {
+  if (nuiType !== 'document') return '';
+  const match = content.match(/^#\s+(.+)$/m);
+  return match?.[1]?.trim().slice(0, 120) ?? '';
+}
+
+export function resolveArtifactName(
+  artifact: Partial<ArtifactLibraryRecord>,
+  decodedContent = decodeArtifactContents(artifact.contents),
+): string {
+  const explicit = typeof artifact.name === 'string' ? artifact.name.trim() : '';
+  if (explicit) return explicit;
+
+  const declaredType = typeof artifact.type === 'string' ? artifact.type.trim() : '';
+  const nuiType = declaredType ? resolveNUIType(declaredType) : sniffContentType(decodedContent);
+  const title = extractArtifactTitle(decodedContent, nuiType);
+  if (title) return title;
+
+  const description = typeof artifact.description === 'string' ? artifact.description.trim() : '';
+  if (description) return description.slice(0, 80).trim();
+
+  if (declaredType) {
+    return `${declaredType.charAt(0).toUpperCase()}${declaredType.slice(1)} Artifact`;
+  }
   return 'Artifact';
 }
 

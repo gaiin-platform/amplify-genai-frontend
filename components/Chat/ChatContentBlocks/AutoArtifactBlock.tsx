@@ -13,26 +13,7 @@ import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codebloc
 import { saveArtifact, getAllArtifacts } from "@/services/artifactsService";
 import { jsonrepair } from "jsonrepair";
 import { v4 as uuidv4 } from "uuid";
-
-/**
- * Extract a human-readable title from generated artifact markdown.
- *
- * For documents: first H1 only (H1 is definitive; anything else risks
- * returning raw content like a CSV header row as the title).
- * For other types: return '' and let the caller use the model-provided name.
- *
- * @param content  The artifact content string.
- * @param nuiType  The resolved NUI type ('document' | 'spreadsheet' | 'code' | 'visualization').
- */
-function extractTitleFromContent(content: string, nuiType?: string): string {
-    if (!content || content.length < 3) return '';
-    // Only extract from document type — never from CSV rows, code, or HTML
-    if (nuiType && nuiType !== 'document') return '';
-    const h1 = content.match(/^#\s+(.+)$/m);
-    if (h1) return h1[1].trim().slice(0, 120);
-    return ''; // No fallback to first line for documents either — avoids raw content titles
-}
-
+import { buildArtifactSavePayload, resolveArtifactName } from "@/components/NewUI/shared/artifactLibraryModel";
 
 interface Props {
     content: string;
@@ -275,8 +256,7 @@ const prepareArtifacts = (jsonContent: string, retry: boolean) => {
         // title extracted from the generated content (e.g. the document's first
         // H1) over a generic placeholder, and only falls back to a generic label
         // if that extraction also comes up empty.
-        const resolvedName: string = (typeof data.name === 'string' ? data.name.trim() : '')
-            || description.slice(0, 80);
+        const resolvedName: string = typeof data.name === 'string' ? data.name.trim() : '';
 
         const artifactDetail = {
             artifactId,
@@ -597,53 +577,28 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     return;
                 }
 
-                // ── Auto-title: if the JSON didn't include a name, extract one
-                //    from the generated content — only for document type (first H1).
-                //    For spreadsheet/code/visualization we never use raw content as title.
-                if (!controller.signal.aborted && !artifactDetail.name) {
-                    const rawContent = lzwUncompress(
-                        selectArtifacts[selectArtifacts.length - 1].contents as any
-                    );
-                    // Determine the final NUI type (sniff if not declared)
-                    const resolvedType = resolveNUIType(type) === 'document'
-                        ? 'document'
-                        : resolveNUIType(type);
-                    const finalType = resolvedType === 'document' && rawContent
-                        ? sniffContentType(rawContent)
-                        : resolvedType;
-                    const extracted = extractTitleFromContent(rawContent, finalType);
-                    if (extracted) {
-                        artifactDetail.name = extracted;
-                        selectArtifacts[selectArtifacts.length - 1].name = extracted;
-                        homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
-                    }
-                }
-
-                // ── If type was not declared, sniff from generated content and update
+                // Resolve the final type and title only after generation completes so
+                // document H1 headings win over request descriptions.
+                const completedArtifact = selectArtifacts[selectArtifacts.length - 1];
                 if (!controller.signal.aborted && !type) {
-                    const rawContent = lzwUncompress(
-                        selectArtifacts[selectArtifacts.length - 1].contents as any
-                    );
                     const sniffed = sniffContentType(rawContent);
-                    if (sniffed !== 'document') {
-                        selectArtifacts[selectArtifacts.length - 1].type = sniffed;
-                        homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
-                    }
+                    if (sniffed !== 'document') completedArtifact.type = sniffed;
                 }
-
-                // ── Final fallback: still no name after the request itself and the
-                //    content-based extraction above both came up empty (e.g. a
-                //    spreadsheet/code/visualization artifact with no explicit name,
-                //    or a document with no H1). Ensure every artifact is titled —
-                //    this must run before the artifact is added to the conversation
-                //    and saved to the server below. Uses the most specific type we
-                //    know at this point (declared, or sniffed just above) for a
-                //    label like "Spreadsheet Artifact" instead of a bare "Artifact".
-                if (!controller.signal.aborted && !artifactDetail.name) {
-                    const labelType = type || selectArtifacts[selectArtifacts.length - 1].type;
-                    const finalName = (labelType ? `${labelType.charAt(0).toUpperCase()}${labelType.slice(1)} Artifact` : '') || 'Artifact';
+                if (!controller.signal.aborted) {
+                    const finalName = resolveArtifactName({
+                        ...completedArtifact,
+                        name: artifactDetail.name,
+                        description: artifactDetail.description,
+                    }, rawContent);
                     artifactDetail.name = finalName;
-                    selectArtifacts[selectArtifacts.length - 1].name = finalName;
+                    completedArtifact.name = finalName;
+                    const conversationId = selectedConversation?.id;
+                    if (conversationId) {
+                        completedArtifact.metadata = {
+                            ...(completedArtifact.metadata ?? {}),
+                            conversationId,
+                        };
+                    }
                     homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
                 }
 
@@ -660,17 +615,8 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 //    clicking "Save Artifact" manually.
                 if (!controller.signal.aborted) {
                     const artifactToSave = selectArtifacts[selectArtifacts.length - 1];
-                    const saveResult = await saveArtifact({
-                        artifactId: artifactToSave.artifactId,
-                        version: artifactToSave.version,
-                        name: artifactToSave.name,
-                        type: artifactToSave.type,
-                        description: artifactToSave.description,
-                        contents: artifactToSave.contents,
-                        tags: artifactToSave.tags,
-                        createdAt: artifactToSave.createdAt,
-                        ...(artifactToSave.metadata ? { metadata: artifactToSave.metadata } : {}),
-                    });
+                    const savePayload = buildArtifactSavePayload(artifactToSave);
+                    const saveResult = savePayload ? await saveArtifact(savePayload) : null;
                     if (saveResult?.success) {
                         const response = await getAllArtifacts();
                         if (response.success) homeDispatch({ field: 'artifacts', value: response.data });

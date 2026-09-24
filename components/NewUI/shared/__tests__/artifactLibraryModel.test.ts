@@ -11,6 +11,7 @@ import {
   renameArtifactInConversation,
   buildArtifactSavePayload,
   isArtifactFallbackContent,
+  resolveArtifactName,
 } from '@/components/NewUI/shared/artifactLibraryModel';
 
 const conversation = (over: any = {}) => ({
@@ -40,6 +41,14 @@ describe('artifactLibraryModel', () => {
     expect(artifactDisplayName({ name: '', description: 'A useful description' })).toBe('A useful description');
     expect(artifactDisplayName({ name: '', type: 'spreadsheet' })).toBe('Spreadsheet Artifact');
     expect(artifactDisplayName({})).toBe('Artifact');
+  });
+
+  it('resolves generated names from explicit name, document H1, description, then type', () => {
+    expect(resolveArtifactName({ name: '  Explicit ', description: 'ignored' }, '# Heading')).toBe('Explicit');
+    expect(resolveArtifactName({ name: '', description: 'A description', type: 'document' }, '# Heading')).toBe('Heading');
+    expect(resolveArtifactName({ name: '', description: 'A description', type: 'code' }, 'print(1)')).toBe('A description');
+    expect(resolveArtifactName({ name: '', type: 'spreadsheet' }, 'a,b\\n1,2')).toBe('Spreadsheet Artifact');
+    expect(resolveArtifactName({}, 'plain content')).toBe('Artifact');
   });
 
   it('decodes compressed content safely', () => {
@@ -86,9 +95,14 @@ describe('artifactLibraryModel', () => {
   });
 
   it('builds a backend-safe save payload without conversation-only fields', () => {
-    const payload = buildArtifactSavePayload({ ...artifact(), conversationId: 'conversation-1' });
+    const payload = buildArtifactSavePayload({
+      ...artifact(),
+      conversationId: 'conversation-1',
+      metadata: { language: 'python', conversationId: 'conversation-1' },
+    });
     expect(payload).not.toBeNull();
     expect(payload).not.toHaveProperty('conversationId');
+    expect(payload?.metadata).toEqual({ language: 'python', conversationId: 'conversation-1' });
     expect(payload?.artifactId).toBe('artifact-1');
     expect(buildArtifactSavePayload({ ...artifact(), contents: lzwCompress('Please provide the content or task') })).toBeNull();
   });
@@ -112,6 +126,15 @@ describe('artifactLibraryModel', () => {
     expect(findArtifactSource(artifact({ conversationId: source.id }), [source]).confidence).toBe('explicit');
     expect(findArtifactSource(artifact(), [source]).conversationId).toBe(source.id);
     expect(findArtifactSource(artifact({ version: 2 }), [source]).confidence).toBe('none');
+  });
+
+  it('keeps an explicit source id when the remote conversation is metadata-only or unloaded', () => {
+    const source = conversation({ id: 'remote-conversation', messages: [], isLocal: false });
+    const fromMetadata = findArtifactSource(artifact({ metadata: { conversationId: source.id } }), [source]);
+    expect(fromMetadata).toMatchObject({ conversationId: source.id, conversation: source, confidence: 'explicit' });
+    const unloaded = findArtifactSource(artifact({ conversationId: source.id }), []);
+    expect(unloaded).toMatchObject({ conversationId: source.id, confidence: 'explicit' });
+    expect(unloaded.conversation).toBeUndefined();
   });
 
   it('matches source chats through message artifact references', () => {

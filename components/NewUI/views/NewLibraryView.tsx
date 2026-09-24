@@ -928,19 +928,49 @@ export const NewLibraryView: React.FC = () => {
         }
     };
 
-    const openArtifactChat = (item: ArtifactLibraryItem) => {
-        const source = item.source.conversation;
-        if (!source) return;
-        handleSelectConversation(source);
-        dispatch({ field: 'page', value: 'chat' });
-        if (item.source.versionIndex !== undefined) {
-            const versions = source.artifacts?.[item.artifact.artifactId];
-            if (versions?.length) {
-                dispatch({ field: 'selectedArtifacts', value: versions });
-                window.setTimeout(() => window.dispatchEvent(new CustomEvent('openArtifactsTrigger', {
-                    detail: { isOpen: true, artifactIndex: item.source.versionIndex },
-                })), 0);
+    const openArtifactChat = async (item: ArtifactLibraryItem) => {
+        const sourceId = item.source.conversationId;
+        if (!sourceId) return;
+
+        // The conversation list intentionally contains lightweight remote records.
+        // When the artifact metadata has the source id but the summary is not in the
+        // current list, keep the record remote so handleSelectConversation fetches it.
+        const source = item.source.conversation ?? ({
+            id: sourceId,
+            name: 'Artifact conversation',
+            messages: [],
+            model: {} as any,
+            folderId: null,
+            isLocal: false,
+        } as any);
+
+        let hydratedArtifact: any = item.hasContent ? item.artifact : null;
+        if (!hydratedArtifact) {
+            const lookupKey = item.artifact.key || item.artifact.artifactId;
+            if (lookupKey) {
+                try {
+                    const result = await getArtifact(lookupKey);
+                    if (result.success && result.data) hydratedArtifact = result.data;
+                } catch {
+                    // Conversation navigation remains useful even if content hydration fails.
+                }
             }
+        }
+
+        await handleSelectConversation(source);
+        dispatch({ field: 'page', value: 'chat' });
+
+        const versions = source.artifacts?.[item.artifact.artifactId];
+        const selectedVersions = versions?.length ? versions : hydratedArtifact ? [hydratedArtifact] : [];
+        if (selectedVersions.length) {
+            const requestedIndex = item.source.versionIndex;
+            const artifactIndex = requestedIndex !== undefined
+                ? Math.min(requestedIndex, selectedVersions.length - 1)
+                : selectedVersions.length - 1;
+            dispatch({ field: 'selectedArtifacts', value: selectedVersions });
+            window.setTimeout(() => window.dispatchEvent(new CustomEvent('openArtifactsTrigger', {
+                detail: { isOpen: true, artifactIndex },
+            })), 0);
         }
     };
 
@@ -1253,9 +1283,9 @@ export const NewLibraryView: React.FC = () => {
                             {artifactItems.map((item) => (
                                 <div key={item.stableKey} className="flex items-center gap-3 rounded-[9px] border px-4 py-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
                                     <div className="h-9 w-9 flex items-center justify-center rounded-[8px]" style={{ color: 'var(--accent)', backgroundColor: 'var(--bg-active)' }}><IconLibrary size={17} /></div>
-                                    <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</p><p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version} · {item.source.conversation?.name || 'Source conversation unavailable'}</p></div>
+                                    <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</p><p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version} · {item.source.conversation?.name || (item.source.conversationId ? 'Source conversation' : 'Source conversation unavailable')}</p></div>
                                     <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => handleViewArtifact(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>{viewLoadingKey === item.stableKey ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
-                                    <button type="button" disabled={!item.source.conversation} onClick={() => openArtifactChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
+                                    <button type="button" disabled={!item.source.conversationId} onClick={() => void openArtifactChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
                                 </div>
                             ))}
                         </div>
