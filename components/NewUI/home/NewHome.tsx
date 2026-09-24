@@ -66,7 +66,7 @@ export const NewHome: React.FC = () => {
       statsService, selectedConversation, page,
     },
     handleNewConversation,
-    handleUpdateConversation,
+    handleUpdateSelectedConversation,
     dispatch,
   } = useContext(HomeContext);
 
@@ -488,65 +488,52 @@ export const NewHome: React.FC = () => {
     // Only applies when page='chat'. On page='home' there is no pre-created
     // conversation and we always need to create one.
     if (page === 'chat' && selectedConversation) {
-      // Reset the name to 'New Conversation' so Chat.tsx's auto-rename effect
-      // fires after the first AI reply (it only triggers on that sentinel value).
-      // Without this the "Chat with X [date]" name from handleStartConversationWithPrompt
-      // would persist permanently since it never matched the rename condition.
-      if (selectedConversation.name !== 'New Conversation') {
-        handleUpdateConversation(selectedConversation, {
-          key: 'name',
-          value: 'New Conversation',
-        });
+      // ── Build the fully-updated conversation in one pass ─────────────────
+      //
+      // WHY NOT handleUpdateConversation (the obvious choice):
+      // handleUpdateConversation is async — it awaits getCompleteConversation(),
+      // which returns `selectedConversation` from the HOME.TSX CLOSURE (i.e. the
+      // stale object with the admin's default model), not from convBase.  Every
+      // call dispatches `{ ...OLD_CONV, [key]: value }`, so the last async
+      // dispatch (data or prompt) overwrites the model update with gpt-5.6 Luna.
+      //
+      // handleUpdateSelectedConversation is SYNCHRONOUS and uses the conversation
+      // object we hand it directly — one call, no stale closure, no race.
+      let convBase = selectedConversation;
+
+      // Name: reset to sentinel so Chat.tsx's auto-rename fires after the first
+      // AI reply (it only triggers on the exact string 'New Conversation').
+      if (convBase.name !== 'New Conversation') {
+        convBase = { ...convBase, name: 'New Conversation' };
       }
 
-      // Apply the active custom instruction to empty conversations.
-      //
-      // home.tsx always creates the initial conversation with DEFAULT_SYSTEM_PROMPT
-      // — before any custom instruction exists.  If the user creates an instruction
-      // and then sends their very first message, we'd reuse that conversation and
-      // the instruction would never reach the backend.
-      //
-      // Fix: compute the up-to-date prompt here and patch it onto the conversation
-      // before the send fires.  Two writes happen in parallel:
-      //   1. handleUpdateConversation — persists to localStorage / server
-      //      (async, fire-and-forget; the immediate send doesn't wait for it).
-      //   2. dispatch — updates the in-memory selectedConversation so that
-      //      ConversationViewShell reads the correct prompt from conversationRef.current
-      //      (PATH A) or ChatInput reads it from context (PATH B), both of which
-      //      run after an 80-160 ms timeout and therefore see this re-render.
+      // Model: apply the user's landing-page selection.
+      if (selectedModelId && availableModels[selectedModelId] && convBase.model?.id !== selectedModelId) {
+        convBase = { ...convBase, model: availableModels[selectedModelId] };
+      }
+
+      // Effort: write to data.reasoningLevel — the only field useChatSendService
+      // reads (§31).  Spread existing data so web-search/skills/etc. are preserved.
+      convBase = { ...convBase, data: { ...convBase.data, reasoningLevel: selectedEffort } };
+
+      // System prompt: apply any active custom instruction.
       const customPrompt = buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT);
-      const needsPromptUpdate = selectedConversation.prompt !== customPrompt;
-
-      if (needsPromptUpdate) {
-        // Persist (async, fire-and-forget)
-        handleUpdateConversation(selectedConversation, {
-          key: 'prompt',
-          value: customPrompt,
-        });
+      if (convBase.prompt !== customPrompt) {
+        convBase = { ...convBase, prompt: customPrompt };
       }
 
-      // For attachment/paste sends, seed the optimistic message so the
-      // conversation transitions out of the empty state immediately and
-      // ConversationViewShell PATH A finds it and sends with deleteCount:1.
-      // Combine with the prompt update (if any) into one dispatch to avoid
-      // a second round-trip through the reducer.
+      // Optimistic first message: seed the transcript so Chat.tsx paints the
+      // prompt immediately (§66), and ConversationViewShell PATH A sends it with
+      // deleteCount:1 so the transcript never shows a duplicate.
       if (optimisticMessage) {
-        dispatch({
-          field: 'selectedConversation',
-          value: {
-            ...selectedConversation,
-            ...(needsPromptUpdate ? { prompt: customPrompt } : {}),
-            messages: [optimisticMessage],
-          },
-        });
-      } else if (needsPromptUpdate) {
-        // Text-only send: no optimistic message, but we still need to push the
-        // updated prompt so PATH B's 80 + 80 ms timeout finds it in context.
-        dispatch({
-          field: 'selectedConversation',
-          value: { ...selectedConversation, prompt: customPrompt },
-        });
+        convBase = { ...convBase, messages: [optimisticMessage] };
       }
+
+      // One synchronous call: persists to localStorage/server AND dispatches
+      // { field: 'selectedConversation', value: convBase } atomically.
+      // ConversationComposer's sync effects on model.id and data.reasoningLevel
+      // will immediately see the user's landing-page choices.
+      handleUpdateSelectedConversation(convBase);
 
       composerRef.current?.clear();
       setHasContent(false);
