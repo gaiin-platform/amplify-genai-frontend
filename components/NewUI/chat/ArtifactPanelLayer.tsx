@@ -469,7 +469,12 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
 
   const versionCount = selectedArtifacts?.length ?? 0;
   const currentVersion = currentArtifact?.version ?? currentIdx + 1;
-  const displayName = currentArtifact?.name ?? 'Artifact';
+  // Use artifact type as a fallback when the LLM didn't provide a name.
+  // Using || (not ??) so that an empty-string name also falls through.
+  const artifactTypeLabel = currentArtifact?.type
+    ? currentArtifact.type.charAt(0).toUpperCase() + currentArtifact.type.slice(1)
+    : null;
+  const displayName = currentArtifact?.name || artifactTypeLabel || 'Artifact';
 
   const header = (
     <div

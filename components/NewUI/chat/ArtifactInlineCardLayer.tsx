@@ -84,7 +84,12 @@ const ArtifactInlineCard: React.FC<CardProps> = ({
   type,
   version,
 }) => {
-  const displayTitle = title || 'Untitled artifact';
+  // Use artifact type as a meaningful fallback when the LLM didn't provide a name.
+  // e.g. type="spreadsheet" → "Spreadsheet", type="code" → "Code"
+  const typeLabel = type
+    ? type.charAt(0).toUpperCase() + type.slice(1)
+    : null;
+  const displayTitle = title || typeLabel || 'Untitled artifact';
   const { label: displayType, Icon: TypeIcon } = typeDisplay(type);
 
   return (
@@ -163,7 +168,10 @@ const ArtifactInlineCard: React.FC<CardProps> = ({
 
       {/* Text */}
       <div style={{ flex: 1, minWidth: 0 }}>
+        {/* nui-artifact-card-title: targeted by container-query CSS for truncation control */}
         <div
+          className="nui-artifact-card-title"
+          title={displayTitle}
           style={{
             fontSize: 14,
             fontWeight: 500,
@@ -187,7 +195,8 @@ const ArtifactInlineCard: React.FC<CardProps> = ({
             fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
           }}
         >
-          <span>{isGenerating ? 'Writing…' : displayType}</span>
+          {/* nui-artifact-card-type: white-space:nowrap via CSS — never wraps mid-word */}
+          <span className="nui-artifact-card-type">{isGenerating ? 'Writing…' : displayType}</span>
           {!isGenerating && version && version > 1 && (
             <span
               style={{

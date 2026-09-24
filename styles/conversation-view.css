@@ -4780,45 +4780,64 @@
 }
 
 /* ─── 16. Panel height + resizable split ─────────────────────────────────────
-   Chat.tsx line 1279 renders a single element that carries BOTH flex and grid
-   classes: className="flex h-full grid grid-cols-2 gap-0". There is no separate
-   flex-col parent wrapping the grid — the same element IS both the flex child
-   and the grid container. So we target it directly by its combined class set.
+   Chat.tsx line 1279 renders a single element with BOTH flex and grid classes:
+   className="flex h-full grid grid-cols-2 gap-0".
 
-   flex: 1 + min-height: 0 ensures the element grows to fill the shell's flex
-   column, so #artifactsTab's height: calc(…) resolves against the full height.
+   Layout model: the RIGHT column (artifact panel) has an explicit pixel width
+   from --nui-panel-w; the LEFT column (chat) fills the remainder with a hard
+   minimum of 480px.  This guarantees:
+     • Panel is always anchored to the right edge (explicit right column)
+     • Chat column never collapses below 480px (minmax floor)
+     • Dragging left/right only moves the boundary, never leaves empty space
 
-   grid-template-columns: when the ArtifactSplitterLayer sets --nui-split-left
-   (a pixel value, inherited from the shell ancestor), the left chat column
-   becomes that fixed width and the right artifact column takes the remaining
-   space via 1fr.  When the variable is not set, the fallback 1fr keeps the
-   default 50/50 split (Tailwind's repeat(2, minmax(0,1fr)) also gives 50/50,
-   so the visual result is identical either way). */
+   --nui-panel-w is written by ArtifactSplitterLayer (defaults to "50%" so the
+   initial open is a clean 50/50 split handled entirely by CSS).
+
+   #artifactsTab has an inline style.width set by Artifacts.tsx; the width:100%
+   override below kills it so the panel fills its grid track correctly. */
 [data-new-ui="true"] .flex.h-full.grid.grid-cols-2 {
   flex: 1 !important;
   min-height: 0 !important;
-  grid-template-columns: var(--nui-split-left, 1fr) 1fr !important;
+  grid-template-columns: minmax(var(--nui-chat-min, 480px), 1fr) var(--nui-panel-w, 50%) !important;
+}
+
+/* Kill Artifacts.tsx's dynamicWidth inline style — the grid track owns the width. */
+[data-new-ui="true"] #artifactsTab {
+  width: 100% !important;
 }
 
 /* ─── 16a. Artifact splitter handle ──────────────────────────────────────────
-   Vertically full-height divider rendered by ArtifactSplitterLayer.tsx.
-   Positioned at the grid column boundary (left: var(--nui-split-left, 50%))
-   with a centered 1px visual line and a wider (10px) pointer-events hit area.
-   z-index 25 keeps it above normal content but below the ConversationHeader
-   (z-index 30) and artifact panel header (z-index 20 with isolation). */
+   Positioned at the grid column boundary using right: var(--nui-panel-w).
+   right: X places the element's right edge X from the shell's right edge.
+   transform: translateX(50%) shifts it right by half its own width (5px),
+   so the CENTER of the 10px hit area lands exactly on the column boundary.
+
+   Uses Pointer Capture API (onPointerDown/Move/Up on the element itself),
+   so no global event listeners are needed.
+
+   cursor: col-resize is the standard bidirectional resize cursor.
+   focus-visible outline so keyboard users can see when it's active. */
 [data-new-ui="true"] .new-ui-artifact-splitter {
   position: absolute;
-  top: 8px;          /* match artifact panel top margin */
-  bottom: 8px;       /* match artifact panel bottom margin */
-  left: var(--nui-split-left, 50%);
+  top: 8px;
+  bottom: 8px;
+  right: var(--nui-panel-w, 50%);
   width: 10px;
-  transform: translateX(-50%);
-  cursor: ew-resize;
+  transform: translateX(50%);
+  cursor: col-resize;
   z-index: 25;
   display: flex;
   align-items: stretch;
   justify-content: center;
   pointer-events: auto;
+  outline: none;
+  touch-action: none; /* let us handle pointer events, not the browser */
+}
+
+[data-new-ui="true"] .new-ui-artifact-splitter:focus-visible {
+  outline: 2px solid var(--accent, #6366f1);
+  outline-offset: 1px;
+  border-radius: 2px;
 }
 
 [data-new-ui="true"] .new-ui-artifact-splitter-line {
@@ -4830,24 +4849,81 @@
 }
 
 [data-new-ui="true"] .new-ui-artifact-splitter:hover .new-ui-artifact-splitter-line,
-[data-new-ui="true"] .new-ui-artifact-splitter[data-dragging="true"] .new-ui-artifact-splitter-line {
+[data-new-ui="true"] .new-ui-artifact-splitter[data-dragging="true"] .new-ui-artifact-splitter-line,
+[data-new-ui="true"] .new-ui-artifact-splitter:focus-visible .new-ui-artifact-splitter-line {
   background: var(--accent, #6366f1);
   width: 3px;
 }
 
+/* Disable iframes in the artifact panel while the user is dragging so they
+   don't steal pointer events (visualization artifacts are iframes). */
+[data-new-ui="true"][data-resizing="true"] #artifactsTab iframe {
+  pointer-events: none !important;
+}
+
 /* ─── 17. Chat-column header — constrain to chat column only ─────────────────
    ConversationHeader (.new-ui-header) is position:absolute left:0 right:0 which
-   spans the full shell including the artifact panel column.
+   would otherwise span the full shell including the artifact column.
 
-   --nui-artifact-panel-w = panel.offsetWidth (excludes the panel's left+right
-   margins = 8px each = 16px total).  Using that value raw puts the header's
-   right edge 8px PAST the panel's left border, making the opaque header
-   background cover the panel's top-left corner.
-
-   Fix: add 16px (= margin-left + margin-right) so the header stops at the
-   grid-column boundary (the empty 8px margin gap is left clear). */
+   --nui-artifact-panel-w = --nui-panel-w − 16 (accounts for 8px left+right
+   margins on #artifactsTab).  Adding 16px back places the header's right edge
+   exactly at the grid column boundary so the 8px gap is unobscured. */
 [data-new-ui="true"] .new-ui-header {
   right: calc(var(--nui-artifact-panel-w, var(--nui-sb-clear)) + 16px) !important;
+}
+
+/* ─── 16b. Chat-column container queries ─────────────────────────────────────
+   The first grid child (chat column) carries overflow-hidden which already
+   clips content. We add container-type so @container rules can respond to the
+   chat column's own width, independent of the viewport.
+
+   Container name: nui-chat-col. */
+[data-new-ui="true"] .flex.h-full.grid.grid-cols-2 > :first-child {
+  container-type: inline-size;
+  container-name: nui-chat-col;
+}
+
+/* ── Compact: <= 560px — hide assistant badge in header ─────────────────────
+   Target: the badge div inside .new-ui-header's left container.
+   The badge has title containing "assistant" — used as the CSS hook.
+   At 560px the title area already has enough room; the badge is the first
+   thing to sacrifice. */
+@container nui-chat-col (max-width: 560px) {
+  [data-new-ui="true"] .new-ui-header [title*="assistant"] {
+    display: none !important;
+  }
+}
+
+/* ── Compact: <= 480px — share button compact; composer narrower ─────────────
+   At 480px (the minimum chat column width) the share button still has room,
+   but we reduce its padding to save space and reduce composer side padding
+   so the model selector doesn't overflow on very compact layouts. */
+@container nui-chat-col (max-width: 480px) {
+  /* Share button — compact padding */
+  [data-new-ui="true"] .new-ui-header > div:last-child button {
+    padding: 0 8px !important;
+  }
+  /* Reduce composer side padding */
+  [data-new-ui="true"] .new-ui-composer-dock {
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+  }
+}
+
+/* ─── 16c. Artifact inline card — compact type label and title ───────────────
+   Type label must never wrap (e.g. "Spreadsheet" stays on one line).
+   Title truncates with ellipsis so it never bleeds into the card controls. */
+[data-new-ui="true"] .nui-artifact-card-type {
+  white-space: nowrap !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+[data-new-ui="true"] .nui-artifact-card-title {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
 }
 
 /* ─── 18. Spreadsheet renderer — sticky header, full height fill ────────────
