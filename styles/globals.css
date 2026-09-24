@@ -838,3 +838,12 @@ pre:has(div.codeblock) {
     animation-duration: 3s;
   }
 }
+
+/* ── Admin panel: User Costs overlay z-index ──────────────────────────────────
+   UserCostsModal uses the old-UI Modal (z-50 = 50). The NewAdminModal overlay
+   is z-index 10000. Rendering UserCostsModal inside it would hide the old modal
+   behind the admin panel. This rule lifts the old .modal-overlay only when it
+   is a descendant of the admin panel overlay so it renders on top. */
+.new-ui-admin-modal-overlay .modal-overlay {
+  z-index: 10050 !important;
+}

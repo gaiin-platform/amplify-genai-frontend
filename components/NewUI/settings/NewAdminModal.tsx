@@ -26,35 +26,31 @@ import {
   IconAdjustments,
   IconCpu,
   IconVariable,
-  IconApi,
   IconFlag,
   IconDatabase,
-  IconTerminal2,
-  IconActivity,
   IconAlertTriangle,
   IconNetwork,
   IconDeviceFloppy,
   IconCheck,
+  IconCurrencyDollar,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
 import {
   getAdminConfigs, getAvailableModels, getFeatureFlags,
-  getPowerPoints, testEmbeddingEndpoint, testEndpoint,
+  getPowerPoints,
   updateAdminConfigs,
 } from '@/services/adminService';
 import {
-  AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig,
+  AdminConfigTypes, FeatureFlagConfig,
   SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig,
 } from '@/types/admin';
 import { adminTabHasChanges } from '@/utils/app/admin';
 import { LoadingIcon } from '@/components/Loader/LoadingIcon';
 import toast from 'react-hot-toast';
 import InputsMap from '@/components/ReusableComponents/InputMap';
-import { OpDef } from '@/types/op';
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
 import { noRateLimit, normalizeRateLimits, RateLimit, RateLimits } from '@/types/rateLimit';
-import { OpenAIEndpointsTab } from '@/components/Admin/AdminComponents/OpenAIEndpoints';
 import { FeatureFlagsTab } from '@/components/Admin/AdminComponents/FeatureFlags';
 import { emptySupportedModel, SupportedModelsTab } from '@/components/Admin/AdminComponents/SupportedModels';
 import { ConfigurationsTab } from '@/components/NewUI/settings/admin/ConfigurationsTab';
@@ -65,10 +61,9 @@ import {
 } from '@/types/integrations';
 import { checkActiveIntegrations } from '@/services/oauthIntegrationsService';
 import { IntegrationsTab } from '@/components/Admin/AdminComponents/Integrations';
-import { EmbeddingsTab } from '@/components/Admin/AdminComponents/Embeddings';
-import { OpsTab } from '@/components/Admin/AdminComponents/Ops';
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab } from '@/components/Admin/AdminComponents/FeatureData';
 import { CriticalErrorTrackingTab } from '@/components/Admin/AdminComponents/Critical_Error_Tracking';
+import { UserCostsModal } from '@/components/Admin/UserCostModal';
 import {
   Amplify_Groups,
   PromptCostAlert, EmailSupport, CriticalErrorsConfig,
@@ -90,7 +85,7 @@ export const loadingState = (
 // ── Nav definition ────────────────────────────────────────────────────────────
 
 interface AdminNavItem {
-  id: AdminTab;
+  id: AdminTab | 'User Costs';
   label: string;
   Icon: FC<{ size?: number; stroke?: number }>;
 }
@@ -99,11 +94,9 @@ const BASE_ADMIN_TABS: AdminNavItem[] = [
   { id: 'Configurations',       label: 'Configurations',       Icon: IconAdjustments },
   { id: 'Supported Models',     label: 'Supported Models',     Icon: IconCpu },
   { id: 'Application Variables',label: 'Application Variables',Icon: IconVariable },
-  { id: 'OpenAi Endpoints',     label: 'OpenAI Endpoints',     Icon: IconApi },
   { id: 'Feature Flags',        label: 'Feature Flags',        Icon: IconFlag },
   { id: 'Feature Data',         label: 'Feature Data',         Icon: IconDatabase },
-  { id: 'Ops',                  label: 'Ops',                  Icon: IconTerminal2 },
-  { id: 'Embeddings',           label: 'Embeddings',           Icon: IconActivity },
+  { id: 'User Costs',           label: 'User Costs',           Icon: IconCurrencyDollar },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -220,10 +213,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
   const [defaultTimezone, setDefaultTimezone]   = useState<string>('America/Chicago');
   const [smartMessagesEnabled, setSmartMessagesEnabled] = useState<boolean>(false);
-  const [refreshingTypes, setRefreshingTypes]   = useState<AdminConfigTypes[]>([]);
-  const [openAiEndpoints, setOpenAiEndpoints]   = useState<OpenAIModelsConfig>({ models: [] });
-  const testEndpointsRef = useRef<{ url: string; key: string; model: string }[]>([]);
-  const [ops, setOps]                           = useState<OpDef[]>([]);
   const [astGroups, setAstGroups]               = useState<Ast_Group_Data[]>([]);
   const [changedAstGroups, setChangedAstGroups] = useState<string[]>([]);
   const [amplifyAstGroupId, setAmplifyAstGroupId] = useState<string>('');
@@ -235,6 +224,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>({});
   const [webSearchConfig, setWebSearchConfig]   = useState<AdminWebSearchConfig | null>(null);
   const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
+  const [showUserCosts, setShowUserCosts] = useState<boolean>(false);
 
   // ── Account notice message (customisable by admins; shown to all users in Account settings)
   const ACCOUNT_NOTICE_CONFIG_KEY = 'accountNoticeMessage';
@@ -263,28 +253,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       {isAvailable
         ? <IconCheck className="text-green-500 hover:opacity-60" size={18} />
         : <IconX className="text-red-500 hover:opacity-60" size={18} />}
-    </button>
-  );
-
-  const refresh = (
-    type: AdminConfigTypes,
-    click: () => void,
-    loading: boolean,
-    title: string = 'Refresh Variables',
-    top: string = 'mt-1',
-  ) => (
-    <button
-      title={title}
-      disabled={refreshingTypes.includes(type)}
-      className={`${top} py-1.5 flex-shrink-0 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 dark:text-white transition-colors duration-200 ${
-        refreshingTypes.includes(type) ? '' : 'cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10'
-      }`}
-      onClick={() => {
-        setRefreshingTypes([...refreshingTypes, type]);
-        click();
-      }}
-    >
-      {refreshingTypes.includes(type) ? <>{loadingIcon()}</> : <IconRefresh size={16} />}
     </button>
   );
 
@@ -388,9 +356,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           const nd = nonlazyResult.data;
           setAppVars(nd[AdminConfigTypes.APP_VARS] || {});
           setAppSecrets(nd[AdminConfigTypes.APP_SECRETS] || {});
-          const opsData: OpDef[] = nd[AdminConfigTypes.OPS] || [];
-          setOps(opsData.sort((a: OpDef, b: OpDef) => a.name.localeCompare(b.name)));
-          setOpenAiEndpoints(nd[AdminConfigTypes.OPENAI_ENDPOINTS] || { models: [] });
           const am = nd[AdminConfigTypes.AVAILABLE_MODELS] || {};
           const base = emptySupportedModel();
           const updated = Object.entries(am).map(([k, m]) => {
@@ -578,31 +543,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         return defaultTimezone;
       case AdminConfigTypes.DEFAULT_SMART_MESSAGES:
         return smartMessagesEnabled;
-      case AdminConfigTypes.OPENAI_ENDPOINTS: {
-        const toTest: { key: string; url: string; model: string }[] = [];
-        const orig = new Set<string>();
-        openAiEndpoints.models.forEach((m) => Object.keys(m).forEach((n) => orig.add(n)));
-        const cleaned: OpenAIModelsConfig = {
-          models: openAiEndpoints.models.map((m) => {
-            const nm: Record<string, { endpoints: Endpoint[] }> = {};
-            Object.keys(m).forEach((n) => {
-              const eps = m[n].endpoints.filter((ep) => ep.url !== '' && ep.key !== '').map((ep) => {
-                const { isNew, ...rest } = ep;
-                if (isNew) toTest.push({ ...rest, model: n });
-                return rest;
-              });
-              if (eps.length > 0) nm[n] = { endpoints: eps };
-            });
-            return nm;
-          }).filter((m) => Object.keys(m).length > 0),
-        };
-        const cleaned2 = new Set<string>();
-        cleaned.models.forEach((m) => Object.keys(m).forEach((n) => cleaned2.add(n)));
-        orig.forEach((n) => { if (!cleaned2.has(n)) toast(`Removed ${n} (no endpoints configured)`); });
-        setOpenAiEndpoints(cleaned);
-        if (toTest.length > 0) testEndpointsRef.current = toTest;
-        return cleaned;
-      }
     }
   };
 
@@ -622,30 +562,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
     if (criticalErrorsConfig.isActive && !criticalErrorsConfig.email) {
       alert('Critical Error Notifications require an email address. Please add one or disable the feature.');
       return false;
-    }
-    return true;
-  };
-
-  const processUrl = (url: string) => (url.endsWith('/') ? url : `${url}/`);
-
-  const callTestEndpoints = async () => {
-    for (const ep of testEndpointsRef.current) {
-      const label = `Url: ${ep.url}\nKey: ${ep.key}`;
-      setLoadingMessage(`Testing Endpoint:\n${label}`);
-      let result: any = null;
-      if (ep.model.includes('embed')) {
-        const url = processUrl(ep.url);
-        result = await testEmbeddingEndpoint(
-          `${url}openai/deployments/${ep.model}/embeddings?api-version=2024-02-01`, ep.key,
-        );
-      } else {
-        result = await testEndpoint(ep.url, ep.key, ep.model);
-      }
-      if (!result) {
-        alert(`Failed to contact new endpoint:\n${label}\n\nCheck endpoint data and try again.`);
-        setLoadingMessage('');
-        return false;
-      }
     }
     return true;
   };
@@ -710,14 +626,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       payload.push({ type: ACCOUNT_NOTICE_CONFIG_KEY, data: accountNoticeMessage });
     }
     if (!validateSavedData()) return;
-    if (testEndpointsRef.current.length > 0) {
-      setLoadingMessage('Testing new endpoints…');
-      const ok = await callTestEndpoints();
-      if (!ok) {
-        setLoadingMessage('');
-        if (!confirm('Continue applying changes anyway?')) return;
-      }
-    }
     setLoadingMessage('Saving configurations…');
     const result = await updateAdminConfigs(payload);
     if (result.success) {
@@ -728,7 +636,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       toast('Configurations saved');
       setUnsavedConfigs(new Set());
       setAccountNoticeUnsaved(false);
-      testEndpointsRef.current = [];
     } else {
       if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
         const failed = Array.from(unsavedConfigs).filter((k) => !(k in result.data) || !result.data[k].success);
@@ -741,9 +648,11 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   };
 
   // ── Tab label helper ──────────────────────────────────────────────────────
-  const tabHasChanges = (tab: AdminTab) =>
-    adminTabHasChanges(Array.from(unsavedConfigs), tab) ||
-    (tab === 'Configurations' && accountNoticeUnsaved);
+  const tabHasChanges = (tab: AdminTab | 'User Costs') =>
+    tab !== 'User Costs' && (
+      adminTabHasChanges(Array.from(unsavedConfigs), tab as AdminTab) ||
+      (tab === 'Configurations' && accountNoticeUnsaved)
+    );
 
   // ── Filtered tabs ─────────────────────────────────────────────────────────
   const filteredTabs = searchQuery.trim()
@@ -939,14 +848,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
             </div>
           </div>
         );
-      case 'OpenAi Endpoints':
-        return stillLoadingData ? loadingState : (
-          <OpenAIEndpointsTab
-            openAiEndpoints={openAiEndpoints}
-            setOpenAiEndpoints={setOpenAiEndpoints}
-            updateUnsavedConfigs={updateUnsavedConfigs}
-          />
-        );
       case 'Feature Flags':
         return (
           <FeatureFlagsTab
@@ -979,18 +880,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
             isAvailableCheck={isAvailableCheck}
             admin_text={admin_text}
             updateUnsavedConfigs={updateUnsavedConfigs}
-          />
-        );
-      case 'Ops':
-        return stillLoadingData ? loadingState : (
-          <OpsTab ops={ops} setOps={setOps} admin_text={admin_text} />
-        );
-      case 'Embeddings':
-        return (
-          <EmbeddingsTab
-            refresh={refresh}
-            refreshingTypes={refreshingTypes}
-            setRefreshingTypes={setRefreshingTypes}
           />
         );
       case 'Critical Errors':
@@ -1165,9 +1054,15 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
               <NavRow
                 key={tab.id}
                 item={tab}
-                isSelected={activeTab === tab.id}
+                isSelected={tab.id === 'User Costs' ? showUserCosts : activeTab === tab.id}
                 hasChanges={tabHasChanges(tab.id)}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => {
+                  if (tab.id === 'User Costs') {
+                    setShowUserCosts(true);
+                  } else {
+                    setActiveTab(tab.id as AdminTab);
+                  }
+                }}
               />
             ))}
           </div>
@@ -1344,6 +1239,12 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           </div>
         </div>
       </div>
+
+      {/* User Costs — full-screen overlay on top of the admin panel */}
+      <UserCostsModal
+        open={showUserCosts}
+        onClose={() => setShowUserCosts(false)}
+      />
     </div>
   );
 };
