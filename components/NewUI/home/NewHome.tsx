@@ -75,12 +75,20 @@ export const NewHome: React.FC = () => {
   const activeAssistant = isRealAssistant(selectedAssistant) ? selectedAssistant : null;
   const activeAssistantName = activeAssistant?.definition?.name;
 
+  // Enforced model from the active assistant (if any). Takes priority over
+  // user default and admin default — the assistant's requirement wins.
+  const enforcedModelId = activeAssistant?.definition?.data?.model as string | undefined;
+
   const composerRef = useRef<RichComposerHandle>(null);
   const [hasContent, setHasContent] = useState(false);
 
   // ── Model + effort ────────────────────────────────────────────────────────
-  // Priority: user's personal default > admin's default model.
+  // Priority (highest → lowest):
+  //   1. Assistant-enforced model (definition.data.model)
+  //   2. User's personal default
+  //   3. Admin's default model
   const [selectedModelId, setSelectedModelId] = useState<string | undefined>(() => {
+    if (enforcedModelId) return enforcedModelId;
     const userDefault = getUserDefaultModelId();
     return userDefault || defaultModelId || undefined;
   });
@@ -88,13 +96,32 @@ export const NewHome: React.FC = () => {
     () => getUserDefaultEffort() ?? 'medium',
   );
 
+  // When the attached assistant changes (or gains/loses enforcement), sync the
+  // model selection. A non-enforcing assistant (or no assistant) falls back to
+  // the user/admin defaults.
   useEffect(() => {
+    if (enforcedModelId) {
+      setSelectedModelId(enforcedModelId);
+      return;
+    }
+    // No enforcement — apply user/admin default if nothing is set
     if (!selectedModelId) {
       const userDefault = getUserDefaultModelId();
       if (userDefault) setSelectedModelId(userDefault);
       else if (defaultModelId) setSelectedModelId(defaultModelId);
     }
-  }, [defaultModelId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enforcedModelId]);
+
+  useEffect(() => {
+    // Only apply admin/user defaults when there is no assistant enforcement
+    if (enforcedModelId) return;
+    if (!selectedModelId) {
+      const userDefault = getUserDefaultModelId();
+      if (userDefault) setSelectedModelId(userDefault);
+      else if (defaultModelId) setSelectedModelId(defaultModelId);
+    }
+  }, [defaultModelId, enforcedModelId]);
 
   // ── Plugins (needed by AttachMenu for feature gating) ────────────────────
   // On the landing page we have no conversation, so we synthesise the active
@@ -738,6 +765,7 @@ export const NewHome: React.FC = () => {
                 onEffortChange={setSelectedEffort}
                 isNewChat
                 composerRef={composerRef}
+                enforcedByAssistant={!!enforcedModelId}
               />
 
               {/*

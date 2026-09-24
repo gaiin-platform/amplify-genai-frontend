@@ -41,6 +41,7 @@ import {
   IconChevronDown,
   IconChevronRight,
   IconInfoCircle,
+  IconLock,
   IconRoute,
 } from '@tabler/icons-react';
 import {
@@ -265,6 +266,74 @@ const InfoTooltip: React.FC<{ text: string }> = ({ text }) => {
             }}
           >
             {text}
+          </div>
+        </FloatingPortal>
+      )}
+    </span>
+  );
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LockTooltip — shown in the trigger when a model is enforced by an assistant
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Small lock icon with a Floating UI tooltip explaining why the model is fixed.
+ * Uses the same positioning stack as InfoTooltip so it never clips.
+ */
+const LockTooltip: React.FC = () => {
+  const [show, setShow] = useState(false);
+  const id = useId();
+
+  const { refs, x, y, strategy } = useFloating({
+    open: show,
+    placement: 'top',
+    strategy: 'fixed',
+    middleware: [
+      offset(6),
+      flip({ fallbackPlacements: ['bottom', 'right', 'left'] }),
+      shift({ padding: 8 }),
+    ],
+    whileElementsMounted: autoUpdate,
+  } as any);
+
+  return (
+    <span
+      ref={refs.setReference}
+      className="inline-flex items-center flex-shrink-0"
+      aria-describedby={show ? id : undefined}
+      onMouseEnter={() => setShow(true)}
+      onMouseLeave={() => setShow(false)}
+      style={{ color: 'var(--text-muted)' }}
+    >
+      <IconLock size={12} aria-hidden="true" />
+      {show && (
+        <FloatingPortal>
+          <div
+            ref={refs.setFloating}
+            id={id}
+            role="tooltip"
+            data-new-ui-shell="true"
+            style={{
+              position: strategy,
+              top: y ?? 0,
+              left: x ?? 0,
+              visibility: x == null ? 'hidden' : 'visible',
+              width: 240,
+              background: 'var(--bg-raised)',
+              border: '1px solid var(--border-subtle)',
+              borderRadius: 8,
+              padding: '8px 12px',
+              pointerEvents: 'none',
+              zIndex: 10002,
+              boxShadow: '0 8px 24px rgba(0,0,0,.35)',
+              fontSize: 12.5,
+              lineHeight: 1.45,
+              color: 'var(--text-secondary)',
+              whiteSpace: 'normal',
+            }}
+          >
+            This assistant enforces a specific model. The model cannot be changed while this assistant is active.
           </div>
         </FloatingPortal>
       )}
@@ -792,6 +861,9 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   const { refs, x, y, strategy, context } = useFloating({
     open: primaryOpen,
     onOpenChange: (o: boolean) => {
+      // When a model is enforced by the assistant, prevent opening the picker menu.
+      // The lock badge in the trigger explains why.
+      if (enforcedByAssistant && o) return;
       setPrimaryOpen(o);
       if (!o) {
         setSubmenu(null);
@@ -935,17 +1007,20 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
         ref={refs.setReference}
         {...getReferenceProps()}
         type="button"
-        aria-haspopup="menu"
-        aria-expanded={primaryOpen}
+        aria-haspopup={enforcedByAssistant ? undefined : 'menu'}
+        aria-expanded={enforcedByAssistant ? undefined : primaryOpen}
         aria-label={
-          effectiveAutoRoute
-            ? 'Model Router active — Amplify selects the best model automatically. Change model'
-            : `Model: ${modelName}${showEffort ? `, effort ${effortLabel}` : ''}. Change model`
+          enforcedByAssistant
+            ? `Model: ${modelName} — locked by assistant`
+            : effectiveAutoRoute
+              ? 'Model Router active — Amplify selects the best model automatically. Change model'
+              : `Model: ${modelName}${showEffort ? `, effort ${effortLabel}` : ''}. Change model`
         }
         className="flex items-center gap-[6px] h-[30px] px-[8px] rounded-[8px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
         style={{
           background: primaryOpen ? 'var(--bg-active)' : 'transparent',
           color: primaryOpen ? 'var(--text-primary)' : 'var(--text-secondary)',
+          cursor: enforcedByAssistant ? 'default' : undefined,
         }}
         onMouseEnter={(e) => {
           if (!primaryOpen) {
@@ -982,7 +1057,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
         >
           {modelName}
         </span>
-        {showEffort && (
+        {showEffort && !enforcedByAssistant && (
           <span
             className="text-[13.5px] font-[400] flex-shrink-0"
             style={{ color: 'var(--text-muted)' }}
@@ -990,14 +1065,19 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
             {effortLabel}
           </span>
         )}
-        <IconChevronDown
-          size={14}
-          className="flex-shrink-0 transition-transform duration-150"
-          style={{
-            color: 'var(--text-muted)',
-            transform: primaryOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-          }}
-        />
+        {/* Lock badge — shown instead of chevron when model is enforced by assistant */}
+        {enforcedByAssistant ? (
+          <LockTooltip />
+        ) : (
+          <IconChevronDown
+            size={14}
+            className="flex-shrink-0 transition-transform duration-150"
+            style={{
+              color: 'var(--text-muted)',
+              transform: primaryOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            }}
+          />
+        )}
       </button>
 
       {/* ── Primary menu ── */}

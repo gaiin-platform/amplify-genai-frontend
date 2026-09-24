@@ -243,6 +243,30 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     detach: detachAssistant,
   } = useConversationAssistant();
 
+  // ── Enforced-model from assistant ─────────────────────────────────────────
+  // When the active assistant declares `definition.data.model`, that model is
+  // non-negotiable: override local state AND persist it onto the conversation so
+  // useChatSendService actually sends with it — the default-model logic elsewhere
+  // must not win over an explicit assistant-level enforcement.
+  const enforcedModelId = activeAssistant?.definition?.data?.model as string | undefined;
+
+  const selectedConversationRef = useRef(selectedConversation);
+  selectedConversationRef.current = selectedConversation;
+
+  useEffect(() => {
+    if (!enforcedModelId) return;
+    const enforced = availableModels[enforcedModelId];
+    if (!enforced) return;
+
+    setSelectedModelId(enforcedModelId);
+    const conv = selectedConversationRef.current;
+    if (conv && conv.model?.id !== enforcedModelId) {
+      handleUpdateConversation(conv, { key: 'model', value: enforced });
+    }
+    // enforcedModelId is the only trigger — the ref keeps selectedConversation fresh
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enforcedModelId]);
+
   // ── Prior-message data sources ─────────────────────────────────────────────
   // Documents from earlier messages in this conversation. Included on every
   // subsequent send so the model retains file context beyond the single turn it
@@ -1243,6 +1267,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 onEffortChange={handleEffortChange}
                 isNewChat={false}
                 composerRef={composerRef}
+                enforcedByAssistant={!!enforcedModelId}
               />
 
               {/*
