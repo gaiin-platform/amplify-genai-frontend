@@ -11,6 +11,8 @@ import { fixJsonString } from "@/utils/app/errorHandling";
 import { DefaultModels, Model } from "@/types/model";
 import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
 import { saveArtifact, getAllArtifacts } from "@/services/artifactsService";
+import { jsonrepair } from "jsonrepair";
+import { v4 as uuidv4 } from "uuid";
 
 /**
  * Extract a human-readable title from generated artifact markdown.
@@ -222,41 +224,76 @@ const prepareArtifacts = (jsonContent: string, retry: boolean) => {
         homeDispatch({field: 'messageIsStreaming', value: true}); 
         homeDispatch({field: 'artifactIsStreaming', value: true});
 
+        let data: any;
         try {
-            const data = JSON.parse(jsonContent);
-            
-            // Resolve name: prefer explicit name, fall back to description (truncated),
-            // then type + "Artifact" as a last resort so we never show "Untitled artifact".
-            const resolvedName: string = data.name
-                || (data.description ? String(data.description).slice(0, 80).trim() : '')
-                || (data.type ? `${String(data.type).charAt(0).toUpperCase()}${String(data.type).slice(1)} Artifact` : '')
-                || '';
-
-            const artifactDetail = {
-                artifactId: data.id,
-                name: resolvedName,
-                createdAt: getDateName(),
-                description: data.description,
-                version: undefined // determined later
+            // Absorb minor LLM formatting slips (trailing commas, stray characters,
+            // etc.) before attempting a strict parse. This is a no-op on already-valid
+            // JSON, so it never masks a genuine syntax error — it just avoids treating
+            // trivially-fixable content as broken.
+            let candidate = jsonContent;
+            try {
+                candidate = jsonrepair(jsonContent);
+            } catch {
+                candidate = jsonContent;
             }
-            // setArtifactDetails(artifactDetail);
-            const instr = data.instructions + (data.type ? `This Artifact is expected to be of type: '${data.type}' `: '');
-            const includeArtifactsId = data.includeArtifactsId || [];
-
-            const additionalContent = appendRelevantArtifacts(includeArtifactsId, data.id);
-            const webSearchContent = collectRecentWebSearchResults();
-
-            const prompt = `${instr}\n\n${additionalContent}${webSearchContent}`
-
-            getArtifactMessages(prompt,  artifactDetail as ArtifactBlockDetail, data.type, messageKey, cooldownKey);
-
+            data = JSON.parse(candidate);
         } catch {
             console.log("error parsing auto artifacts block ");
             // Clean up the processing flag on error
             delete (window as any)[messageKey];
             // try to repair json
             if (retry) repairJson();
-        }        
+            return;
+        }
+
+        // From here on the JSON itself parsed successfully — any missing/empty
+        // fields are a semantic gap (e.g. the model omitted an id, or genuinely had
+        // nothing to generate), not a syntax error. Handle those directly instead of
+        // routing through the JSON-repair/retry path, which is reserved for actually
+        // broken JSON and would otherwise leave the message stuck at RUNNING forever
+        // on the second (no-retry) pass.
+        const artifactId = (typeof data.id === 'string' && data.id.trim()) || uuidv4();
+        const instructions = typeof data.instructions === 'string' ? data.instructions.trim() : '';
+        const description = typeof data.description === 'string' ? data.description.trim() : '';
+        const requestedType = typeof data.type === 'string' ? data.type.trim() : '';
+
+        if (!instructions && !description) {
+            console.log("Artifact request has no usable instructions or description; cancelling quietly");
+            delete (window as any)[messageKey];
+            message.data = {
+                ...(message.data || {}),
+                artifactStatus: ArtifactMessageStatus.CANCELLED,
+            };
+            homeDispatch({field: 'messageIsStreaming', value: false});
+            homeDispatch({field: 'artifactIsStreaming', value: false});
+            return;
+        }
+
+        // Resolve name from the request itself when the model provided one.
+        // Deliberately left empty (not defaulted to a generic label) when neither
+        // is present — the completion-time auto-title step below prefers a real
+        // title extracted from the generated content (e.g. the document's first
+        // H1) over a generic placeholder, and only falls back to a generic label
+        // if that extraction also comes up empty.
+        const resolvedName: string = (typeof data.name === 'string' ? data.name.trim() : '')
+            || description.slice(0, 80);
+
+        const artifactDetail = {
+            artifactId,
+            name: resolvedName,
+            createdAt: getDateName(),
+            description,
+            version: undefined // determined later
+        };
+        const instr = `${instructions || description}${requestedType ? `\nThis Artifact is expected to be of type: '${requestedType}'.` : ''}`;
+        const includeArtifactsId = data.includeArtifactsId || [];
+
+        const additionalContent = appendRelevantArtifacts(includeArtifactsId, artifactId);
+        const webSearchContent = collectRecentWebSearchResults();
+
+        const prompt = `${instr}\n\n${additionalContent}${webSearchContent}`
+
+        getArtifactMessages(prompt,  artifactDetail as ArtifactBlockDetail, data.type, messageKey, cooldownKey);
 }
 
 
@@ -364,7 +401,13 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
 
         const handleStopGenerationEvent = () => {
             controller.abort();
-            console.log("Kill artifact event trigger, control signal aborted value: " , controller.signal.aborted); 
+            message.data = {
+                ...(message.data || {}),
+                artifactStatus: ArtifactMessageStatus.STOPPED,
+            };
+            homeDispatch({ field: 'artifactIsStreaming', value: false });
+            homeDispatch({ field: 'messageIsStreaming', value: false });
+            console.log("Kill artifact event trigger, control signal aborted value: " , controller.signal.aborted);
         }
 
         window.addEventListener('killArtifactRequest', handleStopGenerationEvent);
@@ -540,6 +583,20 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 homeDispatch({field: 'messageIsStreaming', value: false});
                 homeDispatch({field: 'artifactIsStreaming', value: false});
 
+                const rawContent = lzwUncompress(selectArtifacts[selectArtifacts.length - 1].contents as any);
+                const unusableFallback = /no artifact was requested|please provide the (content|task|instructions)/i.test(rawContent.trim());
+                if (!controller.signal.aborted && unusableFallback) {
+                    updatedConversation.messages[messageLen].data = {
+                        ...(updatedConversation.messages[messageLen].data || {}),
+                        artifactStatus: ArtifactMessageStatus.CANCELLED,
+                    };
+                    homeDispatch({ field: 'selectedArtifacts', value: selectArtifacts.slice(0, -1) });
+                    handleUpdateSelectedConversation(updatedConversation);
+                    if (messageKey) delete (window as any)[messageKey];
+                    window.removeEventListener('killArtifactRequest', handleStopGenerationEvent);
+                    return;
+                }
+
                 // ── Auto-title: if the JSON didn't include a name, extract one
                 //    from the generated content — only for document type (first H1).
                 //    For spreadsheet/code/visualization we never use raw content as title.
@@ -574,6 +631,22 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     }
                 }
 
+                // ── Final fallback: still no name after the request itself and the
+                //    content-based extraction above both came up empty (e.g. a
+                //    spreadsheet/code/visualization artifact with no explicit name,
+                //    or a document with no H1). Ensure every artifact is titled —
+                //    this must run before the artifact is added to the conversation
+                //    and saved to the server below. Uses the most specific type we
+                //    know at this point (declared, or sniffed just above) for a
+                //    label like "Spreadsheet Artifact" instead of a bare "Artifact".
+                if (!controller.signal.aborted && !artifactDetail.name) {
+                    const labelType = type || selectArtifacts[selectArtifacts.length - 1].type;
+                    const finalName = (labelType ? `${labelType.charAt(0).toUpperCase()}${labelType.slice(1)} Artifact` : '') || 'Artifact';
+                    artifactDetail.name = finalName;
+                    selectArtifacts[selectArtifacts.length - 1].name = finalName;
+                    homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
+                }
+
                 // update selectedConversation to include the completed selectArtifacts
                 updatedConversation.artifacts = {...(updatedConversation.artifacts ?? {}), [artifact.artifactId]: selectArtifacts };
                 const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
@@ -587,20 +660,23 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 //    clicking "Save Artifact" manually.
                 if (!controller.signal.aborted) {
                     const artifactToSave = selectArtifacts[selectArtifacts.length - 1];
-                    saveArtifact({
-                        ...artifactToSave,
-                        // Store conversation reference for potential future "open in chat" navigation
-                        conversationId: selectedConversation?.id,
-                    } as any).then((result) => {
-                        if (result.success) {
-                            // Refresh the library so the new artifact appears immediately
-                            getAllArtifacts().then((response) => {
-                                if (response.success) {
-                                    homeDispatch({ field: 'artifacts', value: response.data });
-                                }
-                            }).catch(() => {/* non-critical */});
-                        }
-                    }).catch(() => {/* non-critical — manual save still available */});
+                    const saveResult = await saveArtifact({
+                        artifactId: artifactToSave.artifactId,
+                        version: artifactToSave.version,
+                        name: artifactToSave.name,
+                        type: artifactToSave.type,
+                        description: artifactToSave.description,
+                        contents: artifactToSave.contents,
+                        tags: artifactToSave.tags,
+                        createdAt: artifactToSave.createdAt,
+                        ...(artifactToSave.metadata ? { metadata: artifactToSave.metadata } : {}),
+                    });
+                    if (saveResult?.success) {
+                        const response = await getAllArtifacts();
+                        if (response.success) homeDispatch({ field: 'artifacts', value: response.data });
+                    } else {
+                        console.error('Artifact save rejected by server:', saveResult?.message || saveResult);
+                    }
                 }
             }
 
@@ -721,7 +797,9 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
 
     const data = findArtifact();
     const artifact = data?.artifact ?? null;
-    const isGeneratingNow = generating || (artifactIsStreaming && !artifact);
+    const stopped = message.data?.artifactStatus === ArtifactMessageStatus.STOPPED;
+    const cancelled = message.data?.artifactStatus === ArtifactMessageStatus.CANCELLED;
+    const isGeneratingNow = !stopped && !cancelled && (generating || (artifactIsStreaming && !artifact));
 
     const handleTogglePanel = () => {
         if (isPanelOpen) {
@@ -735,7 +813,7 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
     };
 
     /* ── Unavailable state for cancelled/missing artifacts ── */
-    const isCancelled = message.data?.artifactStatus === ArtifactMessageStatus.CANCELLED;
+    const isCancelled = cancelled || stopped;
     if (!isGeneratingNow && !artifact && (isCancelled || !generating)) {
         return (
             <div
@@ -751,12 +829,12 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
                 }}
             >
                 <IconFileText size={16} style={{ flexShrink: 0 }} />
-                <span>Artifact unavailable</span>
+                <span>{stopped ? 'Artifact generation stopped' : 'Artifact unavailable'}</span>
             </div>
         );
     }
 
-    const displayTitle  = artifact?.name || (isGeneratingNow ? 'Creating artifact…' : 'Untitled artifact');
+    const displayTitle  = artifact?.name || (isGeneratingNow ? 'Creating artifact…' : 'Artifact');
     const displayType   = isGeneratingNow ? 'Writing…' : typeLabel(artifact?.type, artifact?.metadata?.language as string);
     const version       = artifact?.version;
     const showVersion   = !isGeneratingNow && typeof version === 'number' && version > 1;

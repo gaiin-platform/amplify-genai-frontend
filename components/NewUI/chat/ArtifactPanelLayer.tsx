@@ -60,6 +60,8 @@ import toast from 'react-hot-toast';
 import { resolveNUIType, sniffContentType } from '@/types/artifacts';
 import { generateXLSXBlob } from '@/utils/app/xlsxGenerator';
 import Papa from 'papaparse';
+import { getAllArtifacts, saveArtifact } from '@/services/artifactsService';
+import { renameArtifactInConversation } from '@/components/NewUI/shared/artifactLibraryModel';
 
 /** ID of the header container injected into #artifactsTab */
 const HEADER_ROOT_ID = 'nui-artifact-header-root';
@@ -271,8 +273,12 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
       : null;
 
   const getArtifactContent = useCallback(() => {
-    if (!currentArtifact) return '';
-    return lzwUncompress(currentArtifact.contents);
+    if (!currentArtifact || !Array.isArray(currentArtifact.contents) || currentArtifact.contents.length === 0) return '';
+    try {
+      return lzwUncompress(currentArtifact.contents);
+    } catch {
+      return '';
+    }
   }, [currentArtifact]);
 
   const truncated = !artifactIsStreaming && currentArtifact
@@ -432,28 +438,45 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
     setShowDownloadMenu(false);
   };
 
-  const commitRename = () => {
+  const commitRename = async () => {
     const trimmed = renameValue.trim();
     setIsRenaming(false);
     if (!trimmed || !selectedArtifacts || !currentArtifact) return;
     if (trimmed === currentArtifact.name) return;
 
-    // Update selectedArtifacts in HomeContext
     const updatedArtifacts = selectedArtifacts.map((a, i) =>
       i === currentIdx ? { ...a, name: trimmed } : a,
     );
     homeDispatch({ field: 'selectedArtifacts', value: updatedArtifacts });
 
-    // Persist to selectedConversation.artifacts so it survives reload
     if (selectedConversation && currentArtifact.artifactId) {
-      const updatedConversation = {
-        ...selectedConversation,
-        artifacts: {
-          ...(selectedConversation.artifacts ?? {}),
-          [currentArtifact.artifactId]: updatedArtifacts,
-        },
-      };
+      const updatedConversation = renameArtifactInConversation(
+        selectedConversation,
+        currentArtifact.artifactId,
+        currentArtifact.version,
+        trimmed,
+        updatedArtifacts,
+      );
       handleUpdateSelectedConversation(updatedConversation);
+    }
+
+    try {
+      const result = await saveArtifact({
+        artifactId: currentArtifact.artifactId,
+        version: currentArtifact.version,
+        name: trimmed,
+        type: currentArtifact.type,
+        description: currentArtifact.description,
+        contents: currentArtifact.contents,
+        tags: currentArtifact.tags,
+        createdAt: currentArtifact.createdAt,
+        ...(currentArtifact.metadata ? { metadata: currentArtifact.metadata } : {}),
+      });
+      if (!result?.success) throw new Error('Artifact rename failed');
+      const response = await getAllArtifacts();
+      if (response.success) homeDispatch({ field: 'artifacts', value: response.data || [] });
+    } catch {
+      toast.error('Artifact renamed locally, but server sync failed');
     }
   };
 

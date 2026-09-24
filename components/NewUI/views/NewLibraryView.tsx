@@ -41,6 +41,8 @@ import {
     IconSquare,
     IconEye,
     IconPaperclip,
+    IconLibrary,
+    IconArrowUpRight,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import {
@@ -66,6 +68,13 @@ import {
 } from '@/components/NewUI/shared/libraryQuery';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import ArtifactPreviewModal from '@/components/NewUI/shared/ArtifactPreviewModal';
+import {
+    buildArtifactLibraryItems,
+    hydrateArtifactLibraryItem,
+    type ArtifactLibraryItem,
+} from '@/components/NewUI/shared/artifactLibraryModel';
+import { getAllArtifacts, getArtifact } from '@/services/artifactsService';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // sanitizePageKey / buildLibraryQuery live in shared/libraryQuery.ts so the
@@ -517,10 +526,11 @@ const SORT_ACTION_WIDTH = 92;
 
 export const NewLibraryView: React.FC = () => {
     const {
-        state: { featureFlags },
+        state: { featureFlags, artifacts: savedArtifacts, conversations },
         dispatch,
         setLoadingMessage,
         handleNewConversation,
+        handleSelectConversation,
     } = useContext(HomeContext);
 
     // ── Data state ─────────────────────────────────────────────────────────────
@@ -529,6 +539,11 @@ export const NewLibraryView: React.FC = () => {
     const [isRefetching, setIsRefetching] = useState(false);
     const [isError, setIsError] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
+    const [libraryMode, setLibraryMode] = useState<'files' | 'artifacts'>('files');
+    const [artifactPreview, setArtifactPreview] = useState<ArtifactLibraryItem | null>(null);
+    const [artifactsLoading, setArtifactsLoading] = useState(false);
+    const [viewLoadingKey, setViewLoadingKey] = useState<string | null>(null);
+    const artifactItems = useMemo(() => buildArtifactLibraryItems(savedArtifacts, conversations), [savedArtifacts, conversations]);
 
     // Pagination
     const [pageIndex, setPageIndex] = useState(0);
@@ -623,6 +638,26 @@ export const NewLibraryView: React.FC = () => {
             setIsRefetching(false);
         }
     }, [data.length]);
+
+    const refreshArtifacts = useCallback(async () => {
+        setArtifactsLoading(true);
+        try {
+            const response = await getAllArtifacts();
+            if (response.success) {
+                dispatch({ field: 'artifacts', value: response.data || [] });
+            } else {
+                toast.error('Unable to load artifacts');
+            }
+        } catch {
+            toast.error('Unable to load artifacts');
+        } finally {
+            setArtifactsLoading(false);
+        }
+    }, [dispatch]);
+
+    useEffect(() => {
+        if (libraryMode === 'artifacts') refreshArtifacts();
+    }, [libraryMode, refreshArtifacts]);
 
     // Initial + refresh fetch
     useEffect(() => {
@@ -860,6 +895,55 @@ export const NewLibraryView: React.FC = () => {
 
     // ── Actions ────────────────────────────────────────────────────────────────
 
+    const handleRefreshArtifacts = refreshArtifacts;
+
+    // Server list records (getAllArtifacts) are metadata-only — no compressed
+    // `contents` — so a row usually starts with hasContent:false. Fetch the
+    // full record (same getArtifact(key) call the classic ArtifactsSaved
+    // dropdown already uses) only when the user actually opens it.
+    const handleViewArtifact = async (item: ArtifactLibraryItem) => {
+        if (item.hasContent) {
+            setArtifactPreview(item);
+            return;
+        }
+        const lookupKey = item.artifact.key || item.artifact.artifactId;
+        if (!lookupKey) {
+            setArtifactPreview(item);
+            return;
+        }
+        setViewLoadingKey(item.stableKey);
+        try {
+            const result = await getArtifact(lookupKey);
+            if (result.success && result.data) {
+                setArtifactPreview(hydrateArtifactLibraryItem(item, result.data));
+            } else {
+                toast.error('Unable to load artifact content');
+                setArtifactPreview(item);
+            }
+        } catch {
+            toast.error('Unable to load artifact content');
+            setArtifactPreview(item);
+        } finally {
+            setViewLoadingKey(null);
+        }
+    };
+
+    const openArtifactChat = (item: ArtifactLibraryItem) => {
+        const source = item.source.conversation;
+        if (!source) return;
+        handleSelectConversation(source);
+        dispatch({ field: 'page', value: 'chat' });
+        if (item.source.versionIndex !== undefined) {
+            const versions = source.artifacts?.[item.artifact.artifactId];
+            if (versions?.length) {
+                dispatch({ field: 'selectedArtifacts', value: versions });
+                window.setTimeout(() => window.dispatchEvent(new CustomEvent('openArtifactsTrigger', {
+                    detail: { isOpen: true, artifactIndex: item.source.versionIndex },
+                })), 0);
+            }
+        }
+    };
+
     const handleDownload = (file: FileRecord & { commonType?: string }) => {
         downloadDataSourceFile({ id: file.id, name: file.name, type: file.type });
     };
@@ -1053,6 +1137,10 @@ export const NewLibraryView: React.FC = () => {
 
                 {/* Right: search + actions */}
                 <div className="flex items-center gap-2">
+                    <div className="flex items-center rounded-[8px] border p-0.5" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }} role="tablist" aria-label="Library content">
+                        <button type="button" role="tab" aria-selected={libraryMode === 'files'} onClick={() => setLibraryMode('files')} className="h-[28px] px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'files' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Files</button>
+                        <button type="button" role="tab" aria-selected={libraryMode === 'artifacts'} onClick={() => setLibraryMode('artifacts')} className="h-[28px] px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'artifacts' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Artifacts</button>
+                    </div>
                     {/* Search */}
                     <div className="relative">
                         <IconSearch
@@ -1147,8 +1235,36 @@ export const NewLibraryView: React.FC = () => {
                 </div>
             </div>
 
+            {libraryMode === 'artifacts' ? (
+                <div className="flex-1 overflow-y-auto p-4 md:p-6" data-new-ui-artifact-library="true">
+                    <div className="flex items-center justify-between mb-3">
+                        <div>
+                            <h2 className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Generated artifacts</h2>
+                            <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Artifacts created in your conversations.</p>
+                        </div>
+                        <button type="button" aria-label="Refresh artifacts" title="Refresh artifacts" onClick={handleRefreshArtifacts} className="h-8 w-8 rounded-[7px] flex items-center justify-center" style={{ color: 'var(--text-muted)' }}><IconRefresh size={15} /></button>
+                    </div>
+                    {artifactsLoading ? (
+                        <div className="flex items-center justify-center py-20 text-[13px]" style={{ color: 'var(--text-muted)' }}><IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none mr-2" /> Loading artifacts…</div>
+                    ) : artifactItems.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-center"><IconLibrary size={30} style={{ color: 'var(--text-muted)', opacity: .45 }} /><p className="mt-3 text-[13px]" style={{ color: 'var(--text-secondary)' }}>No generated artifacts yet</p><p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Create an artifact in a chat and it will appear here.</p></div>
+                    ) : (
+                        <div className="flex flex-col gap-2">
+                            {artifactItems.map((item) => (
+                                <div key={item.stableKey} className="flex items-center gap-3 rounded-[9px] border px-4 py-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
+                                    <div className="h-9 w-9 flex items-center justify-center rounded-[8px]" style={{ color: 'var(--accent)', backgroundColor: 'var(--bg-active)' }}><IconLibrary size={17} /></div>
+                                    <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</p><p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version} · {item.source.conversation?.name || 'Source conversation unavailable'}</p></div>
+                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => handleViewArtifact(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>{viewLoadingKey === item.stableKey ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
+                                    <button type="button" disabled={!item.source.conversation} onClick={() => openArtifactChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            ) : null}
+
             {/* ── Batch-delete confirmation bar ─────────────────────────────── */}
-            {isDeleteMode && (
+            {libraryMode === 'files' && isDeleteMode && (
                 <div
                     className="flex-shrink-0 flex items-center gap-3 px-6 py-2 border-b text-[13px]"
                     style={{
@@ -1178,6 +1294,7 @@ export const NewLibraryView: React.FC = () => {
                 </div>
             )}
 
+            {libraryMode === 'files' && <>
             {/* ── Column headers ────────────────────────────────────────────── */}
             <div
                 className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b"
@@ -1324,6 +1441,8 @@ export const NewLibraryView: React.FC = () => {
                     </>
                 )}
             </div>
+            </>}
+            {artifactPreview && <ArtifactPreviewModal item={artifactPreview} onClose={() => setArtifactPreview(null)} onOpenChat={() => { openArtifactChat(artifactPreview); setArtifactPreview(null); }} />}
             {previewAttachment && (
                 <AttachmentPreview
                     attachments={[previewAttachment]}
