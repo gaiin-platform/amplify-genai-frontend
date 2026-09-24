@@ -26,6 +26,7 @@ import {
     Memory,
 } from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { isBasePrompt } from '@/utils/app/basePrompts';
 import { promptForData } from '@/utils/app/llm';
 import {
@@ -99,6 +100,8 @@ export function useSendService() {
         postProcessingCallbacks,
         dispatch: homeDispatch,
     } = useContext(HomeContext);
+    const stableFeatureFlags = useStableFeatureFlags();
+    const artifactFeatureFlags = stableFeatureFlags;
 
 
     const conversationsRef = useRef(conversations);
@@ -231,7 +234,7 @@ export function useSendService() {
                     } = request;
                     messageTimestampRef.current = new Date().toISOString();
 
-                    const featureOptions = getSettings(featureFlags).featureOptions;
+                    const featureOptions = getSettings(artifactFeatureFlags).featureOptions;
                     const pluginActive = featureOptions.includePluginSelector;
                     const pluginIds: string[] | null = pluginActive ? plugins?.map((plugin: Plugin) => plugin.id) ?? [] : null;
 
@@ -360,7 +363,7 @@ export function useSendService() {
                     homeDispatch({ field: 'loading', value: true });
                     homeDispatch({ field: 'messageIsStreaming', value: true });
 
-                    let isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
+                    let isArtifactsOn = artifactFeatureFlags.artifacts && featureOptions.includeArtifacts &&
                         // we only consider whats in the plugins if we have the feature option for it on.
                         (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
                         // turn off artifacts for base prompt templates

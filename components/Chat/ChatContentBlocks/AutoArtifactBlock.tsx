@@ -616,7 +616,10 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 if (!controller.signal.aborted) {
                     const artifactToSave = selectArtifacts[selectArtifacts.length - 1];
                     const savePayload = buildArtifactSavePayload(artifactToSave);
-                    const saveResult = savePayload ? await saveArtifact(savePayload) : null;
+                    const saveRequest = savePayload && selectedConversation?.id
+                        ? { ...savePayload, conversationId: selectedConversation.id }
+                        : savePayload;
+                    const saveResult = saveRequest ? await saveArtifact(saveRequest) : null;
                     if (saveResult?.success) {
                         const response = await getAllArtifacts();
                         if (response.success) homeDispatch({ field: 'artifacts', value: response.data });

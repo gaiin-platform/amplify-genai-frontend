@@ -68,10 +68,8 @@ import {
 } from '@/components/NewUI/shared/libraryQuery';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
-import ArtifactPreviewModal from '@/components/NewUI/shared/ArtifactPreviewModal';
 import {
     buildArtifactLibraryItems,
-    hydrateArtifactLibraryItem,
     type ArtifactLibraryItem,
 } from '@/components/NewUI/shared/artifactLibraryModel';
 import { getAllArtifacts, getArtifact } from '@/services/artifactsService';
@@ -526,7 +524,7 @@ const SORT_ACTION_WIDTH = 92;
 
 export const NewLibraryView: React.FC = () => {
     const {
-        state: { featureFlags, artifacts: savedArtifacts, conversations },
+        state: { featureFlags, artifacts: savedArtifacts, conversations, selectedConversation },
         dispatch,
         setLoadingMessage,
         handleNewConversation,
@@ -540,10 +538,13 @@ export const NewLibraryView: React.FC = () => {
     const [isError, setIsError] = useState(false);
     const [refreshKey, setRefreshKey] = useState(0);
     const [libraryMode, setLibraryMode] = useState<'files' | 'artifacts'>('files');
-    const [artifactPreview, setArtifactPreview] = useState<ArtifactLibraryItem | null>(null);
     const [artifactsLoading, setArtifactsLoading] = useState(false);
     const [viewLoadingKey, setViewLoadingKey] = useState<string | null>(null);
-    const artifactItems = useMemo(() => buildArtifactLibraryItems(savedArtifacts, conversations), [savedArtifacts, conversations]);
+    const artifactConversations = useMemo(() => {
+        const all = selectedConversation ? [selectedConversation, ...conversations] : conversations;
+        return Array.from(new Map(all.map((conversation) => [conversation.id, conversation])).values());
+    }, [selectedConversation, conversations]);
+    const artifactItems = useMemo(() => buildArtifactLibraryItems(savedArtifacts, artifactConversations), [savedArtifacts, artifactConversations]);
 
     // Pagination
     const [pageIndex, setPageIndex] = useState(0);
@@ -897,72 +898,39 @@ export const NewLibraryView: React.FC = () => {
 
     const handleRefreshArtifacts = refreshArtifacts;
 
-    // Server list records (getAllArtifacts) are metadata-only — no compressed
-    // `contents` — so a row usually starts with hasContent:false. Fetch the
-    // full record (same getArtifact(key) call the classic ArtifactsSaved
-    // dropdown already uses) only when the user actually opens it.
-    const handleViewArtifact = async (item: ArtifactLibraryItem) => {
-        if (item.hasContent) {
-            setArtifactPreview(item);
-            return;
-        }
-        const lookupKey = item.artifact.key || item.artifact.artifactId;
-        if (!lookupKey) {
-            setArtifactPreview(item);
-            return;
-        }
+    const openArtifactInChat = async (item: ArtifactLibraryItem) => {
         setViewLoadingKey(item.stableKey);
         try {
-            const result = await getArtifact(lookupKey);
-            if (result.success && result.data) {
-                setArtifactPreview(hydrateArtifactLibraryItem(item, result.data));
-            } else {
-                toast.error('Unable to load artifact content');
-                setArtifactPreview(item);
-            }
-        } catch {
-            toast.error('Unable to load artifact content');
-            setArtifactPreview(item);
-        } finally {
-            setViewLoadingKey(null);
-        }
-    };
-
-    const openArtifactChat = async (item: ArtifactLibraryItem) => {
-        const sourceId = item.source.conversationId;
-        if (!sourceId) return;
-
-        // The conversation list intentionally contains lightweight remote records.
-        // When the artifact metadata has the source id but the summary is not in the
-        // current list, keep the record remote so handleSelectConversation fetches it.
-        const source = item.source.conversation ?? ({
-            id: sourceId,
-            name: 'Artifact conversation',
-            messages: [],
-            model: {} as any,
-            folderId: null,
-            isLocal: false,
-        } as any);
-
-        let hydratedArtifact: any = item.hasContent ? item.artifact : null;
-        if (!hydratedArtifact) {
             const lookupKey = item.artifact.key || item.artifact.artifactId;
-            if (lookupKey) {
-                try {
-                    const result = await getArtifact(lookupKey);
-                    if (result.success && result.data) hydratedArtifact = result.data;
-                } catch {
-                    // Conversation navigation remains useful even if content hydration fails.
-                }
+            let hydratedArtifact: any = item.hasContent ? item.artifact : null;
+            if (!hydratedArtifact && lookupKey) {
+                const result = await getArtifact(lookupKey);
+                if (result.success && result.data) hydratedArtifact = result.data;
             }
-        }
 
-        await handleSelectConversation(source);
-        dispatch({ field: 'page', value: 'chat' });
+            const sourceId = item.source.conversationId;
+            if (!sourceId) {
+                toast.error('Source conversation unavailable for this artifact');
+                return;
+            }
+            const source = item.source.conversation ?? ({
+                id: sourceId,
+                name: 'Artifact conversation',
+                messages: [],
+                model: {} as any,
+                folderId: null,
+                isLocal: false,
+            } as any);
 
-        const versions = source.artifacts?.[item.artifact.artifactId];
-        const selectedVersions = versions?.length ? versions : hydratedArtifact ? [hydratedArtifact] : [];
-        if (selectedVersions.length) {
+            await handleSelectConversation(source);
+            dispatch({ field: 'page', value: 'chat' });
+
+            const versions = source.artifacts?.[item.artifact.artifactId];
+            const selectedVersions = versions?.length ? versions : hydratedArtifact ? [hydratedArtifact] : [];
+            if (!selectedVersions.length) {
+                toast.error('Unable to load artifact content');
+                return;
+            }
             const requestedIndex = item.source.versionIndex;
             const artifactIndex = requestedIndex !== undefined
                 ? Math.min(requestedIndex, selectedVersions.length - 1)
@@ -971,6 +939,10 @@ export const NewLibraryView: React.FC = () => {
             window.setTimeout(() => window.dispatchEvent(new CustomEvent('openArtifactsTrigger', {
                 detail: { isOpen: true, artifactIndex },
             })), 0);
+        } catch {
+            toast.error('Unable to open artifact in chat');
+        } finally {
+            setViewLoadingKey(null);
         }
     };
 
@@ -1284,8 +1256,8 @@ export const NewLibraryView: React.FC = () => {
                                 <div key={item.stableKey} className="flex items-center gap-3 rounded-[9px] border px-4 py-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
                                     <div className="h-9 w-9 flex items-center justify-center rounded-[8px]" style={{ color: 'var(--accent)', backgroundColor: 'var(--bg-active)' }}><IconLibrary size={17} /></div>
                                     <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</p><p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version} · {item.source.conversation?.name || (item.source.conversationId ? 'Source conversation' : 'Source conversation unavailable')}</p></div>
-                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => handleViewArtifact(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>{viewLoadingKey === item.stableKey ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
-                                    <button type="button" disabled={!item.source.conversationId} onClick={() => void openArtifactChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
+                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => void openArtifactInChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>{viewLoadingKey === item.stableKey ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
+                                    <button type="button" disabled={!item.source.conversationId || viewLoadingKey === item.stableKey} onClick={() => void openArtifactInChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
                                 </div>
                             ))}
                         </div>
@@ -1472,7 +1444,6 @@ export const NewLibraryView: React.FC = () => {
                 )}
             </div>
             </>}
-            {artifactPreview && <ArtifactPreviewModal item={artifactPreview} onClose={() => setArtifactPreview(null)} onOpenChat={() => { openArtifactChat(artifactPreview); setArtifactPreview(null); }} />}
             {previewAttachment && (
                 <AttachmentPreview
                     attachments={[previewAttachment]}

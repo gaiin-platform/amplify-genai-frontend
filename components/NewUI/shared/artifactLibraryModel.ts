@@ -176,9 +176,17 @@ export function normalizeArtifactRecord(value: unknown): ArtifactLibraryRecord |
     contents: rawContents,
   } as ArtifactLibraryRecord;
 
-  const explicitConversationId = value.conversationId ?? value.metadata?.conversationId;
+  const explicitConversationId = value.conversationId
+    ?? value.metadata?.conversationId
+    ?? value.metadata?.conversation_id
+    ?? value.sourceConversationId
+    ?? value.source?.conversationId;
   if (typeof explicitConversationId === 'string' && explicitConversationId.trim()) {
     record.conversationId = explicitConversationId.trim();
+    record.metadata = {
+      ...(record.metadata ?? {}),
+      conversationId: explicitConversationId.trim(),
+    };
   }
   return record;
 }

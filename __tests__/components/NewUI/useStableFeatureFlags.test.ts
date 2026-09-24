@@ -70,6 +70,11 @@ describe('resolveFeatureFlags', () => {
         const server = { ...cached, smartMessages: true };
         expect(resolveFeatureFlags(server, cached)).toEqual(server);
     });
+
+    it('preserves the artifacts flag when the startup patch arrives first', () => {
+        const full = { ...cached, artifacts: true };
+        expect(resolveFeatureFlags({ smartMessages: false }, full)).toEqual({ ...full, smartMessages: false });
+    });
 });
 
 describe('isFullFlagSet', () => {

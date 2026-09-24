@@ -135,6 +135,20 @@ describe('artifactLibraryModel', () => {
     const unloaded = findArtifactSource(artifact({ conversationId: source.id }), []);
     expect(unloaded).toMatchObject({ conversationId: source.id, confidence: 'explicit' });
     expect(unloaded.conversation).toBeUndefined();
+    const normalized = normalizeArtifactRecords([{ ...artifact(), sourceConversationId: source.id }])[0];
+    expect(normalized?.conversationId).toBe(source.id);
+    expect(normalized?.metadata?.conversationId).toBe(source.id);
+  });
+
+  it('finds a newly-created artifact through the selected conversation artifact map', () => {
+    const source = conversation({ artifacts: { 'artifact-1': [artifact()] } });
+    const [item] = buildArtifactLibraryItems([{ ...artifact(), metadata: undefined }], [source]);
+    expect(item.source).toMatchObject({
+      conversationId: source.id,
+      conversation: source,
+      confidence: 'artifact',
+      versionIndex: 0,
+    });
   });
 
   it('matches source chats through message artifact references', () => {

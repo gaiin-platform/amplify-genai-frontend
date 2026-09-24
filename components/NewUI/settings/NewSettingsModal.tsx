@@ -29,6 +29,7 @@ import {
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { getSettings, saveSettings, featureOptionFlags } from '@/utils/app/settings';
 import { Flag } from '@/components/ReusableComponents/FlagsMap';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
@@ -145,13 +146,21 @@ const STORAGE_CONFIRM: Record<ConversationStorage, string> = {
 const GeneralSection: FC = () => {
   const {
     dispatch: homeDispatch,
-    state: { featureFlags, storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService, availableModels, defaultModelId, advancedModelId },
+    state: { storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService, availableModels, defaultModelId, advancedModelId },
   } = useContext(HomeContext);
+  const featureFlags = useStableFeatureFlags();
 
   const settings = getSettings(featureFlags);
-  const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(
-    settings.featureOptions,
-  );
+  const featureOptionDefaults = settings.featureOptions;
+  const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(featureOptionDefaults);
+  const previousFeatureFlagsRef = useRef(featureFlags);
+  useEffect(() => {
+    if (previousFeatureFlagsRef.current === featureFlags) return;
+    previousFeatureFlagsRef.current = featureFlags;
+    setFeatureOptions((current) => Object.fromEntries(
+      Object.keys(featureOptionDefaults).map((key) => [key, current[key] ?? featureOptionDefaults[key]]),
+    ));
+  }, [featureFlags, featureOptionDefaults]);
 
   // ── Default model ─────────────────────────────────────────────────────
   const allModels = filterModels(availableModels, settings.hiddenModelIds);
