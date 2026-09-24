@@ -1052,12 +1052,24 @@
    previously set on that wrapper.
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"] .codeblock,
-[data-new-ui="true"] pre:has(code) {
+[data-new-ui="true"] pre:has(code):not(:has(.codeblock)) {
   margin: 18px 0 !important;
   border-radius: 12px !important;
   overflow: hidden !important;
   background-color: var(--bg-sidebar) !important;
   border: 1px solid var(--border-subtle) !important;
+}
+
+/* Neutralise the <pre> wrapper react-markdown places around our CodeBlock
+   component. The .codeblock div already carries the border/bg/radius above;
+   the outer <pre> must be invisible so we don't get a "box inside a box". */
+[data-new-ui="true"] pre:has(.codeblock) {
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  overflow: visible !important;
 }
 
 /* The code content wrapper (2nd child of .codeblock) must scroll horizontally.
