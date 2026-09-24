@@ -301,7 +301,7 @@ export const NewWorkflowsView: React.FC = () => {
               }}
               onMouseEnter={() => setHoveredId(t.templateId)}
               onMouseLeave={() => setHoveredId(null)}
-              className="relative cursor-pointer rounded-[8px] p-3 border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+              className="group relative flex cursor-pointer items-start rounded-[8px] border p-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
               style={{
                 background: isSelected
                   ? 'var(--bg-active)'
@@ -312,123 +312,132 @@ export const NewWorkflowsView: React.FC = () => {
                 borderWidth: isSelected ? '1.5px' : '1px',
               }}
             >
-              {/* Template name */}
-              <div className="flex items-center gap-2 mb-1">
-                <span
-                  className="text-[14px] font-medium truncate flex-1"
-                  style={{ color: 'var(--text-primary)' }}
-                >
-                  {t.name || '(Untitled)'}
-                </span>
-              </div>
-
-              {/* Description (1 line clamp) */}
-              {t.description && (
-                <p
-                  className="text-[13px] mb-2 leading-snug"
-                  style={{
-                    color: 'var(--text-secondary)',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 1,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                  }}
-                >
-                  {t.description}
-                </p>
-              )}
-
-              {/* Badges row */}
-              <div className="flex items-center gap-[6px] flex-wrap">
-                {/* Step count */}
-                <span
-                  className="text-[11px] px-2 py-[2px] rounded-full"
-                  style={{
-                    background: 'var(--bg-active)',
-                    color: 'var(--text-muted)',
-                  }}
-                >
-                  {stepCount} step{stepCount !== 1 ? 's' : ''}
-                </span>
-                {/* Base template badge */}
-                {t.isBaseTemplate && (
+              <div className="min-w-0 flex-1">
+                {/* Template name */}
+                <div className="mb-1 flex items-center gap-2">
                   <span
-                    className="text-[11px] px-2 py-[2px] rounded-full border"
+                    className="flex-1 truncate text-[14px] font-medium"
+                    style={{ color: 'var(--text-primary)' }}
+                  >
+                    {t.name || '(Untitled)'}
+                  </span>
+                </div>
+
+                {/* Description (1 line clamp) */}
+                {t.description && (
+                  <p
+                    className="mb-2 text-[13px] leading-snug"
                     style={{
-                      borderColor: 'var(--accent)',
-                      color: 'var(--accent)',
+                      color: 'var(--text-secondary)',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 1,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
                     }}
                   >
-                    Base template
-                  </span>
+                    {t.description}
+                  </p>
                 )}
-                {/* Public badge */}
-                {t.isPublic && (
+
+                {/* Badges row */}
+                <div className="flex flex-wrap items-center gap-[6px]">
+                  {/* Step count */}
                   <span
-                    className="text-[11px] px-2 py-[2px] rounded-full border"
+                    className="rounded-full px-2 py-[2px] text-[11px]"
                     style={{
-                      borderColor: 'var(--text-muted)',
+                      background: 'var(--bg-active)',
                       color: 'var(--text-muted)',
                     }}
                   >
-                    Public
+                    {stepCount} step{stepCount !== 1 ? 's' : ''}
                   </span>
-                )}
+                  {/* Base template badge */}
+                  {t.isBaseTemplate && (
+                    <span
+                      className="rounded-full border px-2 py-[2px] text-[11px]"
+                      style={{
+                        borderColor: 'var(--accent)',
+                        color: 'var(--accent)',
+                      }}
+                    >
+                      Base template
+                    </span>
+                  )}
+                  {/* Public badge */}
+                  {t.isPublic && (
+                    <span
+                      className="rounded-full border px-2 py-[2px] text-[11px]"
+                      style={{
+                        borderColor: 'var(--text-muted)',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      Public
+                    </span>
+                  )}
+                </div>
               </div>
 
-              {/* Hover action icons (edit + delete) */}
-              {canEdit && (isHovered || isSelected) && !isDeleting && (
-                <div
-                  className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    title="Edit workflow"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedId(t.templateId);
-                      setEditorTemplate(t);
-                      setShowEditor(true);
-                    }}
-                    className="w-7 h-7 flex items-center justify-center rounded-[6px] transition-colors"
-                    style={{ color: 'var(--text-muted)' }}
-                    onMouseEnter={(e) =>
-                      (e.currentTarget.style.background = 'var(--bg-active)')
-                    }
-                    onMouseLeave={(e) =>
-                      (e.currentTarget.style.background = 'transparent')
-                    }
-                  >
-                    <IconEdit size={14} />
-                  </button>
-                  <button
-                    title="Delete workflow"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmDeleteId(t.templateId);
-                    }}
-                    className="w-7 h-7 flex items-center justify-center rounded-[6px] transition-colors"
-                    style={{ color: 'var(--text-muted)' }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = 'var(--bg-active)';
-                      e.currentTarget.style.color = '#e05252';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = 'transparent';
-                      e.currentTarget.style.color = 'var(--text-muted)';
-                    }}
-                  >
-                    <IconTrash size={14} />
-                  </button>
-                </div>
-              )}
-
-              {/* Spinner while deleting */}
-              {isDeleting && (
-                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              {/* Reserved action rail: stays mounted so text never reflows on hover. */}
+              <div
+                className={`flex w-[60px] flex-shrink-0 items-center justify-end gap-1 self-center transition-opacity ${
+                  isDeleting
+                    ? 'opacity-100'
+                    : canEdit
+                    ? 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
+                    : 'pointer-events-none opacity-0'
+                }`}
+                onClick={(e) => e.stopPropagation()}
+              >
+                {canEdit && !isDeleting && (
+                  <>
+                    <button
+                      title="Edit workflow"
+                      aria-label="Edit workflow"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedId(t.templateId);
+                        setEditorTemplate(t);
+                        setShowEditor(true);
+                      }}
+                      className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors"
+                      style={{ color: 'var(--text-muted)' }}
+                      onMouseEnter={(e) =>
+                        (e.currentTarget.style.background = 'var(--bg-active)')
+                      }
+                      onMouseLeave={(e) =>
+                        (e.currentTarget.style.background = 'transparent')
+                      }
+                    >
+                      <IconEdit size={14} />
+                    </button>
+                    <button
+                      title="Delete workflow"
+                      aria-label="Delete workflow"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmDeleteId(t.templateId);
+                      }}
+                      className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors"
+                      style={{ color: 'var(--text-muted)' }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.background = 'var(--bg-active)';
+                        e.currentTarget.style.color = 'var(--text-error)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'transparent';
+                        e.currentTarget.style.color = 'var(--text-muted)';
+                      }}
+                    >
+                      <IconTrash size={14} />
+                    </button>
+                  </>
+                )}
+                {/* Spinner while deleting */}
+                {isDeleting && (
                   <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none text-[--text-muted]" />
-                </div>
-              )}
+                )}
+              </div>
             </div>
           );
         })}
