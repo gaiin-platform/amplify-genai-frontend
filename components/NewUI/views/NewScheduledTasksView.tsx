@@ -87,6 +87,7 @@ import { ApiParameterBindingEditor } from '@/components/AssistantApi/ApiParamete
 import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { saveActionSet, ActionItem } from '@/services/actionSetsService';
 import { splitEmailList, looksLikeEmail } from '@/components/NewUI/shared/emailSuggestions';
+import { useLegacySettingsEventBridge } from '@/components/NewUI/shared/newUISettingsEvents';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -250,6 +251,8 @@ const TaskRow: React.FC<{
 // ── Main component ───────────────────────────────────────────────────────────────
 
 export const NewScheduledTasksView: React.FC = () => {
+    useLegacySettingsEventBridge();
+
     const { state: { featureFlags, prompts }, dispatch: homeDispatch } = useContext(HomeContext);
 
     // Consume the one-shot sessionStorage handoff (mirrors the pending-message bridge pattern)

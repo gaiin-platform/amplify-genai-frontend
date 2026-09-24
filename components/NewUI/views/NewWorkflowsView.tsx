@@ -53,6 +53,7 @@ import {
   deleteAstWorkflowTemplate,
 } from '@/services/assistantWorkflowService';
 import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
+import { useLegacySettingsEventBridge } from '@/components/NewUI/shared/newUISettingsEvents';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,8 @@ const SkeletonCard: React.FC = () => (
 // ── Main component ─────────────────────────────────────────────────────────────
 
 export const NewWorkflowsView: React.FC = () => {
+  useLegacySettingsEventBridge();
+
   const {
     state: { featureFlags },
     dispatch,
