@@ -397,9 +397,9 @@ export const NewHome: React.FC = () => {
       if (selectedActions.length > 0)
         sessionStorage.setItem('amplify_pending_actions', JSON.stringify(selectedActions));
     }
-    // ── Optimistic first message (Phase 66) ─────────────────────────────────
+    // ── Optimistic first message (Phase 66 + sidebar-immediate fix) ────────
     //
-    // BUG: sending a prompt WITH an attachment as the very first message left
+    // BUG 1: sending a prompt WITH an attachment as the very first message left
     // the chat view blank for ~1s before the prompt appeared.
     //
     // ROOT CAUSE: Chat.tsx renders the transcript ONLY when
@@ -422,13 +422,20 @@ export const NewHome: React.FC = () => {
     // exact message with deleteCount:1 (pop + re-append the same id), so the
     // transcript never shows a duplicate and never blanks.
     //
-    // Seeded for any send carrying an attachment — docs with S3 keys, or a
-    // pasted-text block (which has no doc and travels inline on the message).
-    // Both take the shell's PATH A, which recognises this message by id and
-    // re-sends it with deleteCount:1. Text-only sends seed nothing and keep
-    // their existing (already fast) PATH B behaviour untouched.
+    // BUG 2: the new conversation did not appear in the sidebar until the first
+    // message was processed by Chat.tsx (~160ms delay for text-only sends). The
+    // sidebar filters out blank placeholder conversations
+    // (isBlankPlaceholderConversation), so a conversation with messages:[] is
+    // hidden until the bridge injects the message. With the optimistic message
+    // seeded here, messages.length > 0 immediately → the conversation appears
+    // in the sidebar as soon as the prompt is sent.
+    //
+    // Extended to ALL sends (text-only included). Text-only sends now go
+    // through ConversationViewShell PATH A (deleteCount:1) just like attachment
+    // sends, because `optimistic` is set. PATH B is still available as the
+    // fallback for sends that somehow lack an optimistic message.
     let optimisticMessage: Message | null = null;
-    if (typeof window !== 'undefined' && (docsWithKeys.length > 0 || pastedAttachments.length > 0)) {
+    if (typeof window !== 'undefined' && (trimmed || docsWithKeys.length > 0 || pastedAttachments.length > 0)) {
       const seeded: Message = newMessage({
         role: 'user',
         content: pastedMessage.content || ' ',
@@ -462,13 +469,11 @@ export const NewHome: React.FC = () => {
       // abandoned send can never be matched against a later conversation.
       sessionStorage.removeItem('amplify_pending_message_id');
     }
-    // Bug fix (Phase 27): tell home.tsx a send is already in flight for the
-    // about-to-be-created conversation, so it doesn't flash NewHome/landing
-    // page again during the ~150-300ms window before ConversationViewShell's
-    // pending-message bridge actually injects the text + clicks send (during
-    // which selectedConversation.messages.length is genuinely still 0). See
-    // See home.tsx's pendingNewConversationSend.
-    // Still needed for the text-only path, which has no optimistic message.
+    // Bug fix (Phase 27): belt-and-suspenders guard — tells home.tsx a send is
+    // already in flight for the about-to-be-created conversation so it doesn't
+    // flash NewHome/landing page during the creation window.  The optimistic
+    // message now seeds `messages.length > 0` immediately for all send paths,
+    // which prevents the flash on its own; this event is kept as a failsafe.
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new Event('amplifyNewConversationSendPending'));
     }

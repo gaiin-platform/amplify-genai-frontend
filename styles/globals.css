@@ -817,3 +817,24 @@ pre:has(div.codeblock) {
 .dark [data-new-ui-shell="true"] * {
   scrollbar-color: #3b82f6 transparent;
 }
+
+/* ── Sidebar: generating-response spinner (ConversationRow / GeneratingSpinner) ──
+   A single named keyframe keeps the animation out of component JS and avoids
+   repeated <style> tag injection. The .nui-generating-spinner class is applied
+   directly to the SVG element in GeneratingSpinner.tsx.
+   transform-box:fill-box makes transform-origin:center work correctly on SVG. */
+@keyframes nui-generating-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.nui-generating-spinner {
+  animation: nui-generating-spin 0.9s linear infinite;
+  transform-origin: center;
+  transform-box: fill-box;
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Slow significantly rather than stopping — preserves the "in progress" cue. */
+  .nui-generating-spinner {
+    animation-duration: 3s;
+  }
+}

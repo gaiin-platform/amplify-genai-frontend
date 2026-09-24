@@ -38,6 +38,7 @@ import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { PINNED_TAG } from '@/components/NewUI/shared/chatFilters';
 import { getUserChatFolders } from '@/components/NewUI/shared/chatFolderHelpers';
+import { GeneratingSpinner } from '@/components/NewUI/shared/GeneratingSpinner';
 
 interface ConversationRowProps {
   conversation: Conversation;
@@ -46,6 +47,13 @@ interface ConversationRowProps {
   onDelete: () => void;
   /** Optional legacy callback — inline rename is now self-contained. */
   onRename?: () => void;
+  /**
+   * True while this conversation's AI response is still generating.
+   * Renders a subtle spinning arc at the right edge of the row so the
+   * user can see which chat is active without switching to it.
+   * Hidden when the row is hovered (the ⋯ menu takes that space instead).
+   */
+  isGenerating?: boolean;
 }
 
 export const ConversationRow: React.FC<ConversationRowProps> = ({
@@ -53,6 +61,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   isSelected,
   onSelect,
   onDelete,
+  isGenerating = false,
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
@@ -412,7 +421,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
           title={conversation.name}
           className={`
             w-full flex items-center gap-[8px] h-[32px] pl-[10px] rounded-[8px] text-left
-            ${isHovered || isMenuOpen ? 'pr-[34px]' : 'pr-[8px]'}
+            ${(isHovered || isMenuOpen || isGenerating) ? 'pr-[34px]' : 'pr-[8px]'}
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]
             ${isSelected || isHovered || isMenuOpen ? 'text-[--text-primary]' : 'text-[--text-secondary]'}
           `}
@@ -449,6 +458,25 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
           >
             <IconDots size={14} />
           </button>
+        </div>
+      )}
+
+      {/* ── Generating spinner — visible while this chat's response is streaming ──
+          Hidden while hovered (⋯ button takes that slot) and while renaming.
+          Reserves the same 34px right space as the hover state via the button's
+          conditional pr-[34px], so the row title never shifts when it
+          appears or disappears. The gradient fade mirrors the ⋯ button's fade
+          so long titles truncate cleanly at the same visual edge. */}
+      {isGenerating && !isRenaming && !(isHovered || isMenuOpen) && (
+        <div
+          className={`
+            absolute right-0 top-0 h-full flex items-center pr-[6px] text-[--text-muted]
+            before:content-[''] before:absolute before:right-full before:top-0 before:h-full before:w-[20px]
+            before:bg-gradient-to-r before:from-transparent
+            ${isSelected ? 'before:to-[--bg-active]' : 'before:to-[--bg-sidebar]'}
+          `}
+        >
+          <GeneratingSpinner />
         </div>
       )}
 

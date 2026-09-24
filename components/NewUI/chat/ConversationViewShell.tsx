@@ -727,6 +727,34 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         return;
       }
 
+      // ── Safety: pendingMessageId set but optimistic not yet matched ──────────
+      //
+      // NewHome.handleSend sets amplify_pending_message_id before calling
+      // handleNewConversation / handleUpdateSelectedConversation (the React
+      // dispatch that seeds the optimistic message into state). In theory there
+      // is a tiny window (<5 ms in practice; ≤150 ms in pathological cases)
+      // where pendingMessageId is in sessionStorage but the conversation has
+      // not yet re-rendered with the seeded message — making `optimistic` null.
+      //
+      // If we fell through to PATH B in this window, PATH B would click
+      // ChatInput's send button and add a SECOND user message, duplicating the
+      // optimistic one that is about to land in state. Retrying once more
+      // instead costs at most 150 ms and lets React catch up.
+      //
+      // PATH B is still reached for sends that legitimately have no
+      // pendingMessageId (none set ⇒ text-only send via the old bridge path,
+      // which never goes through the optimistic flow). This check only delays
+      // when we KNOW an optimistic message is on its way.
+      if (
+        pendingMessageId &&
+        !optimistic &&
+        docsWithKeys.length === 0 &&
+        pendingActions.length === 0
+      ) {
+        timer = setTimeout(tryInject, 150);
+        return;
+      }
+
       // ── PATH B: no pending docs — existing DOM bridge ──────────────────────
       const textarea = document.getElementById(
         'messageChatInputText',

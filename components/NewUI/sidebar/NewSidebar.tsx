@@ -223,6 +223,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       statsService,
       folders,
       syncingConversations,
+      messageIsStreaming,
     },
     dispatch,
     handleNewConversation,
@@ -733,6 +734,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
               key={c.id}
               conversation={c}
               isSelected={selectedConversation?.id === c.id}
+              isGenerating={messageIsStreaming && selectedConversation?.id === c.id}
               onSelect={() => handleSelectConversation(c)}
               onDelete={() => handleDeleteConversation(c)}
             />
@@ -890,6 +892,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
                     key={c.id}
                     conversation={c}
                     isSelected={selectedConversation?.id === c.id}
+                    isGenerating={messageIsStreaming && selectedConversation?.id === c.id}
                     onSelect={() => handleSelectConversation(c)}
                     onDelete={() => handleDeleteConversation(c)}
                   />
@@ -914,6 +917,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
                     isOpen={openFolderIds[f.id] ?? true}
                     onToggle={() => toggleFolderOpen(f.id)}
                     selectedConversationId={selectedConversation?.id}
+                    generatingConversationId={messageIsStreaming ? selectedConversation?.id : undefined}
                     onSelectConversation={handleSelectConversation}
                     onDeleteConversation={handleDeleteConversation}
                     onRenameFolder={handleRenameFolderRow}
