@@ -1043,6 +1043,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div
+      className="new-ui-admin-modal-overlay"
       onClick={handleOverlayClick}
       style={{
         position: 'fixed',
@@ -1054,14 +1055,17 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: '8px',
+        boxSizing: 'border-box',
       }}
     >
       {/* Modal panel */}
       <div
+        className="new-ui-admin-modal-panel"
         style={{
-          width: '100%',
-          maxWidth: '1100px',
-          height: 'min(820px, 90dvh)',
+          width: 'calc(100vw - 16px)',
+          maxWidth: 'none',
+          height: 'calc(100dvh - 16px)',
           background: 'var(--bg-app)',
           border: '1px solid var(--border-subtle)',
           borderRadius: '16px',
@@ -1071,6 +1075,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           gridTemplateRows: '100%',
           boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
           outline: 'none',
+          boxSizing: 'border-box',
         }}
         ref={panelRef}
         tabIndex={-1}
@@ -1081,6 +1086,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       >
         {/* ── Left Rail ───────────────────────────────────────────────────── */}
         <div
+          className="new-ui-admin-modal-rail"
           style={{
             background: 'var(--bg-sidebar)',
             borderRight: '1px solid var(--border-subtle)',
@@ -1248,7 +1254,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         {/* text-neutral-900 dark:text-white establishes the default inherited text color for all
             admin tab components — matching the old AdminUI wrapper so they all render correctly. */}
         <div
-          className="text-neutral-900 dark:text-white"
+          className="new-ui-admin-modal-content text-neutral-900 dark:text-white"
           style={{
             display: 'flex',
             flexDirection: 'column',

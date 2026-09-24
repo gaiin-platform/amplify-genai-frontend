@@ -1266,6 +1266,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   return (
     /* Overlay */
     <div
+      className="new-ui-settings-modal-overlay"
       onClick={handleOverlayClick}
       style={{
         position: 'fixed',
@@ -1277,16 +1278,19 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        padding: '8px',
+        boxSizing: 'border-box',
       }}
     >
       {/* Panel — fixed height so both panes can independently scroll */}
       <div
+        className="new-ui-settings-modal-panel"
         ref={panelRef}
         tabIndex={-1}
         style={{
-          width: '100%',
-          maxWidth: '1100px',            /* standardized with NewAdminModal */
-          height: 'min(820px, 90dvh)',   /* fixed, not max-height, so children can fill and scroll */
+          width: 'calc(100vw - 16px)',
+          maxWidth: 'none',
+          height: 'calc(100dvh - 16px)',
           background: 'var(--bg-app)',
           border: '1px solid var(--border-subtle)',
           borderRadius: '16px',
@@ -1296,6 +1300,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
           gridTemplateRows: '100%',       /* single row fills height */
           boxShadow: '0 24px 64px rgba(0,0,0,0.4)',
           outline: 'none',
+          boxSizing: 'border-box',
         }}
         role="dialog"
         aria-modal="true"
@@ -1305,6 +1310,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
             Left Rail
         ---------------------------------------------------------------- */}
         <div
+          className="new-ui-settings-modal-rail"
           style={{
             background: 'var(--bg-sidebar)',
             borderRight: '1px solid var(--border-subtle)',
@@ -1395,6 +1401,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
             Right Pane — flex column: fixed header row + scrollable content
         ---------------------------------------------------------------- */}
         <div
+          className="new-ui-settings-modal-content"
           style={{
             display: 'flex',
             flexDirection: 'column',
