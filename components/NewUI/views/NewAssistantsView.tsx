@@ -8,7 +8,7 @@
  *   --border-subtle, --text-primary, --text-secondary, --text-muted, --accent
  */
 
-import React, { useContext, useState, useMemo, useRef, useEffect } from 'react';
+import React, { useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
     IconX,
     IconRobot,
@@ -34,6 +34,12 @@ import { deleteAssistant, deleteLayeredAssistant, saveLayeredAssistant } from '@
 import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
+import { getClassifiedSharedItems, invalidateSharedItemsCache, ClassifiedShareItem } from '@/components/NewUI/shared/sharedItemClassifier';
+import { loadSharedItem } from '@/services/shareService';
+import { importData } from '@/utils/app/importExport';
+import { saveFolders } from '@/utils/app/folders';
+import { saveConversations } from '@/utils/app/conversation';
+import { DefaultModels } from '@/types/model';
 import { NewUIAssistantCreationModal } from './NewUIAssistantCreationModal';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
@@ -567,21 +573,77 @@ const MyAssistantsTab: React.FC = () => {
 
 const SharedWithMeTab: React.FC = () => {
     const {
-        state: { prompts, statsService, availableModels, featureFlags },
+        state: { prompts, statsService, availableModels, featureFlags, conversations, folders, amplifyUsers },
         dispatch: homeDispatch,
         handleNewConversation,
+        getDefaultModel,
     } = useContext(HomeContext);
+
+    // Resolve a share identifier (UUID, username, or email) to a human-readable
+    // display name using the amplifyUsers map.  Tries direct lookup first, then a
+    // case-insensitive reverse lookup, then falls back to the raw identifier.
+    const resolveSharedBy = (identifier: string): string => {
+        if (!identifier) return 'Unknown';
+        if (amplifyUsers?.[identifier]) return amplifyUsers[identifier];
+        // Reverse: find the entry whose value matches the identifier
+        const entry = Object.entries(amplifyUsers ?? {}).find(
+            ([, v]) => v?.toLowerCase() === identifier.toLowerCase()
+        );
+        if (entry) return entry[1] || entry[0];
+        return identifier;
+    };
 
     const promptsRef = useRef(prompts);
     useEffect(() => { promptsRef.current = prompts; }, [prompts]);
 
+    const { data: session } = useSession();
+    const user = getUserIdentifier(session?.user) ?? '';
+
     const [search, setSearch] = useState('');
 
-    // Shared assistants = those with noEdit=true (read-only access), no groupId.
-    // Group assistants (including those I can only read) are in the Teams tab.
+    // ── Pending (not yet imported) share bundles ───────────────────────────
+    const [pendingShares, setPendingShares] = useState<ClassifiedShareItem[] | null>(null);
+    const [pendingLoading, setPendingLoading] = useState(false);
+    const [pendingError, setPendingError] = useState<string | null>(null);
+    const [importingKey, setImportingKey] = useState<string | null>(null);
+
+    // Re-arm the alive ref on every mount (Rule 16 — StrictMode mounts twice).
+    const aliveRef = useRef(true);
+    useEffect(() => {
+        aliveRef.current = true;
+        return () => { aliveRef.current = false; };
+    }, []);
+
+    const loadPendingShares = useCallback(async () => {
+        if (!user) return;
+        setPendingLoading(true);
+        setPendingError(null);
+        try {
+            const classified = await getClassifiedSharedItems(user);
+            if (aliveRef.current) {
+                setPendingShares(classified.assistants);
+            }
+        } catch {
+            invalidateSharedItemsCache();
+            if (aliveRef.current) {
+                setPendingError('Could not load shared assistants. Please try again.');
+                setPendingShares([]);
+            }
+        } finally {
+            if (aliveRef.current) setPendingLoading(false);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        if (pendingShares === null && !pendingLoading) {
+            loadPendingShares();
+        }
+    }, [pendingShares, pendingLoading, loadPendingShares]);
+
+    // Shared assistants already imported = those with noEdit=true, no groupId.
     const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
 
-    const allShared = useMemo(() =>
+    const allImported = useMemo(() =>
         prompts
             .filter((p: Prompt) =>
                 isAssistant(p) &&
@@ -593,14 +655,36 @@ const SharedWithMeTab: React.FC = () => {
         [prompts, featureFlags.overrideInvisiblePrompts]
     );
 
-    const filtered = useMemo(() => {
-        if (!search.trim()) return allShared;
+    // A pending share is "already imported" if any prompt from its bundle already
+    // exists in state.prompts (match by prompt.id).  Null-bundle items are treated
+    // as not imported (conservative — we can't confirm without the bundle).
+    const pendingNotImported = useMemo(() => {
+        if (!pendingShares) return [];
+        const importedIds = new Set(prompts.map((p: Prompt) => p.id));
+        return pendingShares.filter((csi) => {
+            if (csi.bundle === null) return true;
+            return !csi.bundle.prompts?.some((p) => importedIds.has(p.id));
+        });
+    }, [pendingShares, prompts]);
+
+    // ── Search filtering ───────────────────────────────────────────────────
+    const filteredPending = useMemo(() => {
+        if (!search.trim()) return pendingNotImported;
         const q = search.toLowerCase();
-        return allShared.filter((p: Prompt) =>
+        return pendingNotImported.filter((csi) =>
+            csi.item.note.toLowerCase().includes(q) ||
+            csi.item.sharedBy.toLowerCase().includes(q)
+        );
+    }, [pendingNotImported, search]);
+
+    const filteredImported = useMemo(() => {
+        if (!search.trim()) return allImported;
+        const q = search.toLowerCase();
+        return allImported.filter((p: Prompt) =>
             p.name.toLowerCase().includes(q) ||
             (p.description && p.description.toLowerCase().includes(q))
         );
-    }, [allShared, search]);
+    }, [allImported, search]);
 
     const handleStartConversation = (p: Prompt) => {
         if (isAssistant(p) && p.data) {
@@ -610,6 +694,68 @@ const SharedWithMeTab: React.FC = () => {
         handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, p, availableModels);
         homeDispatch({ field: 'page', value: 'chat' });
     };
+
+    const handleImportPendingShare = async (csi: ClassifiedShareItem) => {
+        setImportingKey(csi.item.key);
+        try {
+            // Load bundle if not already in memory.
+            let bundle = csi.bundle;
+            if (!bundle) {
+                const res = await loadSharedItem(csi.item.key);
+                if (!res.success) {
+                    toast.error('Could not load this share — it may have been deleted.');
+                    return;
+                }
+                bundle = JSON.parse(res.item);
+            }
+            if (!bundle) return;
+
+            const defaultModel = getDefaultModel(DefaultModels.DEFAULT);
+            const merged = importData(bundle, conversations, promptsRef.current, folders, defaultModel);
+
+            // importData puts oldPrompts first when deduplicating by id, so a
+            // server-synced version (which may have noEdit:false if syncAssistants ran
+            // before this import) can silently win.  Force noEdit:true on every prompt
+            // that came from this share bundle so it always lands in "Shared with Me".
+            const bundlePromptIds = new Set((bundle.prompts ?? []).map((p) => p.id));
+            const finalPrompts = merged.prompts.map((p: Prompt) => {
+                if (bundlePromptIds.has(p.id) && isAssistant(p)) {
+                    return {
+                        ...p,
+                        data: {
+                            ...p.data,
+                            noEdit: true,
+                            noCopy: true,
+                            noShare: true,
+                            noDelete: true,
+                        },
+                    };
+                }
+                return p;
+            });
+
+            homeDispatch({ field: 'conversations', value: merged.history });
+            saveConversations(merged.history);
+            homeDispatch({ field: 'folders', value: merged.folders });
+            saveFolders(merged.folders);
+            homeDispatch({ field: 'prompts', value: finalPrompts });
+            savePrompts(finalPrompts);
+
+            toast.success('Assistant imported successfully');
+
+            // Invalidate cache and refetch so this item moves to "Imported".
+            invalidateSharedItemsCache();
+            setPendingShares(null);
+        } catch {
+            toast.error('An unexpected error occurred. Please try again.');
+        } finally {
+            setImportingKey(null);
+        }
+    };
+
+    const noPending = filteredPending.length === 0;
+    const noImported = filteredImported.length === 0;
+    const nothingAtAll = noPending && noImported;
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
@@ -627,7 +773,41 @@ const SharedWithMeTab: React.FC = () => {
 
             {/* List */}
             <div className="flex-1 overflow-y-auto px-3 py-2">
-                {filtered.length === 0 ? (
+                {/* Error state for pending load */}
+                {pendingError && (
+                    <div
+                        className="flex items-center gap-2 px-4 py-3 mb-3 rounded-[8px] border"
+                        style={{ background: 'var(--bg-raised)', borderColor: 'var(--border-subtle)' }}
+                    >
+                        <span className="text-[13px] flex-1" style={{ color: 'var(--text-secondary)' }}>
+                            {pendingError}
+                        </span>
+                        <button
+                            onClick={() => { setPendingShares(null); setPendingError(null); }}
+                            className="text-[13px] font-medium hover:opacity-80 transition-opacity flex-shrink-0"
+                            style={{ color: 'var(--accent)' }}
+                        >
+                            Retry
+                        </button>
+                    </div>
+                )}
+
+                {/* Loading skeleton for pending shares */}
+                {pendingLoading && (
+                    <div className="flex flex-col px-3 gap-2 pt-2">
+                        {[1, 2].map((n) => (
+                            <div
+                                key={n}
+                                className="h-[52px] rounded-[8px] motion-safe:animate-pulse motion-reduce:animate-none"
+                                style={{ background: 'var(--bg-raised)' }}
+                                aria-hidden="true"
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {/* Both sections empty → global empty state */}
+                {!pendingLoading && nothingAtAll && !pendingError && (
                     !search ? (
                         <EmptyState
                             message="No shared assistants"
@@ -636,16 +816,92 @@ const SharedWithMeTab: React.FC = () => {
                     ) : (
                         <EmptyState message="No shared assistants match your search" />
                     )
-                ) : (
-                    filtered.map((p: Prompt) => (
-                        <AssistantRow
-                            key={p.id}
-                            name={p.name}
-                            description={p.description}
-                            onClick={() => handleStartConversation(p)}
-                            // Read-only: no edit button
-                        />
-                    ))
+                )}
+
+                {/* ── Pending imports section ── */}
+                {!pendingLoading && filteredPending.length > 0 && (
+                    <div>
+                        <SectionHeading label="Pending Imports" count={filteredPending.length} />
+                        {filteredPending.map((csi) => {
+                            const isImporting = importingKey === csi.item.key;
+                            return (
+                                <div
+                                    key={csi.item.key}
+                                    className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] transition-colors duration-100"
+                                    style={{ backgroundColor: 'transparent' }}
+                                    onMouseEnter={(e) => {
+                                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                                    }}
+                                >
+                                    {/* Icon square */}
+                                    <div
+                                        className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-[8px]"
+                                        style={{ backgroundColor: 'var(--bg-raised)' }}
+                                    >
+                                        <IconShare size={18} style={{ color: 'var(--text-muted)' }} />
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                        <p
+                                            className="text-[14px] font-medium truncate"
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            {csi.item.note || 'Untitled share'}
+                                        </p>
+                                        <p
+                                            className="text-[12px] truncate"
+                                            style={{ color: 'var(--text-secondary)' }}
+                                        >
+                                            Shared by {resolveSharedBy(csi.item.sharedBy)}
+                                        </p>
+                                    </div>
+
+                                    {/* Import button */}
+                                    <button
+                                        onClick={() => !isImporting && handleImportPendingShare(csi)}
+                                        disabled={!!importingKey}
+                                        aria-label={`Import assistant from ${resolveSharedBy(csi.item.sharedBy)}`}
+                                        className="flex-shrink-0 flex items-center gap-1.5 h-[28px] px-3 rounded-[6px] text-[12px] font-medium transition-colors"
+                                        style={{
+                                            background: isImporting ? 'var(--bg-active)' : 'var(--accent)',
+                                            color: isImporting ? 'var(--text-muted)' : 'var(--accent-fg)',
+                                            cursor: importingKey ? 'default' : 'pointer',
+                                            opacity: importingKey && !isImporting ? 0.5 : 1,
+                                        }}
+                                    >
+                                        {isImporting ? (
+                                            <IconLoader2
+                                                size={12}
+                                                className="motion-safe:animate-spin motion-reduce:animate-none"
+                                            />
+                                        ) : (
+                                            'Import →'
+                                        )}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+                {/* ── Already imported section ── */}
+                {filteredImported.length > 0 && (
+                    <div>
+                        <SectionHeading label="Imported" count={filteredImported.length} />
+                        {filteredImported.map((p: Prompt) => (
+                            <AssistantRow
+                                key={p.id}
+                                name={p.name}
+                                description={p.description}
+                                onClick={() => handleStartConversation(p)}
+                                // Read-only: no edit/delete buttons
+                            />
+                        ))}
+                    </div>
                 )}
             </div>
         </div>

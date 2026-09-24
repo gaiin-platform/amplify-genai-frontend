@@ -26,7 +26,7 @@ import {
 import { createPortal } from 'react-dom';
 import HomeContext from '@/pages/api/home/home.context';
 import { Prompt } from '@/types/prompt';
-import { ShareItem, ExportFormatV4 } from '@/types/export';
+import { ExportFormatV4 } from '@/types/export';
 import { FolderInterface } from '@/types/folder';
 import { createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 import { startConversationWithTemplate } from '@/components/NewUI/shared/promptConversation';
@@ -35,7 +35,14 @@ import { saveFolders } from '@/utils/app/folders';
 import { saveConversations } from '@/utils/app/conversation';
 import { isAssistant } from '@/utils/app/assistants';
 import { DefaultModels } from '@/types/model';
-import { getSharedItems, loadSharedItem } from '@/services/shareService';
+import { loadSharedItem } from '@/services/shareService';
+import { useSession } from 'next-auth/react';
+import { getUserIdentifier } from '@/utils/app/data';
+import {
+  getClassifiedSharedItems,
+  invalidateSharedItemsCache,
+  ClassifiedShareItem,
+} from '@/components/NewUI/shared/sharedItemClassifier';
 import { NewUIPromptCreationModal } from '@/components/NewUI/views/NewUIPromptCreationModal';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
@@ -248,6 +255,9 @@ const PromptTemplatesSection: React.FC = () => {
   const promptsRef = useRef(prompts);
   useEffect(() => { promptsRef.current = prompts; }, [prompts]);
 
+  const { data: session } = useSession();
+  const user = getUserIdentifier(session?.user) ?? '';
+
   // ── Search + tab ────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<TemplateTab>('mine');
@@ -263,7 +273,7 @@ const PromptTemplatesSection: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<Prompt | null>(null);
 
   // ── Shared-with-me state ────────────────────────────────────────────────
-  const [sharedItems, setSharedItems] = useState<ShareItem[] | null>(null);
+  const [sharedItems, setSharedItems] = useState<ClassifiedShareItem[] | null>(null);
   const [sharedLoading, setSharedLoading] = useState(false);
   const [sharedError, setSharedError] = useState<string | null>(null);
   const [openingKey, setOpeningKey] = useState<string | null>(null);
@@ -292,26 +302,21 @@ const PromptTemplatesSection: React.FC = () => {
 
   // ── Lazy-load shared items ──────────────────────────────────────────────
   const fetchSharedItems = useCallback(async () => {
+    if (!user) return; // wait for session to resolve before fetching
     setSharedLoading(true);
     setSharedError(null);
     try {
-      const result = await getSharedItems();
-      if (result.success) {
-        const items = (result.items as ShareItem[]).sort(
-          (a, b) => new Date(b.sharedAt).getTime() - new Date(a.sharedAt).getTime(),
-        );
-        setSharedItems(items);
-      } else {
-        setSharedError('Could not load shared items. Please try again.');
-        setSharedItems([]);
-      }
+      const classified = await getClassifiedSharedItems(user);
+      // This tab only shows prompt-template bundles.
+      setSharedItems(classified.promptTemplates);
     } catch {
+      invalidateSharedItemsCache();
       setSharedError('Could not load shared items. Please try again.');
       setSharedItems([]);
     } finally {
       setSharedLoading(false);
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     if (activeTab === 'shared' && sharedItems === null && !sharedLoading) {
@@ -323,20 +328,26 @@ const PromptTemplatesSection: React.FC = () => {
     if (!sharedItems) return [];
     const q = search.trim().toLowerCase();
     if (!q) return sharedItems;
-    return sharedItems.filter((item) => item.note.toLowerCase().includes(q));
+    return sharedItems.filter((csi) => csi.item.note.toLowerCase().includes(q));
   }, [sharedItems, search]);
 
   // ── Open a shared item — import its prompts ─────────────────────────────
-  const handleOpenSharedItem = async (item: ShareItem) => {
-    setOpeningKey(item.key);
+  const handleOpenSharedItem = async (csi: ClassifiedShareItem) => {
+    setOpeningKey(csi.item.key);
     setSharedError(null);
     try {
-      const result = await loadSharedItem(item.key);
-      if (!result.success) {
-        setSharedError('Could not open this item — it may have been deleted.');
-        return;
+      // Use the cached bundle if available; otherwise load it now.
+      let sharedData: ExportFormatV4;
+      if (csi.bundle !== null) {
+        sharedData = csi.bundle;
+      } else {
+        const result = await loadSharedItem(csi.item.key);
+        if (!result.success) {
+          setSharedError('Could not open this item — it may have been deleted.');
+          return;
+        }
+        sharedData = JSON.parse(result.item) as ExportFormatV4;
       }
-      const sharedData: ExportFormatV4 = JSON.parse(result.item);
 
       const defaultModel = getDefaultModel(DefaultModels.DEFAULT);
 
@@ -576,12 +587,12 @@ const PromptTemplatesSection: React.FC = () => {
           {!sharedLoading && filteredShared.length > 0 && (
             <div>
               <SectionHeading label="Shared with You" count={filteredShared.length} />
-              {filteredShared.map((item) => {
-                const isOpening = openingKey === item.key;
+              {filteredShared.map((csi) => {
+                const isOpening = openingKey === csi.item.key;
                 return (
                   <button
-                    key={item.key}
-                    onClick={() => !isOpening && handleOpenSharedItem(item)}
+                    key={csi.item.key}
+                    onClick={() => !isOpening && handleOpenSharedItem(csi)}
                     disabled={!!openingKey}
                     className={`
                       w-full flex items-center gap-3 px-3 py-2.5 rounded-[8px] text-left
@@ -608,10 +619,10 @@ const PromptTemplatesSection: React.FC = () => {
                     {/* Text */}
                     <div className="flex-1 min-w-0">
                       <p className="text-[14px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>
-                        {item.note || 'Untitled share'}
+                        {csi.item.note || 'Untitled share'}
                       </p>
                       <p className="text-[12px] truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                        Shared {relativeDate(item.sharedAt)}
+                        Shared {relativeDate(csi.item.sharedAt)}
                       </p>
                     </div>
 

@@ -49,15 +49,21 @@ import {
     deleteConversationCleanUp,
 } from '@/utils/app/conversation';
 import { uncompressMessages } from '@/utils/app/messages';
-import { ShareItem, ExportFormatV4 } from '@/types/export';
-import { getSharedItems, loadSharedItem } from '@/services/shareService';
+import { ExportFormatV4 } from '@/types/export';
+import { loadSharedItem } from '@/services/shareService';
 import { importData } from '@/utils/app/importExport';
+import {
+    getClassifiedSharedItems,
+    invalidateSharedItemsCache,
+    ClassifiedShareItem,
+} from '@/components/NewUI/shared/sharedItemClassifier';
 import { DefaultModels } from '@/types/model';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
+import toast from 'react-hot-toast';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
@@ -159,7 +165,7 @@ export const ChatsListView: React.FC = () => {
     const [activeTab, setActiveTab] = useState<ChatTab>('mine');
 
     // ── Shared-with-me state ───────────────────────────────────────────────
-    const [sharedItems, setSharedItems] = useState<ShareItem[] | null>(null);
+    const [sharedItems, setSharedItems] = useState<ClassifiedShareItem[] | null>(null);
     const [sharedLoading, setSharedLoading] = useState(false);
     const [sharedError, setSharedError] = useState<string | null>(null);
     // key of the item currently being opened (for per-row spinner)
@@ -175,26 +181,15 @@ export const ChatsListView: React.FC = () => {
 
     // ── Lazy-load shared items when tab is first activated ─────────────────
     const fetchSharedItems = useCallback(async () => {
+        if (!user) return; // wait for session to resolve before fetching
         setSharedLoading(true);
         setSharedError(null);
         try {
-            const result = await getSharedItems();
-            if (result.success) {
-                // Filter out items the current user sent (same logic as SharedItemList.tsx)
-                const received = (result.items as ShareItem[]).filter(
-                    (item) => item.sharedBy !== user
-                );
-                // Sort newest first
-                received.sort(
-                    (a, b) =>
-                        new Date(b.sharedAt).getTime() - new Date(a.sharedAt).getTime()
-                );
-                setSharedItems(received);
-            } else {
-                setSharedError('Could not load shared items. Please try again.');
-                setSharedItems([]);
-            }
+            const classified = await getClassifiedSharedItems(user);
+            // This tab only shows conversation bundles.
+            setSharedItems(classified.conversations);
         } catch {
+            invalidateSharedItemsCache();
             setSharedError('Could not load shared items. Please try again.');
             setSharedItems([]);
         } finally {
@@ -269,30 +264,37 @@ export const ChatsListView: React.FC = () => {
         if (!sharedItems) return [];
         if (!search.trim()) return sharedItems;
         const q = search.toLowerCase();
-        return sharedItems.filter((item) => {
-            const displayName = amplifyUsers?.[item.sharedBy] ?? item.sharedBy;
+        return sharedItems.filter((csi) => {
+            const displayName = amplifyUsers?.[csi.item.sharedBy] ?? csi.item.sharedBy;
             return (
-                item.note.toLowerCase().includes(q) ||
+                csi.item.note.toLowerCase().includes(q) ||
                 displayName.toLowerCase().includes(q)
             );
         });
     }, [sharedItems, search, amplifyUsers]);
 
     // ── Open a shared item ─────────────────────────────────────────────────
-    const handleOpenSharedItem = async (item: ShareItem) => {
-        setOpeningKey(item.key);
+    const handleOpenSharedItem = async (csi: ClassifiedShareItem) => {
+        setOpeningKey(csi.item.key);
         setSharedError(null);
         try {
-            const result = await loadSharedItem(item.key);
-            if (!result.success) {
-                setSharedError(
-                    'Could not open this item — it may have been deleted. Please try again.'
-                );
-                return;
+            // Use the already-loaded bundle if present; otherwise fetch it now.
+            let sharedData: ExportFormatV4;
+            if (csi.bundle !== null) {
+                sharedData = csi.bundle;
+            } else {
+                const result = await loadSharedItem(csi.item.key);
+                if (!result.success) {
+                    setSharedError(
+                        'Could not open this item — it may have been deleted. Please try again.'
+                    );
+                    return;
+                }
+                sharedData = JSON.parse(result.item) as ExportFormatV4;
             }
-            const sharedData: ExportFormatV4 = JSON.parse(result.item);
 
-            // Merge into local state using the same flow as ImportAnythingModal
+            // Merge into local state using the same flow as ImportAnythingModal.
+            // This tab only shows conversation bundles, so we navigate straight to chat.
             const merged = importData(
                 sharedData,
                 conversations,
@@ -307,7 +309,6 @@ export const ChatsListView: React.FC = () => {
             dispatch({ field: 'prompts', value: merged.prompts });
             savePrompts(merged.prompts);
 
-            // Navigate to the first conversation in the shared bundle
             if (sharedData.history && sharedData.history.length > 0) {
                 handleSelectConversation(sharedData.history[0]);
                 dispatch({ field: 'page', value: 'chat' });
@@ -353,8 +354,17 @@ export const ChatsListView: React.FC = () => {
     }, [handleUpdateConversation]);
 
     // ── Helpers for display ────────────────────────────────────────────────
-    const senderDisplayName = (sharedBy: string) =>
-        amplifyUsers?.[sharedBy] ?? sharedBy;
+    const senderDisplayName = (sharedBy: string): string => {
+        if (!sharedBy) return 'Unknown';
+        // Direct lookup: identifier is a key in the map
+        if (amplifyUsers?.[sharedBy]) return amplifyUsers[sharedBy];
+        // Reverse lookup: identifier matches a value (e.g. UUID stored as a value)
+        const entry = Object.entries(amplifyUsers ?? {}).find(
+            ([, v]) => v?.toLowerCase() === sharedBy.toLowerCase()
+        );
+        if (entry) return entry[1] || entry[0];
+        return sharedBy;
+    };
 
     const searchPlaceholder =
         activeTab === 'mine' ? 'Search chats…' : 'Search shared…';
@@ -550,8 +560,8 @@ export const ChatsListView: React.FC = () => {
                             <IconShare size={32} className="mb-3 opacity-40" />
                             <p className="text-[14px]">
                                 {search
-                                    ? 'No shared conversations match your search'
-                                    : 'No conversations shared with you yet'}
+                                    ? 'No shared chats match your search'
+                                    : 'No chats shared with you yet'}
                             </p>
                             {!search && (
                                 <p className="text-[13px] mt-1.5 text-center max-w-[260px]">
@@ -564,13 +574,13 @@ export const ChatsListView: React.FC = () => {
                     {/* Shared item rows */}
                     {!sharedLoading && filteredShared.length > 0 && (
                         <div className="flex flex-col">
-                            {filteredShared.map((item) => {
-                                const isOpening = openingKey === item.key;
+                            {filteredShared.map((csi) => {
+                                const isOpening = openingKey === csi.item.key;
                                 return (
                                     <button
-                                        key={item.key}
+                                        key={csi.item.key}
                                         onClick={() =>
-                                            !isOpening && handleOpenSharedItem(item)
+                                            !isOpening && handleOpenSharedItem(csi)
                                         }
                                         disabled={!!openingKey}
                                         className={`
@@ -593,17 +603,17 @@ export const ChatsListView: React.FC = () => {
                                         <div className="flex-1 min-w-0">
                                             {/* Title = note (the sender's description) */}
                                             <p className="text-[14px] text-[--text-primary] truncate leading-snug">
-                                                {item.note || 'Untitled share'}
+                                                {csi.item.note || 'Untitled share'}
                                             </p>
                                             {/* Secondary = sender display name */}
                                             <p className="text-[12px] text-[--text-muted] truncate leading-snug">
-                                                Shared by {senderDisplayName(item.sharedBy)}
+                                                Shared by {senderDisplayName(csi.item.sharedBy)}
                                             </p>
                                         </div>
 
                                         {/* Date */}
                                         <span className="flex-shrink-0 text-[13px] text-[--text-muted]">
-                                            {relativeDate(item.sharedAt)}
+                                            {relativeDate(csi.item.sharedAt)}
                                         </span>
 
                                         {/* Open button */}
@@ -611,7 +621,7 @@ export const ChatsListView: React.FC = () => {
                                             className={`
                         flex-shrink-0 flex items-center gap-1 h-[28px] px-3 rounded-[6px]
                         text-[12px] font-medium transition-colors
-                        ${openingKey === item.key
+                        ${openingKey === csi.item.key
                                                     ? 'bg-[--bg-raised] text-[--text-muted]'
                                                     : 'bg-[--bg-raised] text-[--text-secondary] hover:bg-[--bg-active] hover:text-[--text-primary]'
                                                 }

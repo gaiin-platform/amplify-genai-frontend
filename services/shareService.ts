@@ -1,6 +1,14 @@
 import { ExportFormatV4, ShareItem } from "@/types/export";
 import { doRequestOp } from "./doRequestOp";
 
+export interface SentShareRecord {
+    recipients: string[];
+    note: string;
+    sharedAt: number;
+    contentType: string;
+    sourceName: string;
+}
+
 const URL_PATH = "/state";
 const SERVICE_NAME = "share";
 
@@ -94,4 +102,13 @@ export const getYouSharedItems = async (user: string, abortSignal = null) => {
     });
 
     return response;
+};
+
+export const getSentSharedItems = async (): Promise<{ success: boolean; items: SentShareRecord[] }> => {
+    const response = await fetch('/api/share/sent', {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) return { success: false, items: [] };
+    return response.json();
 };

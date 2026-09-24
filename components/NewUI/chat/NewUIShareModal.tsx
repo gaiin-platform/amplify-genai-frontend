@@ -28,9 +28,9 @@
  */
 
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { IconX, IconLoader2, IconCheck } from '@tabler/icons-react';
+import { IconX, IconLoader2, IconCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
-import { shareItems } from '@/services/shareService';
+import { shareItems, getSentSharedItems } from '@/services/shareService';
 import { createExport } from '@/utils/app/importExport';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
@@ -40,6 +40,13 @@ import {
     looksLikeEmail,
     resolveUsernameForEmail,
 } from '@/components/NewUI/shared/emailSuggestions';
+import {
+    recordShare,
+    getSharesForSource,
+    ShareHistoryRecord,
+    ShareHistoryItemType,
+} from '@/components/NewUI/shared/shareHistory';
+import { invalidateSharedItemsCache } from '@/components/NewUI/shared/sharedItemClassifier';
 
 // ── Focus-trap selector ───────────────────────────────────────────────────────
 const FOCUSABLE_SEL = [
@@ -48,6 +55,21 @@ const FOCUSABLE_SEL = [
     'textarea:not([disabled])',
     '[tabindex]:not([tabindex="-1"])',
 ].join(', ');
+
+// ── Relative date helper (share history display) ──────────────────────────────
+function historyRelativeDate(ts: number): string {
+    const diffMs = Date.now() - ts;
+    const diffDays = Math.floor(diffMs / 86400000);
+    if (diffMs < 60000) return 'just now';
+    if (diffMs < 3600000) return `${Math.floor(diffMs / 60000)}m ago`;
+    if (diffDays === 0) return 'today';
+    if (diffDays === 1) return 'yesterday';
+    if (diffDays < 7) return `${diffDays} days ago`;
+    return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+/** Number of history entries shown before the "Show more" button appears. */
+const HISTORY_VISIBLE_DEFAULT = 3;
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 interface NewUIShareModalProps {
@@ -92,6 +114,59 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
 
     const { data: session } = useSession();
     const sharedBy = getUserIdentifier(session?.user) ?? 'Unknown';
+
+    // ── Derived identifiers ────────────────────────────────────────────────
+    const sourceId = assistantId ?? promptId ?? conversationId ?? '';
+    const sourceName = assistantName ?? promptName ?? conversationTitle ?? '';
+    const itemType: ShareHistoryItemType = isAssistantShare
+        ? 'assistant'
+        : isPromptShare
+            ? 'prompt-template'
+            : 'conversation';
+
+    // ── Share history (previously shared with) ─────────────────────────────
+    const [existingShares, setExistingShares] = useState<ShareHistoryRecord[]>(
+        sourceId ? getSharesForSource(sharedBy, sourceId) : []  // seed from localStorage immediately
+    );
+    const [historyExpanded, setHistoryExpanded] = useState(false);
+    const visibleHistory = historyExpanded
+        ? existingShares
+        : existingShares.slice(0, HISTORY_VISIBLE_DEFAULT);
+
+    // ── Fetch backend sent shares and merge with localStorage ──────────────
+    useEffect(() => {
+        if (!sourceId || !sharedBy || sharedBy === 'Unknown') return;
+        getSentSharedItems()
+            .then(({ success, items }) => {
+                if (!success) return;
+                // Match only by sourceName — the name of the item being shared.
+                // Do NOT fall back to contentType alone: that would show ALL
+                // previously-shared items of the same type in every share modal.
+                const relevant = items.filter(r => r.sourceName === sourceName);
+                if (relevant.length === 0) return;
+                // Convert to ShareHistoryRecord shape and merge with local records
+                const local = sourceId ? getSharesForSource(sharedBy, sourceId) : [];
+                const backendRecords: ShareHistoryRecord[] = relevant.map(r => ({
+                    id: `backend_${r.sharedAt}`,
+                    type: r.contentType as ShareHistoryItemType || itemType,
+                    sourceId: sourceId,
+                    sourceName: r.sourceName || sourceName,
+                    sharedWith: r.recipients,
+                    note: r.note,
+                    sharedAt: r.sharedAt,
+                }));
+                // Merge: deduplicate by sharedAt, prefer local (has exact sourceId match)
+                const combined = [...local];
+                for (const br of backendRecords) {
+                    if (!combined.some(lr => Math.abs(lr.sharedAt - br.sharedAt) < 2000)) {
+                        combined.push(br);
+                    }
+                }
+                combined.sort((a, b) => b.sharedAt - a.sharedAt);
+                setExistingShares(combined);
+            })
+            .catch(() => { /* best-effort */ });
+    }, [sourceId, sharedBy]);
 
     // ── Form state ──────────────────────────────────────────────────────────
     const [recipientInput, setRecipientInput] = useState('');
@@ -262,6 +337,19 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
             const result = await shareItems(sharedBy, sharedWith, message, sharedData);
 
             if (result.success) {
+                // Record the share in the local history so "Previously shared with"
+                // is populated the next time this item is opened for sharing.
+                recordShare(sharedBy, {
+                    type: itemType,
+                    sourceId,
+                    sourceName,
+                    sharedWith: finalRecipients,
+                    note: message,
+                });
+                // Invalidate the classifier cache so the Shared-with-Me sections
+                // in all three views re-classify on the next open.
+                invalidateSharedItemsCache();
+
                 setIsSharing(false);
                 setShareSuccess(true);
                 setTimeout(() => onClose(), 1500);
@@ -445,6 +533,127 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                     ) : (
                         /* ── Form ──────────────────────────────────────── */
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+                            {/* ── Previously shared with (history) ────────── */}
+                            {existingShares.length > 0 && (
+                                <div
+                                    style={{
+                                        borderRadius: 8,
+                                        border: '1px solid var(--border-subtle)',
+                                        background: 'var(--bg-app)',
+                                        overflow: 'hidden',
+                                    }}
+                                >
+                                    {/* Section label */}
+                                    <div
+                                        style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '8px 12px',
+                                            borderBottom: '1px solid var(--border-subtle)',
+                                        }}
+                                    >
+                                        <span
+                                            style={{
+                                                fontSize: 11,
+                                                fontWeight: 600,
+                                                textTransform: 'uppercase' as const,
+                                                letterSpacing: '0.05em',
+                                                color: 'var(--text-muted)',
+                                            }}
+                                        >
+                                            Previously shared with
+                                        </span>
+                                        <span
+                                            style={{
+                                                fontSize: 11,
+                                                color: 'var(--text-muted)',
+                                                backgroundColor: 'var(--bg-raised)',
+                                                borderRadius: 10,
+                                                padding: '1px 7px',
+                                            }}
+                                        >
+                                            {existingShares.length}
+                                        </span>
+                                    </div>
+
+                                    {/* History rows */}
+                                    {visibleHistory.map((rec) => (
+                                        <div
+                                            key={rec.id}
+                                            style={{
+                                                display: 'flex',
+                                                alignItems: 'flex-start',
+                                                justifyContent: 'space-between',
+                                                gap: 8,
+                                                padding: '8px 12px',
+                                                borderBottom: '1px solid var(--border-subtle)',
+                                            }}
+                                        >
+                                            <span
+                                                style={{
+                                                    fontSize: 12,
+                                                    color: 'var(--text-secondary)',
+                                                    flex: 1,
+                                                    minWidth: 0,
+                                                    wordBreak: 'break-all' as const,
+                                                }}
+                                            >
+                                                {rec.sharedWith.join(', ')}
+                                            </span>
+                                            <span
+                                                style={{
+                                                    fontSize: 12,
+                                                    color: 'var(--text-muted)',
+                                                    flexShrink: 0,
+                                                    whiteSpace: 'nowrap' as const,
+                                                }}
+                                            >
+                                                {historyRelativeDate(rec.sharedAt)}
+                                            </span>
+                                        </div>
+                                    ))}
+
+                                    {/* Expand / collapse when > HISTORY_VISIBLE_DEFAULT entries */}
+                                    {existingShares.length > HISTORY_VISIBLE_DEFAULT && (
+                                        <button
+                                            onClick={() => setHistoryExpanded((v) => !v)}
+                                            aria-label={
+                                                historyExpanded
+                                                    ? 'Show fewer share history entries'
+                                                    : `Show all ${existingShares.length} share history entries`
+                                            }
+                                            style={{
+                                                width: '100%',
+                                                padding: '7px 12px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: 4,
+                                                fontSize: 12,
+                                                fontWeight: 500,
+                                                color: 'var(--accent)',
+                                                background: 'transparent',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                fontFamily: 'inherit',
+                                            }}
+                                        >
+                                            {historyExpanded ? (
+                                                <>
+                                                    <IconChevronUp size={12} />
+                                                    Show less
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <IconChevronDown size={12} />
+                                                    Show {existingShares.length - HISTORY_VISIBLE_DEFAULT} more
+                                                </>
+                                            )}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
 
                             {/* Share with */}
                             <div>
