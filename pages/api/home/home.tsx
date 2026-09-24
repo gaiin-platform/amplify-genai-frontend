@@ -1686,18 +1686,17 @@ const Home = ({
                     />
                     <link rel="icon" href="/favicon.ico" />
                 </Head>
+                {/* Resolve the UI choice before any conversation exists. The banner owns
+                    an opaque New UI cover while the server/local preference is resolved,
+                    preventing the classic layout and loader from painting during startup. */}
+                <UIPreferenceBanner
+                    onSelectNew={() => setUiPreference('new')}
+                    onSelectClassic={() => setUiPreference('classic')}
+                />
                 {selectedConversation && (
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                     >
-                        {/* UI Preference Banner — shown on first visit when no preference set */}
-                        {uiPreference === null && (
-                            <UIPreferenceBanner
-                                onSelectNew={() => setUiPreference('new')}
-                                onSelectClassic={() => setUiPreference('classic')}
-                            />
-                        )}
-
                         {/* ── NEW UI LAYOUT ── */}
                         {uiPreference === 'new' ? (
                             <div className="flex h-full w-full overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }} data-new-ui-shell="true">
@@ -1863,17 +1862,18 @@ const Home = ({
                         )}
 
                         {/* Transient operational loading messages (Loading Conversation…, Forking…) */}
-                        {uiPreference === 'new' ? (
-                            <NewUILoadingStatus open={!!loadingMessage} message={loadingMessage || 'Loading…'} />
-                        ) : (
+                        {uiPreference === 'classic' ? (
                             <LoadingDialog open={!!loadingMessage} message={loadingMessage}/>
-                        )}
-                        {/* "Setting Up Amplify…" — New UI gets a quiet, accessible treatment;
-                            classic UI keeps the original LoadingDialog unchanged. */}
-                        {uiPreference === 'new' ? (
-                            <NewUILoadingStatus open={loadingAmplify} message="Setting up Amplify…" />
                         ) : (
+                            <NewUILoadingStatus open={!!loadingMessage} message={loadingMessage || 'Loading…'} />
+                        )}
+                        {/* "Setting Up Amplify…" — unresolved and New UI startup use the
+                            quiet accessible treatment; only an explicit classic choice uses
+                            the legacy LoadingDialog. */}
+                        {uiPreference === 'classic' ? (
                             <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
+                        ) : (
+                            <NewUILoadingStatus open={loadingAmplify} message="Setting up Amplify…" />
                         )}
                     </main>
                 )}
@@ -1885,16 +1885,10 @@ const Home = ({
             <main
                 className={`flex h-screen w-screen flex-col text-sm text-black dark:text-white ${lightMode}`}
                 style={{backgroundColor: lightMode === 'dark' ? 'black' : 'white'}}>
-            <div
-                className="flex flex-col items-center justify-center min-h-screen text-center text-black dark:text-white"
-                style={{color: lightMode === 'dark' ? 'white' : 'black'}}>
-                    <Loader />
-                    <h1 className="mt-6 mb-4 text-2xl font-bold">
-                        Loading...
-                    </h1>
-
-                    {/*<progress className="w-64"/>*/}
-                </div>
+                {/* Keep authentication startup on the New UI loading treatment too;
+                    the legacy Loader here rendered before the authenticated preference
+                    gate could mount. */}
+                <NewUILoadingStatus open message="Loading Amplify…" />
             </main>);
     } else {
         return (

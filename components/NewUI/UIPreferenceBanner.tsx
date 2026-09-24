@@ -30,6 +30,9 @@
  * resolves in a **layout** effect (pre-paint) so that path costs no visible frame at
  * all; only a genuine server round trip shows the cover.
  *
+ * The authenticated home mounts this gate before the conversation is initialized, and it
+ * keeps the opaque cover in place until the server/local preference has been resolved.
+ *
  * The cookie is for future load-balancer routing:
  *   LB listener rule #3 on port 443 matches X-Amplify-UI=new
  *   and forwards to the new-UI target group.
@@ -120,9 +123,9 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
   const dialogRef = useRef<HTMLDivElement>(null);
   const newCardRef = useRef<HTMLButtonElement>(null);
 
-  // A *layout* effect, so the localStorage branch below flips home.tsx's state before
-  // the browser paints — otherwise that one pre-resolution paint is a visible frame of
-  // the classic layout (NEW_UI_GUIDE §21 uses the same reasoning for scroll restore).
+  // A *layout* effect starts the server/local resolution before the browser paints,
+  // so the opaque resolving cover is committed before any classic fallback can be
+  // visible (NEW_UI_GUIDE §21 uses the same pre-paint reasoning for scroll restore).
   useLayoutEffect(() => {
     // Per-effect flags, declared in the effect body so a StrictMode remount re-arms
     // them rather than latching the unmounted value forever (NEW_UI_GUIDE §16).
@@ -140,7 +143,10 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
         return;
       }
       // A stored choice exists — honour it silently instead of asking again.
+      // Mark the gate done before notifying home.tsx so an unconditional mount
+      // cannot leave the opaque resolving cover over the selected layout.
       writeLocalUIPreference(resolution);
+      setPhase('done');
       if (resolution === 'new') callbacksRef.current.onSelectNew();
       else callbacksRef.current.onSelectClassic();
     };
@@ -157,13 +163,14 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
     }
 
     const local = getUIPreference();
-    if (local) {
-      decide(local);
-      return;
-    }
 
-    // Ask anyway if the server never answers.
-    timer = window.setTimeout(() => decide('ask'), PREF_RESOLVE_TIMEOUT_MS);
+    // Always wait for the server when possible: it is the cross-device source
+    // of truth. The local value remains the timeout/offline fallback, but must
+    // not tear down the opaque gate before a server value can win.
+    timer = window.setTimeout(
+      () => decide(local ?? 'ask'),
+      PREF_RESOLVE_TIMEOUT_MS,
+    );
 
     (async () => {
       let server: unknown = null;
@@ -173,9 +180,9 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
           server = (result.data as { uiPreference?: unknown }).uiPreference;
         }
       } catch {
-        // Offline or failed — fall through and ask, same as "nothing stored".
+        // Offline or failed — the captured local value remains the fallback.
       }
-      decide(resolveStoredUIPreference(getUIPreference(), server));
+      decide(resolveStoredUIPreference(local, server));
     })();
 
     return () => {
@@ -227,11 +234,10 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
     setUIPreference(pref).catch(() => {});
   };
 
-  // Still resolving: cover the app. `uiPreference === null` makes home.tsx render the
-  // classic layout, so returning null here is what let the old UI paint for the length
-  // of a settings round trip before being swapped out. The cover is opaque (not the
-  // translucent scrim NewUILoadingStatus paints on its own) precisely because the point
-  // is to hide what is behind it. Bounded by PREF_RESOLVE_TIMEOUT_MS.
+  // Still resolving: cover the app. The home render uses a safe New UI loader for
+  // unresolved preference values, and this opaque wrapper prevents any fallback UI
+  // from painting while the server/local choice is still in flight. Bounded by
+  // PREF_RESOLVE_TIMEOUT_MS.
   if (phase === 'resolving') {
     return (
       <div

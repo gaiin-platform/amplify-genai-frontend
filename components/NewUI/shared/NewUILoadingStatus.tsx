@@ -16,7 +16,7 @@
  *   • role="status" + aria-live="polite" announces status to screen readers.
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -38,13 +38,18 @@ export const NewUILoadingStatus: React.FC<NewUILoadingStatusProps> = ({
   open,
   message = 'Loading…',
 }) => {
-  if (!open) return null;
+  // Portals must not be emitted during SSR: document.body exists only after
+  // hydration, and returning portal markup on the client for server-null output
+  // causes React to report a mismatched <main> subtree.
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => setPortalReady(true), []);
+
+  if (!open || !portalReady || typeof document === 'undefined') return null;
+
   // Always portal to document.body so position:fixed is anchored to the
   // real viewport — not to a transformed/filtered ancestor in the component
   // tree (CSS transforms, backdrop-filter, will-change on any ancestor all
   // create a new containing block that traps fixed-positioned descendants).
-  if (typeof document === 'undefined') return null;
-
   return createPortal(
     <div
       role="status"
