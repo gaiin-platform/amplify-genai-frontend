@@ -3,13 +3,33 @@ import HomeContext from "@/pages/api/home/home.context";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import {deepMerge} from "@/utils/app/state";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
-import { IconHammer } from "@tabler/icons-react";
-import { Artifact, ArtifactBlockDetail, ArtifactMessageStatus, validArtifactTypes } from "@/types/artifacts";
+import { IconHammer, IconFileText, IconTable, IconCode, IconChartBar, IconEye, IconEyeOff } from "@tabler/icons-react";
+import { Artifact, ArtifactBlockDetail, ArtifactMessageStatus, validArtifactTypes, resolveNUIType, sniffContentType } from "@/types/artifacts";
 import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
 import { getDateName } from "@/utils/app/date";
 import { fixJsonString } from "@/utils/app/errorHandling";
 import { DefaultModels, Model } from "@/types/model";
 import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
+import { saveArtifact, getAllArtifacts } from "@/services/artifactsService";
+
+/**
+ * Extract a human-readable title from generated artifact markdown.
+ *
+ * For documents: first H1 only (H1 is definitive; anything else risks
+ * returning raw content like a CSV header row as the title).
+ * For other types: return '' and let the caller use the model-provided name.
+ *
+ * @param content  The artifact content string.
+ * @param nuiType  The resolved NUI type ('document' | 'spreadsheet' | 'code' | 'visualization').
+ */
+function extractTitleFromContent(content: string, nuiType?: string): string {
+    if (!content || content.length < 3) return '';
+    // Only extract from document type — never from CSV rows, code, or HTML
+    if (nuiType && nuiType !== 'document') return '';
+    const h1 = content.match(/^#\s+(.+)$/m);
+    if (h1) return h1[1].trim().slice(0, 120);
+    return ''; // No fallback to first line for documents either — avoids raw content titles
+}
 
 
 interface Props {
@@ -53,59 +73,54 @@ const startMarker = '<>';
 const endMarker = '</>';
 
 
-const ARTIFACT_CUSTOM_INSTRUCTIONS = `Follow these structural guidelines strictly:
-    - IMPORTANT" Respond in valid markdown for any CODE blocks ex. ${"```html  <your code> ```"}  If you are asked to draw a diagram, you can use Mermaid diagrams using mermaid.js syntax in a ${"```mermaid code block. If you are asked to visualize something, you can use a ```"}vega code block with Vega-lite. 
-    
-    - Include File Names in Code Blocks: 
-  All code blocks must include the file name as a comment on the first line. The file name should be appropriate for the context and follow the required naming conventions for Sandpack (if Applicable) based on the type of project. ex. Sandpack React projects require the entry code to be named App.js
-  Ensure that names are consistently used where files are imported or referenced. IMPORTANT: This will not apply to Artifacts of type 'text' 
+const ARTIFACT_CUSTOM_INSTRUCTIONS = `You are generating the content of an artifact. Follow the rules for the artifact type strictly.
 
-  For example, in a react artifact type:
-  
-        ${"```javascript"}
-        // App.js
-        import Header from './Header';
-        ${"```"}
+## Artifact type rules
 
-        ${"```javascript"}
-        // Header.js
-        export default function Header() { 
-            return <h1>Header Component</h1>;
-        }
-        ${"```"}
+### Type: spreadsheet
+Output ONLY raw CSV content — no markdown fences, no prose, no explanation.
+- First row must be the header row with column names.
+- Use commas as delimiters. Wrap any field that contains a comma, newline, or double-quote in double-quotes; escape internal double-quotes by doubling them.
+- CRITICAL: cells that list multiple items MUST keep natural punctuation including commas. Always quote such cells.
+  ✓ Correct:  "Variables, control flow, functions, debugging"
+  ✗ Wrong:    Variables control flow functions debugging  (commas stripped)
+- Do NOT wrap the CSV in a code block. The entire response (before the ${startMarker} summary) must be plain CSV text.
+- Example (correct):
+  Name,Department,Skills
+  Alice,"Engineering, Backend","Python, SQL, Docker"
+  Bob,Marketing,"Copywriting, SEO"
 
-    And for a static HTML artifact type:
-        
-        ${"```html"}
-        <!-- index.html -->
-        <html>
-            <body>
-                <script src="index.js"></script>
-            </body>
-        </html>
-        ${"```"}
+### Type: code
+Output the code in a single fenced code block with the correct language identifier.
+- Include the filename as a comment on the first line (e.g. \`# main.py\` or \`// app.js\`).
+- No prose outside the code block (before the ${startMarker} summary).
+- Example: ${"```python\n# main.py\nprint('Hello')\n```"}
 
-        ${"```javascript"}
-        // index.js
-        console.log('Hello, World!');
-        ${"```"}
+### Type: visualization
+Output a single self-contained HTML document.
+- All CSS and JavaScript must be inline (no external CDN or fetch calls).
+- The document must render correctly in a sandboxed iframe.
+- Do NOT wrap in a code block — output raw HTML starting with <!DOCTYPE html> or <html>.
+- For SVG: output the raw <svg …> element directly, no wrapper.
+- For Mermaid diagrams: use a ${"```mermaid"} code block.
+- For data charts: prefer Vega-Lite in a ${"```vega"} code block.
 
-    - NOT EVERYTHING IS A CODE BLOCK, if you are asked to write a paper for example, and not explicitly told to make a txt or docx file, then you will respond with the text ONLY, NO code block. You must always determine if a \`\`\` code block is necessary or not
-    - If you need to say/comment anything to the user that is NOT part of the artifact, wrap it in a ${startMarker} <your comments not part of the artifact> ${endMarker} tag AT THE END OF YOUR ARTIFACT OUTPUT
-    
-    Example use: ${startMarker} some text you would like to tell the user ${endMarker}
-    
-    - **Do not** include explanations, overviews, or guidance outside the ${startMarker} and ${endMarker} tags. Any instructions, comments, or final steps should always be wrapped in these tags.
-    - If your artifact consists of only text, place it in a text block. 
-    - You are forbidden from using the start and end markers for any other use.
-    - When creating an extension, new version, or update to an existing artifact, output the entire contents of the artifact.
-    - Any code must be enclosed in a valid markdown code block for proper formatting.
-    
-    **Additional Guidelines:**
-    - For interactive components (e.g., HTML, CSS, or widgets), ensure users can preview or download the artifact files if relevant (This will be handled for you). 
-    - If any ambiguities exist in the user's request, provide fallback suggestions within the ${startMarker} and ${endMarker} tags.
-    - ensure your artifacts are as complete as possible.
-`  
+### Type: document  (default)
+Respond in valid Markdown. Use headings, lists, tables, and code blocks as appropriate.
+- If you include code, wrap it in a fenced code block with the language identifier.
+- Do not wrap the whole document in a code block.
+
+## Output structure
+1. The artifact content (per the type rules above).
+2. REQUIRED: A brief 1–2 sentence summary wrapped in ${startMarker} ... ${endMarker} tags immediately after the content. Never skip this.
+   Example: ${startMarker} I've created the departments CSV with 33 rows and 2 columns. Let me know if you'd like any changes. ${endMarker}
+
+## General rules
+- Do not include explanations or commentary OUTSIDE the ${startMarker}...${endMarker} summary.
+- When creating an update to an existing artifact, output the entire updated contents.
+- If any ambiguities exist, note them in the summary (inside the tags).
+- Ensure artifacts are complete and ready to use.
+`
 
 const ARTIFACT_VERSION_INSTRUCTIONS = `
     It is required to have a complete and/or fully functional artifact version.
@@ -210,9 +225,16 @@ const prepareArtifacts = (jsonContent: string, retry: boolean) => {
         try {
             const data = JSON.parse(jsonContent);
             
+            // Resolve name: prefer explicit name, fall back to description (truncated),
+            // then type + "Artifact" as a last resort so we never show "Untitled artifact".
+            const resolvedName: string = data.name
+                || (data.description ? String(data.description).slice(0, 80).trim() : '')
+                || (data.type ? `${String(data.type).charAt(0).toUpperCase()}${String(data.type).slice(1)} Artifact` : '')
+                || '';
+
             const artifactDetail = {
                 artifactId: data.id,
-                name: data.name, 
+                name: resolvedName,
                 createdAt: getDateName(),
                 description: data.description,
                 version: undefined // determined later
@@ -360,12 +382,24 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             let selectArtifacts = selectedConversation.artifacts ? (selectedConversation.artifacts[artifactDetail.artifactId] ?? []) : [];
             const artifactVersion = selectArtifacts.length === 0 ? 1 : selectArtifacts.slice(-1)[0].version + 1;
             artifactDetail.version = artifactVersion;
-            const artifact: Artifact = {...artifactDetail, 
-                                            contents: [], 
-                                            tags: [],
-                                            type: validArtifactTypes.includes(type) ? type : '',
-                                            version: artifactVersion
-                                        }
+
+            // Normalise the declared type: 'csv' → 'spreadsheet', raw language names → 'code', etc.
+            // We keep the original string on the artifact so the renderer can use it for language sniffing.
+            const normalizedType = validArtifactTypes.includes(type) ? type : '';
+
+            // Detect language for 'code' type so the card shows "Code · Python" etc.
+            const isCodeLike = resolveNUIType(type) === 'code';
+            const codeLang = isCodeLike ? (type === 'code' ? '' : type) : '';
+
+            const artifact: Artifact = {
+                ...artifactDetail,
+                contents: [],
+                tags: [],
+                type: normalizedType,
+                version: artifactVersion,
+                // Store language hint for code artifacts in metadata
+                metadata: codeLang ? { language: codeLang } : undefined,
+            }
             selectArtifacts.push(artifact);
             homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
             const model: Model = selectedConversation.model ?? getDefaultModel(DefaultModels.ADVANCED);
@@ -506,13 +540,68 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 homeDispatch({field: 'messageIsStreaming', value: false});
                 homeDispatch({field: 'artifactIsStreaming', value: false});
 
+                // ── Auto-title: if the JSON didn't include a name, extract one
+                //    from the generated content — only for document type (first H1).
+                //    For spreadsheet/code/visualization we never use raw content as title.
+                if (!controller.signal.aborted && !artifactDetail.name) {
+                    const rawContent = lzwUncompress(
+                        selectArtifacts[selectArtifacts.length - 1].contents as any
+                    );
+                    // Determine the final NUI type (sniff if not declared)
+                    const resolvedType = resolveNUIType(type) === 'document'
+                        ? 'document'
+                        : resolveNUIType(type);
+                    const finalType = resolvedType === 'document' && rawContent
+                        ? sniffContentType(rawContent)
+                        : resolvedType;
+                    const extracted = extractTitleFromContent(rawContent, finalType);
+                    if (extracted) {
+                        artifactDetail.name = extracted;
+                        selectArtifacts[selectArtifacts.length - 1].name = extracted;
+                        homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
+                    }
+                }
+
+                // ── If type was not declared, sniff from generated content and update
+                if (!controller.signal.aborted && !type) {
+                    const rawContent = lzwUncompress(
+                        selectArtifacts[selectArtifacts.length - 1].contents as any
+                    );
+                    const sniffed = sniffContentType(rawContent);
+                    if (sniffed !== 'document') {
+                        selectArtifacts[selectArtifacts.length - 1].type = sniffed;
+                        homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
+                    }
+                }
+
                 // update selectedConversation to include the completed selectArtifacts
                 updatedConversation.artifacts = {...(updatedConversation.artifacts ?? {}), [artifact.artifactId]: selectArtifacts };
                 const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
                 updatedConversation.messages.slice(-1)[0].data.artifactStatus = controller.signal.aborted ? ArtifactMessageStatus.STOPPED : ArtifactMessageStatus.COMPLETE;
                 updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), artifactDetail];
-                
+
                 handleUpdateSelectedConversation(updatedConversation);
+
+                // ── Auto-save to server (fire-and-forget) so the artifact is
+                //    immediately available in the library even without the user
+                //    clicking "Save Artifact" manually.
+                if (!controller.signal.aborted) {
+                    const artifactToSave = selectArtifacts[selectArtifacts.length - 1];
+                    saveArtifact({
+                        ...artifactToSave,
+                        // Store conversation reference for potential future "open in chat" navigation
+                        conversationId: selectedConversation?.id,
+                    } as any).then((result) => {
+                        if (result.success) {
+                            // Refresh the library so the new artifact appears immediately
+                            getAllArtifacts().then((response) => {
+                                if (response.success) {
+                                    homeDispatch({ field: 'artifacts', value: response.data });
+                                }
+                            }).catch(() => {/* non-critical */});
+                        }
+                    }).catch(() => {/* non-critical — manual save still available */});
+                }
             }
 
         } catch (e) {
@@ -533,13 +622,227 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
     }
 }
 
-    return <div className="flex flex-col gap-4 ">           
-            <div className="flex flex-row gap-3 rounded-xl text-neutral-600 border-2 dark:border-none dark:text-white bg-neutral-100 dark:bg-[#343541] rounded-md shadow-lg p-1 pl-2">
-                <IconHammer size={20}/>
-                Creating Your Artifact...
-            </div>
-        </div>;
+    // Determine if still generating (no end-state yet)
+    const statusIsEnd = message.data?.artifactStatus &&
+        isInEndState(message.data.artifactStatus as ArtifactMessageStatus);
+    const generating = !statusIsEnd;
+
+    return (
+        <DirectArtifactCard
+            message={message}
+            generating={generating}
+        />
+    );
 };
 
+/* ─── Module-level panel-open tracker (same pattern as ArtifactInlineCardLayer) */
+let _autoArtifactPanelOpen = false;
+if (typeof window !== 'undefined') {
+    window.addEventListener('openArtifactsTrigger', (e: Event) => {
+        _autoArtifactPanelOpen = !!((e as CustomEvent).detail?.isOpen);
+    });
+}
+
+/* Type icon lookup */
+function typeIcon(type: string | undefined): React.ReactNode {
+    switch (resolveNUIType(type)) {
+        case 'spreadsheet': return <IconTable size={18} style={{ color: 'var(--accent)' }} />;
+        case 'code':        return <IconCode  size={18} style={{ color: 'var(--accent)' }} />;
+        case 'visualization': return <IconChartBar size={18} style={{ color: 'var(--accent)' }} />;
+        default:            return <IconFileText size={18} style={{ color: 'var(--accent)' }} />;
+    }
+}
+function typeLabel(type: string | undefined, language?: string): string {
+    switch (resolveNUIType(type)) {
+        case 'spreadsheet': return 'Spreadsheet';
+        case 'code': {
+            const lang = language || (type && type !== 'code' ? type : '');
+            return lang ? `Code · ${lang.charAt(0).toUpperCase()}${lang.slice(1)}` : 'Code';
+        }
+        case 'visualization': return 'Visualization';
+        default: return 'Document';
+    }
+}
+
+/* ─── DirectArtifactCard — renders inline without DOM-layer portal tricks ───── */
+interface DirectCardProps {
+    message: Message;
+    generating: boolean;
+}
+
+const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) => {
+    const {
+        state: { selectedConversation, selectedArtifacts, artifactIsStreaming },
+        dispatch: homeDispatch,
+    } = useContext(HomeContext);
+
+    const [isPanelOpen, setIsPanelOpen] = useState(() => _autoArtifactPanelOpen);
+
+    useEffect(() => {
+        const handler = (e: Event) => {
+            setIsPanelOpen(!!((e as CustomEvent).detail?.isOpen));
+        };
+        window.addEventListener('openArtifactsTrigger', handler);
+        return () => window.removeEventListener('openArtifactsTrigger', handler);
+    }, []);
+
+    /* ── Artifact data lookup ── */
+    const findArtifact = (): { artifact: Artifact; list: Artifact[]; idx: number } | null => {
+        // Primary: message.data.artifacts → conversation.artifacts[id]
+        const detail: ArtifactBlockDetail | undefined = message.data?.artifacts?.[0];
+        if (detail?.artifactId && selectedConversation?.artifacts) {
+            const list: Artifact[] | undefined = (selectedConversation.artifacts as any)[detail.artifactId];
+            if (list && list.length > 0) {
+                let idx = list.length - 1;
+                if (detail.version) {
+                    const found = list.findIndex((a: Artifact) => a.version === detail.version);
+                    if (found !== -1) idx = found;
+                }
+                return { artifact: list[idx], list, idx };
+            }
+        }
+        // Live streaming: fall back to selectedArtifacts
+        if (artifactIsStreaming && selectedArtifacts && selectedArtifacts.length > 0) {
+            const idx = selectedArtifacts.length - 1;
+            return { artifact: selectedArtifacts[idx], list: selectedArtifacts, idx };
+        }
+        // Recovery: conversation has exactly one artifact family — link it
+        if (selectedConversation?.artifacts) {
+            const ids = Object.keys(selectedConversation.artifacts as Record<string, Artifact[]>);
+            if (ids.length === 1) {
+                const list = (selectedConversation.artifacts as any)[ids[0]] as Artifact[];
+                if (list && list.length > 0) {
+                    return { artifact: list[list.length - 1], list, idx: list.length - 1 };
+                }
+            }
+        }
+        return null;
+    };
+
+    const data = findArtifact();
+    const artifact = data?.artifact ?? null;
+    const isGeneratingNow = generating || (artifactIsStreaming && !artifact);
+
+    const handleTogglePanel = () => {
+        if (isPanelOpen) {
+            window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
+        } else if (data) {
+            homeDispatch({ field: 'selectedArtifacts', value: data.list });
+            window.dispatchEvent(new CustomEvent('openArtifactsTrigger', {
+                detail: { isOpen: true, artifactIndex: data.idx },
+            }));
+        }
+    };
+
+    /* ── Unavailable state for cancelled/missing artifacts ── */
+    const isCancelled = message.data?.artifactStatus === ArtifactMessageStatus.CANCELLED;
+    if (!isGeneratingNow && !artifact && (isCancelled || !generating)) {
+        return (
+            <div
+                data-nui-direct-artifact-card="unavailable"
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '8px 14px', borderRadius: 10, maxWidth: 420,
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-raised)',
+                    color: 'var(--text-muted)', fontSize: 13,
+                    fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+                    margin: '6px 0',
+                }}
+            >
+                <IconFileText size={16} style={{ flexShrink: 0 }} />
+                <span>Artifact unavailable</span>
+            </div>
+        );
+    }
+
+    const displayTitle  = artifact?.name || (isGeneratingNow ? 'Creating artifact…' : 'Untitled artifact');
+    const displayType   = isGeneratingNow ? 'Writing…' : typeLabel(artifact?.type, artifact?.metadata?.language as string);
+    const version       = artifact?.version;
+    const showVersion   = !isGeneratingNow && typeof version === 'number' && version > 1;
+
+    return (
+        <div
+            data-nui-direct-artifact-card="true"
+            role="region"
+            aria-label={isGeneratingNow ? 'Generating artifact' : `Artifact: ${displayTitle}`}
+            style={{
+                display: 'flex', alignItems: 'center', gap: 12,
+                padding: '10px 14px', borderRadius: 12, maxWidth: 480,
+                border: '1px solid var(--border-subtle)',
+                background: 'var(--bg-raised)',
+                margin: '6px 0', position: 'relative', overflow: 'hidden',
+                fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+            }}
+        >
+            {/* Shimmer during generation */}
+            {isGeneratingNow && (
+                <div aria-hidden="true" style={{
+                    position: 'absolute', inset: 0,
+                    background: 'linear-gradient(90deg, transparent 0%, color-mix(in srgb, var(--accent) 8%, transparent) 50%, transparent 100%)',
+                    backgroundSize: '200% 100%',
+                    animation: 'nui-artifact-shimmer 1.6s ease infinite',
+                }} />
+            )}
+            {/* Icon */}
+            <div aria-hidden="true" style={{
+                width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                background: isGeneratingNow ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-active))' : 'var(--bg-active)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+                {isGeneratingNow ? (
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none"
+                        style={{ animation: 'spin 0.9s linear infinite' }} aria-hidden="true">
+                        <circle cx="9" cy="9" r="7" stroke="var(--accent)" strokeWidth="2"
+                            strokeLinecap="round" strokeDasharray="28 16" />
+                    </svg>
+                ) : typeIcon(artifact?.type)}
+            </div>
+            {/* Text */}
+            <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{
+                    fontSize: 14, fontWeight: 500, color: 'var(--text-primary)',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                    {displayTitle}
+                </div>
+                <div style={{
+                    fontSize: 12, color: 'var(--text-muted)', marginTop: 1,
+                    display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                    <span>{displayType}</span>
+                    {showVersion && (
+                        <span style={{
+                            background: 'var(--bg-active)', borderRadius: 4,
+                            padding: '0 5px', fontSize: 11, color: 'var(--text-secondary)',
+                        }}>v{version}</span>
+                    )}
+                </div>
+            </div>
+            {/* Open / Hide */}
+            {!isGeneratingNow && (
+                <button
+                    type="button"
+                    aria-label={isPanelOpen ? 'Hide artifact panel' : 'Open artifact panel'}
+                    onClick={handleTogglePanel}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '0 10px', height: 28, borderRadius: 7,
+                        border: '1px solid var(--border-subtle)',
+                        background: 'transparent', color: 'var(--text-primary)',
+                        fontSize: 12, fontWeight: 500, cursor: 'pointer', flexShrink: 0,
+                        transition: 'background 0.12s',
+                        fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+                    }}
+                    onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
+                    onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                >
+                    {isPanelOpen ? <IconEyeOff size={13} aria-hidden="true" /> : <IconEye size={13} aria-hidden="true" />}
+                    {isPanelOpen ? 'Hide' : 'Open'}
+                </button>
+            )}
+        </div>
+    );
+};
 
 export default AutoArtifactsBlock;

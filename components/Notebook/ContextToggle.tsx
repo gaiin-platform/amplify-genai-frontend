@@ -15,20 +15,20 @@ const MODE_CONFIG = {
     off: {
         Icon: LucideEyeOff,
         label: 'Not included',
-        color: 'text-gray-400 dark:text-gray-500',
-        hover: 'hover:bg-gray-100 dark:hover:bg-neutral-700',
+        color: 'text-[--text-muted]',
+        hover: 'hover:bg-[--bg-hover]',
     },
     insights: {
         Icon: LucideLightbulb,
         label: 'Insights only',
-        color: 'text-amber-600 dark:text-amber-400',
-        hover: 'hover:bg-amber-50 dark:hover:bg-amber-900/20',
+        color: 'text-[--text-secondary]',
+        hover: 'hover:bg-[--bg-hover]',
     },
     full: {
         Icon: LucideFileText,
         label: 'Full content',
-        color: 'text-purple-600 dark:text-purple-400',
-        hover: 'hover:bg-purple-50 dark:hover:bg-purple-900/20',
+        color: 'text-[--accent]',
+        hover: 'hover:bg-[--accent]/10',
     },
 } as const;
 

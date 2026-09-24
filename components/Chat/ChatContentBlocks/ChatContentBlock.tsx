@@ -129,7 +129,7 @@ const ChatContentBlock: React.FC<Props> = (
         // More precise LaTeX detection that avoids code blocks
         const codeBlockRegex = /```[\s\S]*?```|`[^`]*`/g;
         const contentWithoutCode = content.replace(codeBlockRegex, '');
-        return /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)/.test(contentWithoutCode);
+        return /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^\s$](?:[^$]*[^\s$])?\$/.test(contentWithoutCode);
     }, []);
 
     // Debounced LaTeX processing to reduce jitter during streaming - only for LaTeX content
@@ -186,7 +186,13 @@ const ChatContentBlock: React.FC<Props> = (
         processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
             return `<math-inline>${latex}</math-inline>`;
         });
-        
+
+        // Replace single-dollar inline math $...$ with placeholder, skipping plain dollar amounts
+        processed = processed.replace(/\$([^\s$](?:[^$]*[^\s$])?)\$/g, (match, latex) => {
+            if (/^[\d.,]+$/.test(latex)) return match;
+            return `<math-inline>${latex}</math-inline>`;
+        });
+
         // Restore code blocks
         codeBlockPlaceholders.forEach((placeholder, index) => {
             processed = processed.replace(placeholder, codeBlocks[index]);
@@ -386,10 +392,12 @@ const ChatContentBlock: React.FC<Props> = (
                         }
                         break;
                     case 'autoArtifacts':
-                        if (featureFlags.artifacts) {
-                            return (<AutoArtifactsBlock content={String(children)} ready={!messageIsStreaming} message={message}/>);
-                        }
-                        break;
+                        // Always render — not gated on featureFlags.artifacts.
+                        // AutoArtifactsBlock renders the card directly (for both live and
+                        // history), so it never shows as a raw code block regardless of when
+                        // featureFlags loads.  Generation is still guarded inside the component
+                        // (message.data.artifactStatus check) so history never re-triggers.
+                        return (<AutoArtifactsBlock content={String(children)} ready={!messageIsStreaming} message={message}/>);
                     case 'assistant':
                         return (<AssistantBlock definition={String(children)}/>);
                     case 'toggle':

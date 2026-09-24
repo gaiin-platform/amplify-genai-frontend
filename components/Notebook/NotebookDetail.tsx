@@ -37,7 +37,8 @@ import {
     retrySource,
     updateNotebook,
 } from '@/services/notebookService';
-import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { secondaryBadgeClass } from './notebookUI';
 import { AddSourceDialog } from './AddSourceDialog';
 import { AddExistingSourceDialog } from './AddExistingSourceDialog';
 import { ContextToggle } from './ContextToggle';
@@ -258,11 +259,11 @@ export const NotebookDetail = ({
     }, []);
 
     if (loading) {
-        return <div className="text-gray-500 dark:text-gray-400">Loading notebook…</div>;
+        return <div className="text-[--text-muted]">Loading notebook…</div>;
     }
 
     if (error || !notebook) {
-        return <div className="text-red-600 dark:text-red-400">{error ?? 'Notebook not found.'}</div>;
+        return <div className="text-[--text-error]">{error ?? 'Notebook not found.'}</div>;
     }
 
     return (
@@ -347,7 +348,7 @@ const CollapsedPanel = ({
     <button
         onClick={onExpand}
         title={`Expand ${label}`}
-        className="group flex flex-none items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white p-2 text-gray-400 shadow-sm transition-colors hover:bg-gray-50 hover:text-gray-700 dark:border-neutral-700 dark:bg-[#2b2c36] dark:text-gray-500 dark:hover:bg-neutral-700/50 dark:hover:text-gray-200 lg:h-full lg:w-12 lg:flex-col lg:py-6"
+        className="group flex flex-none items-center justify-center gap-2 rounded-xl border border-[--border-subtle] bg-[--bg-raised] p-2 text-[--text-muted] shadow-sm transition-colors hover:bg-[--bg-hover] hover:text-[--text-primary] lg:h-full lg:w-12 lg:flex-col lg:py-6"
     >
         {icon}
         <span className="text-xs font-medium lg:hidden">{label}</span>
@@ -412,7 +413,7 @@ const NotebookHeader = ({
     };
 
     return (
-        <div className="flex-none border-b border-gray-200 pb-6 dark:border-neutral-700">
+        <div className="flex-none border-b border-[--border-subtle] pb-6">
             <div className="flex flex-col gap-2">
                 {/* pr-12 keeps Archive/Delete clear of the floating UserMenu
                     avatar (fixed top-4 right-4) — same as the notebooks list
@@ -422,11 +423,11 @@ const NotebookHeader = ({
                         <InlineEditText
                             value={notebook.name || ''}
                             placeholder="Notebook name"
-                            className="text-2xl font-bold"
+                            className="text-[18px] font-semibold"
                             onSave={handleRename}
                         />
                         {notebook.archived && (
-                            <span className="inline-flex flex-none items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200">
+                            <span className={`flex-none ${secondaryBadgeClass}`}>
                                 Archived
                             </span>
                         )}
@@ -435,7 +436,7 @@ const NotebookHeader = ({
                         <button
                             onClick={handleArchiveToggle}
                             disabled={archiving}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[--border-subtle] bg-transparent px-3 text-sm font-medium text-[--text-primary] shadow-sm transition-colors hover:bg-[--bg-hover] disabled:pointer-events-none disabled:opacity-50"
                         >
                             {notebook.archived ? (
                                 <>
@@ -451,7 +452,7 @@ const NotebookHeader = ({
                         </button>
                         <button
                             onClick={() => setConfirmingDelete(true)}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 text-sm font-medium text-red-600 shadow-sm transition-colors hover:bg-gray-50 hover:text-red-700 dark:border-neutral-600 dark:bg-transparent dark:text-red-400 dark:hover:bg-neutral-700"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-[--border-subtle] bg-transparent px-3 text-sm font-medium text-[--text-error] shadow-sm transition-colors hover:bg-[--bg-hover]"
                         >
                             <LucideTrash2 size={16} />
                             Delete
@@ -459,7 +460,7 @@ const NotebookHeader = ({
                     </div>
                 </div>
 
-                <div className="text-gray-500 dark:text-gray-400">
+                <div className="text-[--text-muted]">
                     <InlineEditText
                         value={notebook.description || ''}
                         placeholder="Add description..."
@@ -469,7 +470,7 @@ const NotebookHeader = ({
                 </div>
 
                 {(notebook.created || notebook.updated) && (
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                    <div className="text-sm text-[--text-muted]">
                         {notebook.created && <>Created {formatDistanceToNow(notebook.created)}</>}
                         {notebook.created && notebook.updated && ' • '}
                         {notebook.updated && <>Updated {formatDistanceToNow(notebook.updated)}</>}
@@ -477,7 +478,7 @@ const NotebookHeader = ({
                 )}
 
                 {error && (
-                    <div className="text-xs text-red-600 dark:text-red-400">{error}</div>
+                    <div className="text-xs text-[--text-error]">{error}</div>
                 )}
             </div>
 
@@ -506,7 +507,7 @@ const PanelShell = ({
 }) => (
     // Card shell mirroring the reference columns: no divider under the
     // header — the shadcn Card's internal gap separates header and body.
-    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
+    <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-xl border border-[--border-subtle] bg-[--bg-raised] py-6 shadow-sm">
         <div className="flex flex-none items-center justify-between gap-2 px-6 pb-3">
             <div className="text-lg font-semibold leading-none">{title}</div>
             <div className="flex items-center gap-2">
@@ -515,7 +516,7 @@ const PanelShell = ({
                     <button
                         onClick={onCollapse}
                         title={`Collapse ${title}`}
-                        className="hidden h-9 w-9 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white lg:flex"
+                        className="hidden h-9 w-9 items-center justify-center rounded-md text-[--text-muted] transition-colors hover:bg-[--bg-hover] hover:text-[--text-primary] lg:flex"
                     >
                         <LucideChevronLeft size={16} />
                     </button>
@@ -556,27 +557,27 @@ const SOURCE_STATUS_CONFIG = {
     new: {
         Icon: LucideClock,
         label: 'Processing',
-        cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+        cls: 'bg-[--bg-active] text-[--text-muted]',
     },
     queued: {
         Icon: LucideClock,
         label: 'Queued',
-        cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+        cls: 'bg-[--bg-active] text-[--text-muted]',
     },
     running: {
         Icon: LucideLoader2,
         label: 'Processing',
-        cls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
+        cls: 'bg-[--bg-active] text-[--text-muted]',
     },
     completed: {
         Icon: LucideClock,
         label: 'Completed',
-        cls: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300',
+        cls: 'bg-[--bg-active] text-[--text-muted]',
     },
     failed: {
         Icon: LucideAlertTriangle,
         label: 'Failed',
-        cls: 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300',
+        cls: 'bg-[--bg-active] text-[--text-error]',
     },
 } as const;
 
@@ -761,22 +762,22 @@ const SourcesPanel = ({
         <PanelShell title="Sources" actions={actions} onCollapse={onCollapse}>
             {loading && (
                 <div className="flex items-center justify-center py-8">
-                    <LucideLoader2 size={24} className="animate-spin text-gray-400" />
+                    <LucideLoader2 size={24} className="animate-spin text-[--text-muted]" />
                 </div>
             )}
 
             {!loading && error && (
-                <div className="text-xs text-red-600 dark:text-red-400">{error}</div>
+                <div className="text-xs text-[--text-error]">{error}</div>
             )}
 
             {!loading && !error && sources.length === 0 && (
                 <div className="py-12 text-center">
                     <LucideFileText
                         size={48}
-                        className="mx-auto mb-4 text-gray-400/60 dark:text-gray-500/60"
+                        className="mx-auto mb-4 text-[--text-muted] opacity-60"
                     />
                     <h3 className="mb-2 text-lg font-medium">No sources yet</h3>
-                    <p className="mb-4 text-gray-500 dark:text-gray-400">
+                    <p className="mb-4 text-[--text-muted]">
                         Add your first source to start building your knowledge base.
                     </p>
                 </div>
@@ -807,7 +808,7 @@ const SourcesPanel = ({
                                 key={s.id}
                                 id={`ref-source-${s.id.split(':')[1]}`}
                                 onClick={onOpenSource ? () => onOpenSource(s) : undefined}
-                                className={`group relative rounded-xl border border-gray-200/60 bg-white py-4 shadow-sm transition-all duration-200 hover:shadow-md dark:border-neutral-700/40 dark:bg-[#2b2c36]${
+                                className={`group relative rounded-xl border border-[--border-subtle] bg-[--bg-raised] py-4 shadow-sm transition-all duration-200 hover:shadow-md${
                                     onOpenSource ? ' cursor-pointer' : ''
                                 }`}
                             >
@@ -825,7 +826,7 @@ const SourcesPanel = ({
                                                         />
                                                         {statusCfg.label}
                                                     </div>
-                                                    <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                                                    <div className="flex items-center gap-1 text-[--text-muted]">
                                                         <SourceKindIcon kind={kind} size={12} />
                                                         <span className="text-xs capitalize">Source</span>
                                                     </div>
@@ -843,7 +844,7 @@ const SourcesPanel = ({
 
                                             {isFailed && processingError && (
                                                 <p
-                                                    className="mb-2 truncate text-xs italic text-gray-600 dark:text-gray-400"
+                                                    className="mb-2 truncate text-xs italic text-[--text-secondary]"
                                                     title={processingError}
                                                 >
                                                     {processingError}
@@ -851,12 +852,12 @@ const SourcesPanel = ({
                                             )}
 
                                             <div className="flex flex-wrap items-center gap-2">
-                                                <span className="inline-flex items-center gap-1 rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200">
+                                                <span className={`gap-1 ${secondaryBadgeClass}`}>
                                                     <SourceKindIcon kind={kind} size={12} />
                                                     {KIND_BADGE_LABELS[kind]}
                                                 </span>
                                                 {isCompleted && hasInsights && (
-                                                    <span className="inline-flex items-center rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium dark:border-neutral-600">
+                                                    <span className="inline-flex items-center rounded-md border border-[--border-subtle] px-2 py-0.5 text-xs font-medium text-[--text-secondary]">
                                                         {s.insights_count} insights
                                                     </span>
                                                 )}
@@ -864,13 +865,13 @@ const SourcesPanel = ({
                                                     topics.slice(0, 2).map((topic) => (
                                                         <span
                                                             key={topic}
-                                                            className="inline-flex items-center rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium dark:border-neutral-600"
+                                                            className="inline-flex items-center rounded-md border border-[--border-subtle] px-2 py-0.5 text-xs font-medium text-[--text-secondary]"
                                                         >
                                                             {topic}
                                                         </span>
                                                     ))}
                                                 {isCompleted && topics.length > 2 && (
-                                                    <span className="inline-flex items-center rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium dark:border-neutral-600">
+                                                    <span className="inline-flex items-center rounded-md border border-[--border-subtle] px-2 py-0.5 text-xs font-medium text-[--text-secondary]">
                                                         +{topics.length - 2}
                                                     </span>
                                                 )}
@@ -931,13 +932,13 @@ const SourcesPanel = ({
                                         sources so it's discoverable without opening the menu. */}
                                     {isFailed && (
                                         <div
-                                            className="flex gap-2 border-t border-gray-200 pt-2 dark:border-neutral-700"
+                                            className="flex gap-2 border-t border-[--border-subtle] pt-2"
                                             onClick={(e) => e.stopPropagation()}
                                         >
                                             <button
                                                 onClick={() => handleRetry(s.id)}
                                                 disabled={isRetrying}
-                                                className="inline-flex h-7 items-center rounded-md bg-purple-500 px-3 text-xs font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50"
+                                                className="inline-flex h-7 items-center rounded-md bg-[--accent] px-3 text-xs font-medium text-[--accent-fg] shadow-sm transition-colors hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
                                             >
                                                 <LucideRefreshCw
                                                     size={12}
@@ -971,33 +972,37 @@ const SourcesPanel = ({
                 />
             )}
 
-            {pendingDelete && (
-                <ConfirmModal
-                    title="Delete Source"
-                    message={
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                title="Delete Source"
+                message={
+                    pendingDelete ? (
                         <span>
                             Are you sure you want to delete{' '}
                             <b>{pendingDelete.title || 'Untitled Source'}</b>? This permanently
                             deletes it from every notebook it belongs to.
                         </span>
-                    }
-                    confirmLabel={deleting ? 'Deleting…' : 'Delete'}
-                    denyLabel="Cancel"
-                    onConfirm={confirmDelete}
-                    onDeny={() => setPendingDelete(null)}
-                />
-            )}
+                    ) : (
+                        ''
+                    )
+                }
+                confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
 
-            {pendingRemove && (
-                <ConfirmModal
-                    title="Remove from Notebook"
-                    message="Are you sure you want to remove this from the notebook?"
-                    confirmLabel={removing ? 'Removing…' : 'Remove'}
-                    denyLabel="Cancel"
-                    onConfirm={confirmRemove}
-                    onDeny={() => setPendingRemove(null)}
-                />
-            )}
+            <ConfirmDialog
+                isOpen={!!pendingRemove}
+                title="Remove from Notebook"
+                message="Are you sure you want to remove this from the notebook?"
+                confirmLabel={removing ? 'Removing…' : 'Remove'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={confirmRemove}
+                onCancel={() => setPendingRemove(null)}
+            />
         </PanelShell>
     );
 };
@@ -1092,7 +1097,7 @@ const NotesPanel = ({
             <button
                 onClick={() => setEditing(null)}
                 title="Write note"
-                className="flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600 transition-colors"
+                className="flex h-8 items-center gap-1.5 rounded-md bg-[--accent] px-3 text-sm font-medium text-[--accent-fg] shadow-sm hover:opacity-90 transition-colors"
             >
                 <LucidePlus size={16} />
                 Write Note
@@ -1104,22 +1109,22 @@ const NotesPanel = ({
         <PanelShell title="Notes" actions={actions} onCollapse={onCollapse}>
             {loading && (
                 <div className="flex items-center justify-center py-8">
-                    <LucideLoader2 size={24} className="animate-spin text-gray-400" />
+                    <LucideLoader2 size={24} className="animate-spin text-[--text-muted]" />
                 </div>
             )}
 
             {!loading && error && (
-                <div className="text-xs text-red-600 dark:text-red-400">{error}</div>
+                <div className="text-xs text-[--text-error]">{error}</div>
             )}
 
             {!loading && !error && notes.length === 0 && (
                 <div className="py-12 text-center">
                     <LucideStickyNote
                         size={48}
-                        className="mx-auto mb-4 text-gray-400/60 dark:text-gray-500/60"
+                        className="mx-auto mb-4 text-[--text-muted] opacity-60"
                     />
                     <h3 className="mb-2 text-lg font-medium">No notes yet</h3>
-                    <p className="mb-4 text-gray-500 dark:text-gray-400">
+                    <p className="mb-4 text-[--text-muted]">
                         Create your first note to capture insights and observations.
                     </p>
                 </div>
@@ -1135,28 +1140,28 @@ const NotesPanel = ({
                                 key={n.id}
                                 id={`ref-note-${n.id.split(':')[1]}`}
                                 onClick={() => setEditing(n)}
-                                className="group relative cursor-pointer rounded-lg border border-gray-200 p-3 transition-shadow hover:shadow-sm dark:border-neutral-700/60"
+                                className="group relative cursor-pointer rounded-lg border border-[--border-subtle] p-3 transition-shadow hover:shadow-sm"
                             >
                                 <div className="mb-2 flex items-start justify-between gap-2">
                                     <div className="flex items-center gap-2">
                                         {isAi ? (
                                             <LucideBot
                                                 size={16}
-                                                className="flex-none text-purple-600 dark:text-purple-400"
+                                                className="flex-none text-[--accent]"
                                             />
                                         ) : (
                                             <LucideUser
                                                 size={16}
-                                                className="flex-none text-gray-500 dark:text-gray-400"
+                                                className="flex-none text-[--text-muted]"
                                             />
                                         )}
-                                        <span className="inline-flex items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200">
+                                        <span className={secondaryBadgeClass}>
                                             {isAi ? 'AI Generated' : 'Human'}
                                         </span>
                                     </div>
                                     <div className="flex flex-none items-center gap-2">
                                         {n.updated && (
-                                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                                            <span className="text-xs text-[--text-muted]">
                                                 {formatDistanceToNow(n.updated)}
                                             </span>
                                         )}
@@ -1193,7 +1198,7 @@ const NotesPanel = ({
                                     renders only when content is present (e.g. AI notes that
                                     include it) and is a graceful no-op otherwise. */}
                                 {n.content && (
-                                    <p className="line-clamp-3 break-all text-sm text-gray-500 dark:text-gray-400">
+                                    <p className="line-clamp-3 break-all text-sm text-[--text-muted]">
                                         {n.content}
                                     </p>
                                 )}
@@ -1212,16 +1217,16 @@ const NotesPanel = ({
                 />
             )}
 
-            {pendingDelete && (
-                <ConfirmModal
-                    title="Delete Note"
-                    message="Are you sure you want to delete this note? This action cannot be undone."
-                    confirmLabel={deleting ? 'Deleting…' : 'Delete'}
-                    denyLabel="Cancel"
-                    onConfirm={confirmDelete}
-                    onDeny={() => setPendingDelete(null)}
-                />
-            )}
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                title="Delete Note"
+                message="Are you sure you want to delete this note? This action cannot be undone."
+                confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
         </PanelShell>
     );
 };

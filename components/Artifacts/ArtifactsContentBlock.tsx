@@ -4,6 +4,10 @@ import remarkMath from "remark-math";
 import rehypeRaw from "rehype-raw";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import {visit} from 'unist-util-visit';
+import Papa from 'papaparse';
+import SyntaxHighlighter from 'react-syntax-highlighter';
+import { oneDark, oneLight } from 'react-syntax-highlighter/dist/cjs/styles/prism';
+import { resolveNUIType, sniffContentType } from '@/types/artifacts';
 
 // Sanitization schema: extends the safe default to allow the custom elements
 // used by the artifacts renderer (math-display, math-inline for LaTeX), while
@@ -42,6 +46,8 @@ interface Props {
     artifactId: string;
     versionIndex: number;
     artifactEndRef: React.RefObject<HTMLDivElement>;
+    /** For visualization artifacts: true = show source code, false = show preview */
+    showCodeView?: boolean;
     // handleCustomLinkClick: (message:Message, href: string) => void,
 }
 
@@ -77,9 +83,271 @@ const rehypeDarkModeStyles = () => {
     };
 };
 
-export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artifactIsStreaming, artifactId, versionIndex, artifactEndRef}) => {
+/* ─── Dark-mode helper (shared with renderers) ─────────────────────────────── */
+function useIsDarkMode(): boolean {
+    const [isDark, setIsDark] = React.useState(() =>
+        typeof document !== 'undefined'
+            ? document.querySelector('main')?.classList.contains('dark') ?? true
+            : true,
+    );
+    React.useEffect(() => {
+        const el = document.querySelector('main');
+        if (!el) return;
+        const obs = new MutationObserver(() => setIsDark(el.classList.contains('dark')));
+        obs.observe(el, { attributes: true, attributeFilter: ['class'] });
+        return () => obs.disconnect();
+    }, []);
+    return isDark;
+}
 
-    const { state: { featureFlags} } = useContext(HomeContext); 
+/* ─── Spreadsheet renderer ──────────────────────────────────────────────────── */
+const SpreadsheetRenderer: React.FC<{ content: string; isStreaming: boolean }> = ({
+    content,
+    isStreaming,
+}) => {
+    const isDark = useIsDarkMode();
+    const result = Papa.parse<string[]>(content, {
+        skipEmptyLines: true,
+        header: false,
+    });
+    const rows = result.data as string[][];
+    if (!rows || rows.length === 0) {
+        return (
+            <div style={{ padding: '24px', color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif', fontSize: 14 }}>
+                {isStreaming ? 'Loading…' : 'No data'}
+            </div>
+        );
+    }
+    const headers = rows[0];
+    const dataRows = rows.slice(1);
+    const colCount = headers.length;
+    const rowCount = dataRows.length;
+
+    return (
+        <div style={{ width: '100%', fontFamily: 'Inter, ui-sans-serif, sans-serif', display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+            {/* Row/col count badge */}
+            <div style={{
+                padding: '8px 14px 6px',
+                fontSize: 12,
+                color: 'var(--text-muted)',
+                borderBottom: '1px solid var(--border-subtle)',
+                flexShrink: 0,
+            }}>
+                {rowCount} row{rowCount !== 1 ? 's' : ''} × {colCount} column{colCount !== 1 ? 's' : ''}
+                {isStreaming && ' (loading…)'}
+            </div>
+            {/* Table with horizontal scroll.
+                - overflowX: auto enables the horizontal scrollbar for wide tables.
+                - The table itself uses layout: auto so column widths flex to content.
+                - Cells wrap by default (no whiteSpace: nowrap) so long text doesn't
+                  force the column wider than the panel. A maxWidth cap plus word-break
+                  prevents any single word from exploding a narrow panel. */}
+            <div style={{ overflowX: 'auto', overflowY: 'auto', flex: 1, minHeight: 0 }}>
+                <table style={{
+                    borderCollapse: 'collapse',
+                    tableLayout: 'auto',
+                    minWidth: '100%',   /* never narrower than the panel */
+                    fontSize: 13,
+                }}>
+                    <thead>
+                        <tr>
+                            {headers.map((h, ci) => (
+                                <th key={ci} style={{
+                                    position: 'sticky',
+                                    top: 0,
+                                    background: isDark ? 'rgba(30,32,38,0.97)' : 'rgba(248,249,250,0.97)',
+                                    color: 'var(--text-secondary)',
+                                    fontWeight: 600,
+                                    padding: '8px 12px',
+                                    textAlign: 'left',
+                                    whiteSpace: 'nowrap',   /* headers stay on one line */
+                                    borderBottom: '2px solid var(--border-subtle)',
+                                    boxShadow: '0 1px 0 var(--border-subtle)',
+                                    zIndex: 1,
+                                }}>
+                                    {h}
+                                </th>
+                            ))}
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {dataRows.map((row, ri) => (
+                            <tr key={ri} style={{
+                                background: ri % 2 === 0
+                                    ? 'transparent'
+                                    : (isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'),
+                            }}>
+                                {Array.from({ length: colCount }).map((_, ci) => (
+                                    <td key={ci} style={{
+                                        padding: '6px 12px',
+                                        color: 'var(--text-primary)',
+                                        borderBottom: '1px solid var(--border-subtle)',
+                                        /* Allow wrapping so text stays inside the panel */
+                                        whiteSpace: 'normal',
+                                        wordBreak: 'break-word',
+                                        maxWidth: 360,          /* cap very wide columns */
+                                        verticalAlign: 'top',
+                                    }}>
+                                        {row[ci] ?? ''}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+/* ─── Code renderer ─────────────────────────────────────────────────────────── */
+const CodeRenderer: React.FC<{ content: string; language?: string }> = ({ content, language }) => {
+    const isDark = useIsDarkMode();
+
+    // Sniff language from first code fence if not declared
+    let lang = language || '';
+    let codeContent = content;
+    if (!lang) {
+        const fenceMatch = content.match(/^```(\w+)?\s*\n([\s\S]*?)(?:```\s*$|$)/m);
+        if (fenceMatch) {
+            lang = fenceMatch[1] || '';
+            codeContent = fenceMatch[2] ?? content;
+        }
+    } else {
+        // Strip outer code fence if present
+        const fenceMatch = content.match(/^```(?:\w+)?\s*\n([\s\S]*?)(?:```\s*$|$)/m);
+        if (fenceMatch) codeContent = fenceMatch[1] ?? content;
+    }
+
+    return (
+        <div style={{ width: '100%', fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace' }}>
+            {lang && (
+                <div style={{
+                    padding: '4px 14px',
+                    fontSize: 11,
+                    color: 'var(--text-muted)',
+                    borderBottom: '1px solid var(--border-subtle)',
+                    fontFamily: 'Inter, sans-serif',
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                }}>
+                    {lang}
+                </div>
+            )}
+            <SyntaxHighlighter
+                language={lang || 'text'}
+                style={isDark ? oneDark : oneLight}
+                customStyle={{
+                    margin: 0,
+                    background: 'transparent',
+                    fontSize: 13,
+                    lineHeight: 1.6,
+                    padding: '14px 16px',
+                    overflowX: 'auto',
+                }}
+                showLineNumbers
+                wrapLongLines={false}
+            >
+                {codeContent.replace(/\n$/, '')}
+            </SyntaxHighlighter>
+        </div>
+    );
+};
+
+/* ─── Visualization renderer ────────────────────────────────────────────────── */
+interface VisualizationRendererProps {
+    content: string;
+    artifactIsStreaming: boolean;
+    showCode: boolean;
+}
+const VisualizationRenderer: React.FC<VisualizationRendererProps> = ({
+    content,
+    artifactIsStreaming,
+    showCode,
+}) => {
+    const isDark = useIsDarkMode();
+
+    if (artifactIsStreaming) {
+        return (
+            <div style={{ padding: 24, color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif', fontSize: 14 }}>
+                Rendering visualization…
+            </div>
+        );
+    }
+
+    const trimmed = content.trimStart();
+
+    // Mermaid diagram
+    const mermaidMatch = content.match(/^```mermaid\s*\n([\s\S]*?)(?:```\s*$|$)/m);
+    if (mermaidMatch) {
+        const Mermaid = require('@/components/Chat/ChatContentBlocks/MermaidBlock').default;
+        return showCode ? (
+            <pre style={{ padding: 16, fontSize: 13, overflowX: 'auto', color: 'var(--text-primary)', background: 'transparent' }}>
+                <code>{content}</code>
+            </pre>
+        ) : (
+            <div style={{ padding: 16 }}>
+                <Mermaid chart={mermaidMatch[1]} currentMessage={true} />
+            </div>
+        );
+    }
+
+    // Inline SVG
+    if (/^<svg[\s>]/i.test(trimmed)) {
+        return showCode ? (
+            <pre style={{ padding: 16, fontSize: 13, overflowX: 'auto', color: 'var(--text-primary)', background: 'transparent' }}>
+                <code>{content}</code>
+            </pre>
+        ) : (
+            <div
+                style={{ padding: 16, display: 'flex', justifyContent: 'center' }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(content, { USE_PROFILES: { svg: true } }) }}
+            />
+        );
+    }
+
+    // Sandboxed HTML iframe
+    const isHTML = /^<!DOCTYPE\s+html/i.test(trimmed) || /^<html[\s>]/i.test(trimmed);
+    if (isHTML || trimmed.includes('<body') || trimmed.includes('<head')) {
+        if (showCode) {
+            return (
+                <SyntaxHighlighter
+                    language="html"
+                    style={isDark ? oneDark : oneLight}
+                    customStyle={{ margin: 0, background: 'transparent', fontSize: 13, padding: '14px 16px', overflowX: 'auto' }}
+                    showLineNumbers
+                >
+                    {content}
+                </SyntaxHighlighter>
+            );
+        }
+        return (
+            <iframe
+                srcDoc={content}
+                sandbox="allow-scripts"
+                style={{
+                    width: '100%',
+                    minHeight: 480,
+                    border: 'none',
+                    background: isDark ? '#1a1b26' : '#fff',
+                    display: 'block',
+                }}
+                title="Visualization preview"
+            />
+        );
+    }
+
+    // Fallback: render as code
+    return (
+        <pre style={{ padding: 16, fontSize: 13, overflowX: 'auto', color: 'var(--text-primary)', background: 'transparent' }}>
+            <code>{content}</code>
+        </pre>
+    );
+};
+
+export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artifactIsStreaming, artifactId, versionIndex, artifactEndRef, showCodeView = false }) => {
+
+    const { state: { featureFlags} } = useContext(HomeContext);
 
     const {getOutputTransformers} = useArtifactPromptFinderService();
 
@@ -216,6 +484,51 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
         };
     }, [isContentStable, processedContent]);
     
+    // ── Type dispatch: route to the correct renderer ──────────────────────────
+    const rawContentForType = transformedMessageContent;
+    const nuiType = resolveNUIType(selectedArtifact.type)
+        // For empty/unknown type, sniff from content
+        || (!selectedArtifact.type ? sniffContentType(rawContentForType) : 'document');
+    const effectiveType = selectedArtifact.type
+        ? resolveNUIType(selectedArtifact.type)
+        : sniffContentType(rawContentForType);
+
+    if (effectiveType === 'spreadsheet') {
+        return (
+            <div className="artifactContentBlock w-full" id="artifactsContentBlock"
+                data-artifact-id={artifactId} data-version-index={versionIndex}>
+                <SpreadsheetRenderer content={rawContentForType} isStreaming={artifactIsStreaming} />
+                <div ref={artifactEndRef} />
+            </div>
+        );
+    }
+
+    if (effectiveType === 'code') {
+        const codeLang = selectedArtifact.metadata?.language as string | undefined;
+        return (
+            <div className="artifactContentBlock w-full" id="artifactsContentBlock"
+                data-artifact-id={artifactId} data-version-index={versionIndex}>
+                <CodeRenderer content={rawContentForType} language={codeLang} />
+                <div ref={artifactEndRef} />
+            </div>
+        );
+    }
+
+    if (effectiveType === 'visualization') {
+        return (
+            <div className="artifactContentBlock w-full" id="artifactsContentBlock"
+                data-artifact-id={artifactId} data-version-index={versionIndex}>
+                <VisualizationRenderer
+                    content={rawContentForType}
+                    artifactIsStreaming={artifactIsStreaming}
+                    showCode={showCodeView}
+                />
+                <div ref={artifactEndRef} />
+            </div>
+        );
+    }
+
+    // ── Default: document (Markdown renderer) ─────────────────────────────────
     return (
     <div className="artifactContentBlock w-full p-2"
         id="artifactsContentBlock"
@@ -298,8 +611,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
             },
             a({href, title, children, ...props}) {
                 if (href) {
-                    console.log("enter");
-    
+                    const safeHref = DOMPurify.sanitize(href);
                     switch (true) {
                         case href.startsWith("#"):
                             return (
@@ -307,16 +619,28 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        // handleCustomLinkClick(message, href || "#");
                                     }}
                                     className={`dark:text-white hover:text-neutral-500 dark:hover:text-neutral-200 cursor-pointer underline`}
                                 >
                                     {children}
                                 </button>
                             );
-                            
-                        default:
+                        case href.startsWith('javascript:'):
+                            // Block javascript: hrefs entirely
                             return <>{children}</>;
+                        default:
+                            // External links — open in new tab (Bug 9 fix)
+                            return (
+                                <a
+                                    href={safeHref}
+                                    title={title}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{ color: 'var(--accent)', textDecoration: 'underline' }}
+                                >
+                                    {children}
+                                </a>
+                            );
                     }
                 } else {
                     return <>{children}</>;
@@ -372,8 +696,13 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
             },
             table({children}) {
                 return (
-                    <div style={{ overflowX: 'auto'}}>
-                        <table className="w-full border-collapse border border-black px-3 py-1 dark:border-white">
+                    <div style={{ overflowX: 'auto', width: '100%' }}>
+                        <table style={{
+                            width: '100%',
+                            borderCollapse: 'collapse',
+                            borderColor: 'var(--border-subtle)',
+                            fontSize: '14px',
+                        }}>
                             {children}
                         </table>
                     </div>
@@ -381,15 +710,29 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
             },
             th({children}) {
                 return (
-                    <th className="break-words border border-black bg-gray-500 px-3 py-1 text-white dark:border-white">
+                    <th style={{
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-active)',
+                        color: 'var(--text-primary)',
+                        padding: '8px 12px',
+                        fontWeight: 600,
+                        textAlign: 'left',
+                        verticalAlign: 'middle',
+                        whiteSpace: 'nowrap',
+                    }}>
                         {children}
                     </th>
                 );
             },
             td({children}) {
-    
                 return (
-                    <td className="break-words border border-black px-3 py-1 dark:border-white">
+                    <td style={{
+                        border: '1px solid var(--border-subtle)',
+                        color: 'var(--text-primary)',
+                        padding: '6px 12px',
+                        verticalAlign: 'middle',
+                        wordBreak: 'break-word',
+                    }}>
                         {children}
                     </td>
                 );
