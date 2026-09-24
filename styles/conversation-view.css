@@ -4452,6 +4452,98 @@
   outline-offset: 2px;
 }
 
+/* ── New UI admin configurations ─────────────────────────────────────────── */
+[data-new-ui-configurations="true"] {
+  color: var(--text-primary);
+}
+
+[data-new-ui-configurations="true"] .nui-config-card {
+  margin: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  box-shadow: none;
+}
+
+[data-new-ui-configurations="true"] .nui-config-card-header {
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+[data-new-ui-configurations="true"] .nui-config-card-content {
+  padding: 16px 20px 20px;
+}
+
+[data-new-ui-configurations="true"] .nui-config-title {
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+[data-new-ui-configurations="true"] .nui-config-description {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+[data-new-ui-configurations="true"] .nui-config-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+
+[data-new-ui-configurations="true"] .nui-config-table {
+  min-width: 980px;
+  margin: 0;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+[data-new-ui-configurations="true"] .nui-config-table th {
+  padding: 10px 12px;
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+  border-color: var(--border-subtle);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+[data-new-ui-configurations="true"] .nui-config-table td {
+  padding: 12px;
+  border-color: var(--border-subtle);
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  vertical-align: middle;
+}
+
+[data-new-ui-configurations="true"] .nui-config-table tbody tr:hover td {
+  background: var(--bg-hover);
+}
+
+[data-new-ui-configurations="true"] input,
+[data-new-ui-configurations="true"] select,
+[data-new-ui-configurations="true"] textarea {
+  color: var(--text-primary);
+  background: var(--bg-app);
+  border-color: var(--border-subtle);
+}
+
+[data-new-ui-configurations="true"] input::placeholder {
+  color: var(--text-muted);
+}
+
+[data-new-ui-configurations="true"] button {
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease, opacity .15s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-new-ui-configurations="true"] button {
+    transition: none;
+  }
+}
+
 /* ── Reduced-motion overrides (NEW_UI_GUIDE §5 rule 5) ── */
 @media (prefers-reduced-motion: reduce) {
   .nui-src-pill,
