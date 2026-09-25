@@ -26,7 +26,19 @@
  *  - Bug 7: Added rename button (pencil icon) + inline rename input.
  *  - Bug 8: Added truncation detection with a warning notice.
  */
-
+import {
+  IconAlertTriangle,
+  IconChartBar,
+  IconChevronDown,
+  IconCode,
+  IconEye,
+  IconFileText,
+  IconMaximize,
+  IconMinimize,
+  IconPencil,
+  IconTable,
+  IconX,
+} from '@tabler/icons-react';
 import React, {
   MutableRefObject,
   useCallback,
@@ -36,31 +48,17 @@ import React, {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  IconX,
-  IconMaximize,
-  IconMinimize,
-  IconDownload,
-  IconCopy,
-  IconCheck,
-  IconChevronDown,
-  IconPencil,
-  IconAlertTriangle,
-  IconTable,
-  IconCode,
-  IconFileText,
-  IconChartBar,
-  IconEye,
-} from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
-import { lzwUncompress } from '@/utils/app/lzwCompression';
-import { downloadArtifacts } from '@/utils/app/artifacts';
-import { extractCodeBlocksAndText } from '@/utils/app/codeblock';
 import toast from 'react-hot-toast';
-import { resolveNUIType, sniffContentType } from '@/types/artifacts';
-import { generateXLSXBlob } from '@/utils/app/xlsxGenerator';
-import Papa from 'papaparse';
+
 import { getAllArtifacts, saveArtifact } from '@/services/artifactsService';
+
+import { lzwUncompress } from '@/utils/app/lzwCompression';
+
+import { resolveNUIType, sniffContentType } from '@/types/artifacts';
+
+import HomeContext from '@/pages/api/home/home.context';
+
+import { ArtifactExportMenu } from '@/components/NewUI/shared/ArtifactExportMenu';
 import { renameArtifactInConversation } from '@/components/NewUI/shared/artifactLibraryModel';
 
 /** ID of the header container injected into #artifactsTab */
@@ -75,7 +73,8 @@ function isLikelyTruncated(content: string): boolean {
   // Unclosed inline backtick code span
   if (/`[^`\n]{0,100}$/.test(tail)) return true;
   // Mid-table-row (pipe at very end with no closing newline)
-  if (/\|[^|\n]{0,60}$/.test(tail) && !tail.trimEnd().endsWith('|')) return true;
+  if (/\|[^|\n]{0,60}$/.test(tail) && !tail.trimEnd().endsWith('|'))
+    return true;
   // Unclosed code fence
   const fences = (content.match(/^```/gm) ?? []).length;
   if (fences % 2 !== 0) return true;
@@ -97,9 +96,7 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
   const [artifactIndex, setArtifactIndex] = useState(0);
   const [headerRoot, setHeaderRoot] = useState<HTMLElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [showVersionMenu, setShowVersionMenu] = useState(false);
-  const [copied, setCopied] = useState(false);
   /** Visualization Preview / Code toggle */
   const [showCodeView, setShowCodeView] = useState(false);
   // Rename state
@@ -107,9 +104,7 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
   const [renameValue, setRenameValue] = useState('');
   const renameInputRef = useRef<HTMLInputElement>(null);
 
-  const downloadMenuRef = useRef<HTMLDivElement>(null);
   const versionMenuRef = useRef<HTMLDivElement>(null);
-  const downloadBtnRef = useRef<HTMLButtonElement>(null);
   const versionBtnRef = useRef<HTMLButtonElement>(null);
 
   // ── Listen for openArtifactsTrigger ────────────────────────────────────────
@@ -150,7 +145,10 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
     const measurePanel = () => {
       const panel = document.getElementById('artifactsTab');
       if (!panel || !shellRef.current) return;
-      shellRef.current.style.setProperty('--nui-artifact-panel-w', `${panel.offsetWidth}px`);
+      shellRef.current.style.setProperty(
+        '--nui-artifact-panel-w',
+        `${panel.offsetWidth}px`,
+      );
     };
 
     const raf = requestAnimationFrame(() => {
@@ -176,9 +174,17 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
 
     const inject = () => {
       const artifactsTab = document.getElementById('artifactsTab');
-      if (!artifactsTab) { retryTimer = setTimeout(inject, 100); return; }
-      const inner = artifactsTab.querySelector<HTMLElement>(':scope > .flex.flex-col');
-      if (!inner) { retryTimer = setTimeout(inject, 100); return; }
+      if (!artifactsTab) {
+        retryTimer = setTimeout(inject, 100);
+        return;
+      }
+      const inner = artifactsTab.querySelector<HTMLElement>(
+        ':scope > .flex.flex-col',
+      );
+      if (!inner) {
+        retryTimer = setTimeout(inject, 100);
+        return;
+      }
 
       // Inject the header root as a DIRECT CHILD of #artifactsTab, BEFORE the
       // inner flex-col.  This gives us the correct "flex column with non-scrolling
@@ -220,9 +226,17 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.stopImmediatePropagation();
-      if (isRenaming) { setIsRenaming(false); return; }
-      if (isFullscreen) { setIsFullscreen(false); return; }
-      window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
+      if (isRenaming) {
+        setIsRenaming(false);
+        return;
+      }
+      if (isFullscreen) {
+        setIsFullscreen(false);
+        return;
+      }
+      window.dispatchEvent(
+        new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }),
+      );
     };
     document.addEventListener('keydown', onKeyDown, true);
     return () => document.removeEventListener('keydown', onKeyDown, true);
@@ -236,23 +250,20 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
     }
   }, [isRenaming]);
 
-  // ── Close dropdowns on outside click ─────────────────────────────────────
+  // ── Close version dropdown on outside click ───────────────────────────────
   useEffect(() => {
-    if (!showDownloadMenu && !showVersionMenu) return;
+    if (!showVersionMenu) return;
     const onPointerDown = (e: PointerEvent) => {
       if (
-        downloadMenuRef.current?.contains(e.target as Node) ||
-        downloadBtnRef.current?.contains(e.target as Node) ||
         versionMenuRef.current?.contains(e.target as Node) ||
         versionBtnRef.current?.contains(e.target as Node)
       )
         return;
-      setShowDownloadMenu(false);
       setShowVersionMenu(false);
     };
     document.addEventListener('pointerdown', onPointerDown);
     return () => document.removeEventListener('pointerdown', onPointerDown);
-  }, [showDownloadMenu, showVersionMenu]);
+  }, [showVersionMenu]);
 
   // ── Propagate visualization toggle to the renderer ───────────────────────
   useEffect(() => {
@@ -273,7 +284,12 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
       : null;
 
   const getArtifactContent = useCallback(() => {
-    if (!currentArtifact || !Array.isArray(currentArtifact.contents) || currentArtifact.contents.length === 0) return '';
+    if (
+      !currentArtifact ||
+      !Array.isArray(currentArtifact.contents) ||
+      currentArtifact.contents.length === 0
+    )
+      return '';
     try {
       return lzwUncompress(currentArtifact.contents);
     } catch {
@@ -281,9 +297,10 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
     }
   }, [currentArtifact]);
 
-  const truncated = !artifactIsStreaming && currentArtifact
-    ? isLikelyTruncated(getArtifactContent())
-    : false;
+  const truncated =
+    !artifactIsStreaming && currentArtifact
+      ? isLikelyTruncated(getArtifactContent())
+      : false;
 
   // Determine the NUI rendering type of the current artifact
   const effectiveNUIType = useCallback(() => {
@@ -297,133 +314,17 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
 
   const nuiType = effectiveNUIType();
 
-  // Slugified filename base
-  const slugName = (currentArtifact?.name ?? 'artifact')
-    .trim()
-    .replace(/\s+/g, '_')
-    .replace(/[^a-zA-Z0-9_.-]/g, '')
-    || 'artifact';
-
   const handleClose = () =>
-    window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
-
-  // ── Generic copy ──────────────────────────────────────────────────────────
-  const copyText = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      toast.success('Copied to clipboard');
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      toast.error('Copy failed');
-    }
-    setShowDownloadMenu(false);
-  };
-
-  const triggerDownload = (blob: Blob, filename: string) => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
-    setShowDownloadMenu(false);
-  };
-
-  // ── Document handlers ────────────────────────────────────────────────────
-  const handleCopyMarkdown = () => copyText(getArtifactContent());
-
-  const handleDownloadMarkdown = () => {
-    const content = getArtifactContent();
-    if (!content) return;
-    triggerDownload(new Blob([content], { type: 'text/markdown' }), `${slugName}.md`);
-  };
-
-  const handleDownloadWord = async () => {
-    const content = getArtifactContent();
-    if (!content || !currentArtifact) return;
-    setShowDownloadMenu(false);
-    try {
-      await downloadArtifacts(
-        slugName,
-        content,
-        extractCodeBlocksAndText(content),
-      );
-    } catch {
-      toast.error('Download failed');
-    }
-  };
-
-  // ── Spreadsheet handlers ─────────────────────────────────────────────────
-  const handleCopyCSV = () => copyText(getArtifactContent());
-
-  const handleDownloadCSV = () => {
-    const content = getArtifactContent();
-    if (!content) return;
-    triggerDownload(new Blob([content], { type: 'text/csv' }), `${slugName}.csv`);
-  };
-
-  const handleDownloadExcel = async () => {
-    const content = getArtifactContent();
-    if (!content) return;
-    setShowDownloadMenu(false);
-    try {
-      const parsed = Papa.parse<string[]>(content, { skipEmptyLines: true, header: false });
-      const rows = parsed.data as string[][];
-      const sheetName = currentArtifact?.name?.slice(0, 31) || 'Sheet1';
-      const blob = await generateXLSXBlob(rows, sheetName);
-      triggerDownload(blob, `${slugName}.xlsx`);
-    } catch {
-      toast.error('Excel download failed');
-    }
-  };
-
-  // ── Code handlers ────────────────────────────────────────────────────────
-  /** Detect the code language from the artifact to pick the right extension. */
-  const codeExtension = (): string => {
-    const lang = (currentArtifact?.metadata?.language as string | undefined)
-      || (currentArtifact?.type !== 'code' ? currentArtifact?.type : '');
-    const map: Record<string, string> = {
-      python: '.py', javascript: '.js', typescript: '.ts', sql: '.sql',
-      java: '.java', c: '.c', cpp: '.cpp', 'c++': '.cpp', go: '.go',
-      rust: '.rs', ruby: '.rb', php: '.php', swift: '.swift',
-      kotlin: '.kt', scala: '.scala', r: '.r', bash: '.sh', shell: '.sh',
-      yaml: '.yaml', toml: '.toml', html: '.html', css: '.css',
-    };
-    return (lang && map[lang.toLowerCase()]) || '.txt';
-  };
-
-  const handleCopyCode = () => {
-    const content = getArtifactContent();
-    // Strip outer code fence if present
-    const fenceMatch = content.match(/^```(?:\w+)?\s*\n([\s\S]*?)(?:```\s*$|$)/m);
-    copyText(fenceMatch ? fenceMatch[1] : content);
-  };
-
-  const handleDownloadCode = () => {
-    const content = getArtifactContent();
-    const fenceMatch = content.match(/^```(?:\w+)?\s*\n([\s\S]*?)(?:```\s*$|$)/m);
-    const code = fenceMatch ? fenceMatch[1] : content;
-    triggerDownload(new Blob([code], { type: 'text/plain' }), `${slugName}${codeExtension()}`);
-  };
-
-  // ── Visualization handlers ───────────────────────────────────────────────
-  const handleCopyHTML = () => copyText(getArtifactContent());
-
-  const handleDownloadHTML = () => {
-    const content = getArtifactContent();
-    if (!content) return;
-    const isSVG = content.trimStart().startsWith('<svg');
-    triggerDownload(
-      new Blob([content], { type: isSVG ? 'image/svg+xml' : 'text/html' }),
-      `${slugName}${isSVG ? '.svg' : '.html'}`,
+    window.dispatchEvent(
+      new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }),
     );
-  };
 
   const handleVersionSwitch = (idx: number) => {
     setArtifactIndex(idx);
     window.dispatchEvent(
-      new CustomEvent('openArtifactsTrigger', { detail: { isOpen: true, artifactIndex: idx } }),
+      new CustomEvent('openArtifactsTrigger', {
+        detail: { isOpen: true, artifactIndex: idx },
+      }),
     );
     setShowVersionMenu(false);
   };
@@ -435,7 +336,6 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
     setRenameValue(currentArtifact.name);
     setIsRenaming(true);
     setShowVersionMenu(false);
-    setShowDownloadMenu(false);
   };
 
   const commitRename = async () => {
@@ -474,15 +374,20 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
           ? {
               metadata: {
                 ...(currentArtifact.metadata ?? {}),
-                ...(selectedConversation?.id ? { conversationId: selectedConversation.id } : {}),
+                ...(selectedConversation?.id
+                  ? { conversationId: selectedConversation.id }
+                  : {}),
               },
             }
           : {}),
-        ...(selectedConversation?.id ? { conversationId: selectedConversation.id } : {}),
+        ...(selectedConversation?.id
+          ? { conversationId: selectedConversation.id }
+          : {}),
       });
       if (!result?.success) throw new Error('Artifact rename failed');
       const response = await getAllArtifacts();
-      if (response.success) homeDispatch({ field: 'artifacts', value: response.data || [] });
+      if (response.success)
+        homeDispatch({ field: 'artifacts', value: response.data || [] });
     } catch {
       toast.error('Artifact renamed locally, but server sync failed');
     }
@@ -492,7 +397,10 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
 
   const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') commitRename();
-    if (e.key === 'Escape') { e.stopPropagation(); cancelRename(); }
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      cancelRename();
+    }
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -503,7 +411,8 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
   // Use artifact type as a fallback when the LLM didn't provide a name.
   // Using || (not ??) so that an empty-string name also falls through.
   const artifactTypeLabel = currentArtifact?.type
-    ? currentArtifact.type.charAt(0).toUpperCase() + currentArtifact.type.slice(1)
+    ? currentArtifact.type.charAt(0).toUpperCase() +
+      currentArtifact.type.slice(1)
     : null;
   const displayName = currentArtifact?.name || artifactTypeLabel || 'Artifact';
 
@@ -542,7 +451,8 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
             onClick={startRename}
             style={{ ...iconBtnStyle, width: 26, height: 26 }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+              (e.currentTarget as HTMLElement).style.background =
+                'var(--bg-hover)';
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLElement).style.background = 'transparent';
@@ -585,7 +495,11 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
               aria-haspopup={versionCount > 1 ? 'listbox' : undefined}
               aria-expanded={showVersionMenu}
               onDoubleClick={startRename}
-              onClick={versionCount > 1 ? () => setShowVersionMenu((v) => !v) : undefined}
+              onClick={
+                versionCount > 1
+                  ? () => setShowVersionMenu((v) => !v)
+                  : undefined
+              }
               title={displayName}
               style={{
                 display: 'flex',
@@ -594,7 +508,9 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
                 padding: '3px 6px',
                 margin: '0 -6px',
                 borderRadius: 8,
-                background: showVersionMenu ? 'var(--bg-active)' : 'transparent',
+                background: showVersionMenu
+                  ? 'var(--bg-active)'
+                  : 'transparent',
                 border: 'none',
                 cursor: versionCount > 1 ? 'pointer' : 'default',
                 color: 'var(--text-primary)',
@@ -618,7 +534,14 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
                 {displayName}
               </span>
               {versionCount > 1 && (
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 2 }}>
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-muted)',
+                    flexShrink: 0,
+                    marginLeft: 2,
+                  }}
+                >
                   v{currentVersion}
                 </span>
               )}
@@ -628,7 +551,9 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
                   style={{
                     color: 'var(--text-muted)',
                     flexShrink: 0,
-                    transform: showVersionMenu ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transform: showVersionMenu
+                      ? 'rotate(180deg)'
+                      : 'rotate(0deg)',
                     transition: 'transform 0.15s',
                   }}
                 />
@@ -672,7 +597,8 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
                       width: '100%',
                       padding: '6px 12px',
                       border: 'none',
-                      background: idx === currentIdx ? 'var(--bg-active)' : 'transparent',
+                      background:
+                        idx === currentIdx ? 'var(--bg-active)' : 'transparent',
                       color: 'var(--text-primary)',
                       fontSize: 13,
                       cursor: 'pointer',
@@ -680,17 +606,31 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
                       fontFamily: 'inherit',
                     }}
                     onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                      (e.currentTarget as HTMLElement).style.background =
+                        'var(--bg-hover)';
                     }}
                     onMouseLeave={(e) => {
                       (e.currentTarget as HTMLElement).style.background =
                         idx === currentIdx ? 'var(--bg-active)' : 'transparent';
                     }}
                   >
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
                       {art.name}
                     </span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0, marginLeft: 8 }}>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--text-muted)',
+                        flexShrink: 0,
+                        marginLeft: 8,
+                      }}
+                    >
                       v{art.version ?? idx + 1}
                     </span>
                   </button>
@@ -702,23 +642,43 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
       </div>
 
       {/* ── Right: type label + controls ── */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, position: 'relative' }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          flexShrink: 0,
+          position: 'relative',
+        }}
+      >
         {/* Truncation notice */}
         {truncated && (
           <div
             title="The artifact content may be incomplete (generation hit the token limit)"
             style={{
-              display: 'flex', alignItems: 'center', gap: 4,
-              fontSize: 12, color: 'var(--text-secondary)',
-              padding: '0 8px', height: 28, borderRadius: 7,
-              border: '1px solid color-mix(in srgb, orange 40%, var(--border-subtle))',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              padding: '0 8px',
+              height: 28,
+              borderRadius: 7,
+              border:
+                '1px solid color-mix(in srgb, orange 40%, var(--border-subtle))',
               background: 'color-mix(in srgb, orange 8%, var(--bg-raised))',
-              flexShrink: 0, cursor: 'default',
+              flexShrink: 0,
+              cursor: 'default',
               fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
             }}
-            role="status" aria-label="This artifact may be incomplete"
+            role="status"
+            aria-label="This artifact may be incomplete"
           >
-            <IconAlertTriangle size={13} aria-hidden="true" style={{ flexShrink: 0 }} />
+            <IconAlertTriangle
+              size={13}
+              aria-hidden="true"
+              style={{ flexShrink: 0 }}
+            />
             <span>May be incomplete</span>
           </div>
         )}
@@ -729,128 +689,45 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
             type="button"
             aria-label={showCodeView ? 'Show preview' : 'Show source code'}
             title={showCodeView ? 'Preview' : 'Code'}
-            onClick={() => setShowCodeView(v => !v)}
+            onClick={() => setShowCodeView((v) => !v)}
             style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '0 10px', height: 30, borderRadius: 8,
-              border: '1px solid var(--border-subtle)', background: 'transparent',
-              color: 'var(--text-primary)', fontSize: 13, fontWeight: 500,
-              cursor: 'pointer', flexShrink: 0, transition: 'background 0.12s',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '0 10px',
+              height: 30,
+              borderRadius: 8,
+              border: '1px solid var(--border-subtle)',
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'background 0.12s',
               fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
             }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background =
+                'var(--bg-hover)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'transparent';
+            }}
           >
             {showCodeView ? <IconEye size={14} /> : <IconCode size={14} />}
             <span>{showCodeView ? 'Preview' : 'Code'}</span>
           </button>
         )}
 
-        {/* Download button */}
-        <div style={{ position: 'relative' }}>
-          <button
-            ref={downloadBtnRef}
-            type="button"
-            aria-label="Download artifact"
-            aria-haspopup="true"
-            aria-expanded={showDownloadMenu}
-            disabled={artifactIsStreaming}
-            onClick={() => setShowDownloadMenu((v) => !v)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '0 10px', height: 30, borderRadius: 8,
-              border: '1px solid var(--border-subtle)', background: 'transparent',
-              color: 'var(--text-primary)', fontSize: 13, fontWeight: 500,
-              cursor: artifactIsStreaming ? 'not-allowed' : 'pointer',
-              opacity: artifactIsStreaming ? 0.45 : 1,
-              transition: 'background 0.12s',
-              fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-            }}
-            onMouseEnter={(e) => {
-              if (!artifactIsStreaming)
-                (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-            }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-          >
-            {copied ? (
-              <IconCheck size={14} style={{ color: '#22c55e' }} />
-            ) : (
-              <IconDownload size={14} />
-            )}
-            <span>Download</span>
-            <IconChevronDown
-              size={12}
-              style={{
-                transform: showDownloadMenu ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.12s',
-              }}
-            />
-          </button>
-
-          {showDownloadMenu && (
-            <div
-              ref={downloadMenuRef}
-              style={{
-                position: 'absolute', top: '100%', right: 0, marginTop: 4,
-                background: 'var(--bg-raised)', border: '1px solid var(--border-subtle)',
-                borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-                zIndex: 200, minWidth: 220, padding: '4px 0',
-                fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
-              }}
-            >
-              {/* Type-specific menu items */}
-              {((): Array<{ icon: React.ReactNode; label: string; sublabel: string; action: () => void }> => {
-                switch (nuiType) {
-                  case 'spreadsheet':
-                    return [
-                      { icon: <IconCopy size={14} />, label: 'Copy as CSV', sublabel: 'To clipboard', action: handleCopyCSV },
-                      { icon: <IconDownload size={14} />, label: 'Download CSV', sublabel: '.csv file', action: handleDownloadCSV },
-                      { icon: <IconDownload size={14} />, label: 'Download Excel', sublabel: '.xlsx file', action: handleDownloadExcel },
-                    ];
-                  case 'code':
-                    return [
-                      { icon: <IconCopy size={14} />, label: 'Copy code', sublabel: 'To clipboard', action: handleCopyCode },
-                      { icon: <IconDownload size={14} />, label: `Download file`, sublabel: `${codeExtension()} file`, action: handleDownloadCode },
-                    ];
-                  case 'visualization':
-                    return [
-                      { icon: <IconCopy size={14} />, label: 'Copy code', sublabel: 'To clipboard', action: handleCopyHTML },
-                      { icon: <IconDownload size={14} />, label: 'Download', sublabel: getArtifactContent().trimStart().startsWith('<svg') ? '.svg file' : '.html file', action: handleDownloadHTML },
-                    ];
-                  default: // document
-                    return [
-                      { icon: <IconCopy size={14} />, label: 'Copy as Markdown', sublabel: 'To clipboard', action: handleCopyMarkdown },
-                      { icon: <IconDownload size={14} />, label: 'Download Markdown', sublabel: '.md file', action: handleDownloadMarkdown },
-                      { icon: <IconDownload size={14} />, label: 'Download Word', sublabel: '.docx file', action: handleDownloadWord },
-                    ];
-                }
-              })().map((item) => (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={item.action}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    width: '100%', padding: '7px 14px', border: 'none',
-                    background: 'transparent', color: 'var(--text-primary)',
-                    fontSize: 13, cursor: 'pointer', textAlign: 'left',
-                    fontFamily: 'inherit',
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                >
-                  <span style={{ flexShrink: 0, color: 'var(--text-secondary)' }}>{item.icon}</span>
-                  <span>
-                    <span style={{ display: 'block', lineHeight: '1.3' }}>{item.label}</span>
-                    <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', lineHeight: '1.2' }}>
-                      {item.sublabel}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        <ArtifactExportMenu
+          type={nuiType}
+          name={currentArtifact?.name ?? displayName}
+          content={getArtifactContent()}
+          language={currentArtifact?.metadata?.language as string | undefined}
+          disabled={artifactIsStreaming || !currentArtifact}
+          style={{ flexShrink: 0 }}
+        />
 
         {/* Expand / fullscreen */}
         <button
@@ -859,10 +736,19 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
           title={isFullscreen ? 'Exit fullscreen' : 'Expand to fullscreen'}
           onClick={() => setIsFullscreen((f) => !f)}
           style={iconBtnStyle}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background =
+              'var(--bg-hover)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+          }}
         >
-          {isFullscreen ? <IconMinimize size={16} /> : <IconMaximize size={16} />}
+          {isFullscreen ? (
+            <IconMinimize size={16} />
+          ) : (
+            <IconMaximize size={16} />
+          )}
         </button>
 
         {/* Close */}
@@ -872,8 +758,13 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
           title="Close artifact panel (Esc)"
           onClick={handleClose}
           style={iconBtnStyle}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background =
+              'var(--bg-hover)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+          }}
         >
           <IconX size={16} />
         </button>

@@ -60,6 +60,7 @@ import { capitalize } from '@/utils/app/data';
 import { handleFile } from '@/components/Chat/AttachFile';
 import type { AttachedDocument } from '@/types/attacheddocument';
 import AttachmentPreview from '@/components/NewUI/shared/AttachmentPreview';
+import ArtifactPreviewModal from '@/components/NewUI/shared/ArtifactPreviewModal';
 import ConfirmDialog from '@/components/NewUI/shared/ConfirmDialog';
 import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
 import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
@@ -577,6 +578,29 @@ export const NewLibraryView: React.FC = () => {
     const [libraryMode, setLibraryMode] = useState<'files' | 'artifacts'>('files');
     const [artifactsLoading, setArtifactsLoading] = useState(false);
     const [viewLoadingKey, setViewLoadingKey] = useState<string | null>(null);
+    const [previewArtifact, setPreviewArtifact] = useState<ArtifactLibraryItem | null>(null);
+    const artifactOpenFrameRef = useRef<number | null>(null);
+    const requestArtifactPanelOpen = useCallback((artifactIndex: number) => {
+        if (artifactOpenFrameRef.current !== null) window.cancelAnimationFrame(artifactOpenFrameRef.current);
+        let frames = 0;
+        const tryOpen = () => {
+            // Chat renders the legacy artifact panel only after its open state changes.
+            // Wait for the New UI shell, then ArtifactPanelLayer handles panel injection.
+            if (document.querySelector('.new-ui-chat-shell')) {
+                window.dispatchEvent(new CustomEvent('openArtifactsTrigger', {
+                    detail: { isOpen: true, artifactIndex },
+                }));
+                artifactOpenFrameRef.current = null;
+                return;
+            }
+            if (frames++ < 90) artifactOpenFrameRef.current = window.requestAnimationFrame(tryOpen);
+            else artifactOpenFrameRef.current = null;
+        };
+        artifactOpenFrameRef.current = window.requestAnimationFrame(tryOpen);
+    }, []);
+    useEffect(() => () => {
+        if (artifactOpenFrameRef.current !== null) window.cancelAnimationFrame(artifactOpenFrameRef.current);
+    }, []);
     const artifactConversations = useMemo(() => {
         const all = selectedConversation ? [selectedConversation, ...conversations] : conversations;
         return Array.from(new Map(all.map((conversation) => [conversation.id, conversation])).values());
@@ -855,19 +879,35 @@ export const NewLibraryView: React.FC = () => {
 
     const handleRefreshArtifacts = refreshArtifacts;
 
-    const openArtifactInChat = async (item: ArtifactLibraryItem) => {
+    const hydrateArtifactItem = useCallback(async (item: ArtifactLibraryItem) => {
+        const lookupKey = item.artifact.key || item.artifact.artifactId;
+        if (item.hasContent || !lookupKey) return item;
+        const result = await getArtifact(lookupKey);
+        if (!result.success || !result.data) return item;
+        return hydrateArtifactLibraryItem(item, result.data, artifactConversations);
+    }, [artifactConversations]);
+
+    const handleViewArtifact = useCallback(async (item: ArtifactLibraryItem) => {
         setViewLoadingKey(item.stableKey);
         try {
-            const lookupKey = item.artifact.key || item.artifact.artifactId;
-            let hydratedArtifact: any = item.hasContent ? item.artifact : null;
-            if (!hydratedArtifact && lookupKey) {
-                const result = await getArtifact(lookupKey);
-                if (result.success && result.data) hydratedArtifact = result.data;
+            const resolvedItem = await hydrateArtifactItem(item);
+            if (!resolvedItem.hasContent) {
+                toast.error('Unable to load artifact content');
+                return;
             }
+            setPreviewArtifact(resolvedItem);
+        } catch {
+            toast.error('Unable to open artifact preview');
+        } finally {
+            setViewLoadingKey(null);
+        }
+    }, [hydrateArtifactItem]);
 
-            const resolvedItem = hydratedArtifact
-                ? hydrateArtifactLibraryItem(item, hydratedArtifact, artifactConversations)
-                : item;
+    const handleChatArtifact = useCallback(async (item: ArtifactLibraryItem) => {
+        setViewLoadingKey(item.stableKey);
+        setPreviewArtifact(null);
+        try {
+            const resolvedItem = await hydrateArtifactItem(item);
             const sourceId = resolvedItem.source.conversationId;
             if (!sourceId) {
                 toast.error('Source conversation unavailable for this artifact');
@@ -881,12 +921,8 @@ export const NewLibraryView: React.FC = () => {
                 folderId: null,
                 isLocal: false,
             } as any);
-
-            await handleSelectConversation(source);
-            dispatch({ field: 'page', value: 'chat' });
-
             const versions = source.artifacts?.[resolvedItem.artifact.artifactId];
-                    const selectedVersions = versions?.length ? versions : hydratedArtifact ? [hydratedArtifact] : [];
+            const selectedVersions = versions?.length ? versions : resolvedItem.hasContent ? [resolvedItem.artifact] : [];
             if (!selectedVersions.length) {
                 toast.error('Unable to load artifact content');
                 return;
@@ -895,16 +931,16 @@ export const NewLibraryView: React.FC = () => {
             const artifactIndex = requestedIndex !== undefined
                 ? Math.min(requestedIndex, selectedVersions.length - 1)
                 : selectedVersions.length - 1;
+            await handleSelectConversation(source);
+            dispatch({ field: 'page', value: 'chat' });
             dispatch({ field: 'selectedArtifacts', value: selectedVersions });
-            window.setTimeout(() => window.dispatchEvent(new CustomEvent('openArtifactsTrigger', {
-                detail: { isOpen: true, artifactIndex },
-            })), 0);
+            requestArtifactPanelOpen(artifactIndex);
         } catch {
             toast.error('Unable to open artifact in chat');
         } finally {
             setViewLoadingKey(null);
         }
-    };
+    }, [dispatch, handleSelectConversation, hydrateArtifactItem, requestArtifactPanelOpen]);
 
     const handleDownload = (file: FileRecord & { commonType?: string }) => {
         downloadDataSourceFile({ id: file.id, name: file.name, type: file.type });
@@ -1225,14 +1261,17 @@ export const NewLibraryView: React.FC = () => {
                         <div className="flex flex-col items-center justify-center py-20 text-center"><IconLibrary size={30} style={{ color: 'var(--text-muted)', opacity: .45 }} /><p className="mt-3 text-[13px]" style={{ color: 'var(--text-secondary)' }}>No generated artifacts yet</p><p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Create an artifact in a chat and it will appear here.</p></div>
                     ) : (
                         <div className="flex flex-col gap-2">
-                            {artifactItems.map((item) => (
+                            {artifactItems.map((item) => {
+                                const sourceLabel = item.source.conversation?.name || (item.source.conversationId ? 'Source conversation' : '');
+                                return (
                                 <div key={item.stableKey} className="flex items-center gap-3 rounded-[9px] border px-4 py-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
                                     <div className="h-9 w-9 flex items-center justify-center rounded-[8px]" style={{ color: 'var(--accent)', backgroundColor: 'var(--bg-active)' }}><IconLibrary size={17} /></div>
-                                    <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</p><p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version} · {item.source.conversation?.name || (item.source.conversationId ? 'Source conversation' : 'Source resolved when opened')}</p></div>
-                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => void openArtifactInChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>{viewLoadingKey === item.stableKey ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
-                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => void openArtifactInChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
+                                    <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</p><p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version}{sourceLabel ? ` · ${sourceLabel}` : ''}</p></div>
+                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => void handleViewArtifact(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>{viewLoadingKey === item.stableKey ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
+                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => void handleChatArtifact(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -1425,6 +1464,13 @@ export const NewLibraryView: React.FC = () => {
                     initialIndex={0}
                     originRect={previewOriginRect}
                     onClose={() => { setPreviewAttachment(null); setPreviewOriginRect(undefined); }}
+                />
+            )}
+            {previewArtifact && (
+                <ArtifactPreviewModal
+                    item={previewArtifact}
+                    onClose={() => setPreviewArtifact(null)}
+                    onOpenChat={() => void handleChatArtifact(previewArtifact)}
                 />
             )}
             <ConfirmDialog
