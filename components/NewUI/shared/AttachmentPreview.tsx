@@ -205,8 +205,9 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
   const csvRows = isCSV && previewText ? parseCSV(previewText) : null;
   const csvTruncated = csvRows && csvRows.length > 500;
 
-  // Is image?
+  // Is image/PDF?
   const isImage = kind === 'image';
+  const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(name);
 
   const preview = (
     <>
@@ -365,7 +366,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
             transition: reduced ? 'none' : 'opacity 180ms ease 40ms',
           }}
         >
-          {previewState === 'pending' || (previewState === 'available' && ((isImage && !(thumbUrl || previewUrl)) || remoteTextLoading)) ? (
+          {previewState === 'available' && ((isImage && !(thumbUrl || previewUrl)) || remoteTextLoading) ? (
             <div
               className="absolute inset-0 flex items-center justify-center"
               role="status"
@@ -394,12 +395,17 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
             />
           )}
           {previewState === 'pending' && (
-            <UnavailableBlock
-              icon={<IconClock size={28} />}
-              line1="Preparing preview…"
-              line2=""
-              showDownload={false}
-            />
+            <div
+              className="flex flex-col items-center justify-center h-full"
+              role="status"
+              aria-label="Preparing preview"
+              style={{ gap: 12, color: 'var(--text-secondary)' }}
+            >
+              <IconLoader2 size={28} className="motion-safe:animate-spin motion-reduce:animate-none" />
+              <span style={{ fontSize: 15, color: 'var(--text-primary)', textAlign: 'center' }}>
+                Preparing preview…
+              </span>
+            </div>
           )}
           {previewState === 'failed' && (
             <UnavailableBlock
@@ -412,6 +418,13 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
           )}
           {previewState === 'available' && (
             <>
+              {isPdf && previewUrl && (
+                <iframe
+                  src={previewUrl}
+                  title={`PDF preview for ${name}`}
+                  style={{ width: '100%', height: '100%', minHeight: 360, border: 0, background: 'white' }}
+                />
+              )}
               {isImage && (thumbUrl || previewUrl) && (
                 /* Image: letterboxed, object-fit:contain (spec §7.3) */
                 <div
@@ -527,7 +540,7 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
                 />
               )}
 
-              {!isImage && !isCSV && !remoteTextLoading && !remoteTextFailed && previewText && (
+              {!isImage && !isPdf && !isCSV && !remoteTextLoading && !remoteTextFailed && previewText && (
                 /* Raw text source (spec §7.3) */
                 <pre
                   style={{

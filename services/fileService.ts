@@ -300,6 +300,17 @@ export const queryUserFiles = async (query: FileQuery, abortSignal: AbortSignal 
     return await doRequestOp(op);
 }
 
+export const renameFile = async (id: string, name: string) => {
+    const op = {
+        method: 'POST',
+        path: URL_PATH,
+        op: "/rename",
+        data: { id, name },
+        service: SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
 export const deleteFile = async (key: string) => {
     console.log("Delete File function, Service Name:", SERVICE_NAME);
     const op = {

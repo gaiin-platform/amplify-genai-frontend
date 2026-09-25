@@ -56,6 +56,16 @@ export function buildArtifactSavePayload(artifact: Partial<ArtifactLibraryRecord
     return null;
   }
 
+  const sourceConversationId = artifact.conversationId
+    ?? (artifact.metadata as any)?.conversationId
+    ?? (artifact.metadata as any)?.conversation_id;
+  const metadata = artifact.metadata && typeof artifact.metadata === 'object'
+    ? { ...artifact.metadata }
+    : {};
+  if (typeof sourceConversationId === 'string' && sourceConversationId.trim()) {
+    metadata.conversationId = sourceConversationId.trim();
+  }
+
   return {
     artifactId,
     version: versionOf(artifact) ?? 1,
@@ -65,7 +75,7 @@ export function buildArtifactSavePayload(artifact: Partial<ArtifactLibraryRecord
     contents: contents as number[],
     tags: Array.isArray(artifact.tags) ? artifact.tags : [],
     createdAt: typeof artifact.createdAt === 'string' ? artifact.createdAt : new Date().toISOString(),
-    ...(artifact.metadata && typeof artifact.metadata === 'object' ? { metadata: artifact.metadata } : {}),
+    ...(Object.keys(metadata).length ? { metadata } : {}),
   };
 }
 
@@ -177,6 +187,7 @@ export function normalizeArtifactRecord(value: unknown): ArtifactLibraryRecord |
   } as ArtifactLibraryRecord;
 
   const explicitConversationId = value.conversationId
+    ?? value.conversation_id
     ?? value.metadata?.conversationId
     ?? value.metadata?.conversation_id
     ?? value.sourceConversationId
@@ -284,19 +295,33 @@ export function buildArtifactLibraryItems(
 export function hydrateArtifactLibraryItem(
   item: ArtifactLibraryItem,
   fullArtifact: Partial<ArtifactLibraryRecord>,
+  conversations: Conversation[] = [],
 ): ArtifactLibraryItem {
-  const artifact: ArtifactLibraryRecord = { ...item.artifact, ...fullArtifact } as ArtifactLibraryRecord;
-  const content = decodeArtifactContents(artifact.contents);
+  const artifact: ArtifactLibraryRecord = {
+    ...item.artifact,
+    ...fullArtifact,
+    metadata: {
+      ...(item.artifact.metadata ?? {}),
+      ...(fullArtifact.metadata ?? {}),
+    },
+  } as ArtifactLibraryRecord;
+  const normalized = normalizeArtifactRecord(artifact) ?? artifact;
+  const content = decodeArtifactContents(normalized.contents);
   const hasContent = isUsableArtifactContent(content);
-  const declared = resolveNUIType(artifact.type);
-  const nuiType = !artifact.type && hasContent ? sniffContentType(content) : declared;
+  const declared = resolveNUIType(normalized.type);
+  const nuiType = !normalized.type && hasContent ? sniffContentType(content) : declared;
+  const hydratedSource = findArtifactSource(normalized, conversations);
+  const source = hydratedSource.confidence === 'none' && item.source.confidence !== 'none'
+    ? item.source
+    : hydratedSource;
   return {
     ...item,
-    artifact,
+    artifact: normalized,
     content,
     hasContent,
     nuiType,
-    name: artifactDisplayName(artifact) || item.name,
+    name: artifactDisplayName(normalized) || item.name,
+    source,
   };
 }
 

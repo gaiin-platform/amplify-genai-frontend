@@ -94,6 +94,34 @@ describe('artifactLibraryModel', () => {
     expect(hydrated.content).toBe('# Hello');
   });
 
+  it('resolves the source from detail-only metadata during hydration', () => {
+    const source = conversation({ id: 'detail-source' });
+    const listRecord = { key: 'report-key', artifactId: 'report-key', name: 'Q1 Report' };
+    const [item] = buildArtifactLibraryItems([listRecord], []);
+    const hydrated = hydrateArtifactLibraryItem(
+      item,
+      artifact({ artifactId: 'report-key', metadata: { conversationId: source.id } }),
+      [source],
+    );
+
+    expect(hydrated.source).toMatchObject({
+      conversationId: source.id,
+      conversation: source,
+      confidence: 'explicit',
+    });
+  });
+
+  it('preserves source identity when an artifact is renamed', () => {
+    const source = conversation({ id: 'rename-source', artifacts: { 'artifact-1': [artifact()] } });
+    const renamedConversation = renameArtifactInConversation(source, 'artifact-1', 1, 'Renamed report');
+    const [item] = buildArtifactLibraryItems([
+      artifact({ name: 'Renamed report', metadata: { conversationId: source.id } }),
+    ], [renamedConversation]);
+
+    expect(item.stableKey).toBe('artifact-1::1');
+    expect(item.source).toMatchObject({ conversationId: source.id, confidence: 'explicit' });
+  });
+
   it('builds a backend-safe save payload without conversation-only fields', () => {
     const payload = buildArtifactSavePayload({
       ...artifact(),
@@ -138,6 +166,7 @@ describe('artifactLibraryModel', () => {
     const normalized = normalizeArtifactRecords([{ ...artifact(), sourceConversationId: source.id }])[0];
     expect(normalized?.conversationId).toBe(source.id);
     expect(normalized?.metadata?.conversationId).toBe(source.id);
+    expect(normalizeArtifactRecords([{ ...artifact(), conversation_id: source.id }])[0]?.conversationId).toBe(source.id);
   });
 
   it('finds a newly-created artifact through the selected conversation artifact map', () => {

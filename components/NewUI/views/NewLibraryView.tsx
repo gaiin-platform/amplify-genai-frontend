@@ -43,10 +43,11 @@ import {
     IconPaperclip,
     IconLibrary,
     IconArrowUpRight,
+    IconPencil,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import {
-    FileRecord, FileQuery, PageKey, queryUserFiles, setTags, getFileDownloadUrl
+    FileRecord, FileQuery, PageKey, queryUserFiles, setTags, renameFile
 } from '@/services/fileService';
 import {
     downloadDataSourceFile, deleteDatasourceFile, extractKey,
@@ -62,7 +63,11 @@ import AttachmentPreview from '@/components/NewUI/shared/AttachmentPreview';
 import ConfirmDialog from '@/components/NewUI/shared/ConfirmDialog';
 import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
 import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
-import { UIAttachment } from '@/components/NewUI/shared/attachmentTypes';
+import { UIAttachment, getAttachmentMime } from '@/components/NewUI/shared/attachmentTypes';
+import {
+    loadLibraryPreview,
+    releaseAllLibraryPreviews,
+} from '@/components/NewUI/shared/libraryPreview';
 import {
     LIBRARY_SORT_INDEX, buildLibraryQuery, isAssistantRecord, libraryTypeLabel, sanitizePageKey,
 } from '@/components/NewUI/shared/libraryQuery';
@@ -70,6 +75,7 @@ import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInst
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 import {
     buildArtifactLibraryItems,
+    hydrateArtifactLibraryItem,
     type ArtifactLibraryItem,
 } from '@/components/NewUI/shared/artifactLibraryModel';
 import { getAllArtifacts, getArtifact } from '@/services/artifactsService';
@@ -124,41 +130,6 @@ function getFileBytes(file: FileRecord): number {
         return typeof numeric === 'number' && Number.isFinite(numeric) && numeric >= 0;
     });
     return typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : 0;
-}
-
-/** Measure a file-download response, including the base64 payload returned by the file service. */
-async function getDownloadPayloadBytes(response: Response): Promise<number> {
-    const contentType = (response.headers.get('content-type') || '').toLowerCase();
-    const payload = await response.arrayBuffer();
-    if (!payload.byteLength) return 0;
-
-    // Some deployments return the object as base64 text while labeling it as
-    // octet-stream. Decode that representation when it is valid base64; binary
-    // responses fall back to their actual byte length.
-    if (contentType.includes('text') || contentType.includes('json') || contentType.includes('octet-stream')) {
-        const text = new TextDecoder().decode(payload).trim();
-        let candidate = text;
-        if (contentType.includes('json')) {
-            try {
-                const parsed = JSON.parse(text);
-                candidate = typeof parsed === 'string' ? parsed : parsed?.data ?? parsed?.body ?? text;
-            } catch {
-                // Continue with the raw response below.
-            }
-        }
-        const candidateText = typeof candidate === 'string' ? candidate : text;
-        const dataUrlPayload = candidateText.indexOf(',');
-        const base64 = (dataUrlPayload >= 0 ? candidateText.slice(dataUrlPayload + 1) : candidateText)
-            .replace(/\s/g, '');
-        if (base64 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64)) {
-            try {
-                return window.atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')).length;
-            } catch {
-                // It was a binary payload despite its response headers.
-            }
-        }
-    }
-    return payload.byteLength;
 }
 
 /** Return the appropriate Tabler file-type icon for a mime type. */
@@ -275,8 +246,8 @@ interface FileRowProps {
     onReprocess: () => void;
     onStatusRefresh: () => void;
     onAttachToConversation: () => void;
+    onRename: (name: string) => Promise<boolean>;
     imagePreviewUrl?: string;
-    imagePreviewLoading?: boolean;
     onPreview: (originRect: DOMRect) => void;
 }
 
@@ -293,17 +264,46 @@ const FileRow: React.FC<FileRowProps> = ({
     onReprocess,
     onStatusRefresh,
     onAttachToConversation,
+    onRename,
     imagePreviewUrl,
-    imagePreviewLoading = false,
     onPreview,
 }) => {
     const [hovered, setHovered] = useState(false);
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [renameValue, setRenameValue] = useState(file.name);
+    const [isSavingRename, setIsSavingRename] = useState(false);
+    const extensionMatch = file.name.match(/(\.[^./\\]+)$/);
+    const fileExtension = extensionMatch?.[1] ?? '';
+    const editableName = fileExtension ? file.name.slice(0, -fileExtension.length) : file.name;
+    const renameInputRef = useRef<HTMLInputElement>(null);
     const key = extractKey(file);
     const status = embeddingStatus?.[key];
     const isPolling = pollingFiles.has(file.id);
     const hasFetched = fetchedKeys.has(key);
     const action = hasFetched && status ? getFileAction(file.createdAt, status, embeddingStatus?.metadata?.[key]) : null;
     const canReprocess = !disableSupportReprocess(file.type);
+
+    useEffect(() => {
+        if (!isRenaming) return;
+        renameInputRef.current?.focus();
+        renameInputRef.current?.select();
+    }, [isRenaming]);
+
+    const commitRename = async () => {
+        const nextStem = renameValue.trim();
+        const nextName = nextStem ? `${nextStem}${fileExtension}` : '';
+        if (!nextName || nextName === file.name) {
+            setRenameValue(editableName);
+            setIsRenaming(false);
+            return;
+        }
+        setIsSavingRename(true);
+        try {
+            if (await onRename(nextName)) setIsRenaming(false);
+        } finally {
+            setIsSavingRename(false);
+        }
+    };
 
     return (
         <div
@@ -336,16 +336,6 @@ const FileRow: React.FC<FileRowProps> = ({
                 ) : (
                     <FileTypeIcon mime={file.type} name={file.name} size={16} />
                 )}
-                {imagePreviewLoading && (
-                    <div
-                        className="absolute inset-0 flex items-center justify-center"
-                        role="status"
-                        aria-label="Loading preview"
-                        style={{ backgroundColor: 'rgba(0, 0, 0, 0.42)', color: 'white' }}
-                    >
-                        <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" />
-                    </div>
-                )}
                 <button
                     type="button"
                     aria-label={'Preview ' + file.name}
@@ -363,13 +353,60 @@ const FileRow: React.FC<FileRowProps> = ({
 
             {/* Name + tags */}
             <div className="flex-1 min-w-0">
-                <p
-                    className="text-[13px] font-medium truncate"
-                    style={{ color: 'var(--text-primary)' }}
-                    title={file.name}
-                >
-                    {file.name}
-                </p>
+                <div className="flex items-center gap-1 min-w-0">
+                    {isRenaming ? (
+                        <>
+                            <input
+                                ref={renameInputRef}
+                                value={renameValue}
+                                onChange={(event) => setRenameValue(event.target.value)}
+                                disabled={isSavingRename}
+                                onKeyDown={(event) => {
+                                    if (event.key === 'Enter') {
+                                        event.preventDefault();
+                                        void commitRename();
+                                    }
+                                    if (event.key === 'Escape') {
+                                        setRenameValue(editableName);
+                                        setIsRenaming(false);
+                                    }
+                                }}
+                                aria-label={'Rename ' + file.name}
+                                placeholder={fileExtension ? editableName : undefined}
+                                className="min-w-0 flex-1 rounded-[4px] border px-1 text-[13px] font-medium focus:outline-none focus-visible:ring-2"
+                                style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)' }}
+                            />
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                                <button type="button" disabled={isSavingRename} aria-label="Save filename" title="Save" onMouseDown={(event) => event.preventDefault()} onClick={() => void commitRename()} className="flex items-center justify-center h-6 px-2 rounded-[5px] text-[11px] font-medium disabled:opacity-50" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}>
+                                    {isSavingRename ? <IconLoader2 size={12} className="motion-safe:animate-spin motion-reduce:animate-none" /> : 'Save'}
+                                </button>
+                                <button type="button" disabled={isSavingRename} aria-label="Cancel rename" title="Cancel" onMouseDown={(event) => event.preventDefault()} onClick={() => { setRenameValue(editableName); setIsRenaming(false); }} className="flex items-center justify-center h-6 px-2 rounded-[5px] text-[11px] font-medium disabled:opacity-50" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-hover)' }}>
+                                    Cancel
+                                </button>
+                            </div>
+                        </>
+                    ) : (
+                        <p className="text-[13px] font-medium truncate" style={{ color: 'var(--text-primary)' }} title={file.name}>
+                            {file.name}
+                        </p>
+                    )}
+                    {!isRenaming && !isDeleteMode && (
+                        <button
+                            type="button"
+                            aria-label={'Rename ' + file.name}
+                            title="Rename"
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                setRenameValue(editableName);
+                                setIsRenaming(true);
+                            }}
+                            className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-[4px] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                            style={{ color: 'var(--text-muted)' }}
+                        >
+                            <IconPencil size={13} />
+                        </button>
+                    )}
+                </div>
                 {file.tags && file.tags.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-0.5">
                         {file.tags.slice(0, 4).map((tag) => (
@@ -582,9 +619,7 @@ export const NewLibraryView: React.FC = () => {
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [uploading, setUploading] = useState(false);
     const [imagePreviewUrls, setImagePreviewUrls] = useState<Record<string, string>>({});
-    const [imagePreviewLoading, setImagePreviewLoading] = useState<Record<string, boolean>>({});
     const [previewBytes, setPreviewBytes] = useState<Record<string, number>>({});
-    const imagePreviewUrlsRef = useRef<Record<string, string>>({});
     const [previewAttachment, setPreviewAttachment] = useState<UIAttachment | null>(null);
     const [previewOriginRect, setPreviewOriginRect] = useState<DOMRect | undefined>(undefined);
 
@@ -745,89 +780,23 @@ export const NewLibraryView: React.FC = () => {
         />
     );
 
-    // Fetch signed URLs so image files can use their type tile as a thumbnail.
-    // Keep already-fetched URLs when the list changes (for example after a
-    // delete), otherwise every surviving image flashes and downloads again.
-    useEffect(() => {
-        let active = true;
-        const imageFiles = data.filter((file) => file.type.startsWith('image/'));
-        const imageIds = new Set(imageFiles.map((file) => file.id));
-        Object.entries(imagePreviewUrlsRef.current).forEach(([id, url]) => {
-            if (!imageIds.has(id)) {
-                URL.revokeObjectURL(url);
-                delete imagePreviewUrlsRef.current[id];
-            }
-        });
-        setImagePreviewUrls((current) => Object.fromEntries(
-            Object.entries(current).filter(([id]) => imageIds.has(id))
-        ));
-        setImagePreviewLoading((current) => Object.fromEntries(
-            Object.entries(current).filter(([id]) => imageIds.has(id))
-        ));
-        setPreviewBytes((current) => Object.fromEntries(
-            Object.entries(current).filter(([id]) => imageIds.has(id))
-        ));
-
-        const missingImageFiles = imageFiles.filter((file) => !imagePreviewUrlsRef.current[file.id]);
-        if (!missingImageFiles.length) return () => { active = false; };
-        setImagePreviewLoading((current) => ({
-            ...current,
-            ...Object.fromEntries(missingImageFiles.map((file) => [file.id, true])),
-        }));
-
-        Promise.all(
-            missingImageFiles.map(async (file) => {
-                try {
-                    const response = await getFileDownloadUrl(extractKey(file), undefined);
-                    if (!response.success || !response.downloadUrl) return null;
-
-                    // The file service returns image downloads as base64 text. Convert
-                    // that payload to an object URL before giving it to <img>.
-                    const imageResponse = await fetch(response.downloadUrl);
-                    if (!imageResponse.ok) return null;
-                    const base64 = await imageResponse.text();
-                    const byteCharacters = window.atob(base64);
-                    const byteArray = Uint8Array.from(byteCharacters, (char) => char.charCodeAt(0));
-                    const objectUrl = URL.createObjectURL(new Blob([byteArray], { type: file.type }));
-                    if (!active) {
-                        URL.revokeObjectURL(objectUrl);
-                        return null;
-                    }
-                    imagePreviewUrlsRef.current[file.id] = objectUrl;
-                    setPreviewBytes((current) => ({ ...current, [file.id]: byteArray.byteLength }));
-                    return [file.id, objectUrl] as const;
-                } catch {
-                    return null;
-                }
-            })
-        ).then((results) => {
-            if (!active) return;
-            setImagePreviewUrls((current) => ({
-                ...current,
-                ...Object.fromEntries(results.filter((result): result is readonly [string, string] => result !== null)),
-            }));
-            setImagePreviewLoading((current) => ({
-                ...current,
-                ...Object.fromEntries(missingImageFiles.map((file) => [file.id, false])),
-            }));
-        });
-
-        return () => { active = false; };
-    }, [data]);
-
+    // Image previews are loaded only after the user explicitly clicks Preview.
+    // Eagerly downloading every image in a 50-record page created one signed-URL
+    // request plus one content request per image, and StrictMode could replay it.
     useEffect(() => () => {
-        Object.values(imagePreviewUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+        releaseAllLibraryPreviews();
     }, []);
 
     const handlePreview = async (file: FileRecord & { commonType?: string }, originRect: DOMRect) => {
         setPreviewOriginRect(originRect);
-        const isImage = file.type.startsWith('image/');
-        const isText = file.type.startsWith('text/') || /\.(csv|tsv|json|xml|html?|md)$/i.test(file.name);
-        const isVideo = file.type.startsWith('video/') || /\.(avi|m4v|mkv|mov|mp4|mpeg|mpg|webm|wmv)$/i.test(file.name);
+        const mime = getAttachmentMime(file.name, file.type);
+        const isImage = mime.startsWith('image/');
+        const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(file.name);
+        const isText = mime.startsWith('text/') || /\.(csv|tsv|json|xml|html?|md)$/i.test(file.name);
         const bytes = getFileBytes(file);
         const existingUrl = imagePreviewUrls[file.id];
         const knownBytes = previewBytes[file.id];
-        const previewState = isImage || isText
+        const previewState = isImage || isText || isPdf
             ? (existingUrl ? 'available' : 'pending')
             : 'unsupported';
 
@@ -838,57 +807,45 @@ export const NewLibraryView: React.FC = () => {
             name: file.name,
             ext: isImage ? null : (file.name.split('.').pop()?.toUpperCase() ?? null),
             bytes: knownBytes ?? bytes,
-            mime: file.type || 'application/octet-stream',
+            mime: mime || 'application/octet-stream',
             previewUrl: existingUrl,
             thumbUrl: existingUrl,
             previewState,
         });
 
-        if (existingUrl) return;
-        if (previewState === 'unsupported' && !isVideo) return;
+        if (existingUrl || (!isImage && !isText && !isPdf)) return;
         try {
-            const response = await getFileDownloadUrl(extractKey(file), undefined);
-            if (response.success && response.downloadUrl) {
-                if (isVideo) {
-                    // HEAD is unreliable for this endpoint (it may return 0 even
-                    // when the subsequent download contains the full object).
-                    const videoResponse = await fetch(response.downloadUrl);
-                    if (!videoResponse.ok) throw new Error('Preview request failed: ' + videoResponse.status);
-                    const contentLength = await getDownloadPayloadBytes(videoResponse);
-                    if (contentLength > 0) {
-                        setPreviewBytes((current) => ({ ...current, [file.id]: contentLength }));
-                        setPreviewAttachment((current) => current ? { ...current, bytes: contentLength } : current);
-                    }
-                    return;
-                }
-                let previewUrl = response.downloadUrl;
-                let loadedBytes: number | undefined;
-                if (isImage) {
-                    const imageResponse = await fetch(response.downloadUrl);
-                    if (!imageResponse.ok) throw new Error('Preview request failed: ' + imageResponse.status);
-                    const base64 = await imageResponse.text();
-                    const byteCharacters = window.atob(base64);
-                    const byteArray = Uint8Array.from(byteCharacters, (char) => char.charCodeAt(0));
-                    previewUrl = URL.createObjectURL(new Blob([byteArray], { type: file.type }));
-                    loadedBytes = byteArray.byteLength;
-                    setPreviewBytes((current) => ({ ...current, [file.id]: byteArray.byteLength }));
-                } else {
-                    const textResponse = await fetch(response.downloadUrl);
-                    if (!textResponse.ok) throw new Error('Preview request failed: ' + textResponse.status);
-                    const text = await textResponse.text();
-                    loadedBytes = new TextEncoder().encode(text).byteLength;
-                    setPreviewBytes((current) => ({ ...current, [file.id]: loadedBytes! }));
-                }
-                setPreviewAttachment((current) => current ? {
-                    ...current,
-                    previewUrl,
-                    thumbUrl: isImage ? previewUrl : undefined,
-                    bytes: loadedBytes ?? previewBytes[file.id] ?? bytes,
-                    previewState: 'available',
-                } : current);
-            } else {
-                setPreviewAttachment((current) => current ? { ...current, previewState: 'failed' } : current);
+            const result = await loadLibraryPreview({
+                key: extractKey(file),
+                kind: isPdf ? 'pdf' : isImage ? 'image' : 'text',
+                mime,
+            });
+            const loadedBytes = result.bytes;
+            setPreviewBytes((current) => ({ ...current, [file.id]: loadedBytes }));
+                if (result.kind === 'image') {
+                setImagePreviewUrls((current) => ({ ...current, [file.id]: result.objectUrl }));
             }
+            setPreviewAttachment((current) => {
+                if (!current) return current;
+                if (result.kind === 'image' || result.kind === 'pdf') {
+                    return {
+                        ...current,
+                        previewUrl: result.objectUrl,
+                        thumbUrl: result.objectUrl,
+                        bytes: loadedBytes,
+                        previewState: 'available',
+                    };
+                }
+                if (result.kind !== 'text') return current;
+                return {
+                    ...current,
+                    bytes: loadedBytes,
+                    bodyPreview: result.bodyPreview,
+                    fullText: result.fullText,
+                    lineCount: result.lineCount,
+                    previewState: 'available',
+                };
+            });
         } catch {
             setPreviewAttachment((current) => current ? { ...current, previewState: 'failed' } : current);
         }
@@ -908,12 +865,15 @@ export const NewLibraryView: React.FC = () => {
                 if (result.success && result.data) hydratedArtifact = result.data;
             }
 
-            const sourceId = item.source.conversationId;
+            const resolvedItem = hydratedArtifact
+                ? hydrateArtifactLibraryItem(item, hydratedArtifact, artifactConversations)
+                : item;
+            const sourceId = resolvedItem.source.conversationId;
             if (!sourceId) {
                 toast.error('Source conversation unavailable for this artifact');
                 return;
             }
-            const source = item.source.conversation ?? ({
+            const source = resolvedItem.source.conversation ?? ({
                 id: sourceId,
                 name: 'Artifact conversation',
                 messages: [],
@@ -925,13 +885,13 @@ export const NewLibraryView: React.FC = () => {
             await handleSelectConversation(source);
             dispatch({ field: 'page', value: 'chat' });
 
-            const versions = source.artifacts?.[item.artifact.artifactId];
-            const selectedVersions = versions?.length ? versions : hydratedArtifact ? [hydratedArtifact] : [];
+            const versions = source.artifacts?.[resolvedItem.artifact.artifactId];
+                    const selectedVersions = versions?.length ? versions : hydratedArtifact ? [hydratedArtifact] : [];
             if (!selectedVersions.length) {
                 toast.error('Unable to load artifact content');
                 return;
             }
-            const requestedIndex = item.source.versionIndex;
+            const requestedIndex = resolvedItem.source.versionIndex;
             const artifactIndex = requestedIndex !== undefined
                 ? Math.min(requestedIndex, selectedVersions.length - 1)
                 : selectedVersions.length - 1;
@@ -948,6 +908,19 @@ export const NewLibraryView: React.FC = () => {
 
     const handleDownload = (file: FileRecord & { commonType?: string }) => {
         downloadDataSourceFile({ id: file.id, name: file.name, type: file.type });
+    };
+
+    const handleRename = async (file: FileRecord & { commonType?: string }, name: string): Promise<boolean> => {
+        try {
+            const result = await renameFile(file.id, name);
+            if (!result.success) throw new Error(result.message || 'Rename failed');
+            setData((current) => current.map((entry) => entry.id === file.id ? { ...entry, name } : entry));
+            toast.success('File renamed');
+            return true;
+        } catch {
+            toast.error('Unable to rename file');
+            return false;
+        }
     };
 
     const handleAttachToConversation = (file: FileRecord & { commonType?: string }) => {
@@ -1255,9 +1228,9 @@ export const NewLibraryView: React.FC = () => {
                             {artifactItems.map((item) => (
                                 <div key={item.stableKey} className="flex items-center gap-3 rounded-[9px] border px-4 py-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
                                     <div className="h-9 w-9 flex items-center justify-center rounded-[8px]" style={{ color: 'var(--accent)', backgroundColor: 'var(--bg-active)' }}><IconLibrary size={17} /></div>
-                                    <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</p><p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version} · {item.source.conversation?.name || (item.source.conversationId ? 'Source conversation' : 'Source conversation unavailable')}</p></div>
+                                    <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</p><p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version} · {item.source.conversation?.name || (item.source.conversationId ? 'Source conversation' : 'Source resolved when opened')}</p></div>
                                     <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => void openArtifactInChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>{viewLoadingKey === item.stableKey ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
-                                    <button type="button" disabled={!item.source.conversationId || viewLoadingKey === item.stableKey} onClick={() => void openArtifactInChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
+                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => void openArtifactInChat(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
                                 </div>
                             ))}
                         </div>
@@ -1289,7 +1262,9 @@ export const NewLibraryView: React.FC = () => {
                         onClick={() => setShowDeleteConfirm(true)}
                         disabled={selectedIds.size === 0}
                         className="flex items-center gap-1 px-3 py-1 rounded-[6px] text-white text-[12px] font-medium transition-opacity disabled:opacity-40"
-                        style={{ backgroundColor: 'var(--accent)' }}
+                        style={{ backgroundColor: '#ef4444' }}
+                        onMouseEnter={(event) => { event.currentTarget.style.backgroundColor = '#dc2626'; }}
+                        onMouseLeave={(event) => { event.currentTarget.style.backgroundColor = '#ef4444'; }}
                     >
                         <IconTrash size={12} /> Delete {selectedIds.size > 0 ? selectedIds.size : ''} file(s)
                     </button>
@@ -1400,9 +1375,9 @@ export const NewLibraryView: React.FC = () => {
                                 onReprocess={() => handleReprocess(file)}
                                 onStatusRefresh={() => handleStatusRefresh(file)}
                                 onAttachToConversation={() => handleAttachToConversation(file)}
-                            imagePreviewUrl={imagePreviewUrls[file.id]}
-                            imagePreviewLoading={file.type.startsWith('image/') && imagePreviewLoading[file.id]}
-                            onPreview={(originRect) => handlePreview(file, originRect)}
+                                onRename={(name) => handleRename(file, name)}
+                                imagePreviewUrl={imagePreviewUrls[file.id]}
+                                onPreview={(originRect) => handlePreview(file, originRect)}
                             />
                         ))}
 

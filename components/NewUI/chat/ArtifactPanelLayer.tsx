@@ -470,7 +470,15 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
         contents: currentArtifact.contents,
         tags: currentArtifact.tags,
         createdAt: currentArtifact.createdAt,
-        ...(currentArtifact.metadata ? { metadata: currentArtifact.metadata } : {}),
+        ...(selectedConversation?.id || currentArtifact.metadata
+          ? {
+              metadata: {
+                ...(currentArtifact.metadata ?? {}),
+                ...(selectedConversation?.id ? { conversationId: selectedConversation.id } : {}),
+              },
+            }
+          : {}),
+        ...(selectedConversation?.id ? { conversationId: selectedConversation.id } : {}),
       });
       if (!result?.success) throw new Error('Artifact rename failed');
       const response = await getAllArtifacts();
