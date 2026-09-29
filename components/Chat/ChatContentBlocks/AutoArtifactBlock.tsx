@@ -14,6 +14,7 @@ import { saveArtifact, getAllArtifacts } from "@/services/artifactsService";
 import { jsonrepair } from "jsonrepair";
 import { v4 as uuidv4 } from "uuid";
 import { buildArtifactSavePayload, resolveArtifactName } from "@/components/NewUI/shared/artifactLibraryModel";
+import { appendAutoArtifactChunk, mergeAutoArtifactMessage } from "@/components/NewUI/shared/autoArtifactStream";
 
 interface Props {
     content: string;
@@ -41,10 +42,12 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
     const versionContentMapRef  = useRef<{[key:string]:string}>({});
 
     const conversationsRef = useRef(conversations);
+    const selectedConversationRef = useRef(selectedConversation);
 
     useEffect(() => {
         conversationsRef.current = conversations;
     }, [conversations]);
+    selectedConversationRef.current = selectedConversation;
 
     const foldersRef = useRef(folders);
 
@@ -146,8 +149,9 @@ const repairJson = async () => {
      } else {
          message.data.artifactStatus = ArtifactMessageStatus.CANCELLED;
          if (selectedConversation && selectedConversation.messages) {
-            const updatedConversation = {...selectedConversation};
-            updatedConversation.messages[selectedConversation.messages.length - 1] = message;
+            const updatedConversation = mergeAutoArtifactMessage(selectedConversation, message.id, {
+                artifactStatus: ArtifactMessageStatus.CANCELLED,
+            });
             handleUpdateSelectedConversation(updatedConversation);
             // update conversation 
             console.log("reached artifact cancelled");
@@ -363,10 +367,6 @@ const collectRecentWebSearchResults = (): string => {
 }
 
 
-const containsPartialMarker = (buffer: string) => {
-    const endChars = buffer.slice(-3);
-    return endChars.includes("~") || endChars.includes("<");
-}
 
 
 const getArtifactMessages = async (llmInstructions: string, artifactDetail: ArtifactBlockDetail, type: string = '', messageKey?: string, cooldownKey?: string) => {
@@ -447,97 +447,61 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             const response = await sendChatRequestWithDocuments(chatEndpoint || null, chatBody, controller.signal, metaHandler);
 
             let updatedConversation: Conversation = {...selectedConversation, artifacts: selectedConversation.artifacts || {}};
-           // selectedConversation with the assistant message stripped of artifact block data
-            const messageLen = selectedConversation.messages?.length - 1;
+            const messageId = message.id;
+            const messageLen = selectedConversation.messages?.findIndex(candidate => candidate.id === messageId) ?? -1;
+            if (messageLen < 0) throw new Error('Artifact source message is no longer in the selected conversation');
+            if (!response.body) throw new Error('Artifact generation returned an empty response stream');
             const responseData = response.body;
-            const reader = responseData ? responseData.getReader() : null;
+            const reader = responseData?.getReader();
             const decoder = new TextDecoder();
             let text = selectedConversation.messages[messageLen].content + '\n\n';
-            let artifactText: string = '';
+            let artifactText = '';
 
             const placeholderRegex = /\~A(\d+)/g;
             let isAssistantMsg = false;
             let buffer = '';
+            let unresolvedPlaceholder = '';
             try {
                 while (!controller.signal.aborted) {
-                    // @ts-ignore
                     const {value, done} = await reader.read();
-                    const chunkValue = decoder.decode(value);
-                    if (chunkValue) buffer += chunkValue;
+                    if (value) buffer += decoder.decode(value, { stream: !done });
+                    else if (done) buffer += decoder.decode();
 
-                    if ((buffer.length > 2 && !containsPartialMarker(buffer)) || done) {
+                    if (buffer.length > 0 || done) {
                         // replace tag references with content:
-                        if (versionContentMapRef.current && placeholderRegex.test(buffer)) {
-                            console.log("Buffer contains tag(s):", buffer);
-                        
-                            buffer = buffer.replace(placeholderRegex, (match) => {
-                                // Remove the leading `~` so the key becomes A<number>
+                        if (versionContentMapRef.current && (placeholderRegex.test(unresolvedPlaceholder + buffer) || unresolvedPlaceholder || /~A\d*$/.test(buffer))) {
+                            const withCarry = unresolvedPlaceholder + buffer;
+                            const completePlaceholders = done ? withCarry : withCarry.replace(/~A\d*$/, '');
+                            unresolvedPlaceholder = withCarry.slice(completePlaceholders.length);
+                            buffer = completePlaceholders.replace(placeholderRegex, (match) => {
                                 const key = match.slice(1);
-                                // Check if the key exists in versionContentMapRef.current
-                                if (key in versionContentMapRef.current) {
-                                    console.log("Tag replaced with context in the Buffer", key);
-                                    return `\n${versionContentMapRef.current[key]}\n`;
-                                } else {
-                                    console.log("Buffer contained a tag with an invalid key:", key);
-                                    return '';
-                                }
+                                return key in versionContentMapRef.current
+                                    ? `\n${versionContentMapRef.current[key]}\n`
+                                    : '';
                             });
                         }
                     
-                        if ((buffer.includes(startMarker) && !isAssistantMsg) || (buffer.includes(endMarker) && isAssistantMsg)) {
-                            // Split the buffer based on the first occurrence of the marker
-                            let splitText;
-                            if (buffer.includes(startMarker)) {
-                                splitText = buffer.split(startMarker);
-
-                                // Everything before the start marker goes to artifactText
-                                artifactText += splitText[0];
-                                // Everything after the start marker goes to text
-                                text += splitText[1];
-                                isAssistantMsg = true;
-                            } else if (buffer.includes(endMarker)) {
-                                splitText = buffer.split(endMarker);
-
-                                // Everything before the end marker goes to text
-                                text += splitText[0];
-                                // Everything after the end marker goes to artifactText
-                                artifactText += splitText[1];
-                                isAssistantMsg = false;
-                            }
-                        
-                            // Clean up buffer by removing the markers
-                            buffer = ''; // if buffer is clear then we have already added to the correct vars and need to update both
-                        }
-
-                        if (isAssistantMsg || !buffer) {
-                            text += buffer;
-                            let updatedMessages: Message[] = [];
-                            updatedMessages = updatedConversation.messages.map((message, index) => {
-                                    if (index === messageLen) {
-                                        return { ...message,
-                                                content: text,
-                                                data: {...(message.data || {}), state: currentState}
-                                            };
-                                    }
-                                    return message;
-                                });
-
-                            updatedConversation = {
-                                ...selectedConversation,
-                                messages: updatedMessages,
-                            };
-                            homeDispatch({
-                                field: 'selectedConversation',
-                                value: updatedConversation,
-                            }); 
-                        
-                        } 
-                        if (!isAssistantMsg || !buffer) {
-                            artifactText += buffer;
+                        const parsedChunk = appendAutoArtifactChunk(buffer, '', isAssistantMsg, done);
+                        buffer = parsedChunk.buffer;
+                        isAssistantMsg = parsedChunk.inAssistantText;
+                        artifactText += parsedChunk.artifactText;
+                        text += parsedChunk.assistantText;
+                        if (parsedChunk.artifactText || done) {
                             selectArtifacts[selectArtifacts.length - 1].contents = lzwCompress(artifactText);
-                            homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
+                            homeDispatch({field: 'selectedArtifacts', value: selectArtifacts});
                         }
-                        buffer = '';
+
+                        const latestConversation = selectedConversationRef.current?.id === updatedConversation.id
+                            ? selectedConversationRef.current
+                            : updatedConversation;
+                        updatedConversation = mergeAutoArtifactMessage({
+                            ...latestConversation,
+                            artifacts: updatedConversation.artifacts,
+                        }, messageId, {
+                            content: text,
+                            state: currentState,
+                        });
+                        homeDispatch({ field: 'selectedConversation', value: updatedConversation });
                     }
 
                     if (done) break;
@@ -566,10 +530,9 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 const rawContent = lzwUncompress(selectArtifacts[selectArtifacts.length - 1].contents as any);
                 const unusableFallback = /no artifact was requested|please provide the (content|task|instructions)/i.test(rawContent.trim());
                 if (!controller.signal.aborted && unusableFallback) {
-                    updatedConversation.messages[messageLen].data = {
-                        ...(updatedConversation.messages[messageLen].data || {}),
+                    updatedConversation = mergeAutoArtifactMessage(updatedConversation, messageId, {
                         artifactStatus: ArtifactMessageStatus.CANCELLED,
-                    };
+                    });
                     homeDispatch({ field: 'selectedArtifacts', value: selectArtifacts.slice(0, -1) });
                     handleUpdateSelectedConversation(updatedConversation);
                     if (messageKey) delete (window as any)[messageKey];
@@ -602,11 +565,30 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
                 }
 
-                // update selectedConversation to include the completed selectArtifacts
-                updatedConversation.artifacts = {...(updatedConversation.artifacts ?? {}), [artifact.artifactId]: selectArtifacts };
-                const lastMessageData = updatedConversation.messages.slice(-1)[0].data;
-                updatedConversation.messages.slice(-1)[0].data.artifactStatus = controller.signal.aborted ? ArtifactMessageStatus.STOPPED : ArtifactMessageStatus.COMPLETE;
-                updatedConversation.messages.slice(-1)[0].data.artifacts = [...(lastMessageData.artifacts ?? []), artifactDetail];
+                // Update the source assistant message by stable ID; the conversation may
+                // have gained another message while this artifact stream was in flight.
+                const latestSelectedConversation = selectedConversationRef.current?.id === updatedConversation.id
+                    ? { ...updatedConversation, ...selectedConversationRef.current }
+                    : updatedConversation;
+                updatedConversation = {
+                    ...latestSelectedConversation,
+                    artifacts: {
+                        ...(latestSelectedConversation.artifacts ?? {}),
+                        [artifact.artifactId]: selectArtifacts,
+                    },
+                };
+                if (!controller.signal.aborted && !isAssistantMsg) {
+                    const pendingText = unresolvedPlaceholder + buffer;
+                    const parserFlush = appendAutoArtifactChunk('', pendingText, false, true);
+                    artifactText += parserFlush.artifactText;
+                    text += parserFlush.assistantText;
+                    selectArtifacts[selectArtifacts.length - 1].contents = lzwCompress(artifactText);
+                    updatedConversation = mergeAutoArtifactMessage(updatedConversation, messageId, { content: text });
+                }
+                updatedConversation = mergeAutoArtifactMessage(updatedConversation, messageId, {
+                    artifactStatus: controller.signal.aborted ? ArtifactMessageStatus.STOPPED : ArtifactMessageStatus.COMPLETE,
+                    artifactDetails: [artifactDetail],
+                });
 
                 handleUpdateSelectedConversation(updatedConversation);
 

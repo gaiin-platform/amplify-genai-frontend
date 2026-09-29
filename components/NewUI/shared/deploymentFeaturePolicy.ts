@@ -13,14 +13,14 @@ export interface DeploymentFeatureFlags {
   };
 }
 
-/** Legacy installations without a deploymentFeatures record default to enabled. */
+/** Legacy configs default highlighter/memory to off; other availability gates remain on. */
 export function isDeploymentFeatureAvailable(
   flags: DeploymentFeatureFlags | undefined | null,
   feature: DeploymentFeatureKey,
 ): boolean {
   const availability = flags?.deploymentFeatures?.availability;
   if (availability && typeof availability[feature] === 'boolean') return availability[feature] === true;
-  return true;
+  return feature !== 'promptHighlighter' && feature !== 'memory';
 }
 
 /** An absent/legacy policy allows classic UI; only an explicit false disables it. */

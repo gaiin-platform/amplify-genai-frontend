@@ -50,7 +50,7 @@ import {
 } from '@/types/admin';
 import { adminTabHasChanges } from '@/utils/app/admin';
 import { findOversizedSystemPrompts } from '@/components/NewUI/settings/admin/systemPromptBytes';
-import { LoadingIcon } from '@/components/Loader/LoadingIcon';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 import toast from 'react-hot-toast';
 import InputsMap from '@/components/ReusableComponents/InputMap';
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
@@ -75,18 +75,11 @@ import {
   PromptCostAlert, EmailSupport, CriticalErrorsConfig,
 } from '@/components/Admin/AdminUI';
 import { ConversationStorage } from '@/types/conversationStorage';
+import { normalizeAdminConversationStorage } from '@/components/NewUI/settings/admin/adminDefaults';
 
 // ── helpers re-exported from AdminUI ─────────────────────────────────────────
 
-export const loadingIcon = (size: number = 16) => (
-  <LoadingIcon style={{ width: `${size}px`, height: `${size}px` }} />
-);
-
-export const loadingState = (
-  <div className="flex flex-row gap-2 ml-10 text-[1.2rem]" style={{ color: 'var(--text-muted)' }}>
-    <>{loadingIcon(22)}</> Loading...
-  </div>
-);
+export const loadingState = <NewUILoadingStatus open message="Loading admin configuration…" />;
 
 // ── Nav definition ────────────────────────────────────────────────────────────
 
@@ -211,7 +204,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
     useState<CriticalErrorsConfig>({ isActive: false, email: '' });
   const [aiEmailDomain, setAiEmailDomain]       = useState<string>('');
   const [defaultConversationStorage, setDefaultConversationStorage] =
-    useState<ConversationStorage>('future-local');
+    useState<ConversationStorage>(normalizeAdminConversationStorage(undefined));
   const [availableModels, setAvailableModels]   = useState<SupportedModelsConfig>({});
   const [defaultModels, setDefaultModels]       = useState<DefaultModelsConfig>({
     user: '', advanced: '', cheapest: '', agent: '', documentCaching: '', embeddings: '',
@@ -235,11 +228,11 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const [deploymentFeatures, setDeploymentFeatures] = useState<DeploymentFeaturesConfig>({
     schemaVersion: 1,
     availability: {
-      promptHighlighter: true,
+      promptHighlighter: false,
       artifacts: true,
       webSearch: true,
       codeInterpreter: true,
-      memory: true,
+      memory: false,
     },
     allowClassicUiSwitch: true,
     routingEnabled: false,
@@ -370,7 +363,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           setHonorPersonalRateLimit({ enabled: false });
         }
         setPromptCostAlert(d[AdminConfigTypes.PROMPT_COST_ALERT] || promptCostAlert);
-        setDefaultConversationStorage(d[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
+        setDefaultConversationStorage(normalizeAdminConversationStorage(d[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE]));
         setEmailSupport(d[AdminConfigTypes.EMAIL_SUPPORT] || emailSupport);
         setCriticalErrorsConfig(d[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig);
         setAiEmailDomain(d[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);

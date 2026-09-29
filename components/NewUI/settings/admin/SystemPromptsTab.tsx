@@ -1,5 +1,6 @@
 import React, { FC } from 'react';
 import { AdminConfigTypes, SystemPromptsConfig, SystemPromptRecord } from '@/types/admin';
+import { BUILTIN_SYSTEM_PROMPTS } from './systemPromptDefaults';
 import { MAX_SYSTEM_PROMPT_BYTES, utf8ByteLength } from './systemPromptBytes';
 
 const PROMPT_LABELS: Record<string, { label: string; description: string; isPrimary?: boolean }> = {
@@ -63,7 +64,9 @@ export const SystemPromptsTab: FC<SystemPromptsTabProps> = ({
       {promptKeys.map((key) => {
         const meta = PROMPT_LABELS[key];
         const record = config.prompts[key] ?? { version: 1, text: '' };
-        const bytes = utf8ByteLength(record.text);
+        const builtInText = BUILTIN_SYSTEM_PROMPTS[key] ?? '';
+        const displayedText = record.text || builtInText;
+        const bytes = utf8ByteLength(displayedText);
         const isOverLimit = bytes > MAX_SYSTEM_PROMPT_BYTES;
         const fieldId = `system-prompt-${key.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
         const countId = `${fieldId}-count`;
@@ -126,9 +129,9 @@ export const SystemPromptsTab: FC<SystemPromptsTabProps> = ({
               aria-describedby={isOverLimit ? `${countId} ${errorId}` : countId}
               aria-invalid={isOverLimit}
               rows={6}
-              placeholder={`Leave empty to use the built-in default for "${meta.label}"`}
-              value={record.text}
-              onChange={(e) => handleChange(key, e.target.value)}
+              placeholder={builtInText ? `Built-in default for "${meta.label}"` : 'No built-in prompt is currently configured.'}
+              value={displayedText}
+              onChange={(e) => handleChange(key, e.target.value === builtInText ? '' : e.target.value)}
               style={{
                 width: '100%',
                 background: 'var(--bg-app)',
@@ -159,6 +162,7 @@ export const SystemPromptsTab: FC<SystemPromptsTabProps> = ({
               }}
             >
               {bytes.toLocaleString()} / {MAX_SYSTEM_PROMPT_BYTES.toLocaleString()} UTF-8 bytes
+              {!record.text && builtInText ? ' · built-in default shown (not saved)' : ''}
             </div>
             {isOverLimit && (
               <p id={errorId} role="alert" style={{ fontSize: '12px', color: 'var(--text-error)', marginTop: '4px' }}>

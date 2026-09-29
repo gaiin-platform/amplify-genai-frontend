@@ -23,13 +23,13 @@ describe('deployment feature policy', () => {
     vi.unstubAllGlobals();
   });
 
-  it('defaults missing deployment settings to enabled for legacy configs', () => {
+  it('defaults missing deployment settings to prompt highlighter and memory off', () => {
     expect(getDeploymentFeatureAvailability({})).toEqual({
-      promptHighlighter: true,
+      promptHighlighter: false,
       artifacts: true,
       webSearch: true,
       codeInterpreter: true,
-      memory: true,
+      memory: false,
     });
     expect(isClassicUiSwitchAllowed({})).toBe(true);
   });

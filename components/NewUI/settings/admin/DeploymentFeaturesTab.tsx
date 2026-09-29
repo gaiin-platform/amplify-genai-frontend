@@ -114,14 +114,14 @@ export const DeploymentFeaturesTab: FC<DeploymentFeaturesTabProps> = ({
         subtitle={
           'Deployment-wide availability switches for optional features. ' +
           'Disabled features are unavailable to all users regardless of individual settings. ' +
-          'Missing values default to enabled.'
+          'Prompt Highlighter and Memory default to disabled; other features default to enabled.'
         }
       >
         <ToggleRow
           id="dep-feat-highlighter"
           label="Prompt Highlighter"
           description="Allow the prompt highlighter feature to be used in conversations."
-          checked={av.promptHighlighter ?? true}
+          checked={av.promptHighlighter ?? false}
           onChange={(v) => setAvailability('promptHighlighter', v)}
         />
         <ToggleRow
@@ -149,7 +149,7 @@ export const DeploymentFeaturesTab: FC<DeploymentFeaturesTabProps> = ({
           id="dep-feat-memory"
           label="Memory"
           description="Allow conversation memory to be used and persisted across sessions."
-          checked={av.memory ?? true}
+          checked={av.memory ?? false}
           onChange={(v) => setAvailability('memory', v)}
         />
       </SectionCard>
