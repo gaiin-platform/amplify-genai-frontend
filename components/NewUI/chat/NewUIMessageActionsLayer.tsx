@@ -69,6 +69,7 @@ import {
   IconCopy,
   IconEdit,
   IconPlayerStop,
+  IconPresentation,
   IconRefresh,
   IconThumbDown,
   IconThumbDownFilled,
@@ -82,6 +83,8 @@ import {
   formatAbsoluteTime,
   useRelativeTime,
 } from '@/components/NewUI/shared/relativeTimestamp';
+import { usePresentationExportAvailable } from '@/components/NewUI/shared/usePresentationExportAvailable';
+import { openPresentationExport } from '@/components/NewUI/presentation/PresentationExportDialogHost';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -266,6 +269,8 @@ interface ActionRowProps {
   onReadAloud: (slot: Slot) => void;
   isSpeaking: boolean;
   onRate: (slot: Slot, rating: 'good' | 'bad' | null) => void;
+  /** Present only when "Export as PowerPoint" is available (flag + templates). */
+  onExportPresentation?: (slot: Slot) => void;
 }
 
 const ActionRow: React.FC<ActionRowProps> = ({
@@ -280,6 +285,7 @@ const ActionRow: React.FC<ActionRowProps> = ({
   onReadAloud,
   isSpeaking,
   onRate,
+  onExportPresentation,
 }) => {
   const [copied, setCopied] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -442,6 +448,16 @@ const ActionRow: React.FC<ActionRowProps> = ({
             >
               <IconRefresh size={16} />
             </button>
+            {onExportPresentation && (
+              <button
+                className="new-ui-action-btn new-ui-action-btn-lg"
+                onClick={() => onExportPresentation(slot)}
+                title="Export as PowerPoint"
+                aria-label="Export this response as a PowerPoint presentation"
+              >
+                <IconPresentation size={16} />
+              </button>
+            )}
           </div>
           {timestampNode}
         </>
@@ -459,6 +475,7 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     handleUpdateSelectedConversation,
   } = useContext(HomeContext);
 
+  const canExportPresentation = usePresentationExportAvailable();
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -905,6 +922,12 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     [handleUpdateSelectedConversation],
   );
 
+  const handleExportPresentation = useCallback((slot: Slot) => {
+    const conversation = conversationRef.current;
+    if (!conversation || !conversation.messages[slot.rawIndex]) return;
+    openPresentationExport({ conversationId: conversation.id, messageIndex: slot.rawIndex });
+  }, []);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!overlayEl || !slots.length) return null;
@@ -947,6 +970,7 @@ export const NewUIMessageActionsLayer: React.FC = () => {
             onReadAloud={handleReadAloud}
             isSpeaking={isSpeaking && speakingKeyRef.current === slot.key}
             onRate={handleRate}
+            onExportPresentation={canExportPresentation ? handleExportPresentation : undefined}
           />
         );
       })}

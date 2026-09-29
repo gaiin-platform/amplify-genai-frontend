@@ -88,8 +88,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 |------|---------|
 | `ConversationViewShell.tsx` | Wraps `Chat.tsx`; owns `data-scrolling` idle timer, pending-send indicator |
 | `ConversationComposer.tsx` | In-chat message input; attachment rail; deferred-upload send |
-| `ConversationHeader.tsx` | Chat header: title, rename, share, delete |
-| `NewUIMessageActionsLayer.tsx` | Absolute-positioned hover action row (copy/thumbs) |
+| `ConversationHeader.tsx` | Chat header: title, rename, share, export as PowerPoint, delete |
+| `NewUIMessageActionsLayer.tsx` | Absolute-positioned hover action row (copy/thumbs; export as PowerPoint on assistant rows when available) |
 | `NewUIShareModal.tsx` | Share conversation/assistant modal |
 | `NewUIUserMessageMarkdownLayer.tsx` | Portal-based markdown render inside user bubbles |
 | `NewUITranscriptAttachmentsLayer.tsx` | Moves post-send attachment cards into a sibling surface above user bubbles |
@@ -117,6 +117,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `CustomInstructionsSection.tsx` | Settings → Customize → Custom Instructions. List of named instructions with hover Edit/Delete, radio-style active selector (one or none), inline create/edit form, ConfirmDialog for deletes. Active instruction injected into every new blank conversation |
 | `SidebarItemsSection.tsx` | Settings → Customize → Sidebar Items visibility toggles |
 | `admin/AdminsCard.tsx` | Admin section wrapper card |
+| `admin/PresentationAgentCard.tsx` | Feature Data tab card: `presentationAgent` admin config (models, review passes, image model) saved with the modal's Save, plus per-template layout analysis status and Analyze/Re-analyze actions |
 
 ### `shared/`
 | File | Purpose |
@@ -165,11 +166,20 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `PromptTemplateDialog.tsx` | Orchestrates the fill-in popup: invokes `PromptTemplateFillDialog` (new UI), runs `fillInTemplate` semantics, sends via `amplify_pending_message`. Accepts `onEdit` callback passed through to the fill dialog. Also exports `promptTemplateVariables`. |
 | `promptConversation.ts` | `startConversationWithTemplate` — creates the conversation for a template (promptTemplate, tags, rootPrompt, resolved model) under the `'New Conversation'` name so the AI renames it after the first reply. Takes `homeDispatch` because it must set `isStandalonePromptCreation` in the same batch (§30). No React imports |
 | `PromptTemplateDialogHost.tsx` | Single mount point for the popup above, at the new-UI root in `home.tsx` — a sibling of `NewSettingsModal`, never a descendant. Launch it with the exported `openPromptTemplateDialog(prompt)` and then close your own modal: the popup survives because it isn't in your subtree. Settings has three entry points (collapsed sidebar, expanded sidebar, ⌘,) so per-launcher hosts would have to be triplicated |
+| `presentationApi.ts` | Calls to the amplify-presentation-agent service (`/presentation/start`, `/status`, `/template/analyze`, `/template/status`) |
+| `presentationJobModel.ts` | Pure logic for PowerPoint export: source markdown from a conversation or one response, stage→step mapping, poll limits, default template |
+| `usePresentationExportAvailable.ts` | `presentationAgent` feature flag **and** at least one PowerPoint template — gate every export entry point on this |
 | `LayeredBuilderHost.tsx` | Listens for `openLayeredBuilderTrigger` window events and renders `LayeredAssistantBuilder` in a portalled full-screen dialog. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch. Mounted at the new-UI root in `home.tsx` alongside `PromptTemplateDialogHost` |
 | `AssistantAdminUIHost.tsx` | Listens for `openAstAdminInterfaceTrigger` window events and renders `AssistantAdminUI`. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch so gear icons in `GroupAssistantsTab` open the admin interface. Mounted at the new-UI root in `home.tsx` alongside `LayeredBuilderHost` |
 | `lastViewedChat.ts` | The "refresh puts me back in the chat I was reading" vocabulary — `LAST_CHAT_KEY` (sessionStorage, so it survives a refresh but not a new tab), `nextRecordedChat` (`record`/`clear`/**`keep`** — an unknown message state must never clear a good id) and `findRestorableConversation` (proves content via `messages`, `compressedMessages`, **or** being cloud-stored, and normalizes `messages` to an array on the way out). Both keep *empty* apart from *unknown* per §36. No React imports |
 | `LastChatRestore.tsx` | Mounts once at the new-UI root; renders nothing. Records the conversation being viewed and re-selects it once per load, so reloading inside a chat no longer lands on NewHome. Restore waits for a non-empty `availableModels` (`handleSelectConversation` rewrites `conversation.model` when the model isn't in that map) and gates hydration on `conversationStateId !== 'init'`, **not** `=== 'post-init'` — `useHomeReducer` replaces that string with a uuid on every later `selectedConversation`/`conversations` dispatch. Defers to the `amplify_pending_message` bridge |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading overlay for New UI — translucent scrim + centered card, so the app stays visible behind it. Used for startup ("Setting Up Amplify…") and in-view async work (Library delete). `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
+
+### `presentation/`
+| File | Purpose |
+|------|---------|
+| `PresentationExportDialogHost.tsx` | Root-mounted owner of "Export as PowerPoint" jobs. Launch with `openPresentationExport({ conversationId, messageIndex? })`. Owns polling, so closing the dialog keeps the job running and a toast offers the download when it finishes |
+| `PresentationExportDialog.tsx` | Presentational dialog (form → progress steps → slide thumbnails / error) rendered by the host inside `CreationModalShell` |
 
 ### `sidebar/`
 | File | Purpose |
