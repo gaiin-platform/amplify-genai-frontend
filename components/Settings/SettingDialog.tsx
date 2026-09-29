@@ -3,6 +3,7 @@ import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 
 import { featureOptionFlags, getSettings, saveSettings } from '@/utils/app/settings';
+import { isDeploymentFeatureAvailable, type DeploymentFeatureKey } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 
 import { Settings, Theme } from '@/types/settings';
 
@@ -480,18 +481,35 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                     <div className="settings-card">
                         <div className="settings-card-header flex flex-row items-center gap-4">
                           <h3 className="settings-card-title">{t('Features')}</h3>
-                          <p className="settings-card-description">Enable or disable features</p>
+                          <p className="settings-card-description">Deployment-managed availability</p>
                         </div>
 
                       <div className='settings-card-content'>
-                      <FlagsMap 
-                        id={'featureOptionFlags'}
-                        flags={featureOptionFlags.filter((f: Flag) => Object.keys(initSettingsRef.current ? initSettingsRef.current.featureOptions: {}).includes(f.key))}
-                        state={featureOptions}
-                        flagChanged={(key, value) => {
-                          setFeatureOptions({...featureOptions, [key]: value});
-                        }}
-                      />
+                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                          Availability is controlled by your organization.
+                        </p>
+                        {([
+                          ['promptHighlighter', 'Prompt Highlighter'],
+                          ['artifacts', 'Artifacts'],
+                          ['webSearch', 'Web Search'],
+                          ['codeInterpreter', 'Code Interpreter'],
+                          ['memory', 'Memory'],
+                        ] as Array<[DeploymentFeatureKey, string]>).map(([feature, label]) => (
+                          <div key={feature} className="flex justify-between py-2 border-b border-gray-200 dark:border-neutral-700">
+                            <span>{label}</span>
+                            <span className="text-sm text-gray-500">
+                              {isDeploymentFeatureAvailable(featureFlags as any, feature) ? 'Available' : 'Disabled by your organization'}
+                            </span>
+                          </div>
+                        ))}
+                        {featureOptionFlags.length > 0 && (
+                          <FlagsMap
+                            id="featureOptionFlags"
+                            flags={featureOptionFlags.filter((f: Flag) => Object.keys(initSettingsRef.current ? initSettingsRef.current.featureOptions : {}).includes(f.key))}
+                            state={featureOptions}
+                            flagChanged={(key, value) => setFeatureOptions({ ...featureOptions, [key]: value })}
+                          />
+                        )}
                       </div>
                     </div>
                     

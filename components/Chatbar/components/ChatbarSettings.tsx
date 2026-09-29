@@ -11,6 +11,8 @@ import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
 import toast from 'react-hot-toast';
 import { getSettings } from '@/utils/app/settings';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { isDeploymentFeatureAvailable } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { MemoryDialog } from '@/components/Memory/MemoryDialog';
 import { Settings } from '@/types/settings';
 import { PythonFunctionModal } from '@/components/Operations/PythonFunctionModal';
@@ -34,6 +36,9 @@ export const ChatbarSettings = () => {
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
+    const stableFeatureFlags = useStableFeatureFlags();
+    const memoryAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'memory');
+    const webSearchAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'webSearch');
     let settingRef = useRef<Settings | null>(null);
     // prevent recalling the getSettings function
     if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
@@ -133,7 +138,7 @@ export const ChatbarSettings = () => {
                 }
             </>}
 
-            {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && (
+            {memoryAvailable && featureFlags.memory && (
                 <>
                 <SidebarButton
                     text={t('Memory')}
@@ -170,7 +175,7 @@ export const ChatbarSettings = () => {
             )}
 
             {/* Web Search API Keys */}
-            {featureFlags.webSearch && canAddWebSearchApiKey &&(
+            {webSearchAvailable && featureFlags.webSearch && canAddWebSearchApiKey &&(
                 <SidebarButton
                     text={t('Web Search')}
                     icon={<IconSearch size={18} />}

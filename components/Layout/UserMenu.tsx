@@ -19,6 +19,8 @@ import { ThemeService } from '@/utils/whiteLabel/themeService';
 import { Theme } from '@/types/settings';
 import toast from 'react-hot-toast';
 import { setUIPreference } from '@/components/NewUI/UIPreferenceBanner';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 
 
 interface UserMenuProps {
@@ -37,6 +39,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   cognitoClientId,
 }) => {
   const { dispatch, state: { lightMode, showUserMenu, featureFlags, supportEmail, defaultAccount, adminRateLimits, groupRateLimits, honorPersonalRateLimit }, dispatch: homeDispatch } = useContext(HomeContext);
+  const stableFeatureFlags = useStableFeatureFlags();
+  const classicUiSwitchAllowed = isClassicUiSwitchAllowed(stableFeatureFlags as any);
   const [mtdCost, setMtdCost] = useState<string>('0');
   const [mtdCostNumeric, setMtdCostNumeric] = useState<number>(0);
   const [showCostBreakdown, setShowCostBreakdown] = useState<boolean>(false);
@@ -717,6 +721,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Settings</span>
               </button>
 
+              {classicUiSwitchAllowed && (
               <button
                 onClick={handleSwitchToNewUI}
                 className={commonClassname}
@@ -726,6 +731,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
                 <IconLayoutDashboard size={16} className="icon-pop-group enhanced-icon text-blue-500" />
                 <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Switch to New UI</span>
               </button>
+              )}
 
               <button
                 onClick={() => { window.location.href = `mailto:${supportEmail}`}}

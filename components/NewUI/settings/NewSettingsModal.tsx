@@ -31,6 +31,7 @@ import {
 import HomeContext from '@/pages/api/home/home.context';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { getSettings, saveSettings, featureOptionFlags } from '@/utils/app/settings';
+import { isClassicUiSwitchAllowed, isDeploymentFeatureAvailable, type DeploymentFeatureKey } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { Flag } from '@/components/ReusableComponents/FlagsMap';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
@@ -306,6 +307,14 @@ const GeneralSection: FC = () => {
   const visibleFlags: Flag[] = featureOptionFlags.filter((f: Flag) =>
     Object.prototype.hasOwnProperty.call(featureOptions, f.key),
   );
+
+  const managedFeatureRows: Array<{ feature: DeploymentFeatureKey; label: string }> = [
+    { feature: 'promptHighlighter', label: 'Prompt Highlighter' },
+    { feature: 'artifacts', label: 'Artifacts' },
+    { feature: 'webSearch', label: 'Web Search' },
+    { feature: 'codeInterpreter', label: 'Code Interpreter' },
+    { feature: 'memory', label: 'Memory' },
+  ];
 
   const currentFontOpt = FONT_OPTIONS.find((f) => f.value === chatFont) ?? FONT_OPTIONS[0];
 
@@ -890,7 +899,7 @@ const GeneralSection: FC = () => {
       </div>
 
       {/* ── Feature flags card ────────────────────────────────────────────── */}
-      {visibleFlags.length > 0 && (
+      {(visibleFlags.length > 0 || managedFeatureRows.some(({ feature }) => !isDeploymentFeatureAvailable(featureFlags as any, feature))) && (
         <div
           style={{
             background: 'var(--bg-raised)',
@@ -910,6 +919,20 @@ const GeneralSection: FC = () => {
             Features
           </h3>
 
+          {managedFeatureRows.some(({ feature }) => !isDeploymentFeatureAvailable(featureFlags as any, feature)) && (
+            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
+              Availability is managed by your organization.
+            </p>
+          )}
+          {managedFeatureRows.map(({ feature, label }, index) => {
+            if (isDeploymentFeatureAvailable(featureFlags as any, feature)) return null;
+            return (
+              <div key={feature} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{label}</span>
+                <span aria-label={`${label} disabled`} style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Disabled by your organization</span>
+              </div>
+            );
+          })}
           {visibleFlags.map((flag, index) => {
             const isLast = index === visibleFlags.length - 1;
             return (

@@ -25,6 +25,8 @@ import { signOut } from 'next-auth/react';
 import HomeContext from '@/pages/api/home/home.context';
 import { setUIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 
 const DOCS_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
 
@@ -45,6 +47,8 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   collapsed = false,
 }) => {
   const { state: { lightMode, featureFlags }, dispatch } = useContext(HomeContext);
+  const stableFeatureFlags = useStableFeatureFlags();
+  const classicAllowed = isClassicUiSwitchAllowed(stableFeatureFlags as any);
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -97,6 +101,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   };
 
   const handleSwitchToClassic = () => {
+    if (!classicAllowed) return;
     setOpen(false);
     // Persist then reload — server save is fire-and-forget before the reload
     setUIPreference('classic')
@@ -203,15 +208,17 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
             Documentation
           </a>
 
-          {/* Switch to Classic UI */}
-          <button
-            role="menuitem"
-            onClick={handleSwitchToClassic}
-            className={menuItem}
-          >
-            <IconDeviceDesktop size={15} />
-            Switch to Classic UI
-          </button>
+          {/* Switch to Classic UI — hidden and guarded by deployment policy. */}
+          {classicAllowed && (
+            <button
+              role="menuitem"
+              onClick={handleSwitchToClassic}
+              className={menuItem}
+            >
+              <IconDeviceDesktop size={15} />
+              Switch to Classic UI
+            </button>
+          )}
 
           <div className="h-px bg-[--border-subtle] mx-2 my-1" />
 

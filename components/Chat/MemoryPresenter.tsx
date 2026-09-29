@@ -8,6 +8,8 @@ import {
 
 import HomeContext from '@/pages/api/home/home.context';
 import { getSettings } from '@/utils/app/settings';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { isDeploymentFeatureAvailable } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { useSession } from 'next-auth/react';
 import { doSaveMemoryOp } from '@/services/memoryService';
 import { Settings } from '@/types/settings';
@@ -30,6 +32,8 @@ export const MemoryPresenter: FC<Props> = ({
         dispatch: homeDispatch
     } = useContext(HomeContext);
 
+    const stableFeatureFlags = useStableFeatureFlags();
+    const memoryAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'memory');
     let settingRef = useRef<Settings | null>(null);
     if (settingRef.current === null) settingRef.current = getSettings(featureFlags);
 
@@ -126,7 +130,7 @@ export const MemoryPresenter: FC<Props> = ({
     return (
         <>
             <div className="flex flex-col justify-center items-center stretch mx-2 flex flex-row gap-3 last:mb-2 md:mx-4 md:last:mb-6 lg:mx-auto lg:max-w-3xl">
-                {featureFlags.memory && settingRef.current?.featureOptions.includeMemory && selectedConversation && selectedConversation.messages?.length > 0 && extractedFacts.length > 0 && (
+                {memoryAvailable && featureFlags.memory && selectedConversation && selectedConversation.messages?.length > 0 && extractedFacts.length > 0 && (
                     <div className="w-full">
                         {isFactsVisible && (
                             <div className="text-black dark:text-white extracted-facts bg-white dark:bg-[#343541] rounded-lg shadow-lg flex flex-col">

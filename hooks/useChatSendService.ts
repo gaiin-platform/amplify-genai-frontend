@@ -28,6 +28,7 @@ import {
 import { getSettings } from '@/utils/app/settings';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { isBasePrompt } from '@/utils/app/basePrompts';
+import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { promptForData } from '@/utils/app/llm';
 import {
     buildExtractFactsPrompt,
@@ -40,7 +41,6 @@ import { resolveContextString, messagesToCached } from '@/utils/app/contextConve
 import { saveContextCache } from '@/utils/app/storage';
 import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
 import { getFullTimestamp } from '@/utils/app/date';
-import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
 
 export type ChatRequest = {
@@ -101,7 +101,7 @@ export function useSendService() {
         dispatch: homeDispatch,
     } = useContext(HomeContext);
     const stableFeatureFlags = useStableFeatureFlags();
-    const artifactFeatureFlags = stableFeatureFlags;
+    const deploymentAvailability = getDeploymentFeatureAvailability(stableFeatureFlags as any);
 
 
     const conversationsRef = useRef(conversations);
@@ -234,8 +234,11 @@ export function useSendService() {
                     } = request;
                     messageTimestampRef.current = new Date().toISOString();
 
-                    const featureOptions = getSettings(artifactFeatureFlags).featureOptions;
-                    const pluginActive = featureOptions.includePluginSelector;
+                    const featureOptions = getSettings(stableFeatureFlags).featureOptions;
+                    // The user plugin selector and smart focused messages are
+                    // permanently disabled; explicit MCP/connector tools continue
+                    // through their dedicated request fields.
+                    const pluginActive = false;
                     const pluginIds: string[] | null = pluginActive ? plugins?.map((plugin: Plugin) => plugin.id) ?? [] : null;
 
                     const { content, label } = getPrefix(selectedConversation, message);
@@ -363,28 +366,33 @@ export function useSendService() {
                     homeDispatch({ field: 'loading', value: true });
                     homeDispatch({ field: 'messageIsStreaming', value: true });
 
-                    let isArtifactsOn = artifactFeatureFlags.artifacts && featureOptions.includeArtifacts &&
-                        // we only consider whats in the plugins if we have the feature option for it on.
-                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
+                    let isArtifactsOn = deploymentAvailability.artifacts &&
+                        // Preserve provider/base-prompt limitations; routing decides whether to use it.
+                        (!pluginIds || !pluginIds.includes(PluginID.CODE_INTERPRETER)) &&
                         // turn off artifacts for base prompt templates
                         !(selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id));
 
                     // honor assistant does not support artifact flag 
                     const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
-                    if (astFeatureOptions && 'IncludeArtifactsInstr' in astFeatureOptions &&
+                    const explicitArtifactIntent = options?.artifactsMode === true;
+                    if (!explicitArtifactIntent && astFeatureOptions && 'IncludeArtifactsInstr' in astFeatureOptions &&
                         !astFeatureOptions.IncludeArtifactsInstr) {
                         console.log("Artifacts disabled for assistant: ", message.data?.assistant?.definition?.name);
                         isArtifactsOn = false;
                     }
 
-                    console.log("Artifacts on: ", isArtifactsOn)
+                    if (explicitArtifactIntent && !deploymentAvailability.artifacts) {
+                        options = { ...(options || {}) };
+                        delete options.artifactsMode;
+                    }
+                    if (!deploymentAvailability.artifacts) isArtifactsOn = false;
+                    console.log("Artifacts available: ", isArtifactsOn)
                     if (selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id)) {
                         console.log("Artifacts disabled for base prompt template: ", selectedConversation.promptTemplate.name);
                     }
-                    const isSmartMessagesOn = featureFlags.smartMessages && featureOptions.includeFocusedMessages; // && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
-                    console.log("Smart Messages on: ", isSmartMessagesOn)
+                    // Smart focused messages are absent from the request path.
 
-                    const isMemoryOn = featureFlags.memory && featureOptions.includeMemory && (!pluginIds || (pluginIds.includes(PluginID.MEMORY)));
+                    const isMemoryOn = deploymentAvailability.memory && stableFeatureFlags.memory === true;
                     console.log("Memory on: ", isMemoryOn)
 
                     console.log("Conversation tokens: ", updatedConversation.maxTokens);
@@ -430,79 +438,11 @@ export function useSendService() {
                     }
                     // ─────────────────────────────────────────────────────────
 
-                    // ── Auto-route model selection ────────────────────────────
-                    // If the user has enabled auto-route (toggle in ModelSelect),
-                    // classify the task complexity before sending and override the
-                    // conversation model with cheapest / default / advanced accordingly.
-                    // Auto-route is suppressed when the active assistant enforces a
-                    // specific model — the assistant's choice always takes priority.
-                    let resolvedModel = updatedConversation.model;
-                    const autoRouteEnabled = (() => {
-                        try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; }
-                    })();
-
-                    const enforcedAssistantModelId = message.data?.assistant?.definition?.data?.model as string | undefined;
-                    const autoRouteSuppressed = !!(enforcedAssistantModelId);
-
-                    if (autoRouteEnabled && !autoRouteSuppressed && chatEndpoint) {
-                        try {
-                            // If files/datasources are attached → always use advanced model
-                            // (no classification call — avoids competing with file processing)
-                            const hasAttachments = (message.data?.dataSources && message.data.dataSources.length > 0) ||
-                                                   (updatedConversation.messages.some((m: Message) => m.data?.dataSources?.length > 0));
-
-                            if (hasAttachments) {
-                                resolvedModel = getDefaultModel(DefaultModels.ADVANCED);
-                                console.log(`[Auto-route] Attachments detected → using advanced model: ${resolvedModel?.name}`);
-                            } else {
-                                const userMessageContent = message.content || '';
-                                const classifyPrompt = `Classify the following user message into exactly one of these three complexity levels:
-- SIMPLE: casual chat, short factual questions, greetings, basic lookups
-- MODERATE: multi-step questions, explanations, summarization, writing assistance
-- COMPLEX: deep analysis, large document processing, coding, research, legal/technical reasoning
-
-Respond with only one word: SIMPLE, MODERATE, or COMPLEX.
-
-User message: "${userMessageContent.slice(0, 500)}"`;
-
-                                const cheapestModel = getDefaultModel(DefaultModels.CHEAPEST);
-                                const classifyMessages: Message[] = [{
-                                    id: 'auto-route-classify',
-                                    role: 'user',
-                                    type: MessageType.PROMPT,
-                                    content: classifyPrompt,
-                                    data: {}
-                                }];
-
-                                const classification = await promptForData(
-                                    chatEndpoint,
-                                    classifyMessages,
-                                    cheapestModel,
-                                    '',
-                                    defaultAccount,
-                                    null,
-                                    50
-                                );
-
-                                const level = (classification || '').trim().toUpperCase();
-                                console.log(`[Auto-route] Classification: ${level}`);
-
-                                if (level.includes('SIMPLE')) {
-                                    resolvedModel = getDefaultModel(DefaultModels.CHEAPEST);
-                                } else if (level.includes('COMPLEX')) {
-                                    resolvedModel = getDefaultModel(DefaultModels.ADVANCED);
-                                } else {
-                                    resolvedModel = getDefaultModel(DefaultModels.DEFAULT);
-                                }
-
-                                console.log(`[Auto-route] Selected model: ${resolvedModel?.name}`);
-                            }
-                        } catch (e) {
-                            console.warn('[Auto-route] Classification failed, using conversation model:', e);
-                        }
-                    }
-                    // ─────────────────────────────────────────────────────────
-                     console.log("Model in use: ", resolvedModel.name);
+                    // Model selection remains explicit and assistant-aware. Automatic
+                    // feature routing is performed once by the backend ordinary-chat
+                    // router so UI and API requests cannot diverge.
+                    const resolvedModel = updatedConversation.model;
+                    console.log("Model in use: ", resolvedModel.name);
 
                     let chatBody: ChatBody = {
                         model: resolvedModel,
@@ -513,25 +453,8 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                         conversationId
                     };
 
-                    // Check if Web Search is enabled:
-                    // - Feature flag must be on (admin enabled)
-                    // - Plugin must be enabled in FeaturePlugin (user enabled for session)
-                    // - Per-message toggle must be on (user enabled for this message)
-                    const perMessageWebSearch = message.data?.enableWebSearch ?? false;
-                    const pluginWebSearch = plugins?.some(p => p.id === PluginID.WEB_SEARCH) ?? false;
-                    // Check feature flag (now properly defined in backend)
-                    const featureFlagEnabled = featureFlags.webSearch === true;
-                    const isWebSearchOn = featureFlagEnabled && pluginWebSearch && perMessageWebSearch;
-
-                    // Always explicitly set enableWebSearch to prevent backend auto-enablement
-                    chatBody.enableWebSearch = isWebSearchOn;
-
-                    if (isWebSearchOn) {
-                        // Add web search tool to the request
-                        // Backend will handle tool execution with user's API key
-                        chatBody.tools = [WEB_SEARCH_TOOL_DEFINITION];
-                        console.log("Web search tool added to chat body");
-                    }
+                    // Backend routing owns optional web-search selection. Do not
+                    // send user preference fields that could bias that decision.
 
                     // Check if MCP is enabled (requires feature flag AND plugin enabled)
                     const isMCPOn = featureFlags.mcp && (plugins?.some(p => p.id === PluginID.MCP) ?? false);
@@ -554,36 +477,21 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                         }
                     }
 
-                    // Check if Skills is enabled (requires feature flag AND plugin enabled)
-                    const isSkillsOn = featureFlags.skills && (plugins?.some(p => p.id === PluginID.SKILLS) ?? false);
-                    console.log("Skills on: ", isSkillsOn);
-
-                    if (isSkillsOn) {
-                        // Get skills from message data (set by SkillsToggle component)
-                        const selectedSkills = message.data?.skills || [];
-                        const skillSelectionMode = message.data?.skillSelectionMode || 'auto';
-
-                        // Pass skills to backend via options (will be merged later)
-                        chatBody.skills = selectedSkills;
-                        chatBody.skillSelectionMode = skillSelectionMode;
-                        console.log(`Skills: ${selectedSkills.length} skills selected, mode: ${skillSelectionMode}`);
-                    }
-
                     console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
 
                     if (isArtifactsOn && selectedConversation.artifacts) {
                         console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
                         chatBody.artifacts = selectedConversation.artifacts;
                     }
-                    // Add smart messages and artifacts options - backend will handle processing
-                    if (isSmartMessagesOn || isArtifactsOn) {
-                        chatBody.options = {
-                            smartMessages: isSmartMessagesOn,
-                            artifacts: isArtifactsOn
-                        };
-
+                    // Automatic routing stays backend-owned. Explicit artifact
+                    // requests are intent only; the backend applies deployment policy
+                    // before resolving them to the artifact generator.
+                    if (options?.artifactsMode === true && deploymentAvailability.artifacts) {
+                        chatBody.artifactsMode = true;
                     }
-
+                    if (options?.codeInterpreterOnly === true && deploymentAvailability.codeInterpreter) {
+                        chatBody.codeInterpreterOnly = true;
+                    }
 
                     if (selectedConversation?.projectId) {
                         // console.log("Selected Project Memory ID:", selectedConversation.projectId);
@@ -666,14 +574,13 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                     }
 
 
-                    if (!featureFlags.codeInterpreterEnabled) {
+                    // Do not let stale plugin settings re-enable/disable the interpreter.
+                    // The backend selects it only when deployment policy permits it.
+                    if (!deploymentAvailability.codeInterpreter) {
                         options = { ...(options || {}), skipCodeInterpreter: true };
-                    } else {
-                        if (pluginIds?.includes(PluginID.CODE_INTERPRETER)) {
-                            chatBody.codeInterpreterRecordId = updatedConversation.codeInterpreterRecordId;
-                            options = { ...(options || {}), skipRag: true, codeInterpreterOnly: true };
-                            statsService.codeInterpreterInUseEvent();
-                        }
+                        delete options.codeInterpreterOnly;
+                    } else if (options?.codeInterpreterOnly !== true) {
+                        options = { ...(options || {}), codeInterpreterOnly: false };
                     }
 
                     if (selectedConversation && selectedConversation.tags) {
@@ -716,13 +623,12 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                     }
 
                     if (options) {
-                        // Preserve enableWebSearch and mcpEnabled when applying options
-                        const enableWebSearchValue = chatBody.enableWebSearch;
                         const mcpEnabledValue = (chatBody as any).mcpEnabled;
-                        Object.assign(chatBody, options);
-                        if (enableWebSearchValue !== undefined) {
-                            chatBody.enableWebSearch = enableWebSearchValue;
+                        if (options.codeInterpreterOnly === true && !deploymentAvailability.codeInterpreter) {
+                            options = { ...options };
+                            delete options.codeInterpreterOnly;
                         }
+                        Object.assign(chatBody, options);
                         if (mcpEnabledValue !== undefined) {
                             (chatBody as any).mcpEnabled = mcpEnabledValue;
                         }
@@ -1160,17 +1066,10 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                                 // Use the same tools from the original request (already includes MCP tools)
                                 tools: chatBody.tools,
                                 mcpEnabled: true,
-                                enableWebSearch: isWebSearchOn,
                                 skipRag: true,
                                 skipCodeInterpreter: true
                             };
 
-                            if (isSmartMessagesOn || isArtifactsOn) {
-                                continuationChatBody.options = {
-                                    smartMessages: isSmartMessagesOn,
-                                    artifacts: isArtifactsOn
-                                };
-                            }
 
                             // Reset state for continuation
                             currentState = {};

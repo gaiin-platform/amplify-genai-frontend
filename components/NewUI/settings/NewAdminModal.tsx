@@ -33,6 +33,8 @@ import {
   IconDeviceFloppy,
   IconCheck,
   IconCurrencyDollar,
+  IconFileText,
+  IconToggleRight,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
@@ -44,8 +46,10 @@ import {
 import {
   AdminConfigTypes, FeatureFlagConfig,
   SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig,
+  SystemPromptsConfig, DeploymentFeaturesConfig,
 } from '@/types/admin';
 import { adminTabHasChanges } from '@/utils/app/admin';
+import { findOversizedSystemPrompts } from '@/components/NewUI/settings/admin/systemPromptBytes';
 import { LoadingIcon } from '@/components/Loader/LoadingIcon';
 import toast from 'react-hot-toast';
 import InputsMap from '@/components/ReusableComponents/InputMap';
@@ -55,6 +59,8 @@ import { FeatureFlagsTab } from '@/components/Admin/AdminComponents/FeatureFlags
 import { emptySupportedModel, SupportedModelsTab } from '@/components/Admin/AdminComponents/SupportedModels';
 import { ConfigurationsTab } from '@/components/NewUI/settings/admin/ConfigurationsTab';
 import { AdminsCard } from '@/components/NewUI/settings/admin/AdminsCard';
+import { SystemPromptsTab } from '@/components/NewUI/settings/admin/SystemPromptsTab';
+import { DeploymentFeaturesTab } from '@/components/NewUI/settings/admin/DeploymentFeaturesTab';
 import {
   Integration, IntegrationProviders, integrationProviders, integrationProvidersList,
   IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap, AdminWebSearchConfig,
@@ -92,6 +98,8 @@ interface AdminNavItem {
 
 const BASE_ADMIN_TABS: AdminNavItem[] = [
   { id: 'Configurations',       label: 'Configurations',       Icon: IconAdjustments },
+  { id: 'System Prompts',       label: 'System Prompts',       Icon: IconFileText },
+  { id: 'Deployment',           label: 'Deployment',           Icon: IconToggleRight },
   { id: 'Supported Models',     label: 'Supported Models',     Icon: IconCpu },
   { id: 'Application Variables',label: 'Application Variables',Icon: IconVariable },
   { id: 'Feature Flags',        label: 'Feature Flags',        Icon: IconFlag },
@@ -187,6 +195,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
 
   // ── Unsaved changes ───────────────────────────────────────────────────────
   const [unsavedConfigs, setUnsavedConfigs]   = useState<Set<AdminConfigTypes>>(new Set());
+  const [promptSaveError, setPromptSaveError] = useState<string | null>(null);
   const updateUnsavedConfigs = (type: AdminConfigTypes) =>
     setUnsavedConfigs((prev) => new Set(prev).add(type));
 
@@ -213,6 +222,28 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
   const [defaultTimezone, setDefaultTimezone]   = useState<string>('America/Chicago');
   const [smartMessagesEnabled, setSmartMessagesEnabled] = useState<boolean>(false);
+  const [systemPrompts, setSystemPrompts] = useState<SystemPromptsConfig>({
+    schemaVersion: 1,
+    prompts: {
+      'ordinaryChat.base': { version: 1, text: '' },
+      'webSearch.use': { version: 1, text: '' },
+      'artifacts.generate': { version: 1, text: '' },
+      'codeInterpreter.use': { version: 1, text: '' },
+      'amplifyHelper.base': { version: 1, text: '' },
+    },
+  });
+  const [deploymentFeatures, setDeploymentFeatures] = useState<DeploymentFeaturesConfig>({
+    schemaVersion: 1,
+    availability: {
+      promptHighlighter: true,
+      artifacts: true,
+      webSearch: true,
+      codeInterpreter: true,
+      memory: true,
+    },
+    allowClassicUiSwitch: true,
+    routingEnabled: false,
+  });
   const [astGroups, setAstGroups]               = useState<Ast_Group_Data[]>([]);
   const [changedAstGroups, setChangedAstGroups] = useState<string[]>([]);
   const [amplifyAstGroupId, setAmplifyAstGroupId] = useState<string>('');
@@ -348,6 +379,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         setUserDocumentationUrl(d[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
         setDefaultTimezone(d[AdminConfigTypes.DEFAULT_TIMEZONE] || 'America/Chicago');
         setSmartMessagesEnabled(d[AdminConfigTypes.DEFAULT_SMART_MESSAGES] ?? false);
+        if (d[AdminConfigTypes.SYSTEM_PROMPTS]) setSystemPrompts(d[AdminConfigTypes.SYSTEM_PROMPTS]);
+        if (d[AdminConfigTypes.DEPLOYMENT_FEATURES]) setDeploymentFeatures(d[AdminConfigTypes.DEPLOYMENT_FEATURES]);
         setAccountNoticeMessage(d[ACCOUNT_NOTICE_CONFIG_KEY] || '');
         setLoadingMessage('');
 
@@ -543,6 +576,10 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         return defaultTimezone;
       case AdminConfigTypes.DEFAULT_SMART_MESSAGES:
         return smartMessagesEnabled;
+      case AdminConfigTypes.SYSTEM_PROMPTS:
+        return systemPrompts;
+      case AdminConfigTypes.DEPLOYMENT_FEATURES:
+        return deploymentFeatures;
     }
   };
 
@@ -570,7 +607,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
     const act = (types: AdminConfigTypes[], fn: () => void) => {
       if (types.some((t) => unsavedConfigs.has(t))) fn();
     };
-    act([AdminConfigTypes.FEATURE_FLAGS], async () => {
+    act([AdminConfigTypes.FEATURE_FLAGS, AdminConfigTypes.DEPLOYMENT_FEATURES], async () => {
       const r = await getFeatureFlags();
       if (r.success && r.data) {
         homeDispatch({ field: 'featureFlags', value: r.data });
@@ -621,6 +658,17 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
 
   const handleSave = async () => {
     if (unsavedConfigs.size === 0 && !accountNoticeUnsaved) { toast('No changes to save'); return; }
+    if (unsavedConfigs.has(AdminConfigTypes.SYSTEM_PROMPTS)) {
+      const oversized = findOversizedSystemPrompts(systemPrompts.prompts);
+      if (oversized.length > 0) {
+        const first = oversized[0];
+        const message = `System prompt "${first.key}" is ${first.bytes.toLocaleString()} UTF-8 bytes; each prompt must be no more than 16,384 bytes.`;
+        setPromptSaveError(message);
+        alert(message);
+        return;
+      }
+    }
+    setPromptSaveError(null);
     const payload: any[] = Array.from(unsavedConfigs).map((t) => ({ type: t, data: getConfigTypeData(t) }));
     if (accountNoticeUnsaved) {
       payload.push({ type: ACCOUNT_NOTICE_CONFIG_KEY, data: accountNoticeMessage });
@@ -915,6 +963,29 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
               setWebSearchConfig(config);
               updateUnsavedConfigs(AdminConfigTypes.WEB_SEARCH);
             }}
+          />
+        );
+      case 'System Prompts':
+        return (
+          <>
+            {promptSaveError && (
+              <p role="alert" style={{ color: 'var(--text-error)', fontSize: '13px', marginBottom: '12px' }}>
+                {promptSaveError}
+              </p>
+            )}
+            <SystemPromptsTab
+              config={systemPrompts}
+              setConfig={setSystemPrompts}
+              updateUnsavedConfigs={updateUnsavedConfigs}
+            />
+          </>
+        );
+      case 'Deployment':
+        return (
+          <DeploymentFeaturesTab
+            config={deploymentFeatures}
+            setConfig={setDeploymentFeatures}
+            updateUnsavedConfigs={updateUnsavedConfigs}
           />
         );
       default:

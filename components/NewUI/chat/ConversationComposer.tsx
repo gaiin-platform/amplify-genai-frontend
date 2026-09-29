@@ -71,9 +71,8 @@ import {
 } from '@/components/NewUI/shared/libraryAttachment';
 import { UploadPendingIndicator } from './UploadPendingIndicator';
 import { RichComposer, type RichComposerHandle } from '@/components/NewUI/shared/RichComposer';
-import { PluginID, Plugin, Plugins } from '@/types/plugin';
+import { Plugin } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
-import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 // For the direct-send path (pasted images with S3 keys)
@@ -118,8 +117,6 @@ interface PendingUploadSend {
   newDocs: AttachedDocument[];
   /** How many uploads are still in flight (decrements to 0, then fires). */
   remainingCount: number;
-  webSearchEnabled: boolean;
-  selectedSkillIds: string[];
   /** Connector actions selected at send time — carried through so the auto-fire
    *  path includes configuredTools exactly as the immediate PATH A does. */
   selectedActions: SelectedAction[];
@@ -201,19 +198,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     if (convEffort) setSelectedEffort(convEffort);
   }, [selectedConversation?.data?.reasoningLevel]);
 
-  // ── Plugins (for AttachMenu feature gating) ───────────────────────────────
-  const activeLandingPlugins: Plugin[] = [
-    ...(featureFlags.webSearch ? [Plugins[PluginID.WEB_SEARCH]] : []),
-    ...(featureFlags.skills ? [Plugins[PluginID.SKILLS]] : []),
-  ].filter(Boolean);
-
-  // ── Toggle state ──────────────────────────────────────────────────────────
-  const [webSearchEnabled, setWebSearchEnabled] = useState(
-    selectedConversation?.data?.webSearchEnabled ?? false,
-  );
-  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>(
-    selectedConversation?.data?.skills ?? [],
-  );
+  // Optional web-search, artifact, and interpreter selection is owned by backend routing.
   // Seed connector actions from sessionStorage so the chip re-appears when the
   // ConversationComposer mounts for a conversation that was started from the
   // landing page with a connector selected. The key is written by NewHome and
@@ -490,8 +475,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     const {
       msgText,
       pastedAttachments,
-      webSearchEnabled: pendingWebSearch,
-      selectedSkillIds: pendingSkills,
       selectedActions: pendingActions,
     } = pending;
     const pastedMessage = buildPastedTextMessage(msgText, pastedAttachments);
@@ -546,9 +529,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       label: pastedMessage.label || undefined,
       type: MessageType.PROMPT,
       data: {
-        enableWebSearch: pendingWebSearch,
-        skills: pendingSkills,
-        skillSelectionMode: 'auto',
         ...pastedMessage.data,
         dataSources: allDocs.map((d) => ({
           id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
@@ -665,19 +645,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       });
       convBase = { ...convBase, model: availableModels[selectedModelId] };
     }
-    if (convBase) {
-      handleUpdateConversation(convBase, {
-        key: 'data',
-        // Spread first: web search, skills and reasoningLevel share this one
-        // object, so a bare replacement drops the user's effort (§31).
-        value: {
-          ...convBase.data,
-          webSearchEnabled,
-          skills: selectedSkillIds,
-          skillSelectionMode: 'auto',
-        },
-      });
-    }
 
     const pastedAttachments = uiAttachments.filter((a) => a.kind === 'paste');
     const pastedMessage = buildPastedTextMessage(msgText, pastedAttachments);
@@ -695,8 +662,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         readyDocs: [...docsWithKeys],
         newDocs: [],
         remainingCount: uploadingAttachments.length,
-        webSearchEnabled,
-        selectedSkillIds,
         selectedActions: [...selectedActions],
       };
       // pendingUploadState.done tracks how many of the originally-uploading
@@ -735,9 +700,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         label: pastedMessage.label || undefined,
         type: MessageType.PROMPT,
         data: {
-          enableWebSearch: webSearchEnabled,
-          skills: selectedSkillIds,
-          skillSelectionMode: 'auto',
           ...pastedMessage.data,
           ...(docsToSend.length > 0 ? {
             dataSources: docsToSend.map((d) => ({
@@ -802,8 +764,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     activeAssistant,
     selectedModelId,
     availableModels,
-    webSearchEnabled,
-    selectedSkillIds,
     selectedActions,
     featureFlags,
     handleUpdateConversation,
@@ -1217,7 +1177,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             <div className="flex items-center gap-2">
               <AttachMenu
                 isNewChat={false}
-                plugins={activeLandingPlugins}
                 onAddFiles={() => {
                   // Use the composer's own input, not ChatInput's hidden
                   // `#__attachFile`: files attached there land in ChatInput's
@@ -1230,27 +1189,10 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 onAddIntegrationFile={(file) => attachFiles([file])}
                 selectedActions={selectedActions}
                 onActionsChange={setSelectedActions}
-                webSearchEnabled={webSearchEnabled}
-                onToggleWebSearch={() => {
-                  setWebSearchEnabled((v: boolean) => {
-                    const next = !v;
-                    // Seed Chat.tsx's plugins array (via the shared settings
-                    // utility) as early as possible — see webSearchPreference.ts
-                    // for why this is necessary and what it does not cover.
-                    if (next) persistWebSearchPluginPreference(featureFlags);
-                    return next;
-                  });
-                }}
-                selectedSkillIds={selectedSkillIds}
-                onSkillsChange={setSelectedSkillIds}
                 chatEndpoint={chatEndpoint ?? undefined}
                 composerRef={composerRef}
               />
               <AttachMenuChips
-                webSearchEnabled={webSearchEnabled}
-                onRemoveWebSearch={() => setWebSearchEnabled(false)}
-                selectedSkillIds={selectedSkillIds}
-                onRemoveSkills={() => setSelectedSkillIds([])}
                 assistantName={activeAssistantName}
                 onRemoveAssistant={detachAssistant}
                 selectedActions={selectedActions}

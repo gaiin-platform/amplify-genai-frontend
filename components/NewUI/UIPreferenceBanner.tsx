@@ -40,6 +40,7 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { saveUserSettings, fetchUserSettings } from '@/services/settingsService';
+import { getFeatureFlags } from '@/services/adminService';
 import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
 import {
   UI_PREF_KEY,
@@ -47,10 +48,13 @@ import {
   getUIPreference,
   readUIPreferenceOverride,
   resolveStoredUIPreference,
+  resolveUIPreferenceWithPolicy,
   urlWithoutUIPreferenceParam,
   writeLocalUIPreference,
   type UIPreference,
 } from '@/components/NewUI/shared/uiPreferenceResolution';
+import { cacheClassicUiSwitchPolicy, isCachedClassicUiSwitchDisallowed, isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
+import { getSettings } from '@/utils/app/settings';
 
 // Re-exported so existing importers (home.tsx, AccountMenu) keep their import path.
 export { UI_PREF_KEY, getUIPreference, resolveStoredUIPreference };
@@ -72,17 +76,19 @@ export const PREF_RESOLVE_TIMEOUT_MS = 6000;
  * localStorage so the user's session isn't interrupted.
  */
 export async function setUIPreference(pref: 'new' | 'classic'): Promise<void> {
-  // 1 + 2. Sync storage (always succeeds locally)
+  // Persist locally first: offline users still get the selected UI immediately.
   writeLocalUIPreference(pref);
 
-  // 3. Server-side persistence (fire-and-forget)
+  // A failed read means we cannot safely replace the server's full settings object.
+  // Keep the local choice and retry on a later explicit switch/startup instead.
   try {
-    // Fetch current settings first so we don't overwrite other fields
     const result = await fetchUserSettings();
-    const current = result?.success && result.data ? result.data : {};
+    const current = result?.success && result.data
+      ? result.data
+      : getSettings({});
     await saveUserSettings({ ...current, uiPreference: pref });
   } catch {
-    // Non-fatal — localStorage already holds the value
+    // Non-fatal — localStorage already holds the value.
   }
 }
 
@@ -114,6 +120,15 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
 }) => {
   // 'resolving' → checking the stores; 'ask' → popup visible; 'done' → user answered
   const [phase, setPhase] = useState<'resolving' | 'ask' | 'done'>('resolving');
+  // Start restrictive from a prior policy observation to prevent stale server
+  // settings from flashing classic before the current policy request resolves.
+  const [classicAllowed, setClassicAllowed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('amplify_classic_ui_switch_allowed') !== 'false';
+    } catch {
+      return true;
+    }
+  });
 
   // home.tsx passes fresh inline arrows on every render, so these are read through a
   // ref. Listing them in the effect deps would restart the settings fetch each render.
@@ -132,22 +147,29 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
     let cancelled = false;
     let settled = false;
     let timer = 0;
+    let forcedByCachedPolicy = false;
+    // Older deployments and failed policy reads retain the documented allow default.
+    let allowClassic = true;
 
     const decide = (resolution: 'new' | 'classic' | 'ask') => {
-      if (cancelled || settled) return;
+      if (cancelled || settled || forcedByCachedPolicy) return;
       settled = true;
       window.clearTimeout(timer);
 
-      if (resolution === 'ask') {
+      // If the deployment config disables classic switching, force 'new' regardless of
+      // stored preference and skip the 'ask' state so the banner never shows the dialog.
+      const effective = !allowClassic && resolution !== 'new' ? 'new' : resolution;
+
+      if (effective === 'ask') {
         setPhase('ask');
         return;
       }
       // A stored choice exists — honour it silently instead of asking again.
       // Mark the gate done before notifying home.tsx so an unconditional mount
       // cannot leave the opaque resolving cover over the selected layout.
-      writeLocalUIPreference(resolution);
+      writeLocalUIPreference(effective);
       setPhase('done');
-      if (resolution === 'new') callbacksRef.current.onSelectNew();
+      if (effective === 'new') callbacksRef.current.onSelectNew();
       else callbacksRef.current.onSelectClassic();
     };
 
@@ -163,6 +185,19 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
     }
 
     const local = getUIPreference();
+    const cachedPolicyDisallowsClassic = isCachedClassicUiSwitchDisallowed();
+    if (cachedPolicyDisallowsClassic && local !== 'new') {
+      forcedByCachedPolicy = true;
+      settled = true;
+      writeLocalUIPreference('new');
+      callbacksRef.current.onSelectNew();
+      setPhase('done');
+      void setUIPreference('new');
+      return () => {
+        cancelled = true;
+        window.clearTimeout(timer);
+      };
+    }
 
     // Always wait for the server when possible: it is the cross-device source
     // of truth. The local value remains the timeout/offline fallback, but must
@@ -173,16 +208,34 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
     );
 
     (async () => {
+      // Fetch user settings and deployment feature flags in parallel.
+      const [settingsResult, flagsResult] = await Promise.allSettled([
+        fetchUserSettings(),
+        getFeatureFlags(),
+      ]);
+
       let server: unknown = null;
-      try {
-        const result = await fetchUserSettings();
-        if (result?.success && result.data) {
-          server = (result.data as { uiPreference?: unknown }).uiPreference;
-        }
-      } catch {
-        // Offline or failed — the captured local value remains the fallback.
+      if (settingsResult.status === 'fulfilled' && settingsResult.value?.success) {
+        server = (settingsResult.value.data as { uiPreference?: unknown }).uiPreference;
       }
-      decide(resolveStoredUIPreference(local, server));
+
+      // Extract the deployment switch policy (missing legacy value means allowed).
+      if (flagsResult.status === 'fulfilled' && flagsResult.value?.success) {
+        allowClassic = isClassicUiSwitchAllowed(flagsResult.value.data as any);
+        cacheClassicUiSwitchPolicy(allowClassic);
+        setClassicAllowed(allowClassic);
+      } else if (isCachedClassicUiSwitchDisallowed()) {
+        allowClassic = false;
+        setClassicAllowed(false);
+      }
+
+      const resolved = resolveStoredUIPreference(local, server);
+      const effective = resolveUIPreferenceWithPolicy(local, server, allowClassic);
+      if (!allowClassic && resolved !== 'new') {
+        writeLocalUIPreference('new');
+        void setUIPreference('new');
+      }
+      decide(effective);
     })();
 
     return () => {
@@ -227,11 +280,13 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
 
   const choose = (pref: 'new' | 'classic') => {
     if (phase === 'done') return;
+    // Honour the deployment policy: classic is unavailable when disallowed.
+    const effective: 'new' | 'classic' = !classicAllowed && pref === 'classic' ? 'new' : pref;
     setPhase('done');
-    if (pref === 'new') onSelectNew();
+    if (effective === 'new') onSelectNew();
     else onSelectClassic();
     // Fire-and-forget — don't await so the UI switches immediately
-    setUIPreference(pref).catch(() => {});
+    setUIPreference(effective).catch(() => {});
   };
 
   // Still resolving: cover the app. The home render uses a safe New UI loader for
@@ -311,7 +366,7 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
         </p>
 
         {/* Comparison row — clicking a card directly selects the UI */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className={`grid gap-3 ${classicAllowed ? 'grid-cols-2' : 'grid-cols-1 max-w-[260px]'}`}>
           {/* New UI preview card */}
           <button
             ref={newCardRef}
@@ -324,21 +379,23 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
               Clean sidebar, unified navigation, modern composer
             </div>
             <div className="mt-3 text-[11px] font-medium text-[--accent] uppercase tracking-wide">
-              Recommended
+              {classicAllowed ? 'Recommended' : 'Required by your organization'}
             </div>
           </button>
 
-          {/* Classic preview card */}
-          <button
-            type="button"
-            className="text-left rounded-[10px] border border-[--border-subtle] bg-[--bg-app] p-4 cursor-pointer hover:bg-[--bg-hover] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
-            onClick={handleClassic}
-          >
-            <div className="text-[13px] font-medium text-[--text-primary] mb-1">Classic UI</div>
-            <div className="text-[12px] text-[--text-muted] leading-relaxed">
-              Original interface with three-tab sidebar
-            </div>
-          </button>
+          {/* Classic preview card — hidden when the deployment policy disallows switching */}
+          {classicAllowed && (
+            <button
+              type="button"
+              className="text-left rounded-[10px] border border-[--border-subtle] bg-[--bg-app] p-4 cursor-pointer hover:bg-[--bg-hover] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+              onClick={handleClassic}
+            >
+              <div className="text-[13px] font-medium text-[--text-primary] mb-1">Classic UI</div>
+              <div className="text-[12px] text-[--text-muted] leading-relaxed">
+                Original interface with three-tab sidebar
+              </div>
+            </button>
+          )}
         </div>
 
       </div>

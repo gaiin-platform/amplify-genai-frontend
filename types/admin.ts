@@ -26,12 +26,14 @@ export enum AdminConfigTypes {
     USER_DOCUMENTATION_URL = 'userDocumentationUrl',
     DEFAULT_TIMEZONE = 'defaultTimezone',
     DEFAULT_SMART_MESSAGES = 'defaultSmartMessages',
-
+    SYSTEM_PROMPTS = 'systemPrompts',
+    DEPLOYMENT_FEATURES = 'deploymentFeatures',
   }
 
   // As tabs get added please keep track of where each config data lives
 export type AdminTab = 'Configurations' | 'Feature Flags' | 'Feature Data' | 'Embeddings' | 'Supported Models' |
-                        'Application Variables' | 'OpenAi Endpoints' | 'Ops' | 'Integrations' | 'Critical Errors';
+                        'Application Variables' | 'OpenAi Endpoints' | 'Ops' | 'Integrations' | 'Critical Errors' |
+                        'System Prompts' | 'Deployment';
 
   //////////////////// Keep track of admin changes and the tabs they belong to ////////////////////
 
@@ -93,7 +95,15 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
     'Critical Errors' : [
       AdminConfigTypes.CRITICAL_ERRORS
     ],
-  
+
+    'System Prompts': [
+      AdminConfigTypes.SYSTEM_PROMPTS,
+    ],
+
+    'Deployment': [
+      AdminConfigTypes.DEPLOYMENT_FEATURES,
+    ],
+
   };
   
 
@@ -180,6 +190,38 @@ export interface DefaultModelsConfig {
   'agent': string,
   'embeddings': string,
   'documentCaching': string,
+}
+
+export interface SystemPromptRecord {
+  version: number;
+  text: string;
+}
+
+export interface SystemPromptsConfig {
+  schemaVersion: number;
+  prompts: {
+    'ordinaryChat.base': SystemPromptRecord;
+    'webSearch.use': SystemPromptRecord;
+    'artifacts.generate': SystemPromptRecord;
+    'codeInterpreter.use': SystemPromptRecord;
+    'amplifyHelper.base': SystemPromptRecord;
+    [key: string]: SystemPromptRecord;
+  };
+}
+
+export interface DeploymentFeaturesAvailability {
+  promptHighlighter: boolean;
+  artifacts: boolean;
+  webSearch: boolean;
+  codeInterpreter: boolean;
+  memory: boolean;
+}
+
+export interface DeploymentFeaturesConfig {
+  schemaVersion: number;
+  availability: DeploymentFeaturesAvailability;
+  allowClassicUiSwitch: boolean;
+  routingEnabled?: boolean;
 }
 
 

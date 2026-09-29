@@ -50,11 +50,9 @@ import {
   libraryFileToAttachedDocument,
   type LibraryFileSelection,
 } from '@/components/NewUI/shared/libraryAttachment';
-import { PluginID, Plugin, Plugins } from '@/types/plugin';
 import { newMessage, MessageType, type Message } from '@/types/chat';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
-import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { getUserDefaultModelId } from '@/components/NewUI/shared/userDefaultModel';
 import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
@@ -62,7 +60,7 @@ import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffor
 export const NewHome: React.FC = () => {
   const {
     state: {
-      availableModels, defaultModelId, featureFlags, ragOn, chatEndpoint, selectedAssistant,
+      availableModels, defaultModelId, featureFlags, ragOn, selectedAssistant,
       statsService, selectedConversation, page,
     },
     handleNewConversation,
@@ -123,14 +121,8 @@ export const NewHome: React.FC = () => {
     }
   }, [defaultModelId, enforcedModelId]);
 
-  // ── Plugins (needed by AttachMenu for feature gating) ────────────────────
-  // On the landing page we have no conversation, so we synthesise the active
-  // plugins from featureFlags — the same set the old ChatInput would default to.
-  const landingPlugins: Plugin[] = [
-    ...(featureFlags.webSearch ? [Plugins[PluginID.WEB_SEARCH]] : []),
-    ...(featureFlags.skills ? [Plugins[PluginID.SKILLS]] : []),
-  ].filter(Boolean);
-
+  // New UI attaches explicit connectors separately; ordinary-chat optional tools
+  // are selected by the backend router, not by user-facing plugins.
   // ── Attachment ────────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
   // UIAttachments: visual representations of docs/pastes in the rail
@@ -391,9 +383,6 @@ export const NewHome: React.FC = () => {
     // Pastes don't have a backing doc — we'll send the fullText via sessionStorage
   }, []);
 
-  // ── Toggle state (web search, skills) ────────────────────────────────────
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
-  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
   const [selectedActions, setSelectedActions] = useState<SelectedAction[]>([]);
 
   // ── Send ──────────────────────────────────────────────────────────────────
@@ -417,10 +406,6 @@ export const NewHome: React.FC = () => {
       // key — the only channel is `conversation.data.reasoningLevel`, set in the
       // handleNewConversation call below. (`amplify_pending_model_id` is likewise
       // only consumed as a hint; the model itself travels in that same call.)
-      if (webSearchEnabled)
-        sessionStorage.setItem('amplify_pending_web_search', 'true');
-      if (selectedSkillIds.length > 0)
-        sessionStorage.setItem('amplify_pending_skills', JSON.stringify(selectedSkillIds));
       if (selectedActions.length > 0)
         sessionStorage.setItem('amplify_pending_actions', JSON.stringify(selectedActions));
     }
@@ -469,9 +454,6 @@ export const NewHome: React.FC = () => {
         label: pastedMessage.label || undefined,
         type: MessageType.PROMPT,
         data: {
-          enableWebSearch: webSearchEnabled,
-          skills: selectedSkillIds,
-          skillSelectionMode: 'auto',
           ...pastedMessage.data,
           dataSources: docsWithKeys.map((d) => ({
             id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
@@ -545,7 +527,7 @@ export const NewHome: React.FC = () => {
       }
 
       // Effort: write to data.reasoningLevel — the only field useChatSendService
-      // reads (§31).  Spread existing data so web-search/skills/etc. are preserved.
+      // reads (§31). Preserve other conversation metadata.
       convBase = { ...convBase, data: { ...convBase.data, reasoningLevel: selectedEffort } };
 
       // System prompt: apply any active custom instruction.
@@ -719,36 +701,17 @@ export const NewHome: React.FC = () => {
             <div className="flex items-center gap-2">
               <AttachMenu
                 isNewChat
-                plugins={landingPlugins}
                 onAddFiles={() => fileInputRef.current?.click()}
                 onAddFromLibrary={attachLibraryFiles}
                 attachedLibraryIds={attachedDocs.map((d) => d.id)}
                 onAddIntegrationFile={(file) => addFileToRail(file)}
                 selectedActions={selectedActions}
                 onActionsChange={setSelectedActions}
-                webSearchEnabled={webSearchEnabled}
-                onToggleWebSearch={() => {
-                  setWebSearchEnabled((v) => {
-                    const next = !v;
-                    // Seed Chat.tsx's plugins array as early as possible — the
-                    // conversation this creates hasn't mounted Chat.tsx yet, but
-                    // there's no harm in getting the settings write in early.
-                    if (next) persistWebSearchPluginPreference(featureFlags);
-                    return next;
-                  });
-                }}
-                selectedSkillIds={selectedSkillIds}
-                onSkillsChange={setSelectedSkillIds}
-                chatEndpoint={chatEndpoint ?? undefined}
                 composerRef={composerRef}
               />
 
               {/* Active toggle chips */}
               <AttachMenuChips
-                webSearchEnabled={webSearchEnabled}
-                onRemoveWebSearch={() => setWebSearchEnabled(false)}
-                selectedSkillIds={selectedSkillIds}
-                onRemoveSkills={() => setSelectedSkillIds([])}
                 assistantName={activeAssistantName}
                 onRemoveAssistant={() => dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
                 selectedActions={selectedActions}

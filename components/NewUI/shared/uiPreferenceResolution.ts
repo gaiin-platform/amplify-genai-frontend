@@ -37,6 +37,21 @@ export function resolveStoredUIPreference(
   return 'ask';
 }
 
+/** Deployment policy always overrides a classic preference; otherwise retain the usual resolution. */
+export function resolveUIPreferenceWithPolicy(
+  local: UIPreference,
+  server: unknown,
+  allowClassicUiSwitch: boolean,
+): 'new' | 'classic' | 'ask' {
+  const resolved = resolveStoredUIPreference(local, server);
+  if (resolved === 'new') return 'new';
+  if (!allowClassicUiSwitch) return 'new';
+  // If the server is unavailable and local storage contains an explicit choice,
+  // retain that offline fallback instead of reverting to a first-run prompt.
+  if (server !== 'new' && server !== 'classic' && local === 'classic') return 'classic';
+  return resolved;
+}
+
 /**
  * Same-device persistence only: localStorage + the load-balancer routing cookie.
  * Split out from `setUIPreference` so applying an *already stored* preference never

@@ -33,6 +33,8 @@ import { ArtifactsBlock } from './ChatContentBlocks/ArtifactsBlock';
 import { Amplify, User } from './Avatars';
 import AssistantMessageHighlight from './ChatContentBlocks/AssistantMessageHighlight';
 import { getSettings } from '@/utils/app/settings';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { isDeploymentFeatureAvailable } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { lzwCompress } from '@/utils/app/lzwCompression';
 import { inferArtifactType } from '@/utils/app/artifacts';
 import { Artifact } from '@/types/artifacts';
@@ -77,6 +79,10 @@ export const ChatMessage: FC<Props> = memo(({
     } = useContext(HomeContext);
 
 
+    const stableFeatureFlags = useStableFeatureFlags();
+    const highlighterAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'promptHighlighter');
+    const artifactsAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'artifacts');
+    const codeInterpreterAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'codeInterpreter');
     const conversationsRef = useRef(conversations);
 
     useEffect(() => {
@@ -723,7 +729,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             />
                                         )}
 
-                                        {featureFlags.artifacts && !isActionResult && 
+                                        {artifactsAvailable && featureFlags.artifacts && !isActionResult &&
                                             <ArtifactsBlock
                                               message={message}
                                               messageIndex={messageIndex}
@@ -834,7 +840,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         selectedConversation={selectedConversation}
                                      />}
 
-                                     {featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
+                                     {highlighterAvailable && featureFlags.highlighter &&
                                       isHighlightDisplay && !isEditing && 
 
                                         <AssistantMessageHighlight
@@ -880,13 +886,13 @@ export const ChatMessage: FC<Props> = memo(({
                                             </div>
                                           )}
 
-                                          {featureFlags.artifacts &&
+                                          {artifactsAvailable && featureFlags.artifacts &&
                                             <ArtifactsBlock
                                               message={message}
                                               messageIndex={messageIndex}
                                             />}
 
-                                          {featureFlags.codeInterpreterEnabled &&
+                                          {codeInterpreterAvailable && featureFlags.codeInterpreterEnabled &&
                                             <ChatCodeInterpreterFileBlock
                                                 messageIsStreaming={messageIsStreaming}
                                                 message={message}
@@ -974,8 +980,7 @@ export const ChatMessage: FC<Props> = memo(({
                                         </a>
                                     </button>
 
-                                    {featureFlags.highlighter && 
-                                     settingRef.current.featureOptions.includeHighlighter && 
+                                    {highlighterAvailable && featureFlags.highlighter &&
                                         <button
                                             className={"enhanced-chat-icon-button"}
                                             onClick={() => {setIsHighlightDisplay(!isHighlightDisplay)}}

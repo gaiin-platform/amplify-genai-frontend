@@ -117,6 +117,9 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `CustomInstructionsSection.tsx` | Settings → Customize → Custom Instructions. List of named instructions with hover Edit/Delete, radio-style active selector (one or none), inline create/edit form, ConfirmDialog for deletes. Active instruction injected into every new blank conversation |
 | `SidebarItemsSection.tsx` | Settings → Customize → Sidebar Items visibility toggles |
 | `admin/AdminsCard.tsx` | Admin section wrapper card |
+| `admin/ConfigurationsTab.tsx` | Admin → Configurations tab content |
+| `admin/SystemPromptsTab.tsx` | Admin → System Prompts tab — editors for ordinary-chat base, web-search, artifact, code-interpreter, and Amplify-helper prompts |
+| `admin/DeploymentFeaturesTab.tsx` | Admin → Deployment tab — toggles for deployment-wide feature availability (highlighter, artifacts, web search, code interpreter, memory) and classic-UI switch control |
 
 ### `shared/`
 | File | Purpose |
@@ -128,7 +131,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `SegmentedControl.tsx` | Tab strip / segmented picker; pass `aria-label` |
 | `ModelPicker.tsx` | Model selector with families, effort levels, hover preview cards |
 | `InfoFloatCard.tsx` | 250ms hover-in preview card; Floating UI positioned |
-| `AttachMenu.tsx` | ⊕ attach menu (files, library, assistant, skills, connectors, web search toggle). "Add from library" opens `DataSourceLibraryPicker` in a `surface='floating'` submenu and emits the picked files — it never opens the local file picker |
+| `AttachMenu.tsx` | ⊕ attach menu (files, library, assistant, explicit connectors). Optional ordinary-chat tools are deployment-managed and selected server-side; skills/plugin mode selectors are not user entry points. "Add from library" opens `DataSourceLibraryPicker` in a `surface='floating'` submenu and emits the picked files — it never opens the local file picker |
 | `AttachmentRail.tsx` | Pre-send attachment card strip above the composer textarea |
 | `AttachmentCard.tsx` | Individual attachment with upload progress and retry |
 | `DataSourceCard.tsx` | 76px file card + `DataSourceCardGrid` (2-col ≥640px, 12px gap) for attached data sources. State shows only in the 40px icon slot (spinner → file-type icon cross-fade) and the subtitle — the card surface never changes color |
@@ -580,7 +583,13 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 
 ---
 
-## 7. Updating This File
+## 7. Documentation References
+
+For an AI chat failure that may originate in the backend, use the backend repository's [AWS Backend Logs and AI Chat Debugging Runbook](https://github.com/gaiin-platform/amplify-genai-backend/blob/dev/docs/aws-backend-logs-and-chat-debugging.md). It covers frontend symptom triage, API Gateway/Lambda/CloudWatch correlation, and deployment artifact verification.
+
+Keep incident timelines, log excerpts, and recovery history in separate incident documents; this guide remains reference-only.
+
+## 8. Updating This File
 
 Add one line to the Component Registry whenever you create a new component.
 Add a token to Section 3 if you define a new CSS variable in `globals.css`.

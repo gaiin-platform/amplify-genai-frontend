@@ -43,7 +43,6 @@ import { ArtifactInlineCardLayer } from './ArtifactInlineCardLayer';
 import { getChatFont } from '@/components/NewUI/shared/userDisplayPrefs';
 import HomeContext from '@/pages/api/home/home.context';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
-import { persistWebSearchPluginPreference } from '@/components/NewUI/shared/webSearchPreference';
 // Imports for the direct-send path (pending docs with S3 keys)
 import { useSendService, type ChatRequest } from '@/hooks/useChatSendService';
 import { newMessage, MessageType } from '@/types/chat';
@@ -561,14 +560,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       // attachment-only send (no amplify_pending_message) still works.
       const pendingText = pendingMessage ?? optimistic?.content ?? '';
 
-      // ── Read shared context keys ─────────────────────────────────────────
-      const pendingWebSearch = sessionStorage.getItem('amplify_pending_web_search') === 'true';
-      const pendingSkillsRaw = sessionStorage.getItem('amplify_pending_skills');
-      let pendingSkills: string[] = [];
-      if (pendingSkillsRaw) {
-        try { pendingSkills = JSON.parse(pendingSkillsRaw); } catch { /* ignore */ }
-      }
-
+      // Optional chat tool preferences are no longer read or written here.
       // ── Read pending connector actions (written by NewHome, cleared below) ──
       const pendingActionsRaw = sessionStorage.getItem('amplify_pending_actions');
       let pendingActions: SelectedAction[] = [];
@@ -590,22 +582,6 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       // async onSetKey callback in handleFile after addFile() resolves).
       const docsWithKeys = pendingDocs.filter((d) => !!d.key);
 
-      // Helper: apply web-search preferences onto the new conversation
-      const applyWebSearch = () => {
-        if (pendingWebSearch && conversation) {
-          handleUpdateConversation(conversation, {
-            key: 'data',
-            value: {
-              ...conversation.data,
-              webSearchEnabled: true,
-              skills: pendingSkills,
-              skillSelectionMode: 'auto',
-            },
-          });
-          persistWebSearchPluginPreference(featureFlags);
-        }
-      };
-
       // Helper: clean up all pending sessionStorage keys
       const clearPending = () => {
         sessionStorage.removeItem('amplify_pending_message');
@@ -617,8 +593,6 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         // nothing writes or reads this. Kept only to purge stale values left by
         // sessions from before that change.
         sessionStorage.removeItem('amplify_pending_effort');
-        sessionStorage.removeItem('amplify_pending_web_search');
-        sessionStorage.removeItem('amplify_pending_skills');
         sessionStorage.removeItem('amplify_pending_actions');
       };
 
@@ -634,7 +608,6 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       // the pasted text never reached the model at all.
       if ((docsWithKeys.length > 0 || optimistic || pendingActions.length > 0) && conversation) {
         hasFiredRef.current = true;
-        applyWebSearch();
         clearPending();
 
         // Reuse the optimistic message already rendered in the transcript when
@@ -648,9 +621,6 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
               content: pendingText,
               type: MessageType.PROMPT,
               data: {
-                enableWebSearch: pendingWebSearch,
-                skills: pendingSkills,
-                skillSelectionMode: 'auto',
                 // Pre-populate dataSources so the useSendService fallback path
                 // (message.data.dataSources) also carries the docs in case
                 // request.documents is not processed for some reason.
@@ -696,7 +666,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
         // Compute active plugins (same as Chat.tsx's local plugins state init)
         const settings = typeof window !== 'undefined' ? getSettings(featureFlags) : null;
-        const plugins = settings ? getActivePlugins(settings, featureFlags) : [];
+        const plugins = settings ? getActivePlugins(settings, featureFlags).filter((p) => p.id === 'mcp') : [];
 
         const request: ChatRequest = {
           message: msg,
@@ -763,7 +733,6 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
 
       if (textarea && sendBtn) {
         hasFiredRef.current = true;
-        applyWebSearch();
         clearPending();
 
         setTimeout(() => {

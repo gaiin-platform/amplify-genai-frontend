@@ -2,23 +2,13 @@
  * AttachMenu — spec-compliant ⊕ attach/tools menu for the new UI composer.
  * Ref: attach-menu-spec.md
  *
- * Three groups, two dividers:
- *   GROUP 1 — Bring something in
- *     • Add files or photos  ⌘U  (featureFlags.uploadDocuments)
- *     • Add from library  ›       (featureFlags.dataSourceSelectorOnInput)
- *         → opens shared/DataSourceLibraryPicker, NOT the local file picker.
- *           These are two different intents: one uploads new bytes, the other
- *           attaches something already in S3.
- *   GROUP 2 — Extend what's available
- *     • Skills  ›                 (featureFlags.skills + SKILLS plugin)
- *     • Connectors  ›             (featureFlags.integrations → settings)
- *   GROUP 3 — Mode toggles (stay open on activate)
- *     • Web search  ✓             (featureFlags.webSearch + WEB_SEARCH plugin)
+ * Attachments, library files, assistants, and explicit connectors remain
+ * available here. Optional ordinary-chat tools are selected server-side.
  *
  * No Projects, no Deep Research, no Screenshots (excluded per product direction).
  *
  * Trigger: 30×30, ⊕ glyph, rotates 45° → × while open (spec §2).
- * Badge dot: shown when any toggle is active (web search on).
+ * Badge dot: shown when an assistant or connector action is active.
  * Panel: 246px, Floating UI, flips up/down based on available space (spec §3).
  * Active chips: shown in toolbar when toggles are on (spec §6).
  */
@@ -32,9 +22,7 @@ import React, {
 import {
   IconPaperclip,
   IconBooks,
-  IconBrain,
   IconPlug,
-  IconWorldSearch,
   IconCheck,
   IconChevronRight,
   IconX,
@@ -55,9 +43,6 @@ import {
 } from '@floating-ui/react';
 import toast from 'react-hot-toast';
 import HomeContext from '@/pages/api/home/home.context';
-import { PluginID, Plugin } from '@/types/plugin';
-import { getUserSkills } from '@/services/skillsService';
-import { Skill } from '@/types/skill';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { LayeredAssistant } from '@/types/layeredAssistant';
@@ -184,8 +169,6 @@ export interface SelectedAction {
 export interface AttachMenuProps {
   /** Whether the composer is on the landing (opens downward) vs docked (opens upward) */
   isNewChat?: boolean;
-  /** Plugins currently active — used to gate web search */
-  plugins: Plugin[];
   /** Called when user picks "Add files" — opens the local file picker */
   onAddFiles: () => void;
   /**
@@ -199,15 +182,6 @@ export interface AttachMenuProps {
    * the same file can't be attached twice.
    */
   attachedLibraryIds?: string[];
-  /** Current web search toggle state */
-  webSearchEnabled: boolean;
-  /** Called to toggle web search */
-  onToggleWebSearch: () => void;
-  /** Currently selected skill IDs */
-  selectedSkillIds: string[];
-  /** Called when skills selection changes */
-  onSkillsChange: (ids: string[]) => void;
-  /** chatEndpoint needed for skills service */
   chatEndpoint?: string;
   /** Ref to the composer — focus returned here after close */
   composerRef?: React.RefObject<{ focus: () => void }>;
@@ -353,164 +327,6 @@ const SubmenuRowEl = React.forwardRef<
   </button>
 ));
 SubmenuRowEl.displayName = 'SubmenuRowEl';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ToggleRow — keeps menu open, shows check when active
-// ─────────────────────────────────────────────────────────────────────────────
-
-const ToggleRow: React.FC<{
-  icon: React.ReactNode;
-  label: string;
-  checked: boolean;
-  disabled?: boolean;
-  disabledReason?: string;
-  onClick: () => void;
-}> = ({ icon, label, checked, disabled, disabledReason, onClick }) => (
-  <button
-    type="button"
-    role="menuitemcheckbox"
-    aria-checked={checked}
-    aria-disabled={disabled}
-    title={disabled && disabledReason ? disabledReason : undefined}
-    onClick={(e) => {
-      e.stopPropagation(); // keep menu open
-      if (!disabled) onClick();
-    }}
-    className="w-full flex items-center gap-3 px-[10px] h-[35px] rounded-[8px] text-left transition-colors"
-    style={{
-      background: 'transparent',
-      color: disabled ? 'var(--text-muted)' : 'var(--text-primary)',
-      fontSize: 14,
-      cursor: disabled ? 'default' : 'pointer',
-    }}
-    onMouseEnter={(e) => {
-      if (!disabled)
-        (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-    }}
-    onMouseLeave={(e) => {
-      (e.currentTarget as HTMLElement).style.background = 'transparent';
-    }}
-  >
-    <span
-      style={{
-        width: 18,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        flexShrink: 0,
-        color: disabled ? 'var(--text-muted)' : 'var(--text-secondary)',
-      }}
-    >
-      {icon}
-    </span>
-    <span style={{ flex: 1 }}>{label}</span>
-    {checked && (
-      <IconCheck size={16} style={{ color: 'var(--text-primary)', flexShrink: 0 }} />
-    )}
-  </button>
-);
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Skills submenu panel
-// ─────────────────────────────────────────────────────────────────────────────
-
-const SkillsSubmenu: React.FC<{
-  chatEndpoint: string;
-  selectedSkillIds: string[];
-  onToggle: (id: string) => void;
-  onManage: () => void;
-}> = ({ chatEndpoint, selectedSkillIds, onToggle, onManage }) => {
-  const [skills, setSkills] = useState<Skill[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    setLoading(true);
-    getUserSkills(chatEndpoint)
-      .then((r) => { if (r.success && r.data) setSkills(r.data); })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, [chatEndpoint]);
-
-  return (
-    <div
-      role="menu"
-      aria-label="Skills"
-      style={{
-        width: 260,
-        background: 'var(--bg-raised)',
-        border: '1px solid var(--border-subtle)',
-        borderRadius: 12,
-        boxShadow: '0 12px 32px rgba(0,0,0,.5)',
-        overflow: 'hidden',
-      }}
-    >
-      <div style={{ padding: '6px 0', maxHeight: 280, overflowY: 'auto' }} aria-live="polite" aria-busy={loading}>
-        {loading && (
-          <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
-            Loading…
-          </div>
-        )}
-        {!loading && skills.length === 0 && (
-          <div style={{ padding: '12px 14px', fontSize: 13, color: 'var(--text-muted)' }}>
-            No skills yet
-          </div>
-        )}
-        {!loading && skills.map((skill) => {
-          const isSelected = selectedSkillIds.includes(skill.id);
-          return (
-            <button
-              key={skill.id}
-              role="menuitemcheckbox"
-              aria-checked={isSelected}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggle(skill.id);
-              }}
-              className="w-full flex items-center gap-3 px-[10px] h-[35px] rounded-[8px] text-left transition-colors"
-              style={{
-                background: 'transparent',
-                color: 'var(--text-primary)',
-                fontSize: 14,
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = 'transparent';
-              }}
-            >
-              <IconBrain size={16} style={{ color: 'var(--text-secondary)', flexShrink: 0 }} />
-              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {skill.name}
-              </span>
-              {isSelected && (
-                <IconCheck size={14} style={{ color: 'var(--text-primary)', flexShrink: 0 }} />
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Footer */}
-      <MenuDivider />
-      <button
-        onClick={onManage}
-        className="w-full flex items-center gap-3 px-[10px] h-[35px] text-left transition-colors"
-        style={{ fontSize: 14, color: 'var(--text-secondary)', background: 'transparent' }}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-          (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLElement).style.background = 'transparent';
-          (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-        }}
-      >
-        Manage skills…
-      </button>
-    </div>
-  );
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ConnectorFilePicker — lightweight file browser for one connected integration
@@ -1623,80 +1439,12 @@ const AssistantSubmenu: React.FC<{
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const AttachMenuChips: React.FC<{
-  webSearchEnabled: boolean;
-  onRemoveWebSearch: () => void;
-  selectedSkillIds: string[];
-  onRemoveSkills: () => void;
   assistantName?: string;
   onRemoveAssistant?: () => void;
   selectedActions?: SelectedAction[];
   onRemoveActions?: () => void;
-}> = ({ webSearchEnabled, onRemoveWebSearch, selectedSkillIds, onRemoveSkills, assistantName, onRemoveAssistant, selectedActions, onRemoveActions }) => {
+}> = ({ assistantName, onRemoveAssistant, selectedActions, onRemoveActions }) => {
   const chips: React.ReactNode[] = [];
-
-  if (webSearchEnabled) {
-    chips.push(
-      <div
-        key="web-search"
-        className="flex items-center gap-1 pl-2 rounded-[6px] text-[12.5px] flex-shrink-0"
-        style={{
-          height: 26,
-          background: 'var(--bg-active)',
-          color: 'var(--text-primary)',
-        }}
-      >
-        <IconWorldSearch size={14} style={{ color: 'var(--text-secondary)' }} />
-        <span>Web search</span>
-        <button
-          type="button"
-          onClick={onRemoveWebSearch}
-          className="flex items-center justify-center w-[22px] h-full rounded-r-[6px] transition-colors"
-          style={{ color: 'var(--text-muted)' }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-          }}
-          aria-label="Remove web search"
-        >
-          <IconX size={12} />
-        </button>
-      </div>
-    );
-  }
-
-  if (selectedSkillIds.length > 0) {
-    chips.push(
-      <div
-        key="skills"
-        className="flex items-center gap-1 pl-2 rounded-[6px] text-[12.5px] flex-shrink-0"
-        style={{
-          height: 26,
-          background: 'var(--bg-active)',
-          color: 'var(--text-primary)',
-        }}
-      >
-        <IconBrain size={14} style={{ color: 'var(--text-secondary)' }} />
-        <span>{selectedSkillIds.length === 1 ? '1 skill' : `${selectedSkillIds.length} skills`}</span>
-        <button
-          type="button"
-          onClick={onRemoveSkills}
-          className="flex items-center justify-center w-[22px] h-full rounded-r-[6px] transition-colors"
-          style={{ color: 'var(--text-muted)' }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-          }}
-          aria-label="Remove skills"
-        >
-          <IconX size={12} />
-        </button>
-      </div>
-    );
-  }
 
   if (assistantName && onRemoveAssistant) {
     // Accent-tinted, unlike the neutral toggle chips: this one stays put for the
@@ -1774,14 +1522,9 @@ export const AttachMenuChips: React.FC<{
 
 export const AttachMenu: React.FC<AttachMenuProps> = ({
   isNewChat = true,
-  plugins,
   onAddFiles,
   onAddFromLibrary,
   attachedLibraryIds = [],
-  webSearchEnabled,
-  onToggleWebSearch,
-  selectedSkillIds,
-  onSkillsChange,
   chatEndpoint,
   composerRef,
   onAddIntegrationFile,
@@ -1795,7 +1538,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   } = useContext(HomeContext);
 
   const [primaryOpen, setPrimaryOpen] = useState(false);
-  const [submenu, setSubmenu] = useState<'skills' | 'connectors' | 'library' | 'assistant' | null>(null);
+  const [submenu, setSubmenu] = useState<'connectors' | 'library' | 'assistant' | null>(null);
   // True while any nested connector panel (file picker / actions / info) is open.
   // Suppresses the hover-close timer so a layout shift in the floating container
   // can't race the 300 ms close and dismiss the panel the user just opened.
@@ -1883,22 +1626,18 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   };
 
   // Badge: any active toggle, non-default assistant, or connector actions
-  const anyToggleActive = webSearchEnabled || selectedSkillIds.length > 0 || !isDefaultAssistant || selectedActions.length > 0;
+  const anyToggleActive = !isDefaultAssistant || selectedActions.length > 0;
 
   // Feature gates
   const showFiles = featureFlags.uploadDocuments;
   const showLibrary = featureFlags.dataSourceSelectorOnInput;
   // Assistant selector: always show when there are assistants available
   const showAssistant = availableAssistants.length > 0 || allLayeredAssistants.length > 0;
-  const showSkills =
-    featureFlags.skills && plugins?.some((p) => p.id === PluginID.SKILLS) && !!chatEndpoint;
+  // Backend routing owns optional chat tools; only explicit connectors remain here.
   const showConnectors = featureFlags.integrations;
-  const showWebSearch =
-    featureFlags.webSearch && plugins?.some((p) => p.id === PluginID.WEB_SEARCH);
 
   const hasGroup1 = showFiles || showLibrary || showAssistant;
-  const hasGroup2 = showSkills || showConnectors;
-  const hasGroup3 = showWebSearch;
+  const hasGroup2 = showConnectors;
 
   // Floating UI — same flip pattern as model picker
   const placement = isNewChat ? 'bottom-start' : 'top-start';
@@ -1952,7 +1691,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
 
   // ── Submenu trigger rows ──────────────────────────────────────────────────
   const libraryRowRef = useRef<HTMLButtonElement>(null);
-  const skillsRowRef = useRef<HTMLButtonElement>(null);
   const connectorsRowRef = useRef<HTMLButtonElement>(null);
   const assistantRowRef = useRef<HTMLButtonElement>(null);
   const primaryPanelRef = useRef<HTMLDivElement | null>(null);
@@ -1965,13 +1703,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   // 'absolute' (useDismiss containment — the Skills checkboxes depend on it).
   const libraryFloating = useFloating({
     open: submenu === 'library',
-    placement: SUBMENU_PLACEMENT,
-    middleware: submenuMiddleware(),
-    whileElementsMounted: autoUpdate,
-  } as any);
-
-  const skillsFloating = useFloating({
-    open: submenu === 'skills',
     placement: SUBMENU_PLACEMENT,
     middleware: submenuMiddleware(),
     whileElementsMounted: autoUpdate,
@@ -1996,7 +1727,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   // invoked with (null, node) on every render and thrash setReference's state.
   useEffect(() => {
     if (submenu === 'library') libraryFloating.refs.setReference(libraryRowRef.current);
-    if (submenu === 'skills') skillsFloating.refs.setReference(skillsRowRef.current);
     if (submenu === 'connectors') connectorsFloating.refs.setReference(connectorsRowRef.current);
     if (submenu === 'assistant') assistantFloating.refs.setReference(assistantRowRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2012,14 +1742,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const openSettings = (section: string) => {
     closeAll();
     window.dispatchEvent(new CustomEvent('openNewUISettingsSection', { detail: { section } }));
-  };
-
-  // Skills toggle handler
-  const handleSkillToggle = (id: string) => {
-    const next = selectedSkillIds.includes(id)
-      ? selectedSkillIds.filter((s) => s !== id)
-      : [...selectedSkillIds, id];
-    onSkillsChange(next);
   };
 
   return (
@@ -2147,20 +1869,9 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
             {/* Divider 1 */}
             {hasGroup1 && hasGroup2 && <MenuDivider />}
 
-            {/* ── Group 2: Extend what's available ── */}
+            {/* Explicit connectors remain available; tool modes are backend-routed. */}
             {hasGroup2 && (
               <>
-                {showSkills && chatEndpoint && (
-                  <SubmenuRowEl
-                    ref={skillsRowRef}
-                    icon={<IconBrain size={18} />}
-                    label="Skills"
-                    isOpen={submenu === 'skills'}
-                    onMouseEnter={() => openSubmenu('skills')}
-                    onMouseLeave={scheduleClose}
-                    onClick={() => setSubmenu(submenu === 'skills' ? null : 'skills')}
-                  />
-                )}
                 {showConnectors && (
                   <SubmenuRowEl
                     ref={connectorsRowRef}
@@ -2178,19 +1889,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                   />
                 )}
               </>
-            )}
-
-            {/* Divider 2 */}
-            {(hasGroup1 || hasGroup2) && hasGroup3 && <MenuDivider />}
-
-            {/* ── Group 3: Mode toggles ── */}
-            {hasGroup3 && (
-              <ToggleRow
-                icon={<IconWorldSearch size={18} />}
-                label="Web search"
-                checked={webSearchEnabled}
-                onClick={onToggleWebSearch}
-              />
             )}
 
             {/* ── Library submenu ──
@@ -2213,23 +1911,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     closeAll();
                   }}
                   onClose={() => setSubmenu(null)}
-                />
-              </div>
-            )}
-
-            {/* ── Skills submenu ── */}
-            {submenu === 'skills' && chatEndpoint && (
-              <div
-                ref={skillsFloating.refs.setFloating}
-                style={submenuStyle(skillsFloating, 'attachMenuEnter')}
-                onMouseEnter={cancelClose}
-                onMouseLeave={scheduleClose}
-              >
-                <SkillsSubmenu
-                  chatEndpoint={chatEndpoint}
-                  selectedSkillIds={selectedSkillIds}
-                  onToggle={handleSkillToggle}
-                  onManage={() => { openSettings('skills'); }}
                 />
               </div>
             )}

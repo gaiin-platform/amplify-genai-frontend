@@ -109,7 +109,9 @@ import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import { PromptTemplateDialogHost } from '@/components/NewUI/shared/PromptTemplateDialogHost';
 import { LayeredBuilderHost } from '@/components/NewUI/shared/LayeredBuilderHost';
 import { AssistantAdminUIHost } from '@/components/NewUI/shared/AssistantAdminUIHost';
-import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
+import { UIPreferenceBanner, getUIPreference, setUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
 import { NewWorkflowsView } from '@/components/NewUI/views/NewWorkflowsView';
@@ -988,23 +990,29 @@ const Home = ({
                             document.body.setAttribute('data-chat-palette', serverSettings.chatColorPalette);
                         }
 
-                        // ── UI preference sync ─────────────────────────────────────────
-                        // Server is the source of truth for cross-device roaming.
-                        // If the server has a stored preference, apply it — this lets a
-                        // user switch UI on one device and have it reflected everywhere.
-                        if (serverSettings.uiPreference) {
+                        // UI preference normally roams from the server, but deployment
+                        // policy always overrides a stored classic selection. While policy
+                        // is unresolved, retain the local choice rather than flashing a stale server value.
+                        if (serverSettings.uiPreference === 'new' || serverSettings.uiPreference === 'classic') {
+                            const cachedPolicyDisallowsClassic = localStorage.getItem('amplify_classic_ui_switch_allowed') === 'false';
+                            const effectivePreference = cachedPolicyDisallowsClassic
+                                ? 'new'
+                                : getUIPreference() === 'new' && serverSettings.uiPreference === 'classic'
+                                    ? 'new'
+                                    : serverSettings.uiPreference;
                             const local = getUIPreference();
-                            if (serverSettings.uiPreference !== local) {
-                                // Update localStorage and cookie to match the server value
-                                localStorage.setItem('amplify_new_ui_preference', serverSettings.uiPreference);
-                                if (serverSettings.uiPreference === 'new') {
+                            if (effectivePreference !== local) {
+                                localStorage.setItem('amplify_new_ui_preference', effectivePreference);
+                                if (effectivePreference === 'new') {
                                     document.cookie = 'X-Amplify-UI=new; path=/; SameSite=Lax; max-age=31536000';
                                 } else {
                                     document.cookie = 'X-Amplify-UI=; path=/; SameSite=Lax; max-age=0';
                                 }
                             }
-                            // Update React state — this is what drives the layout switch
-                            setUiPreference(serverSettings.uiPreference);
+                            setUiPreference(effectivePreference);
+                            if (cachedPolicyDisallowsClassic && serverSettings.uiPreference !== 'new') {
+                                void setUIPreference('new');
+                            }
                         }
                         // ──────────────────────────────────────────────────────────────
 

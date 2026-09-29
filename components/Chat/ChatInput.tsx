@@ -11,7 +11,6 @@ import {
     IconUpload,
     IconCheck,
     IconX,
-    IconWorldSearch,
     IconGripHorizontal,
     IconSparkles,
     IconLayoutList,
@@ -34,6 +33,8 @@ import {useTranslation} from 'next-i18next';
 import {parsePromptVariables} from "@/utils/app/prompts";
 import {Conversation, ConversationContextEntry, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin, PluginID, PluginList, Plugins} from '@/types/plugin';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { isDeploymentFeatureAvailable } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import {Prompt} from '@/types/prompt';
 import {AttachFile, handleFile} from "@/components/Chat/AttachFile";
 import {FileList} from "@/components/Chat/FileList";
@@ -63,7 +64,6 @@ import { PendingArtifact, ArtifactBlockDetail } from '@/types/artifacts';
 import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
-import FeaturePlugin from './FeaturePluginSelector/FeaturePlugins';
 import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
@@ -92,7 +92,6 @@ import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
 import toast from 'react-hot-toast';
-import { SkillsToggle } from '@/components/Skills';
 
 
 
@@ -135,7 +134,9 @@ export const ChatInput = ({
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
-
+    const stableFeatureFlags = useStableFeatureFlags();
+    const memoryAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'memory');
+    const artifactsAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'artifacts');
 
     const updateSize = () => {
         const container = document.querySelector(".chatcontainer");
@@ -145,15 +146,9 @@ export const ChatInput = ({
         return '100%';
     };
 
-    // Files attached while Code Interpreter is active would otherwise upload with
-    // ragOn=false (since the RAG plugin isn't separately toggled on), which skips RAG
-    // chunking at upload time (see resolveRagConfiguration/resolveRagEnabled). That file
-    // is then invisible to normal chat once Code Interpreter is later disabled in the
-    // same conversation, because normal chat's file access relies on RAG indexing having
-    // happened. Force RAG-on for new attachments whenever Code Interpreter is active so
-    // the file is indexed regardless of which mode is used to upload it.
-    const codeInterpreterActive = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
-    const effectiveRagOn = ragOn || codeInterpreterActive;
+    // Optional interpreter activation is server-routed. File upload preparation
+    // no longer reads stale plugin selector state.
+    const effectiveRagOn = ragOn;
 
     let settingRef = useRef<Settings | null>(null);
     // prevent recalling the getSettings function
@@ -168,7 +163,7 @@ export const ChatInput = ({
             if (Object.keys(availableModels).length > 0) {
                 setFilteredModels(filterModels(availableModels, settingRef.current.hiddenModelIds));
             }
-            // trigger re-render so JSX that reads settingRef.current (e.g. includePluginSelector) updates
+            // trigger re-render for settings that affect visible chat controls
             setSettingsVersion(v => v + 1);
         };
 
@@ -213,7 +208,7 @@ export const ChatInput = ({
     // }, [session?.user?.email]);
 
     const shouldShowFactsNotification =
-        featureFlags.memory &&
+        memoryAvailable && featureFlags.memory &&
         !isFactsVisible &&
         selectedConversation &&
         selectedConversation.messages?.length > 0 &&
@@ -423,13 +418,6 @@ export const ChatInput = ({
 
     // Pending artifacts state
     const [pendingArtifacts, setPendingArtifacts] = useState<PendingArtifact[]>([]);
-
-    // Per-conversation web search toggle (independent from FeaturePlugin) - persists across messages
-    const isWebSearchEnabledForConversation = selectedConversation?.data?.webSearchEnabled ?? false;
-
-    // Skills toggle state - stores skill IDs (persists in conversation data)
-    const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
-    const skillSelectionMode = selectedConversation?.data?.skillSelectionMode ?? 'auto';
 
     const promptListRef = useRef<HTMLUListElement | null>(null);
     const dataSourceSelectorRef = useRef<HTMLDivElement | null>(null);
@@ -675,11 +663,6 @@ export const ChatInput = ({
         let messageContent = content || '';
         let messageLabel = content || '';
         let messageData: any = {
-            // Include per-message web search toggle state
-            enableWebSearch: isWebSearchEnabledForConversation,
-            // Include selected skills
-            skills: selectedSkillIds,
-            skillSelectionMode: skillSelectionMode,
             // Include selected workflow template ID if any
             ...(selectedWorkflow ? { workflowTemplateId: selectedWorkflow.templateId } : {})
         };
@@ -1291,16 +1274,6 @@ export const ChatInput = ({
 
     ////// Plugin Dependencies //////
 
-    // PluginID.CODE_INTERPRETER is not compatible with Selected Assistants for now
-    useEffect(() => { // if code interpreter is toggled in plugin selector, set the selected assistant to default
-        const containsCodeInterpreter = plugins.map((p: Plugin) => p.id).includes(PluginID.CODE_INTERPRETER);
-        if (containsCodeInterpreter) homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
-    }, [plugins]);
-
-    useEffect(() => { // if selected assistant change is not the default assistant, remove code interpreter
-        if (selectedAssistant !== DEFAULT_ASSISTANT) setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER));
-    }, [selectedAssistant]);
-
     // When a new assistant is selected, clear any incompatible chat-input attachments
     useEffect(() => {
         const hasWf = !!(
@@ -1325,31 +1298,6 @@ export const ChatInput = ({
         }
     }, [selectedAssistant?.id]);
 
-    // don't remove Memory plugin when extraction is disabled
-    useEffect(() => {
-        // ensure we dont alter the plugin when memory feature is disabled
-        if (featureFlags.memory && settingRef?.current?.featureOptions.includeMemory) {
-            const containsMemory = plugins.map((p: Plugin) => p.id).includes(PluginID.MEMORY);
-            if (memoryExtractionEnabled && !containsMemory) {
-                setPlugins([...plugins, Plugins[PluginID.MEMORY]]);
-            }
-        }
-    }, [memoryExtractionEnabled]);
-
-    useEffect(() => {
-        // Ensure MEMORY plugin is included when memory feature is enabled
-        if (featureFlags.memory &&
-            settingRef?.current?.featureOptions.includeMemory) {
-
-            const containsMemory = plugins.map((p: Plugin) => p.id).includes(PluginID.MEMORY);
-
-            // If memory is enabled in settings but not in plugins, add it
-            if (!containsMemory) {
-                setPlugins([...plugins, Plugins[PluginID.MEMORY]]);
-            }
-        }
-    }, [featureFlags.memory, settingRef?.current?.featureOptions.includeMemory]);
-
     // RAG EVAL is dependent on RAG
     useEffect(() => { // ensure rag being off and eval being on is not possible
         const pluginIds = plugins.map((p: Plugin) => p.id);
@@ -1365,44 +1313,12 @@ export const ChatInput = ({
         }
     }, [plugins]);
 
-    // Artifacts mode cant be on when addedActions is in use
-    useEffect(() => {
-        const pluginIds = plugins.map((p: Plugin) => p.id);
-        const containsArtifacts = pluginIds.includes(PluginID.ARTIFACTS);
-        if (containsArtifacts && addedActions.length > 0) {
-            setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.ARTIFACTS));
-        }
-    }, [addedActions, featureFlags.artifacts]);
-
-    useEffect(() => { // if artifacts is toggled in plugin selector, set the added actions to an empty array
-        const containsArtifacts = plugins.map((p: Plugin) => p.id).includes(PluginID.ARTIFACTS);
-        if (containsArtifacts) setAddedActions([]);
-    }, [plugins]);
-
-    // Reset conversation web search toggle when web search plugin is disabled in FeaturePlugin
-    useEffect(() => {
-        const containsWebSearch = plugins.map((p: Plugin) => p.id).includes(PluginID.WEB_SEARCH);
-        if (!containsWebSearch && selectedConversation && selectedConversation.data?.webSearchEnabled) {
-            handleUpdateConversation(selectedConversation, {
-                key: 'data',
-                value: { ...selectedConversation.data, webSearchEnabled: false },
-            });
-        }
-    }, [plugins, selectedConversation, handleUpdateConversation]);
-
-    const showPluginSelector = featureFlags.pluginsOnInput && settingRef.current.featureOptions.includePluginSelector;
+    // Artifact, web-search and code-interpreter modes are selected by the server
+    // for ordinary chat; no per-message/plugin selector UI is exposed here.
 
     return (
         <>
             <span style={{display:'none'}}>{settingsVersion}</span>
-            { showPluginSelector &&
-                <div className='relative z-20' style={{height: 0}}>
-                    <FeaturePlugin
-                        plugins={plugins}
-                        setPlugins={setPlugins}
-                    />
-                </div>
-            }
             <div style={{width: chatContainerWidth}}
                  className="px-20 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
 
@@ -1650,7 +1566,7 @@ export const ChatInput = ({
 
                     {//TODO: feature flag this
                     }
-                    {featureFlags.memory &&
+                    {memoryAvailable && featureFlags.memory &&
                         <div ref={dataSourceSelectorRef} className="rounded bg-white dark:bg-[#343541]"
                              style={{transform: 'translateY(50px)'}}>
                             <MemoryPresenter
@@ -1780,7 +1696,7 @@ export const ChatInput = ({
                         )}
 
                         {/* Render pending artifacts list above the input area */}
-                        {featureFlags.artifacts && pendingArtifacts.length > 0 && (
+                        {artifactsAvailable && featureFlags.artifacts && pendingArtifacts.length > 0 && (
                             <div className="w-full px-2 py-2 border-b border-black/10 dark:border-gray-700/50">
                                 <ArtifactsList
                                     artifacts={pendingArtifacts}
@@ -2058,7 +1974,7 @@ export const ChatInput = ({
                                         onSetKey={handleSetKey}
                                         onSetAbortController={handleDocumentAbortController}
                                         onUploadProgress={handleDocumentState}
-                                        forceRagOn={codeInterpreterActive}
+                                        forceRagOn={false}
                                         className="chat-input-button"
                             />
                         </div>}
@@ -2189,56 +2105,13 @@ export const ChatInput = ({
                         </button>
                         }
 
-                        { featureFlags.artifacts &&
+                        { artifactsAvailable && featureFlags.artifacts &&
                          <ArtifactsSaved
                              iconSize={20}
                              isArtifactsOpen={false}
                              pendingArtifacts={pendingArtifacts}
                              onAddPendingArtifact={handleAddPendingArtifact}
                          />
-                        }
-
-                        {/* Web Search Toggle - Per-Message Control (only show if web search is enabled in FeaturePlugin) */}
-                        { featureFlags.webSearch && plugins?.some(p => p.id === PluginID.WEB_SEARCH) &&
-                        <button
-                            className={`chat-input-button rounded-full p-1.5 transition-all duration-200 ${
-                                isWebSearchEnabledForConversation
-                                    ? 'bg-blue-600 dark:bg-blue-500 text-white shadow-md'
-                                    : 'text-neutral-600 hover:rounded-full hover:bg-neutral-300  dark:hover:bg-gray-500 hover:text-neutral-900 dark:bg-opacity-50 dark:text-neutral-400 dark:hover:text-gray-100'
-                            }`}
-                            id="toggleWebSearch"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (selectedConversation) {
-                                    const newWebSearchState = !isWebSearchEnabledForConversation;
-                                    handleUpdateConversation(selectedConversation, {
-                                        key: 'data',
-                                        value: {...selectedConversation.data, webSearchEnabled: newWebSearchState},
-                                    });
-                                    // Show toast message when enabling web search (if admin configured one)
-                                    if (newWebSearchState && webSearchUserMessage) {
-                                        toast(webSearchUserMessage, {
-                                            duration: 6000,
-                                            icon: <IconWorldSearch size={35} />,
-                                        });
-                                    }
-                                }
-                            }}
-                            title={isWebSearchEnabledForConversation
-                                ? "Web Search enabled for this conversation - Click to disable"
-                                : "Enable Web Search for this conversation"}
-                        >
-                            <IconWorldSearch size={20} />
-                        </button>
-                        }
-
-                        {/* Skills Toggle - Select skills to use (only show if skills is enabled in FeaturePlugin) */}
-                        { featureFlags.skills && plugins?.some(p => p.id === PluginID.SKILLS) && chatEndpoint &&
-                            <SkillsToggle
-                                chatEndpoint={chatEndpoint}
-                                selectedSkillIds={selectedSkillIds}
-                                onSelectionChange={setSelectedSkillIds}
-                            />
                         }
 
                         <div className='flex flex-row gap-2'>
@@ -2266,7 +2139,7 @@ export const ChatInput = ({
 
                        
                         {/*<div className='flex flex-row gap-2'>
-                         {featureFlags.memory && projects.length > 0  &&
+                         {memoryAvailable && featureFlags.memory && projects.length > 0  &&
                         // settingRef.current.featureOptions.includeMemory &&
                         (
                             <button
@@ -2278,7 +2151,7 @@ export const ChatInput = ({
                             </button>
                         )}
 
-                        {featureFlags.memory && projects.length > 0 && showProjectList && session?.user?.email && (
+                        {memoryAvailable && featureFlags.memory && projects.length > 0 && showProjectList && session?.user?.email && (
                             <div className="absolute rounded bg-white dark:bg-[#343541]"
                                  style={{transform: 'translateX(30px) translateY(-2px)', zIndex: 10}}
 
@@ -2308,7 +2181,7 @@ export const ChatInput = ({
 
                         {(!messageIsStreaming && !artifactIsStreaming) &&
                             <>
-                                {featureFlags.memory && !isFactsVisible && selectedConversation &&
+                                {memoryAvailable && featureFlags.memory && !isFactsVisible && selectedConversation &&
                                     selectedConversation.messages?.length > 0 && extractedFacts.length > 0 &&
                                     <button className='relative ml-auto mb-2 text-[1rem] text-[#1dbff5] dark:text-[#8edffa]'
                                             onClick={() => setIsFactsVisible(true)}>

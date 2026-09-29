@@ -162,9 +162,9 @@ const repairJson = async () => {
 useEffect(() => {
     if (!llmPromptedRef.current) {
         llmPromptedRef.current = true;
-        if (ready && !message.data.artifactStatus && !artifactIsStreaming && !messageIsStreaming) prepareArtifacts(content, true); 
+        if (ready && !message.data.artifactStatus && !artifactIsStreaming && !messageIsStreaming) prepareArtifacts(content, true);
     }
-    
+
 }, [ready]);
 
 const isInEndState = (status: ArtifactMessageStatus) => {
