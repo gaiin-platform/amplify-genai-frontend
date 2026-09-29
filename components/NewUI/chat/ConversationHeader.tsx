@@ -1,7 +1,7 @@
 /**
  * ConversationHeader — spec §3 compliant 52px sticky header for the conversation view.
  *
- * Left:  conversation title as menu trigger (rename, share, delete) + assistant chip
+ * Left:  conversation title as menu trigger (rename, share, export as PowerPoint, delete) + assistant chip
  * Right: Share button (filled, --bg-active)
  *
  * Rendered by ConversationViewShell as an overlay on top of Chat.tsx's own header
@@ -11,6 +11,7 @@ import React, { useContext, useEffect, useRef, useState } from 'react';
 import {
   IconChevronDown,
   IconPencil,
+  IconPresentation,
   IconShare,
   IconTrash,
   IconSparkles,
@@ -19,6 +20,8 @@ import HomeContext from '@/pages/api/home/home.context';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
+import { usePresentationExportAvailable } from '@/components/NewUI/shared/usePresentationExportAvailable';
+import { openPresentationExport } from '@/components/NewUI/presentation/PresentationExportDialogHost';
 
 export const ConversationHeader: React.FC = () => {
   const {
@@ -29,6 +32,7 @@ export const ConversationHeader: React.FC = () => {
   // Resolved per-conversation assistant — survives the first send and a reload,
   // unlike the global `selectedAssistant` field. See useConversationAssistant.
   const { assistantName } = useConversationAssistant();
+  const canExportPresentation = usePresentationExportAvailable();
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -243,6 +247,19 @@ export const ConversationHeader: React.FC = () => {
             <IconShare size={15} />
             Share
           </button>
+          {canExportPresentation && selectedConversation && (selectedConversation.messages?.length ?? 0) > 0 && (
+            <button
+              role="menuitem"
+              className={menuItemCls}
+              onClick={() => {
+                setMenuOpen(false);
+                openPresentationExport({ conversationId: selectedConversation.id });
+              }}
+            >
+              <IconPresentation size={15} />
+              Export as PowerPoint
+            </button>
+          )}
           <div className="h-px bg-[--border-subtle] mx-2 my-1" />
           <button
             role="menuitem"

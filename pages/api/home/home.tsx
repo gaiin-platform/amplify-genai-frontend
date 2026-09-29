@@ -107,6 +107,7 @@ import { NewLibraryView } from '@/components/NewUI/views/NewLibraryView';
 import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import { PromptTemplateDialogHost } from '@/components/NewUI/shared/PromptTemplateDialogHost';
+import { PresentationExportDialogHost } from '@/components/NewUI/presentation/PresentationExportDialogHost';
 import { LayeredBuilderHost } from '@/components/NewUI/shared/LayeredBuilderHost';
 import { AssistantAdminUIHost } from '@/components/NewUI/shared/AssistantAdminUIHost';
 import { UIPreferenceBanner, getUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
@@ -1814,6 +1815,10 @@ const Home = ({
                                     itself without unmounting the popup. Renders nothing
                                     until the amplifyUsePromptTemplate event fires. */}
                                 <PromptTemplateDialogHost />
+                                {/* "Export as PowerPoint" — listens for amplifyExportPresentation
+                                    and owns running jobs, so decks keep building after the
+                                    dialog (or the chat that launched it) closes. */}
+                                <PresentationExportDialogHost />
                                 {/* Layered Assistant Builder — listens for openLayeredBuilderTrigger.
                                     The event's only classic-UI listener is UserMenu, which is not
                                     rendered in this branch. This host provides the equivalent for

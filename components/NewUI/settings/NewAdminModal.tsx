@@ -62,6 +62,13 @@ import {
 import { checkActiveIntegrations } from '@/services/oauthIntegrationsService';
 import { IntegrationsTab } from '@/components/Admin/AdminComponents/Integrations';
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab } from '@/components/Admin/AdminComponents/FeatureData';
+import {
+  PresentationAgentCard,
+  PresentationAgentConfig,
+  PRESENTATION_AGENT_CONFIG_KEY,
+  DEFAULT_PRESENTATION_AGENT_CONFIG,
+  normalizePresentationAgentConfig,
+} from '@/components/NewUI/settings/admin/PresentationAgentCard';
 import { CriticalErrorTrackingTab } from '@/components/Admin/AdminComponents/Critical_Error_Tracking';
 import { UserCostsModal } from '@/components/Admin/UserCostModal';
 import {
@@ -231,6 +238,10 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const [accountNoticeMessage, setAccountNoticeMessage] = useState<string>('');
   const [accountNoticeUnsaved, setAccountNoticeUnsaved] = useState<boolean>(false);
 
+  // ── Presentation agent (AgentCore "Export as PowerPoint"); keyed outside AdminConfigTypes like the notice above
+  const [presentationAgentConfig, setPresentationAgentConfig] = useState<PresentationAgentConfig>(DEFAULT_PRESENTATION_AGENT_CONFIG);
+  const [presentationAgentUnsaved, setPresentationAgentUnsaved] = useState<boolean>(false);
+
   // ── Tab list (dynamic, based on loaded data) ──────────────────────────────
   const tabs: AdminNavItem[] = [
     ...BASE_ADMIN_TABS,
@@ -349,6 +360,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         setDefaultTimezone(d[AdminConfigTypes.DEFAULT_TIMEZONE] || 'America/Chicago');
         setSmartMessagesEnabled(d[AdminConfigTypes.DEFAULT_SMART_MESSAGES] ?? false);
         setAccountNoticeMessage(d[ACCOUNT_NOTICE_CONFIG_KEY] || '');
+        setPresentationAgentConfig(normalizePresentationAgentConfig(d[PRESENTATION_AGENT_CONFIG_KEY]));
         setLoadingMessage('');
 
         const nonlazyResult = await nonlazyReq;
@@ -620,10 +632,13 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   };
 
   const handleSave = async () => {
-    if (unsavedConfigs.size === 0 && !accountNoticeUnsaved) { toast('No changes to save'); return; }
+    if (unsavedConfigs.size === 0 && !accountNoticeUnsaved && !presentationAgentUnsaved) { toast('No changes to save'); return; }
     const payload: any[] = Array.from(unsavedConfigs).map((t) => ({ type: t, data: getConfigTypeData(t) }));
     if (accountNoticeUnsaved) {
       payload.push({ type: ACCOUNT_NOTICE_CONFIG_KEY, data: accountNoticeMessage });
+    }
+    if (presentationAgentUnsaved) {
+      payload.push({ type: PRESENTATION_AGENT_CONFIG_KEY, data: presentationAgentConfig });
     }
     if (!validateSavedData()) return;
     setLoadingMessage('Saving configurations…');
@@ -636,6 +651,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       toast('Configurations saved');
       setUnsavedConfigs(new Set());
       setAccountNoticeUnsaved(false);
+      setPresentationAgentUnsaved(false);
     } else {
       if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
         const failed = Array.from(unsavedConfigs).filter((k) => !(k in result.data) || !result.data[k].success);
@@ -651,7 +667,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const tabHasChanges = (tab: AdminTab | 'User Costs') =>
     tab !== 'User Costs' && (
       adminTabHasChanges(Array.from(unsavedConfigs), tab as AdminTab) ||
-      (tab === 'Configurations' && accountNoticeUnsaved)
+      (tab === 'Configurations' && accountNoticeUnsaved) ||
+      (tab === 'Feature Data' && presentationAgentUnsaved)
     );
 
   // ── Filtered tabs ─────────────────────────────────────────────────────────
@@ -862,6 +879,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         );
       case 'Feature Data':
         return (
+          <>
           <FeatureDataTab
             stillLoadingData={stillLoadingData}
             admins={admins}
@@ -881,6 +899,16 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
             admin_text={admin_text}
             updateUnsavedConfigs={updateUnsavedConfigs}
           />
+          <PresentationAgentCard
+            config={presentationAgentConfig}
+            onChange={(next) => {
+              setPresentationAgentConfig(next);
+              setPresentationAgentUnsaved(true);
+            }}
+            models={Object.values(availableModels)}
+            templateNames={templates.map((t: Pptx_TEMPLATES) => t.name)}
+          />
+          </>
         );
       case 'Critical Errors':
         return (
