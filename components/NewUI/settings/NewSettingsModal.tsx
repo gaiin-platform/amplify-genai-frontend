@@ -30,10 +30,7 @@ import {
 
 import HomeContext from '@/pages/api/home/home.context';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
-import { getSettings, saveSettings, featureOptionFlags } from '@/utils/app/settings';
-import { isClassicUiSwitchAllowed, isDeploymentFeatureAvailable, type DeploymentFeatureKey } from '@/components/NewUI/shared/deploymentFeaturePolicy';
-import { Flag } from '@/components/ReusableComponents/FlagsMap';
-import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { getSettings, saveSettings } from '@/utils/app/settings';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from '@/types/conversationStorage';
@@ -152,18 +149,7 @@ const GeneralSection: FC = () => {
     state: { storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService, availableModels, defaultModelId, advancedModelId },
   } = useContext(HomeContext);
   const featureFlags = useStableFeatureFlags();
-
   const settings = getSettings(featureFlags);
-  const featureOptionDefaults = settings.featureOptions;
-  const [featureOptions, setFeatureOptions] = useState<{ [key: string]: boolean }>(featureOptionDefaults);
-  const previousFeatureFlagsRef = useRef(featureFlags);
-  useEffect(() => {
-    if (previousFeatureFlagsRef.current === featureFlags) return;
-    previousFeatureFlagsRef.current = featureFlags;
-    setFeatureOptions((current) => Object.fromEntries(
-      Object.keys(featureOptionDefaults).map((key) => [key, current[key] ?? featureOptionDefaults[key]]),
-    ));
-  }, [featureFlags, featureOptionDefaults]);
 
   // ── Default model ─────────────────────────────────────────────────────
   const allModels = filterModels(availableModels, settings.hiddenModelIds);
@@ -239,6 +225,7 @@ const GeneralSection: FC = () => {
   });
   const [fontDropdownOpen, setFontDropdownOpen] = useState(false);
   const [storageDropdownOpen, setStorageDropdownOpen] = useState(false);
+  const [pendingStorageSelection, setPendingStorageSelection] = useState<ConversationStorage | null>(null);
   const [storageSaving, setStorageSaving] = useState(false);
 
   // Refs for storage async closures (same pattern as NewStorageSection)
@@ -247,11 +234,20 @@ const GeneralSection: FC = () => {
   const foldersRef = useRef(folders);
   useEffect(() => { foldersRef.current = folders; }, [folders]);
 
-  const handleStorageChange = async (selection: ConversationStorage) => {
+  const handleStorageChange = (selection: ConversationStorage) => {
     setStorageDropdownOpen(false);
-    if (selection === storageSelection) return;
-    const confirmed = window.confirm(STORAGE_CONFIRM[selection]);
-    if (!confirmed) return;
+    if (selection === storageSelection || storageSaving) return;
+    setPendingStorageSelection(selection);
+  };
+
+  const cancelStorageChange = () => {
+    setPendingStorageSelection(null);
+  };
+
+  const confirmStorageChange = async () => {
+    const selection = pendingStorageSelection;
+    setPendingStorageSelection(null);
+    if (!selection) return;
 
     setStorageSaving(true);
     const isAllOption = selection === 'local-only' || selection === 'cloud-only';
@@ -297,26 +293,6 @@ const GeneralSection: FC = () => {
     // Save to server so the preference roams across devices / browsers
     void saveDisplayPrefsToServer({ chatFont: value });
   };
-
-  // ── Feature flags ─────────────────────────────────────────────────────
-  const handleFlagChange = (key: string, value: boolean) => {
-    const updated = { ...featureOptions, [key]: value };
-    setFeatureOptions(updated);
-    saveSettings({ ...getSettings(featureFlags), featureOptions: updated });
-    window.dispatchEvent(new Event('updateFeatureSettings'));
-  };
-
-  const visibleFlags: Flag[] = featureOptionFlags.filter((f: Flag) =>
-    Object.prototype.hasOwnProperty.call(featureOptions, f.key),
-  );
-
-  const managedFeatureRows: Array<{ feature: DeploymentFeatureKey; label: string }> = [
-    { feature: 'promptHighlighter', label: 'Prompt Highlighter' },
-    { feature: 'artifacts', label: 'Artifacts' },
-    { feature: 'webSearch', label: 'Web Search' },
-    { feature: 'codeInterpreter', label: 'Code Interpreter' },
-    { feature: 'memory', label: 'Memory' },
-  ];
 
   const currentFontOpt = FONT_OPTIONS.find((f) => f.value === chatFont) ?? FONT_OPTIONS[0];
 
@@ -900,92 +876,15 @@ const GeneralSection: FC = () => {
         )}
       </div>
 
-      {/* ── Feature flags card ────────────────────────────────────────────── */}
-      {(visibleFlags.length > 0 || managedFeatureRows.some(({ feature }) => !isDeploymentFeatureAvailable(featureFlags as any, feature))) && (
-        <div
-          style={{
-            background: 'var(--bg-raised)',
-            border: '1px solid var(--border-subtle)',
-            borderRadius: 'var(--radius-panel, 12px)',
-            padding: '20px',
-          }}
-        >
-          <h3
-            style={{
-              color: 'var(--text-primary)',
-              fontSize: '15px',
-              fontWeight: 600,
-              marginBottom: '16px',
-            }}
-          >
-            Features
-          </h3>
-
-          {managedFeatureRows.some(({ feature }) => !isDeploymentFeatureAvailable(featureFlags as any, feature)) && (
-            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '10px' }}>
-              Availability is managed by your organization.
-            </p>
-          )}
-          {managedFeatureRows.map(({ feature, label }, index) => {
-            if (isDeploymentFeatureAvailable(featureFlags as any, feature)) return null;
-            return (
-              <div key={feature} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 0', borderBottom: '1px solid var(--border-subtle)' }}>
-                <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>{label}</span>
-                <span aria-label={`${label} disabled`} style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Disabled by your organization</span>
-              </div>
-            );
-          })}
-          {visibleFlags.map((flag, index) => {
-            const isLast = index === visibleFlags.length - 1;
-            return (
-              <div
-                key={flag.key}
-                style={{
-                  paddingTop: index === 0 ? 0 : '12px',
-                  paddingBottom: isLast ? 0 : '12px',
-                  borderBottom: isLast ? 'none' : '1px solid var(--border-subtle)',
-                }}
-              >
-                {/* Label + toggle row — clicking label also toggles */}
-                <div
-                  onClick={() => handleFlagChange(flag.key, !featureOptions[flag.key])}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: '16px',
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                  }}
-                >
-                  <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
-                    {flag.label}
-                  </span>
-                  <ToggleSwitch
-                    checked={!!featureOptions[flag.key]}
-                    onChange={(val) => handleFlagChange(flag.key, val)}
-                    aria-label={flag.label}
-                  />
-                </div>
-
-                {/* Optional description */}
-                {flag.description && (
-                  <p
-                    style={{
-                      margin: '6px 0 0',
-                      fontSize: '12px',
-                      color: 'var(--text-muted)',
-                      lineHeight: '1.55',
-                    }}
-                  >
-                    {flag.description}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <ConfirmDialog
+        isOpen={pendingStorageSelection !== null}
+        title="Change conversation storage?"
+        message={pendingStorageSelection ? STORAGE_CONFIRM[pendingStorageSelection] : ''}
+        confirmLabel="Change storage"
+        variant="warning"
+        onConfirm={confirmStorageChange}
+        onCancel={cancelStorageChange}
+      />
     </div>
   );
 };
