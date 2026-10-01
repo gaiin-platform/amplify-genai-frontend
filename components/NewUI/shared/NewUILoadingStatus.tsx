@@ -4,10 +4,8 @@
  * Replaces the old LoadingDialog "Setting Up Amplify…" for the New UI only, and
  * is reused for in-view async work (e.g. Library file deletion).
  *
- * Visual model: a translucent scrim over the app plus a small centered card.
- * The scrim intentionally does NOT hide the UI behind it — the user keeps their
- * context (which page/list they were on) while the work is in flight. The scrim
- * still captures pointer events so the blocked action can't be double-fired.
+ * Overlay mode presents a translucent scrim and centered card. Inline mode
+ * presents a compact status treatment for page-local settings loads.
  *
  * Design rules (NEW_UI_GUIDE.md):
  *   • Uses design tokens exclusively — no hardcoded brand colors.
@@ -16,7 +14,7 @@
  *   • role="status" + aria-live="polite" announces status to screen readers.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -24,10 +22,27 @@ import { createPortal } from 'react-dom';
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface NewUILoadingStatusProps {
-  /** Whether the loading overlay is visible */
+  /** Whether the loading indicator is visible */
   open: boolean;
   /** Status message shown beside the indicator. Defaults to "Loading…" */
   message?: string;
+  /** Optional class for specialized inline positioning. */
+  inlineClassName?: string;
+  /** Render a compact inline status instead of a viewport-blocking overlay. */
+  variant?: 'overlay' | 'inline';
+}
+
+export interface NewUILegacyLoadingAdapterProps {
+  /** A page-scoped New UI wrapper around a legacy component. */
+  wrapperRef: React.RefObject<HTMLElement>;
+  /** Wrapper-scoped selector targeting the initial loader's container. */
+  selector: string;
+  /** Text unique to that initial state; action loaders are intentionally excluded. */
+  matchText: string;
+  /** Contextual status message for the replacement indicator. */
+  message: string;
+  /** Optional named visual treatment for a legacy loading state. */
+  inlineClassName?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -37,12 +52,16 @@ export interface NewUILoadingStatusProps {
 export const NewUILoadingStatus: React.FC<NewUILoadingStatusProps> = ({
   open,
   message = 'Loading…',
+  variant = 'overlay',
+  inlineClassName,
 }) => {
-  // Portals must not be emitted during SSR: document.body exists only after
-  // hydration, and returning portal markup on the client for server-null output
-  // causes React to report a mismatched <main> subtree.
+  // Portal overlays must wait until after hydration; inline markup is SSR-safe.
   const [portalReady, setPortalReady] = useState(false);
   useEffect(() => setPortalReady(true), []);
+
+  if (variant === 'inline') {
+    return open ? <InlineLoadingIndicator message={message} className={inlineClassName} /> : null;
+  }
 
   if (!open || !portalReady || typeof document === 'undefined') return null;
 
@@ -163,6 +182,151 @@ export const NewUILoadingStatus: React.FC<NewUILoadingStatusProps> = ({
     </div>,
     document.body,
   );
+};
+
+export const InlineLoadingIndicator: React.FC<{ message: string; className?: string }> = ({
+  message,
+  className = '',
+}) => (
+  <div
+    className={`nui-inline-loading ${className}`.trim()}
+    role="status"
+    aria-live="polite"
+    aria-busy="true"
+  >
+    <span className="nui-inline-loading-ring" aria-hidden="true" />
+    <span>{message}</span>
+    <style>{`
+      @keyframes nuiSpinnerRotate {
+        to { transform: rotate(360deg); }
+      }
+      .nui-inline-loading {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        min-height: 96px;
+        padding: 24px;
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+      .nui-inline-loading-slot {
+        display: contents;
+      }
+      .nui-inline-loading-slot .nui-inline-loading {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+        height: 100%;
+        box-sizing: border-box;
+        pointer-events: none;
+      }
+      .nui-inline-loading-api-keys {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        min-height: 96px;
+        padding: 24px;
+        justify-content: center;
+        background: transparent;
+        transform: translateY(var(--nui-api-key-loader-offset, 0px));
+      }
+      .nui-inline-loading-ring {
+        width: 20px;
+        height: 20px;
+        flex: 0 0 20px;
+        box-sizing: border-box;
+        border: 2px solid var(--border-subtle);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: nuiSpinnerRotate 0.75s linear infinite;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .nui-inline-loading-ring {
+          animation: none;
+          border: none;
+          display: grid;
+          place-items: center;
+        }
+        .nui-inline-loading-ring::after {
+          content: '';
+          width: 8px;
+          height: 8px;
+          border-radius: 50%;
+          background: var(--accent);
+        }
+      }
+    `}</style>
+  </div>
+);
+
+/**
+ * Detect one recognized legacy initial-loading row and display the shared loader
+ * declaratively in the wrapper's React tree. Only the specific legacy row is
+ * marked for scoped CSS hiding, never action-level indicators.
+ */
+export const NewUILegacyLoadingAdapter: React.FC<NewUILegacyLoadingAdapterProps> = ({
+  wrapperRef,
+  selector,
+  matchText,
+  message,
+  inlineClassName,
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const matchedNodeRef = useRef<HTMLElement | null>(null);
+  const statusRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const wrapper = wrapperRef.current;
+    if (!wrapper) return;
+
+    const reconcile = () => {
+      const candidates = wrapper.querySelectorAll<HTMLElement>(selector);
+      const nextNode = Array.from(candidates).find((node) => node.textContent?.includes(matchText)) ?? null;
+      const currentNode = matchedNodeRef.current;
+      if (nextNode && inlineClassName === 'nui-inline-loading-api-keys') {
+        const contentRect = nextNode.getBoundingClientRect();
+        const wrapperRect = wrapper.getBoundingClientRect();
+        if (contentRect.height > 0) {
+          const centerOffset = contentRect.top + contentRect.height / 2 - 48 - wrapperRect.top;
+          wrapper.style.setProperty('--nui-api-key-loader-offset', `${centerOffset}px`);
+        }
+      }
+      if (currentNode && currentNode !== nextNode) {
+        currentNode.removeAttribute('data-new-ui-loading-replaced');
+        matchedNodeRef.current = null;
+      }
+      if (nextNode && nextNode !== matchedNodeRef.current) {
+        nextNode.setAttribute('data-new-ui-loading-replaced', 'true');
+        matchedNodeRef.current = nextNode;
+      }
+      setIsLoading(!!nextNode);
+    };
+
+    reconcile();
+    const observer = new MutationObserver(reconcile);
+    observer.observe(wrapper, { childList: true, subtree: true, characterData: true });
+
+    return () => {
+      observer.disconnect();
+      matchedNodeRef.current?.removeAttribute('data-new-ui-loading-replaced');
+      matchedNodeRef.current = null;
+    };
+    // The wrapper/selector identify a single initial loader for the mounted section.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inlineClassName, matchText, selector, wrapperRef]);
+
+  return isLoading ? (
+    <div ref={statusRef} className="nui-inline-loading-slot">
+      <NewUILoadingStatus
+        open
+        message={message}
+        variant="inline"
+        inlineClassName={inlineClassName}
+      />
+    </div>
+  ) : null;
 };
 
 export default NewUILoadingStatus;

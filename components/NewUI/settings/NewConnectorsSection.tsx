@@ -38,6 +38,7 @@ import { capitalize } from '@/utils/app/data';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { integrationIcon } from '@/components/NewUI/shared/integrationIcon';
 import { ToolApiKeysTab } from '@/components/Settings/ToolApiKeysTab';
+import { NewUILoadingStatus, NewUILegacyLoadingAdapter } from '@/components/NewUI/shared/NewUILoadingStatus';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Flat integration item (provider + integration)
@@ -57,6 +58,7 @@ export const NewConnectorsSection: FC = () => {
   const {
     state: { featureFlags, canAddWebSearchApiKey },
   } = useContext(HomeContext);
+  const toolApiKeysWrapperRef = useRef<HTMLDivElement>(null);
 
   // ── Tab state
   const showToolApiKeys = (featureFlags.webSearch as boolean) && canAddWebSearchApiKey;
@@ -262,54 +264,7 @@ export const NewConnectorsSection: FC = () => {
       {activeTab === 'integrations' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {loadingIntegrations ? (
-            /* Skeleton cards while loading */
-            <>
-              {[1, 2, 3].map((n) => (
-                <div
-                  key={n}
-                  style={{
-                    background: 'var(--bg-raised)',
-                    border: '1px solid var(--border-subtle)',
-                    borderRadius: '10px',
-                    padding: '16px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '12px',
-                    opacity: 0.6,
-                  }}
-                >
-                  <div style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: '8px',
-                    background: 'var(--bg-active)',
-                    flexShrink: 0,
-                  }} />
-                  <div style={{ flex: 1 }}>
-                    <div style={{
-                      height: '14px',
-                      width: '40%',
-                      borderRadius: '4px',
-                      background: 'var(--bg-active)',
-                      marginBottom: '6px',
-                    }} />
-                    <div style={{
-                      height: '12px',
-                      width: '70%',
-                      borderRadius: '4px',
-                      background: 'var(--bg-active)',
-                    }} />
-                  </div>
-                  <div style={{
-                    width: 80,
-                    height: 30,
-                    borderRadius: '6px',
-                    background: 'var(--bg-active)',
-                    flexShrink: 0,
-                  }} />
-                </div>
-              ))}
-            </>
+            <NewUILoadingStatus open message="Loading connectors…" variant="inline" />
           ) : !hasIntegrations ? (
             /* Empty state */
             <div style={{
@@ -478,10 +433,17 @@ export const NewConnectorsSection: FC = () => {
           ════════════════════════════════════════════ */}
       {activeTab === 'toolkeys' && showToolApiKeys && (
         <div
+          ref={toolApiKeysWrapperRef}
           data-new-ui="true"
-          className="new-ui-tool-api-keys"
+          className="new-ui-tool-api-keys relative"
         >
           <ToolApiKeysTab open={true} />
+          <NewUILegacyLoadingAdapter
+            wrapperRef={toolApiKeysWrapperRef}
+            selector=":scope > .flex.items-center.justify-center.p-8:has(> svg.animate-spin)"
+            matchText="Loading..."
+            message="Loading tool API keys…"
+          />
         </div>
       )}
     </div>

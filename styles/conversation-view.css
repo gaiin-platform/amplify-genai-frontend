@@ -3086,6 +3086,18 @@
 
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   Settings initial-load replacement indicators
+   Scoped markers are applied only by NewUILegacyLoadingAdapter in New UI shells.
+   Action-level loaders are never marked, so they keep their existing behavior.
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui-api-access="true"] [data-new-ui-loading-replaced="true"],
+[data-new-ui-settings-skills="true"] [data-new-ui-loading-replaced="true"],
+[data-new-ui-settings-mcp="true"] [data-new-ui-loading-replaced="true"],
+[data-new-ui="true"] .new-ui-tool-api-keys [data-new-ui-loading-replaced="true"] {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Skills + MCP: remap purple-* Tailwind classes to --accent blue
    Scope: .new-ui-skills-override wrapper (set on Skills and MCP sections in
    NewSettingsModal.tsx). Does NOT require [data-new-ui="true"] — the settings

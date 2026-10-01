@@ -55,6 +55,7 @@ import { getUserDefaultEffort, setUserDefaultEffort } from '@/components/NewUI/s
 import { EFFORT_OPTIONS } from '@/components/NewUI/shared/ModelPicker';
 import type { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
+import { NewUILoadingStatus, NewUILegacyLoadingAdapter } from '@/components/NewUI/shared/NewUILoadingStatus';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -907,6 +908,7 @@ const AccountSection: FC<{
 
 const SkillsSection: FC = () => {
   const { state: { chatEndpoint } } = useContext(HomeContext);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
   if (!chatEndpoint) {
     return (
@@ -916,7 +918,37 @@ const SkillsSection: FC = () => {
     );
   }
 
-  return <SkillsLibrary chatEndpoint={chatEndpoint} />;
+  return (
+    <div ref={wrapperRef} className="new-ui-skills-override relative" data-new-ui-settings-skills="true">
+      <SkillsLibrary chatEndpoint={chatEndpoint} />
+      <NewUILegacyLoadingAdapter
+        wrapperRef={wrapperRef}
+        selector=".h-64 > .text-center:has(> svg.animate-spin)"
+        matchText="Loading skills..."
+        message="Loading skills…"
+      />
+    </div>
+  );
+};
+
+const MCPServersSection: FC = () => {
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <div
+      ref={wrapperRef}
+      className="new-ui-skills-override relative"
+      data-new-ui-settings-mcp="true"
+    >
+      <MCPServersTab open={true} />
+      <NewUILegacyLoadingAdapter
+        wrapperRef={wrapperRef}
+        selector=":scope > .flex.items-center.justify-center.p-8:has(> svg.animate-spin)"
+        matchText="Loading..."
+        message="Loading MCP servers…"
+      />
+    </div>
+  );
 };
 
 // ---------------------------------------------------------------------------
@@ -933,6 +965,7 @@ const StorageSection: FC<{ active: boolean }> = ({ active }) => {
 // ---------------------------------------------------------------------------
 
 const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
+  const apiKeysWrapperRef = useRef<HTMLDivElement>(null);
   const [unsaved, setUnsaved] = useState(false);
   const [showRotateConfirmation, setShowRotateConfirmation] = useState(false);
   const rotateConfirmationResolver = useRef<((confirmed: boolean) => void) | null>(null);
@@ -990,9 +1023,7 @@ const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
 
   if (isLoadingAccounts || !active) {
     return (
-      <div role="status" aria-live="polite" style={{ padding: '20px', color: 'var(--text-muted)' }}>
-        Loading billing accounts…
-      </div>
+      <NewUILoadingStatus open message="Loading billing accounts…" variant="inline" />
     );
   }
 
@@ -1019,7 +1050,11 @@ const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
         onConfirm={() => resolveRotateConfirmation(true)}
         onCancel={() => resolveRotateConfirmation(false)}
       />
-      <div data-new-ui-api-access="true" className="text-neutral-900 dark:text-white">
+      <div
+        ref={apiKeysWrapperRef}
+        data-new-ui-api-access="true"
+        className="text-neutral-900 dark:text-white relative"
+      >
         <ApiKeys
           key={loadAttempt}
           open={active}
@@ -1028,6 +1063,13 @@ const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
           defaultAccount={defaultAccount}
           onClose={() => {}}
           requestRotateConfirmation={requestRotateConfirmation}
+        />
+        <NewUILegacyLoadingAdapter
+          wrapperRef={apiKeysWrapperRef}
+          selector=".settings-card-content > .flex.items-center.justify-center.py-8"
+          matchText="Loading API Keys..."
+          message="Loading API keys…"
+          inlineClassName="nui-inline-loading-api-keys"
         />
       </div>
     </>
@@ -1087,11 +1129,11 @@ const SectionContent: FC<{
     case 'customInstructions':
       return <CustomInstructionsSection />;
     case 'skills':
-      return <div className="new-ui-skills-override"><SkillsSection /></div>;
+      return <SkillsSection />;
     case 'connectors':
       return <NewConnectorsSection />;
     case 'mcp':
-      return <div className="new-ui-skills-override"><MCPServersTab open={true} /></div>;
+      return <MCPServersSection />;
     case 'sidebarItems':
       return <SidebarItemsSection />;
     case 'admin':
