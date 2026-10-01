@@ -14,10 +14,10 @@ import {
   IconPencil,
   IconTrash,
   IconNotes,
-  IconCheck,
 } from '@tabler/icons-react';
 
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import {
   CustomInstruction,
   CustomInstructionsStore,
@@ -244,8 +244,6 @@ const InstructionEditor: React.FC<InstructionEditorProps> = ({
         </div>
       </div>
 
-      {/* How it works card */}
-      <HowItWorksCard />
     </div>
   );
 };
@@ -255,11 +253,11 @@ const InstructionEditor: React.FC<InstructionEditorProps> = ({
 // ---------------------------------------------------------------------------
 
 interface InstructionRowProps {
-  instruction: CustomInstruction;
+  instruction: CustomInstruction | null;
   isActive: boolean;
   onActivate: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
+  onEdit?: () => void;
+  onDelete?: () => void;
 }
 
 const InstructionRow: React.FC<InstructionRowProps> = ({
@@ -270,91 +268,97 @@ const InstructionRow: React.FC<InstructionRowProps> = ({
   onDelete,
 }) => {
   const [hovered, setHovered] = useState(false);
-
-  const preview = instruction.content.length > 90
-    ? instruction.content.slice(0, 90).trimEnd() + '…'
-    : instruction.content;
+  const isNone = instruction === null;
+  const optionName = instruction?.name ?? 'None';
+  const description = instruction?.content ?? 'No custom instructions applied';
+  const inputId = `custom-instruction-${instruction?.id ?? 'none'}`;
 
   return (
     <div
+      className="group flex items-center gap-3 rounded-[var(--radius-row)] border px-3 py-2.5 transition-colors duration-100"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '10px 12px',
-        borderRadius: '8px',
-        borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-        background: hovered ? 'var(--bg-hover)' : 'transparent',
-        cursor: 'pointer',
-        transition: 'background 0.08s',
-        paddingLeft: isActive ? '10px' : '10px',
-        position: 'relative',
+        borderColor: isActive ? 'var(--accent)' : 'transparent',
+        background: hovered
+          ? (isActive
+            ? 'color-mix(in srgb, var(--accent) 14%, var(--bg-hover))'
+            : 'var(--bg-hover)')
+          : (isActive
+            ? 'color-mix(in srgb, var(--accent) 8%, var(--bg-raised))'
+            : 'transparent'),
+        transition: 'background 0.12s, border-color 0.12s',
       }}
-      onClick={onActivate}
-      role="button"
-      tabIndex={0}
-      aria-pressed={isActive}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate(); } }}
     >
-      {/* Radio indicator */}
-      <div
-        style={{
-          flexShrink: 0,
-          width: '16px',
-          height: '16px',
-          borderRadius: '50%',
-          border: isActive ? '4px solid var(--accent)' : '1.5px solid var(--border-subtle)',
-          background: 'transparent',
-          transition: 'border 0.1s',
-          boxSizing: 'border-box',
-        }}
-        aria-hidden="true"
-      />
-
-      {/* Text */}
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div
+      <label
+        htmlFor={inputId}
+        className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-[6px] focus-within:outline-none"
+      >
+        <input
+          id={inputId}
+          type="radio"
+          name="custom-instruction-active"
+          value={instruction?.id ?? ''}
+          checked={isActive}
+          onChange={onActivate}
+          className="h-4 w-4 shrink-0 cursor-pointer appearance-none rounded-full border-[1.5px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] focus-visible:ring-offset-2"
           style={{
-            fontSize: '14px',
-            fontWeight: isActive ? 500 : 400,
-            color: 'var(--text-primary)',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
+            borderColor: isActive ? 'var(--accent)' : 'var(--text-secondary)',
+            background: isActive
+              ? 'radial-gradient(circle, var(--accent-fg) 0 30%, var(--accent) 34% 100%)'
+              : 'var(--bg-raised)',
+            boxSizing: 'border-box',
           }}
-        >
-          {instruction.name}
-        </div>
-        {preview && (
-          <div
+          aria-describedby={`${inputId}-description`}
+        />
+
+        <span className="min-w-0 flex-1">
+          <span
+            className="flex min-w-0 items-center gap-2"
             style={{
-              fontSize: '12px',
-              color: 'var(--text-muted)',
-              marginTop: '1px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
+              fontSize: '14px',
+              fontWeight: isActive ? 600 : (isNone ? 400 : 500),
+              color: isNone ? 'var(--text-secondary)' : 'var(--text-primary)',
             }}
           >
-            {preview}
-          </div>
-        )}
-      </div>
+            <span className="truncate">{optionName}</span>
+            {isActive && (
+              <span
+                className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+                style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}
+              >
+                Active
+              </span>
+            )}
+          </span>
+          <span
+            id={`${inputId}-description`}
+            className="mt-0.5 block text-[12px] leading-[1.45]"
+            style={{
+              color: 'var(--text-muted)',
+              display: '-webkit-box',
+              WebkitBoxOrient: 'vertical',
+              WebkitLineClamp: 2,
+              overflow: 'hidden',
+            }}
+          >
+            {description}
+          </span>
+        </span>
+      </label>
 
-      {/* Hover actions */}
-      {hovered && (
-        <div
-          style={{ display: 'flex', alignItems: 'center', gap: '4px', flexShrink: 0 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          <ActionButton onClick={onEdit} label="Edit" title="Edit">
-            <IconPencil size={15} stroke={1.5} />
-          </ActionButton>
-          <ActionButton onClick={onDelete} label="Delete" title="Delete" danger>
-            <IconTrash size={15} stroke={1.5} />
-          </ActionButton>
+      {instruction && (
+        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {onEdit && (
+            <ActionButton onClick={onEdit} label="Edit" title="Edit">
+              <IconPencil size={15} stroke={1.5} />
+            </ActionButton>
+          )}
+          {onDelete && (
+            <ActionButton onClick={onDelete} label="Delete" title="Delete" danger>
+              <IconTrash size={15} stroke={1.5} />
+            </ActionButton>
+          )}
         </div>
       )}
     </div>
@@ -362,7 +366,7 @@ const InstructionRow: React.FC<InstructionRowProps> = ({
 };
 
 // ---------------------------------------------------------------------------
-// Tiny action button (hover icon buttons inside a row)
+// Tiny action button (hover/focus icon buttons inside a row)
 // ---------------------------------------------------------------------------
 
 interface ActionButtonProps {
@@ -373,118 +377,17 @@ interface ActionButtonProps {
   children: React.ReactNode;
 }
 
-const ActionButton: React.FC<ActionButtonProps> = ({ onClick, label, title, danger, children }) => {
-  const [hovered, setHovered] = useState(false);
-  return (
-    <button
-      onClick={onClick}
-      aria-label={label}
-      title={title ?? label}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        width: '28px',
-        height: '28px',
-        borderRadius: '6px',
-        border: 'none',
-        background: hovered
-          ? (danger ? 'rgba(239,68,68,0.12)' : 'var(--bg-raised)')
-          : 'transparent',
-        color: hovered
-          ? (danger ? 'var(--text-error)' : 'var(--text-primary)')
-          : 'var(--text-muted)',
-        cursor: 'pointer',
-        transition: 'background 0.08s, color 0.08s',
-        padding: 0,
-      }}
-    >
-      {children}
-    </button>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// "None" row
-// ---------------------------------------------------------------------------
-
-const NoneRow: React.FC<{ isActive: boolean; onClick: () => void }> = ({ isActive, onClick }) => {
-  const [hovered, setHovered] = useState(false);
-
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onClick={onClick}
-      role="button"
-      tabIndex={0}
-      aria-pressed={isActive}
-      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(); } }}
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        padding: '10px 12px',
-        borderRadius: '8px',
-        borderLeft: isActive ? '2px solid var(--accent)' : '2px solid transparent',
-        background: hovered ? 'var(--bg-hover)' : 'transparent',
-        cursor: 'pointer',
-        transition: 'background 0.08s',
-      }}
-    >
-      {/* Radio indicator */}
-      <div
-        style={{
-          flexShrink: 0,
-          width: '16px',
-          height: '16px',
-          borderRadius: '50%',
-          border: isActive ? '4px solid var(--accent)' : '1.5px solid var(--border-subtle)',
-          background: 'transparent',
-          transition: 'border 0.1s',
-          boxSizing: 'border-box',
-        }}
-        aria-hidden="true"
-      />
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: '14px', fontWeight: isActive ? 500 : 400, color: 'var(--text-primary)' }}>
-          None
-        </div>
-        <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '1px' }}>
-          No custom instructions applied
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// How it works card (shared between list and editor views)
-// ---------------------------------------------------------------------------
-
-const HowItWorksCard: React.FC = () => (
-  <div
-    style={{
-      background: 'var(--bg-raised)',
-      border: '1px solid var(--border-subtle)',
-      borderRadius: 'var(--radius-panel, 12px)',
-      padding: '20px',
-    }}
+const ActionButton: React.FC<ActionButtonProps> = ({ onClick, label, title, danger, children }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    aria-label={label}
+    title={title ?? label}
+    className="flex h-7 w-7 items-center justify-center rounded-[6px] border-0 bg-transparent p-0 transition-colors hover:bg-[--bg-raised] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] focus-visible:ring-offset-1"
+    style={{ color: danger ? 'var(--text-error)' : 'var(--text-muted)' }}
   >
-    <h3 style={{ color: 'var(--text-primary)', fontSize: '15px', fontWeight: 600, marginBottom: '4px' }}>
-      How it works
-    </h3>
-    <p style={{ color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.7', marginBottom: '12px' }}>
-      The active custom instruction is appended to the system prompt of every new blank conversation, helping Amplify understand your context and preferences without repeating them each time.
-    </p>
-    <ul style={{ margin: 0, paddingLeft: '20px', color: 'var(--text-secondary)', fontSize: '13px', lineHeight: '1.8' }}>
-      <li>Select &quot;None&quot; to disable custom instructions at any time</li>
-      <li>Templates and assistant conversations use their own system prompts</li>
-      <li>Instructions are stored locally in your browser</li>
-    </ul>
-  </div>
+    {children}
+  </button>
 );
 
 // ---------------------------------------------------------------------------
@@ -631,9 +534,16 @@ export const CustomInstructionsSection: React.FC = () => {
           }}
         >
           <div>
-            <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-              Custom Instructions
-            </h3>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+                Custom Instructions
+              </h3>
+              <InfoTooltip
+                ariaLabel="About custom instructions"
+                maxWidth={320}
+                text="The active instruction is added to the system prompt for new standard conversations, helping tailor responses to your preferences. Template and assistant conversations use their own prompts; the active instruction is not automatically added to them. Select None to turn off the active instruction."
+              />
+            </div>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
               {instructions.length === 0
                 ? 'None created yet'
@@ -664,17 +574,16 @@ export const CustomInstructionsSection: React.FC = () => {
         </div>
 
         {/* List body */}
-        <div style={{ padding: '8px' }}>
-          {/* None row — always first */}
-          <NoneRow
-            isActive={activeId === null}
-            onClick={() => handleActivate(null)}
-          />
+        <div>
+          <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-2">
+            <legend className="sr-only">Active custom instruction — choose one</legend>
+            <InstructionRow
+              instruction={null}
+              isActive={activeId === null}
+              onActivate={() => handleActivate(null)}
+            />
 
-          {instructions.length === 0 ? (
-            <EmptyState onNew={() => setEditTarget('new')} />
-          ) : (
-            instructions.map((instruction) => (
+            {instructions.map((instruction) => (
               <InstructionRow
                 key={instruction.id}
                 instruction={instruction}
@@ -683,13 +592,14 @@ export const CustomInstructionsSection: React.FC = () => {
                 onEdit={() => setEditTarget(instruction.id)}
                 onDelete={() => setDeleteTarget(instruction)}
               />
-            ))
+            ))}
+          </fieldset>
+
+          {instructions.length === 0 && (
+            <EmptyState onNew={() => setEditTarget('new')} />
           )}
         </div>
       </div>
-
-      {/* How it works */}
-      <HowItWorksCard />
 
       {/* Delete confirm dialog */}
       <ConfirmDialog
