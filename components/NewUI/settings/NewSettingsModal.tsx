@@ -34,6 +34,7 @@ import { getSettings, saveSettings, featureOptionFlags } from '@/utils/app/setti
 import { isClassicUiSwitchAllowed, isDeploymentFeatureAvailable, type DeploymentFeatureKey } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { Flag } from '@/components/ReusableComponents/FlagsMap';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from '@/types/conversationStorage';
 import { saveConversations } from '@/utils/app/conversation';
@@ -41,6 +42,7 @@ import toast from 'react-hot-toast';
 import { SkillsLibrary } from '@/components/Skills/SkillsLibrary';
 import { MCPServersTab } from '@/components/Settings/MCPServersTab';
 import { ApiKeys } from '@/components/Settings/AccountComponents/ApiKeys';
+import { getAccounts } from '@/services/accountService';
 import { noCoaAccount } from '@/types/accounts';
 import { Account } from '@/types/accounts';
 import { NewAdminModal } from '@/components/NewUI/settings/NewAdminModal';
@@ -992,9 +994,12 @@ const GeneralSection: FC = () => {
 // Account Section — delegates to NewAccountSection (new-UI styled)
 // ---------------------------------------------------------------------------
 
-const AccountSection: FC<{ active: boolean }> = ({ active }) => {
+const AccountSection: FC<{
+  active: boolean;
+  onUnsavedChange: (unsaved: boolean) => void;
+}> = ({ active, onUnsavedChange }) => {
   if (!active) return null;
-  return <NewAccountSection />;
+  return <NewAccountSection onUnsavedChange={onUnsavedChange} />;
 };
 
 // ---------------------------------------------------------------------------
@@ -1030,17 +1035,103 @@ const StorageSection: FC<{ active: boolean }> = ({ active }) => {
 
 const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
   const [unsaved, setUnsaved] = useState(false);
+  const [showRotateConfirmation, setShowRotateConfirmation] = useState(false);
+  const rotateConfirmationResolver = useRef<((confirmed: boolean) => void) | null>(null);
+
+  const requestRotateConfirmation = () => new Promise<boolean>((resolve) => {
+    rotateConfirmationResolver.current = resolve;
+    setShowRotateConfirmation(true);
+  });
+
+  const resolveRotateConfirmation = (confirmed: boolean) => {
+    setShowRotateConfirmation(false);
+    const resolve = rotateConfirmationResolver.current;
+    rotateConfirmationResolver.current = null;
+    resolve?.(confirmed);
+  };
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
+  const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
+  const [accountsError, setAccountsError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const requestId = useRef(0);
+
+  useEffect(() => {
+    if (!active) return;
+
+    const currentRequest = ++requestId.current;
+    setIsLoadingAccounts(true);
+    setAccountsError(false);
+
+    getAccounts()
+      .then((result) => {
+        if (requestId.current !== currentRequest) return;
+        if (!result.success || !result.data) {
+          setAccountsError(true);
+          return;
+        }
+
+        const loadedAccounts: Account[] = result.data;
+        setAccounts(loadedAccounts);
+        setDefaultAccount(
+          loadedAccounts.find((account) => account.isDefault) ?? loadedAccounts[0] ?? noCoaAccount,
+        );
+      })
+      .catch(() => {
+        if (requestId.current === currentRequest) setAccountsError(true);
+      })
+      .finally(() => {
+        if (requestId.current === currentRequest) setIsLoadingAccounts(false);
+      });
+
+    return () => {
+      if (requestId.current === currentRequest) requestId.current += 1;
+    };
+  }, [active, loadAttempt]);
+
+  if (isLoadingAccounts || !active) {
+    return (
+      <div role="status" aria-live="polite" style={{ padding: '20px', color: 'var(--text-muted)' }}>
+        Loading billing accounts…
+      </div>
+    );
+  }
+
+  if (accountsError) {
+    return (
+      <div style={{ padding: '20px', color: 'var(--text-error)' }}>
+        <p>Unable to load billing accounts.</p>
+        <button type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>
+          Try again
+        </button>
+      </div>
+    );
+  }
 
   return (
-    <ApiKeys
-      open={active}
-      setUnsavedChanges={setUnsaved}
-      accounts={accounts}
-      defaultAccount={defaultAccount}
-      onClose={() => {}}
-    />
+    <>
+      <ConfirmDialog
+        isOpen={showRotateConfirmation}
+        title="Rotate API key?"
+        message="Rotating this API key will generate a new key and immediately invalidate the current one."
+        confirmLabel="Rotate key"
+        cancelLabel="Cancel"
+        variant="warning"
+        onConfirm={() => resolveRotateConfirmation(true)}
+        onCancel={() => resolveRotateConfirmation(false)}
+      />
+      <div data-new-ui-api-access="true" className="text-neutral-900 dark:text-white">
+        <ApiKeys
+          key={loadAttempt}
+          open={active}
+          setUnsavedChanges={setUnsaved}
+          accounts={accounts}
+          defaultAccount={defaultAccount}
+          onClose={() => {}}
+          requestRotateConfirmation={requestRotateConfirmation}
+        />
+      </div>
+    </>
   );
 };
 
@@ -1079,12 +1170,15 @@ const PlaceholderSection: FC<{ title: string }> = ({ title }) => (
 // Section renderer
 // ---------------------------------------------------------------------------
 
-const SectionContent: FC<{ sectionId: string }> = ({ sectionId }) => {
+const SectionContent: FC<{
+  sectionId: string;
+  onAccountUnsavedChange: (unsaved: boolean) => void;
+}> = ({ sectionId, onAccountUnsavedChange }) => {
   switch (sectionId) {
     case 'general':
       return <GeneralSection />;
     case 'account':
-      return <AccountSection active={true} />;
+      return <AccountSection active={true} onUnsavedChange={onAccountUnsavedChange} />;
     case 'usage':
       return <PlaceholderSection title="Usage" />;
     case 'apikeys':
@@ -1169,8 +1263,35 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   const [activeSection, setActiveSection] = useState<string>(openToSection ?? 'general');
   const [searchQuery, setSearchQuery] = useState('');
   const [showAdminUI, setShowAdminUI] = useState(openToSection === 'admin');
+  const [accountHasUnsavedChanges, setAccountHasUnsavedChanges] = useState(false);
+  const [pendingLeaveAction, setPendingLeaveAction] = useState<(() => void) | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  const requestLeave = useCallback((action: () => void) => {
+    if (!accountHasUnsavedChanges) {
+      action();
+      return;
+    }
+    setPendingLeaveAction(() => action);
+  }, [accountHasUnsavedChanges]);
+
+  const confirmLeave = useCallback(() => {
+    const action = pendingLeaveAction;
+    setPendingLeaveAction(null);
+    setAccountHasUnsavedChanges(false);
+    action?.();
+  }, [pendingLeaveAction]);
+
+  useEffect(() => {
+    if (!accountHasUnsavedChanges) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [accountHasUnsavedChanges]);
 
   // Build nav groups dynamically — admin group only shown to admins
   const navGroups: NavGroup[] = [
@@ -1212,7 +1333,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
 
     const handleKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        requestLeave(onClose);
         return;
       }
       if (e.key !== 'Tab') return;
@@ -1232,7 +1353,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
     };
     document.addEventListener('keydown', handleKey);
     return () => document.removeEventListener('keydown', handleKey);
-  }, [onClose, showAdminUI]);
+  }, [onClose, requestLeave, showAdminUI]);
 
   // Scroll content pane to top when section changes
   useEffect(() => {
@@ -1244,16 +1365,16 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   // Allow child sections (e.g. PromptTemplatesSection) to close this modal
   // by dispatching window.dispatchEvent(new Event('closeNewUISettings')).
   useEffect(() => {
-    const handler = () => onClose();
+    const handler = () => requestLeave(onClose);
     window.addEventListener('closeNewUISettings', handler);
     return () => window.removeEventListener('closeNewUISettings', handler);
-  }, [onClose]);
+  }, [onClose, requestLeave]);
 
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.target === e.currentTarget) onClose();
+      if (e.target === e.currentTarget) requestLeave(onClose);
     },
-    [onClose],
+    [onClose, requestLeave],
   );
 
   // Filter nav groups by search
@@ -1269,6 +1390,19 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   // Active item label for the heading
   const activeItem = allNavItems.find((i) => i.id === activeSection);
 
+  const unsavedChangesDialog = (
+    <ConfirmDialog
+      isOpen={pendingLeaveAction !== null}
+      title="Unsaved account changes"
+      message="You have unsaved account changes. Save them before leaving to keep your updates, or leave without saving to discard them."
+      confirmLabel="Leave without saving"
+      cancelLabel="Keep editing"
+      variant="danger"
+      onConfirm={confirmLeave}
+      onCancel={() => setPendingLeaveAction(null)}
+    />
+  );
+
   // ---------------------------------------------------------------------------
   // Admin panel REPLACES the settings modal (it is not stacked on top of it).
   //
@@ -1283,13 +1417,15 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   // hit this branch on first render, never painting the settings frame at all.
   // ---------------------------------------------------------------------------
   if (showAdminUI && featureFlags.adminInterface) {
-    return <NewAdminModal onClose={onClose} />;
+    return <>{unsavedChangesDialog}<NewAdminModal onClose={onClose} /></>;
   }
 
   return (
-    /* Overlay */
-    <div
-      className="new-ui-settings-modal-overlay"
+    <>
+      {unsavedChangesDialog}
+      {/* Overlay */}
+      <div
+        className="new-ui-settings-modal-overlay"
       onClick={handleOverlayClick}
       style={{
         position: 'fixed',
@@ -1406,13 +1542,16 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
                   item={item}
                   isSelected={activeSection === item.id}
                   onClick={() => {
-                    if (item.id === 'admin') {
-                      setShowAdminUI(true);
-                    } else {
-                      setActiveSection(item.id);
-                      setShowAdminUI(false);
-                      setSearchQuery('');
-                    }
+                    if (item.id === activeSection && !showAdminUI) return;
+                    requestLeave(() => {
+                      if (item.id === 'admin') {
+                        setShowAdminUI(true);
+                      } else {
+                        setActiveSection(item.id);
+                        setShowAdminUI(false);
+                        setSearchQuery('');
+                      }
+                    });
                   }}
                 />
               ))}
@@ -1459,7 +1598,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
             </h2>
 
             <button
-              onClick={onClose}
+              onClick={() => requestLeave(onClose)}
               aria-label="Close"
               style={{
                 flexShrink: 0,
@@ -1507,12 +1646,16 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
                 <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</div>
               }
             >
-              <SectionContent sectionId={activeSection} />
+              <SectionContent
+                sectionId={activeSection}
+                onAccountUnsavedChange={setAccountHasUnsavedChanges}
+              />
             </React.Suspense>
           </div>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

@@ -37,6 +37,7 @@ interface Props {
     defaultAccount: Account;
     open: boolean;
     onClose: () => void;
+    requestRotateConfirmation?: () => Promise<boolean>;
 }
 
 
@@ -62,7 +63,7 @@ const formatAccessType = (accessType: string) => {
     return String(accessType).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())                                                          
 }
 
-export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount, open, onClose}) => {
+export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount, open, onClose, requestRotateConfirmation}) => {
     const { state: { statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
@@ -941,11 +942,12 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                     </div>
                                                     
                                                     {!apiKey.delegate && apiKey.active && !apiKey.purpose && (
-                                                    <RotateApiKey id={apiKey.api_owner_id} 
+                                                    <RotateApiKey id={apiKey.api_owner_id}
+                                                        requestConfirmation={requestRotateConfirmation}
                                                         onRotate={(rotatedKeyId: string) => {
                                                                 // Update owner keys
-                                                                setOwnerApiKeys(prev => prev ? prev.map(key => 
-                                                                    key.api_owner_id === rotatedKeyId 
+                                                                setOwnerApiKeys(prev => prev ? prev.map(key =>
+                                                                    key.api_owner_id === rotatedKeyId
                                                                         ? { ...key, needs_rotation: false }
                                                                         : key
                                                                 ) : []);}
@@ -1110,7 +1112,8 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                 </div>
                                 
                                 {apiKey.active && (
-                                    <RotateApiKey id={apiKey.api_owner_id} 
+                                    <RotateApiKey id={apiKey.api_owner_id}
+                                                  requestConfirmation={requestRotateConfirmation}
                                                   onRotate={(rotatedKeyId: string) => {
                                                     // Update delegate keys
                                                     setDelegateApiKeys(prev => prev ? prev.map(key => 
@@ -1215,17 +1218,19 @@ export const NewApiKey: FC<NewApiKeyProps> = ({ newApiKey, onClose }) => {
 interface RotateApiKeyProps {
     id: string;
     onRotate?: (id: string) => void;
+    requestConfirmation?: () => Promise<boolean>;
 }
 
-export const RotateApiKey: FC<RotateApiKeyProps> = ({ id, onRotate }) => {
+export const RotateApiKey: FC<RotateApiKeyProps> = ({ id, onRotate, requestConfirmation }) => {
     const { state: { statsService } } = useContext(HomeContext);
     const [isRotating, setIsRotating] = useState(false);
     const [newApiKey, setNewApiKey] = useState<string | null>(null);
 
     const handleRotateKey = async () => {
-        if (!confirm("Are you sure you want to rotate this API key? This will generate a new key and invalidate the current one.")) {
-            return;
-        }
+        const confirmed = requestConfirmation
+            ? await requestConfirmation()
+            : confirm("Are you sure you want to rotate this API key? This will generate a new key and invalidate the current one.");
+        if (!confirmed) return;
 
         setIsRotating(true);
         const result = await rotateApiKey(id);
@@ -1260,12 +1265,12 @@ export const RotateApiKey: FC<RotateApiKeyProps> = ({ id, onRotate }) => {
                             Replace with a new key if compromised or lost
                         </span>
                     </div>
-                    
+
                     <div className="flex items-center">
                         {isRotating ? (
                             <div className="flex items-center space-x-2 px-4 py-2 bg-blue-100/20 dark:bg-blue-900/20 rounded-lg border border-blue-600 dark:border-blue-500">
-                                <LoadingIcon className="w-4 h-4" />
-                                <span className="text-sm text-blue-500 dark:text-blue-300 font-medium">
+                                <IconLoader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                                <span className="text-sm text-blue-500 dark:text-blue-300 font-medium" role="status" aria-live="polite">
                                     Generating new key...
                                 </span>
                             </div>

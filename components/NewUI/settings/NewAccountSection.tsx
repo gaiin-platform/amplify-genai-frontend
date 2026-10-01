@@ -39,6 +39,8 @@ import {
 import { getUserMtdCosts, UserMtdCosts } from '@/services/mtdCostService';
 import { formatCurrency } from '@/utils/app/data';
 import toast from 'react-hot-toast';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inline new-UI styled RateLimiter
@@ -111,7 +113,11 @@ const DEFAULT_ACCOUNT_NOTICE =
   'You are responsible for all costs incurred under your account. Please ensure your COA is ' +
   'correct and set rate limits that reflect your intended usage.';
 
-export const NewAccountSection: FC = () => {
+interface NewAccountSectionProps {
+  onUnsavedChange?: (unsaved: boolean) => void;
+}
+
+export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange }) => {
   const { dispatch: homeDispatch } = useContext(HomeContext);
   const { data: session } = useSession();
 
@@ -138,10 +144,9 @@ export const NewAccountSection: FC = () => {
   const [mtdData, setMtdData] = useState<UserMtdCosts | null>(null);
   const [mtdLoading, setMtdLoading] = useState(false);
 
-  // ── Unsaved-change tracking (mirrors original: addedAccounts + hasEdits)
+  // ── Unsaved-change tracking (persisted changes plus meaningful form drafts)
   const [addedAccounts, setAddedAccounts] = useState<string[]>([]);
   const [hasEdits, setHasEdits] = useState(false);
-  const unsaved = addedAccounts.length > 0 || hasEdits;
 
   // ── Row hover
   const [hoverAccount, setHoverAccount] = useState<number | null>(null);
@@ -150,12 +155,38 @@ export const NewAccountSection: FC = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editPeriod, setEditPeriod] = useState<PeriodType>(UNLIMITED);
   const [editRate, setEditRate] = useState<string>('');
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
 
   // ── Add-account form
   const accountNameRef = useRef<HTMLInputElement>(null);
   const accountIdRef = useRef<HTMLInputElement>(null);
   const [addPeriod, setAddPeriod] = useState<PeriodType>(UNLIMITED);
   const [addRate, setAddRate] = useState<string>('');
+  const [accountNameDraft, setAccountNameDraft] = useState('');
+  const [accountIdDraft, setAccountIdDraft] = useState('');
+
+  const addFormHasDraft = Boolean(
+    accountNameDraft.trim() || accountIdDraft.trim() ||
+    addPeriod !== UNLIMITED || addRate.trim(),
+  );
+  const addFormHasIncompleteDraft = Boolean(
+    (accountNameDraft.trim() || accountIdDraft.trim()) &&
+    (!accountNameDraft.trim() || !accountIdDraft.trim()),
+  );
+  const inlineEditHasDraft = editingIndex !== null && (() => {
+    const account = accounts[editingIndex];
+    if (!account) return false;
+    return editPeriod !== (account.rateLimit?.period ?? UNLIMITED) ||
+      editRate !== (account.rateLimit?.rate != null ? String(account.rateLimit.rate) : '');
+  })();
+  const hasPersistableChanges = addedAccounts.length > 0 || hasEdits;
+  const unsaved = hasPersistableChanges || addFormHasDraft || inlineEditHasDraft;
+
+  useEffect(() => {
+    onUnsavedChange?.(unsaved);
+  }, [onUnsavedChange, unsaved]);
 
   // ── Load accounts on mount
   useEffect(() => {
@@ -204,9 +235,12 @@ export const NewAccountSection: FC = () => {
   const handleAddAccount = () => {
     const newName = accountNameRef.current?.value?.trim();
     const newId = accountIdRef.current?.value?.trim();
-    if (!newId || !newName) return;
+    if (!newName || !newId) {
+      setValidationMessage('Please enter both an account name and COA string before adding the account.');
+      return;
+    }
     if (accounts.find((a) => a.name === newName)) {
-      alert('Account name must be unique.\n\nPlease rename the account you are trying to add.');
+      setValidationMessage('Account name must be unique. Please rename the account you are trying to add.');
       return;
     }
     const newAccount: Account = {
@@ -216,8 +250,8 @@ export const NewAccountSection: FC = () => {
     };
     setAccounts([...accounts, newAccount]);
     setAddedAccounts([...addedAccounts, newName]);
-    if (accountNameRef.current) accountNameRef.current.value = '';
-    if (accountIdRef.current) accountIdRef.current.value = '';
+    setAccountNameDraft('');
+    setAccountIdDraft('');
     setAddPeriod(UNLIMITED);
     setAddRate('');
   };
@@ -262,24 +296,35 @@ export const NewAccountSection: FC = () => {
 
   // ── Save (same logic as original handleSave)
   const handleSave = async () => {
+    if (isSavingRef.current) return;
     if (accounts.length === 0) {
       alert('You must have at least one account.');
       return;
     }
+
+    isSavingRef.current = true;
+    setIsSaving(true);
     toast('Saving Account changes...');
-    const updatedAccounts = accounts.map((acc) => ({
-      ...acc,
-      isDefault: acc.name === defaultAccount.name,
-    }));
-    const updatedDefault = updatedAccounts.find((a) => a.isDefault);
-    const result = await saveAccounts(updatedAccounts);
-    if (!result.success) {
+    try {
+      const updatedAccounts = accounts.map((acc) => ({
+        ...acc,
+        isDefault: acc.name === defaultAccount.name,
+      }));
+      const updatedDefault = updatedAccounts.find((a) => a.isDefault);
+      const result = await saveAccounts(updatedAccounts);
+      if (!result.success) {
+        alert('Unable to save accounts. Please try again.');
+      } else {
+        homeDispatch({ field: 'defaultAccount', value: updatedDefault ?? accounts[0] });
+        setHasEdits(false);
+        setAddedAccounts([]);
+        toast.success('Account changes saved.');
+      }
+    } catch {
       alert('Unable to save accounts. Please try again.');
-    } else {
-      homeDispatch({ field: 'defaultAccount', value: updatedDefault ?? accounts[0] });
-      setHasEdits(false);
-      setAddedAccounts([]);
-      toast('Account changes saved.');
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -337,6 +382,16 @@ export const NewAccountSection: FC = () => {
   // ─────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <ConfirmDialog
+        isOpen={validationMessage !== null}
+        title="Account details required"
+        message={validationMessage ?? ''}
+        confirmLabel="OK"
+        cancelLabel="Close"
+        variant="neutral"
+        onConfirm={() => setValidationMessage(null)}
+        onCancel={() => setValidationMessage(null)}
+      />
 
       {/* ─── Important notice callout ─── */}
       <div style={{
@@ -452,6 +507,8 @@ export const NewAccountSection: FC = () => {
               ref={accountNameRef}
               type="text"
               placeholder="Enter account name"
+              value={accountNameDraft}
+              onChange={(e) => setAccountNameDraft(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddAccount()}
               style={fieldInput}
             />
@@ -462,6 +519,8 @@ export const NewAccountSection: FC = () => {
               ref={accountIdRef}
               type="text"
               placeholder="Enter COA string"
+              value={accountIdDraft}
+              onChange={(e) => setAccountIdDraft(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleAddAccount()}
               style={fieldInput}
             />
@@ -505,9 +564,15 @@ export const NewAccountSection: FC = () => {
       {/* ─── Default account selector ─── */}
       {!isLoading && accounts.length > 0 && (
         <div style={card}>
-          <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
-            Default Account
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
+              Default Account
+            </h3>
+            <InfoTooltip
+              ariaLabel="About the default account"
+              text="All usage of Amplify through the user interface is covered by the university. Selecting a default account simply associates that usage with a specific account."
+            />
+          </div>
           <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
             Select which account to use by default for new conversations
           </p>
@@ -755,21 +820,26 @@ export const NewAccountSection: FC = () => {
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
         <button
           onClick={handleSave}
-          disabled={!unsaved}
+          disabled={(!hasPersistableChanges && !addFormHasIncompleteDraft) || isSaving}
           style={{
             height: '36px',
             padding: '0 20px',
             borderRadius: '8px',
             border: 'none',
-            background: unsaved ? 'var(--accent)' : 'var(--bg-active)',
-            color: unsaved ? '#fff' : 'var(--text-muted)',
+            background: (hasPersistableChanges || addFormHasIncompleteDraft) && !isSaving ? 'var(--accent)' : 'var(--bg-active)',
+            color: (hasPersistableChanges || addFormHasIncompleteDraft) && !isSaving ? '#fff' : 'var(--text-muted)',
             fontSize: '14px',
             fontWeight: 500,
-            cursor: unsaved ? 'pointer' : 'not-allowed',
+            cursor: (hasPersistableChanges || addFormHasIncompleteDraft) && !isSaving ? 'pointer' : 'not-allowed',
             transition: 'background 0.15s, color 0.15s',
           }}
         >
-          Save Changes
+          {isSaving ? (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+              <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" />
+              Saving…
+            </span>
+          ) : 'Save Changes'}
         </button>
       </div>
     </div>

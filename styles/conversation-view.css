@@ -18,6 +18,14 @@
  */
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   New UI API Access — keep only the API documentation action
+───────────────────────────────────────────────────────────────────────────── */
+[data-new-ui-api-access="true"] .apitools-tab-manager,
+[data-new-ui-api-access="true"] .apitools-tab-assistant {
+  display: none !important;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    Shell background
 ───────────────────────────────────────────────────────────────────────────── */
 [data-new-ui="true"],
