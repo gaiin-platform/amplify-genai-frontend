@@ -1,8 +1,8 @@
 /**
  * CustomInstructionsSection — Settings → Customize → Custom Instructions
  *
- * Lets users create, edit, delete, and select a "active" custom instruction
- * that will be appended to the system prompt of every new blank conversation.
+ * Lets users create, edit, delete, and select an active custom instruction
+ * that is appended to the system prompt for new standard, template, and assistant conversations.
  *
  * Pattern follows PromptTemplatesSection: list rows with hover Edit/Delete
  * actions, early-return for the edit form, ConfirmDialog for deletes.
@@ -541,7 +541,7 @@ export const CustomInstructionsSection: React.FC = () => {
               <InfoTooltip
                 ariaLabel="About custom instructions"
                 maxWidth={320}
-                text="The active instruction is added to the system prompt for new standard conversations, helping tailor responses to your preferences. Template and assistant conversations use their own prompts; the active instruction is not automatically added to them. Select None to turn off the active instruction."
+                text="The active instruction is added to the system prompt for new standard, template, and assistant conversations, helping tailor responses to your preferences. Select None to turn it off."
               />
             </div>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>

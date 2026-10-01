@@ -36,6 +36,7 @@ import { AttachedDocument } from '@/types/attacheddocument';
 import { getFileDownloadUrl } from '@/services/fileService';
 import { fetchImageFromPresignedUrl } from '@/utils/app/files';
 import { Logo } from '@/components/Logo/Logo';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -558,7 +559,7 @@ const AssistantPage = ({
       // Send with disableTools to prevent re-triggering agent and allow backend to add assistant data sources
       const chatBody = {
         model: activeModel,
-        prompt: "You are an AI assistant responding to a user's question. You have been provided with: (1) an assistant's work log, and (2) reference documents via RAG retrieval. CRITICAL RULES: Only use information from these sources. If reference documents are provided in the conversation, you HAVE access to their content - use it. Never claim you lack access to provided information. Never make up information. If the provided sources don't contain the answer, explicitly state that. Always ground your response in the actual content provided to you.",
+        prompt: buildPromptWithInstruction("You are an AI assistant responding to a user's question. You have been provided with: (1) an assistant's work log, and (2) reference documents via RAG retrieval. CRITICAL RULES: Only use information from these sources. If reference documents are provided in the conversation, you HAVE access to their content - use it. Never claim you lack access to provided information. Never make up information. If the provided sources don't contain the answer, explicitly state that. Always ground your response in the actual content provided to you."),
         messages: agentMessagesArray,
         temperature: 0.5,
         maxTokens: 4000,

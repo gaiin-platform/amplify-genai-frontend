@@ -31,6 +31,8 @@ import { Assistant, AssistantDefinition, AssistantProviderID, DEFAULT_ASSISTANT 
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { isAssistant, getAssistants, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { deleteAssistant, deleteLayeredAssistant, saveLayeredAssistant } from '@/services/assistantService';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
+import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
@@ -377,7 +379,15 @@ const MyAssistantsTab: React.FC = () => {
             homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
         }
         statsService.startConversationEvent(p);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, p, availableModels);
+        handleStartConversationWithPrompt(
+            (params: Record<string, any>) => handleNewConversation({
+                ...params,
+                prompt: buildPromptWithInstruction(params.prompt ?? DEFAULT_SYSTEM_PROMPT),
+            }),
+            promptsRef.current,
+            p,
+            availableModels,
+        );
         homeDispatch({ field: 'page', value: 'chat' });
     };
 
@@ -691,7 +701,15 @@ const SharedWithMeTab: React.FC = () => {
             homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
         }
         statsService.startConversationEvent(p);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, p, availableModels);
+        handleStartConversationWithPrompt(
+            (params: Record<string, any>) => handleNewConversation({
+                ...params,
+                prompt: buildPromptWithInstruction(params.prompt ?? DEFAULT_SYSTEM_PROMPT),
+            }),
+            promptsRef.current,
+            p,
+            availableModels,
+        );
         homeDispatch({ field: 'page', value: 'chat' });
     };
 
@@ -954,7 +972,15 @@ const GroupAssistantsTab: React.FC = () => {
             homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
         }
         statsService.startConversationEvent(p);
-        handleStartConversationWithPrompt(handleNewConversation, promptsRef.current, p, availableModels);
+        handleStartConversationWithPrompt(
+            (params: Record<string, any>) => handleNewConversation({
+                ...params,
+                prompt: buildPromptWithInstruction(params.prompt ?? DEFAULT_SYSTEM_PROMPT),
+            }),
+            promptsRef.current,
+            p,
+            availableModels,
+        );
         homeDispatch({ field: 'page', value: 'chat' });
     };
 
@@ -975,7 +1001,10 @@ const GroupAssistantsTab: React.FC = () => {
                 data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
             },
         };
-        handleNewConversation({ assistant: syntheticAssistant });
+        handleNewConversation({
+            prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
+            assistant: syntheticAssistant,
+        });
         homeDispatch({ field: 'page', value: 'chat' });
     };
 
@@ -1251,7 +1280,10 @@ const LayeredAssistantsTab: React.FC = () => {
                 data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
             },
         };
-        handleNewConversation({ assistant: syntheticAssistant });
+        handleNewConversation({
+            prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
+            assistant: syntheticAssistant,
+        });
         homeDispatch({ field: 'page', value: 'chat' });
     };
 

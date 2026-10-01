@@ -112,6 +112,7 @@ import { MetaHandler, sendChatRequestWithDocuments } from "./chatService";
 import { emptyAstPathData } from "@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor";
 import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
 import { deepMerge } from "@/utils/app/state";
+import { buildPromptWithInstruction } from "@/components/NewUI/shared/customInstructions";
 
 export const sendDirectAssistantMessage = async (
   chatEndpoint: string,
@@ -184,6 +185,9 @@ export const sendDirectAssistantMessage = async (
       skipMemory: true, // Skip memory processing
       ...options,
     };
+    // Compose after options so a caller-provided prompt cannot replace the
+    // active instruction. Preserve any existing base prompt when supplied.
+    chatBody.prompt = buildPromptWithInstruction(chatBody.prompt || DEFAULT_SYSTEM_PROMPT);
 
     // 🔍 DEBUG: Estimate JSON body size
     try {

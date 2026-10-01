@@ -184,12 +184,18 @@ export const getActiveInstructionContent = (): string | null => {
 
 /**
  * Returns `basePrompt` with the active custom instruction appended, or
- * `basePrompt` unchanged when no instruction is active.
+ * `basePrompt` unchanged when no instruction is active. Safe to call repeatedly
+ * for the same active instruction: an exact existing suffix is not duplicated.
  */
 export const buildPromptWithInstruction = (basePrompt: string): string => {
   const content = getActiveInstructionContent();
   if (!content) return basePrompt;
-  return `${basePrompt}\n\n---\n\n## Custom Instructions:\n${content}`;
+
+  const suffix = `## Custom Instructions:\n${content}`;
+  if (basePrompt.endsWith(suffix)) return basePrompt;
+
+  const separator = basePrompt ? '\n\n---\n\n' : '';
+  return `${basePrompt}${separator}${suffix}`;
 };
 
 /** Create a new instruction (not yet active). Returns the new store. */

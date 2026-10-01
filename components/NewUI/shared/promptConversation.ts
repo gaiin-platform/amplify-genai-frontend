@@ -18,6 +18,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { MessageType } from '@/types/chat';
 import { Prompt } from '@/types/prompt';
 import { parsePromptVariables, fillInTemplate } from '@/utils/app/prompts';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
+import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 
 /**
  * The one home-state field this module writes.  Typed structurally so the module
@@ -157,7 +159,7 @@ export const startConversationWithTemplate = (
         processors: [],
         tools: [],
         tags,
-        ...(rootPromptContent != null && { prompt: rootPromptContent }),
+        prompt: buildPromptWithInstruction(rootPromptContent ?? DEFAULT_SYSTEM_PROMPT),
         ...(resolvedModel != null && { model: resolvedModel }),
         // `data.reasoningLevel` is the only channel for reasoning effort:
         // useChatSendService reads `selectedConversation.data?.reasoningLevel`

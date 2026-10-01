@@ -14,10 +14,12 @@
  * land in the same React batch (Chat reads the flag during render).
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { MessageType } from '@/types/chat';
 import { Prompt } from '@/types/prompt';
 import { startConversationWithTemplate } from '@/components/NewUI/shared/promptConversation';
+import { saveStore } from '@/components/NewUI/shared/customInstructions';
+import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 
 const HAIKU = { id: 'haiku', name: 'Claude Haiku' };
 const OPUS = { id: 'opus', name: 'Claude Opus' };
@@ -35,7 +37,77 @@ const template = (overrides: Partial<Prompt> = {}): Prompt =>
     ...overrides,
   } as Prompt);
 
+const ACTIVE_INSTRUCTION = 'Prefer concise answers.';
+
+const activateInstruction = (content = ACTIVE_INSTRUCTION) => {
+  saveStore({
+    activeId: 'instruction-1',
+    instructions: [{
+      id: 'instruction-1',
+      name: 'Preferences',
+      content,
+      createdAt: 1,
+      updatedAt: 1,
+    }],
+  });
+};
+
+afterEach(() => {
+  saveStore({ instructions: [], activeId: null });
+});
+
 describe('startConversationWithTemplate', () => {
+  it('adds the active instruction to the default system prompt when no root prompt exists', () => {
+    activateInstruction();
+    const handleNewConversation = vi.fn();
+
+    startConversationWithTemplate(handleNewConversation, vi.fn(), [], template());
+
+    const params = handleNewConversation.mock.calls[0][0];
+    expect(params.prompt).toBe(`${DEFAULT_SYSTEM_PROMPT}\n\n---\n\n## Custom Instructions:\n${ACTIVE_INSTRUCTION}`);
+    expect(params.promptTemplate).toEqual(template());
+    expect(params.messages).toEqual([]);
+  });
+
+  it('adds the active instruction after the resolved and filled root prompt', () => {
+    activateInstruction();
+    const handleNewConversation = vi.fn();
+    const rootPrompt = {
+      id: 'root-1',
+      name: 'Root',
+      description: '',
+      folderId: null,
+      type: MessageType.ROOT,
+      content: 'Use {{style}} wording.',
+      data: {},
+    } as Prompt;
+    const promptTemplate = template({ data: { rootPromptId: rootPrompt.id } });
+
+    startConversationWithTemplate(handleNewConversation, vi.fn(), [rootPrompt], promptTemplate);
+
+    const params = handleNewConversation.mock.calls[0][0];
+    expect(params.prompt).toBe(`Use  wording.\n\n---\n\n## Custom Instructions:\n${ACTIVE_INSTRUCTION}`);
+    expect(params.promptTemplate).toEqual(promptTemplate);
+  });
+
+  it('preserves the resolved root prompt unchanged when no custom instruction is active', () => {
+    const handleNewConversation = vi.fn();
+    const rootPrompt = {
+      id: 'root-1',
+      name: 'Root',
+      description: '',
+      folderId: null,
+      type: MessageType.ROOT,
+      content: 'Use {{style}} wording.',
+      data: {},
+    } as Prompt;
+    const promptTemplate = template({ data: { rootPromptId: rootPrompt.id } });
+
+    startConversationWithTemplate(handleNewConversation, vi.fn(), [rootPrompt], promptTemplate);
+
+    expect(handleNewConversation.mock.calls[0][0].prompt).toBe('Use  wording.');
+  });
+
   it('passes the user-selected model through to handleNewConversation', () => {
     const handleNewConversation = vi.fn();
     startConversationWithTemplate(
