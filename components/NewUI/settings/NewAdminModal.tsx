@@ -79,7 +79,9 @@ import { normalizeAdminConversationStorage } from '@/components/NewUI/settings/a
 
 // ── helpers re-exported from AdminUI ─────────────────────────────────────────
 
-export const loadingState = <NewUILoadingStatus open message="Loading admin configuration…" />;
+export const loadingState = (
+  <NewUILoadingStatus open variant="inline" message="Loading admin configuration…" />
+);
 
 // ── Nav definition ────────────────────────────────────────────────────────────
 
@@ -175,12 +177,12 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const {
     state: { statsService, storageSelection, amplifyUsers, featureFlags },
     dispatch: homeDispatch,
-    setLoadingMessage,
   } = useContext(HomeContext);
 
   // ── Loading / data state ──────────────────────────────────────────────────
-  const [loadData, setLoadData]               = useState(true);
+  const [loadData, setLoadData] = useState(true);
   const [stillLoadingData, setStillLoadingData] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab]             = useState<AdminTab>(openToTab ?? 'Configurations');
   const [searchQuery, setSearchQuery]         = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
@@ -319,7 +321,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   useEffect(() => {
     const getConfigs = async () => {
       setLoadData(false);
-      setLoadingMessage('Loading Admin Interface…');
       setStillLoadingData(true);
       const nonlazyReq = getAdminConfigs();
       const lazyResult = await getAdminConfigs(true);
@@ -375,8 +376,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         if (d[AdminConfigTypes.SYSTEM_PROMPTS]) setSystemPrompts(d[AdminConfigTypes.SYSTEM_PROMPTS]);
         if (d[AdminConfigTypes.DEPLOYMENT_FEATURES]) setDeploymentFeatures(d[AdminConfigTypes.DEPLOYMENT_FEATURES]);
         setAccountNoticeMessage(d[ACCOUNT_NOTICE_CONFIG_KEY] || '');
-        setLoadingMessage('');
-
         const nonlazyResult = await nonlazyReq;
         if (nonlazyResult.success) {
           const nd = nonlazyResult.data;
@@ -402,11 +401,15 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         }
       }
       alert('Unable to fetch admin configurations at this time. Please try again.');
-      setLoadingMessage('');
       onClose();
     };
 
-    if (loadData) getConfigs();
+    if (loadData) {
+      getConfigs().catch(() => {
+        alert('Unable to fetch admin configurations at this time. Please try again.');
+        onClose();
+      });
+    }
     if (!allEmails) setAllEmails(Object.values(amplifyUsers));
   }, [loadData]);
 
@@ -650,6 +653,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   };
 
   const handleSave = async () => {
+    if (isSaving) return;
     if (unsavedConfigs.size === 0 && !accountNoticeUnsaved) { toast('No changes to save'); return; }
     if (unsavedConfigs.has(AdminConfigTypes.SYSTEM_PROMPTS)) {
       const oversized = findOversizedSystemPrompts(systemPrompts.prompts);
@@ -667,25 +671,31 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       payload.push({ type: ACCOUNT_NOTICE_CONFIG_KEY, data: accountNoticeMessage });
     }
     if (!validateSavedData()) return;
-    setLoadingMessage('Saving configurations…');
-    const result = await updateAdminConfigs(payload);
-    if (result.success) {
-      if (result.data?.[AdminConfigTypes.ADMINS]?.error) {
-        toast(`Admin config warning: ${result.data[AdminConfigTypes.ADMINS].error}`, { icon: '⚠️', duration: 5000 });
-      }
-      updateOnSave();
-      toast('Configurations saved');
-      setUnsavedConfigs(new Set());
-      setAccountNoticeUnsaved(false);
-    } else {
-      if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
-        const failed = Array.from(unsavedConfigs).filter((k) => !(k in result.data) || !result.data[k].success);
-        if (failed.length > 0) alert(`Failed to save: ${failed.join(', ')}`);
+
+    setIsSaving(true);
+    try {
+      const result = await updateAdminConfigs(payload);
+      if (result.success) {
+        if (result.data?.[AdminConfigTypes.ADMINS]?.error) {
+          toast(`Admin config warning: ${result.data[AdminConfigTypes.ADMINS].error}`, { icon: '⚠️', duration: 5000 });
+        }
+        updateOnSave();
+        toast('Configurations saved');
+        setUnsavedConfigs(new Set());
+        setAccountNoticeUnsaved(false);
       } else {
-        alert('Unable to save configurations at this time. Please try again.');
+        if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
+          const failed = Array.from(unsavedConfigs).filter((k) => !(k in result.data) || !result.data[k].success);
+          if (failed.length > 0) alert(`Failed to save: ${failed.join(', ')}`);
+        } else {
+          alert('Unable to save configurations at this time. Please try again.');
+        }
       }
+    } catch {
+      alert('Unable to save configurations at this time. Please try again.');
+    } finally {
+      setIsSaving(false);
     }
-    setLoadingMessage('');
   };
 
   // ── Tab label helper ──────────────────────────────────────────────────────
@@ -702,8 +712,14 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
 
   // ── Tab content ───────────────────────────────────────────────────────────
   const renderContent = () => {
-    if (stillLoadingData && activeTab !== 'Feature Flags' && activeTab !== 'Configurations') {
-      return loadingState;
+    if (stillLoadingData || isSaving) {
+      return (
+        <NewUILoadingStatus
+          open
+          variant="inline"
+          message={isSaving ? 'Saving admin configuration…' : 'Loading admin configuration…'}
+        />
+      );
     }
     switch (activeTab) {
       case 'Configurations':
@@ -1145,8 +1161,9 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
             {/* Reload */}
             <button
               onClick={() => {
-                if (unsavedConfigs.size === 0 ||
-                  confirm('Reload will discard unsaved changes. Continue?')) {
+                if (!stillLoadingData && !isSaving && (unsavedConfigs.size === 0 ||
+                  confirm('Reload will discard unsaved changes. Continue?'))) {
+                  setStillLoadingData(true);
                   setLoadData(true);
                   setUnsavedConfigs(new Set());
                 }
@@ -1179,23 +1196,23 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
             {/* Save */}
             <button
               onClick={handleSave}
-              disabled={totalChanges === 0 || stillLoadingData}
+              disabled={totalChanges === 0 || stillLoadingData || isSaving}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
                 width: '100%', height: '34px',
-                background: totalChanges > 0 && !stillLoadingData
+                background: totalChanges > 0 && !stillLoadingData && !isSaving
                   ? 'var(--accent)' : 'var(--bg-raised)',
                 border: 'none',
                 borderRadius: '8px',
                 fontSize: '13px',
                 fontWeight: 500,
-                color: totalChanges > 0 && !stillLoadingData ? '#fff' : 'var(--text-muted)',
-                cursor: totalChanges > 0 && !stillLoadingData ? 'pointer' : 'default',
+                color: totalChanges > 0 && !stillLoadingData && !isSaving ? '#fff' : 'var(--text-muted)',
+                cursor: totalChanges > 0 && !stillLoadingData && !isSaving ? 'pointer' : 'default',
                 transition: 'background 0.15s, color 0.15s, opacity 0.15s',
                 opacity: totalChanges === 0 ? 0.5 : 1,
               }}
               onMouseEnter={(e) => {
-                if (totalChanges > 0 && !stillLoadingData)
+                if (totalChanges > 0 && !stillLoadingData && !isSaving)
                   (e.currentTarget as HTMLElement).style.opacity = '0.88';
               }}
               onMouseLeave={(e) => {
@@ -1204,7 +1221,13 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
               title={stillLoadingData ? 'Still loading data…' : undefined}
             >
               <IconDeviceFloppy size={14} />
-              {stillLoadingData ? 'Still loading…' : totalChanges > 0 ? `Save ${totalChanges} change${totalChanges > 1 ? 's' : ''}` : 'Save changes'}
+              {isSaving
+                ? 'Saving…'
+                : stillLoadingData
+                  ? 'Still loading…'
+                  : totalChanges > 0
+                    ? `Save ${totalChanges} change${totalChanges > 1 ? 's' : ''}`
+                    : 'Save changes'}
             </button>
           </div>
         </div>
