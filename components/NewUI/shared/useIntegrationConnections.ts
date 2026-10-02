@@ -189,6 +189,34 @@ export const useIntegrationConnections = (
         }
     }, [loadSupported, loadConnected]);
 
+    // Closing the provider popup can happen just before the OAuth callback finishes
+    // persisting the user's integration. Keep checking the server briefly instead
+    // of accepting one stale `/user/list` response as the final connection state.
+    const waitForConnection = useCallback(async (id: string): Promise<boolean> => {
+        const maxAttempts = 15;
+        for (let attempt = 0; attempt < maxAttempts && alive.current; attempt += 1) {
+            try {
+                const response = await getConnectedIntegrations();
+                if (!alive.current) return false;
+                if (response?.success) {
+                    const latest = filterRef.current(response.data || []);
+                    setConnected(latest);
+                    if (latest.includes(id)) {
+                        await loadSupported();
+                        return true;
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking integration connection:', error);
+            }
+
+            if (attempt < maxAttempts - 1 && alive.current) {
+                await new Promise((resolve) => window.setTimeout(resolve, 1000));
+            }
+        }
+        return false;
+    }, [loadSupported]);
+
     useEffect(() => {
         refresh();
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -241,7 +269,7 @@ export const useIntegrationConnections = (
         const authWindow = window.open(
             location,
             'Auth Window',
-            `noopener,noreferrer,width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`,
+            `width=${width},height=${height},left=${left},top=${top},resizable=yes,scrollbars=yes,status=yes`,
         );
 
         if (!authWindow) {
@@ -250,15 +278,27 @@ export const useIntegrationConnections = (
             return;
         }
 
-        // There is no callback into this window, so closing the popup is the only
-        // signal that the flow finished one way or the other.
-        const poll = setInterval(() => {
+        // Keep the WindowProxy so we can detect popup closure, then sever the
+        // popup's access back to this page to prevent reverse-tabnabbing.
+        authWindow.opener = null;
+
+        // Closing the popup can precede the OAuth callback's server-side save.
+        // Poll connected integrations until this specific service is confirmed.
+        const poll = window.setInterval(() => {
             if (!authWindow.closed) return;
-            clearInterval(poll);
-            refresh().finally(() => { if (alive.current) markBusy(id, false); });
+            window.clearInterval(poll);
+            void waitForConnection(id).then((isConnected) => {
+                if (!alive.current) return;
+                markBusy(id, false);
+                if (isConnected) {
+                    toast.success('Connected', { duration: 4000, position: 'top-center' });
+                } else {
+                    toast.error('Connection was not confirmed. Please try again.');
+                }
+            });
         }, 500);
         authWindow.focus();
-    }, [supported, refresh]);
+    }, [supported, refresh, waitForConnection]);
 
     const disconnect = useCallback(async (id: string) => {
         markBusy(id, true);

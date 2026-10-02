@@ -80,6 +80,8 @@ export interface ToolsCapabilityPanelProps {
     disabled?: boolean;
     /** Hide the agent-tools list (the old `hideApisPanel: ['tools']`). */
     showAgentTools?: boolean;
+    /** Refresh the live tool catalogue after a new integration connection. */
+    onConnectionsChanged?: () => void | Promise<void>;
 }
 
 const sectionLabel: React.CSSProperties = {
@@ -123,8 +125,27 @@ export const ToolsCapabilityPanel: React.FC<ToolsCapabilityPanelProps> = ({
     allowConfiguration = false,
     disabled = false,
     showAgentTools = true,
+    onConnectionsChanged,
 }) => {
     const { connected, loading: connectionsLoading, busy, connect } = useIntegrationConnections();
+    const previousConnected = useRef<string[]>([]);
+    const hasObservedConnections = useRef(false);
+
+    useEffect(() => {
+        if (connectionsLoading) return;
+
+        if (!hasObservedConnections.current) {
+            previousConnected.current = connected;
+            hasObservedConnections.current = true;
+            return;
+        }
+
+        const previouslyConnected = new Set(previousConnected.current);
+        const newlyConnected = connected.some((id) => !previouslyConnected.has(id));
+        previousConnected.current = connected;
+
+        if (newlyConnected) void onConnectionsChanged?.();
+    }, [connected, connectionsLoading, onConnectionsChanged]);
 
     const [compositeIds, setCompositeIds] = useState<string[]>([]);
     const [expanded, setExpanded] = useState<Record<string, boolean>>(() =>

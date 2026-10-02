@@ -493,6 +493,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const [availableApis, setAvailableApis] = useState<any[] | null>(null);
     const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
     const [builtInAgentTools, setBuiltInAgentTools] = useState<string[]>([]);
+    const apiRequestSeq = useRef(0);
 
     // ── Workflow template state ───────────────────────────────────────────
     /** ID of the selected base workflow template. Empty string → undefined on save. */
@@ -672,18 +673,28 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     }, []); // run once on mount — editingAssistant is stable (passed as prop, not expected to change)
 
     // ── Lazy load APIs and agent tools ────────────────────────────────────
-    const filterOps = async (data: any[]) => {
-        const filteredOps = await filterSupportedIntegrationOps(data);
-        if (filteredOps) setAvailableApis(filteredOps);
-        else setAvailableApis([]);
-    };
+    const refreshAvailableApis = useCallback(async () => {
+        const requestId = ++apiRequestSeq.current;
+        setAvailableApis(null);
+        try {
+            const ops = await getOpsForUser();
+            if (requestId !== apiRequestSeq.current) return;
+            if (!ops.success) {
+                setAvailableApis([]);
+                return;
+            }
+
+            const filteredOps = await filterSupportedIntegrationOps(ops.data);
+            if (requestId === apiRequestSeq.current) setAvailableApis(filteredOps ?? []);
+        } catch (error) {
+            console.error('Error loading assistant tools:', error);
+            if (requestId === apiRequestSeq.current) setAvailableApis([]);
+        }
+    }, []);
 
     useEffect(() => {
         if (featureFlags.integrations && availableApis === null) {
-            getOpsForUser().then((ops) => {
-                if (ops.success) filterOps(ops.data);
-                else setAvailableApis([]);
-            });
+            void refreshAvailableApis();
         }
         if (featureFlags.agentTools && availableAgentTools === null) {
             getAgentTools().then((tools) => {
@@ -2210,6 +2221,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                         setBuiltInAgentTools={setBuiltInAgentTools}
                                         showAgentTools={!!featureFlags.agentTools}
                                         allowConfiguration
+                                        onConnectionsChanged={refreshAvailableApis}
                                     />
                                 </CapabilityCard>
                             )}
