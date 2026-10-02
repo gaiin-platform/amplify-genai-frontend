@@ -36,6 +36,7 @@ import {
 } from '@/types/integrations';
 import { capitalize } from '@/utils/app/data';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { integrationIcon } from '@/components/NewUI/shared/integrationIcon';
 import { ToolApiKeysTab } from '@/components/Settings/ToolApiKeysTab';
 import { NewUILoadingStatus, NewUILegacyLoadingAdapter } from '@/components/NewUI/shared/NewUILoadingStatus';
@@ -73,6 +74,7 @@ export const NewConnectorsSection: FC = () => {
   const [providerSettings, setProviderSettings] = useState<Record<string, Record<string, unknown>>>({});
   const [connectedIntegrations, setConnectedIntegrations] = useState<string[]>([]);
   const [loadingIntegrations, setLoadingIntegrations] = useState(true);
+  const [disconnectTarget, setDisconnectTarget] = useState<FlatIntegration | null>(null);
 
   // ── Per-integration loading
   const [connectingStates, setConnectingStates] = useState<{ [key: string]: boolean }>({});
@@ -144,7 +146,6 @@ export const NewConnectorsSection: FC = () => {
 
   // ── Disconnect
   const handleDisconnect = async (id: string) => {
-    if (!confirm(`Disconnect this integration?`)) return;
     try {
       setLoadingStates((prev) => ({ ...prev, [id]: true }));
       const result = await deleteUserIntegration(id);
@@ -152,7 +153,7 @@ export const NewConnectorsSection: FC = () => {
         setConnectedIntegrations((prev) => prev.filter((i) => i !== id));
       }
     } catch {
-      alert('An error occurred. Please try again.');
+      toast.error('An error occurred. Please try again.');
     } finally {
       setLoadingStates((prev) => ({ ...prev, [id]: false }));
     }
@@ -246,6 +247,19 @@ export const NewConnectorsSection: FC = () => {
   // ─────────────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <ConfirmDialog
+        isOpen={disconnectTarget !== null}
+        title="Disconnect integration?"
+        message={disconnectTarget ? `Are you sure you want to disconnect ${disconnectTarget.displayName}?` : ''}
+        confirmLabel="Disconnect"
+        variant="danger"
+        onCancel={() => setDisconnectTarget(null)}
+        onConfirm={() => {
+          const target = disconnectTarget;
+          setDisconnectTarget(null);
+          if (target) void handleDisconnect(target.id);
+        }}
+      />
 
       {/* ─── Section tab bar ─── */}
       {tabItems.length > 1 && (
@@ -367,7 +381,7 @@ export const NewConnectorsSection: FC = () => {
                   <button
                     onClick={() => {
                       if (isConnected) {
-                        handleDisconnect(intg.id);
+                        setDisconnectTarget(intg);
                       } else {
                         handleConnect(intg.id);
                       }
