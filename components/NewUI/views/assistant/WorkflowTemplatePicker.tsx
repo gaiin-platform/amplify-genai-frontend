@@ -15,7 +15,8 @@
  */
 
 import React, { useContext, useEffect, useRef, useState } from 'react';
-import { IconLoader2, IconPlus } from '@tabler/icons-react';
+import { IconPlus } from '@tabler/icons-react';
+import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
 import { useSession } from 'next-auth/react';
 import HomeContext from '@/pages/api/home/home.context';
 import { AstWorkflow } from '@/types/assistantWorkflows';
@@ -52,6 +53,36 @@ const hintStyle: React.CSSProperties = {
     margin: '6px 0 0',
 };
 
+const uniqueBaseTemplates = (
+    templates: AstWorkflow[],
+    selectedTemplateId: string | undefined,
+    user: string,
+): AstWorkflow[] => {
+    const sortedTemplates = templates
+        .filter((template) => template.isBaseTemplate === true)
+        .sort((a, b) => {
+            const aName = snakeCaseToTitleCase(a.name);
+            const bName = snakeCaseToTitleCase(b.name);
+            const nameOrder = aName.localeCompare(bName, undefined, { sensitivity: 'base' });
+            if (nameOrder !== 0) return nameOrder;
+
+            // Keep the selected ID if duplicate public/owned templates share a label;
+            // otherwise prefer the user's own template, then a stable ID order.
+            const aPriority = (a.templateId === selectedTemplateId ? 2 : 0) + (a.user === user ? 1 : 0);
+            const bPriority = (b.templateId === selectedTemplateId ? 2 : 0) + (b.user === user ? 1 : 0);
+            return bPriority - aPriority || a.templateId.localeCompare(b.templateId);
+        });
+
+    const seenNames = new Set<string>();
+    return sortedTemplates.filter((template) => {
+        const displayName = snakeCaseToTitleCase(template.name);
+        const nameKey = displayName.toLowerCase().replace(/[^a-z0-9]/g, '') || template.templateId;
+        if (seenNames.has(nameKey)) return false;
+        seenNames.add(nameKey);
+        return true;
+    });
+};
+
 export const WorkflowTemplatePicker: React.FC<WorkflowTemplatePickerProps> = ({
     selectedTemplateId,
     onTemplateChange,
@@ -63,6 +94,10 @@ export const WorkflowTemplatePicker: React.FC<WorkflowTemplatePickerProps> = ({
 
     const [templates, setTemplates] = useState<AstWorkflow[] | null>(null);
     const [builderOpen, setBuilderOpen] = useState(false);
+    const selectedTemplateIdRef = useRef(selectedTemplateId);
+    const userRef = useRef(user);
+    selectedTemplateIdRef.current = selectedTemplateId;
+    userRef.current = user;
 
     // Re-armed in the effect body, not by the initial value: StrictMode mounts →
     // unmounts → remounts, and a `useRef(true)` + unmount-only cleanup latches
@@ -79,7 +114,8 @@ export const WorkflowTemplatePicker: React.FC<WorkflowTemplatePickerProps> = ({
             try {
                 const response = await listAstWorkflowTemplates(true, true);
                 if (cancelled || !alive.current) return;
-                setTemplates(response.success ? response.data?.templates ?? [] : []);
+                const availableTemplates = response.success ? response.data?.templates ?? [] : [];
+                setTemplates(uniqueBaseTemplates(availableTemplates, selectedTemplateIdRef.current, userRef.current));
             } catch {
                 if (!cancelled && alive.current) setTemplates([]);
             }
@@ -101,7 +137,7 @@ export const WorkflowTemplatePicker: React.FC<WorkflowTemplatePickerProps> = ({
                 onClose={() => setBuilderOpen(false)}
                 onRegister={(template) => {
                     if (!template.isBaseTemplate) return;
-                    setTemplates((prev) => [...(prev ?? []), template]);
+                    setTemplates((prev) => uniqueBaseTemplates([...(prev ?? []), template], template.templateId, userRef.current));
                     onTemplateChange(template.templateId);
                 }}
             />
@@ -131,55 +167,42 @@ export const WorkflowTemplatePicker: React.FC<WorkflowTemplatePickerProps> = ({
             </label>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
-                    <select
-                        id="ast-workflow-template"
-                        value={selectedTemplateId ?? ''}
-                        disabled={loading || isEmpty || disabled}
-                        onChange={(event) => onTemplateChange(event.target.value)}
-                        style={{
-                            ...selectStyle,
-                            opacity: loading || isEmpty || disabled ? 0.5 : 1,
-                            cursor: loading || isEmpty || disabled ? 'not-allowed' : 'pointer',
-                            paddingRight: loading ? 34 : 12,
-                        }}
-                        onFocus={(event) => { event.target.style.borderColor = 'var(--accent)'; }}
-                        onBlur={(event) => { event.target.style.borderColor = 'var(--border-subtle)'; }}
-                    >
-                        <option value="">
-                            {loading
-                                ? 'Loading templates…'
-                                : isEmpty
-                                    ? 'No templates available'
-                                    : 'No template'}
-                        </option>
-                        {templates?.map((template) => (
-                            <option
-                                key={template.templateId}
-                                value={template.templateId}
-                                title={describe(template)}
-                            >
-                                {snakeCaseToTitleCase(template.name)}
-                            </option>
-                        ))}
-                    </select>
-
-                    {loading && (
-                        <IconLoader2
-                            size={14}
-                            className="motion-safe:animate-spin motion-reduce:animate-none"
-                            aria-hidden="true"
-                            style={{
-                                position: 'absolute',
-                                right: 12,
-                                top: '50%',
-                                transform: 'translateY(-50%)',
-                                color: 'var(--text-muted)',
-                                pointerEvents: 'none',
-                            }}
+                {loading ? (
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <NewUILoadingStatus
+                            open
+                            message="Loading base workflow templates…"
+                            variant="inline"
                         />
-                    )}
-                </div>
+                    </div>
+                ) : (
+                    <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                        <select
+                            id="ast-workflow-template"
+                            value={selectedTemplateId ?? ''}
+                            disabled={isEmpty || disabled}
+                            onChange={(event) => onTemplateChange(event.target.value)}
+                            style={{
+                                ...selectStyle,
+                                opacity: isEmpty || disabled ? 0.5 : 1,
+                                cursor: isEmpty || disabled ? 'not-allowed' : 'pointer',
+                            }}
+                            onFocus={(event) => { event.target.style.borderColor = 'var(--accent)'; }}
+                            onBlur={(event) => { event.target.style.borderColor = 'var(--border-subtle)'; }}
+                        >
+                            <option value="">{isEmpty ? 'No templates available' : 'No template'}</option>
+                            {templates?.map((template) => (
+                                <option
+                                    key={template.templateId}
+                                    value={template.templateId}
+                                    title={describe(template)}
+                                >
+                                    {snakeCaseToTitleCase(template.name)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
 
                 {allowCreation && !disabled && (
                     <button
