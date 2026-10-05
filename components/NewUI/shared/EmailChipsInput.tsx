@@ -286,13 +286,21 @@ export const EmailChipsInput: React.FC<EmailChipsInputProps> = ({
                                 fontSize: 12,
                                 color: 'var(--text-primary)',
                                 maxWidth: 220,
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
+                                minWidth: 0,
                                 whiteSpace: 'nowrap',
                             }}
                             title={email}
                         >
-                            {email}
+                            <span
+                                style={{
+                                    minWidth: 0,
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    whiteSpace: 'nowrap',
+                                }}
+                            >
+                                {email}
+                            </span>
                             <button
                                 type="button"
                                 onClick={() => removeMember(email)}
