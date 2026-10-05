@@ -56,7 +56,7 @@ const hintStyle: React.CSSProperties = {
 const uniqueBaseTemplates = (
     templates: AstWorkflow[],
     selectedTemplateId: string | undefined,
-    user: string,
+    user: string | null,
 ): AstWorkflow[] => {
     const sortedTemplates = templates
         .filter((template) => template.isBaseTemplate === true)
