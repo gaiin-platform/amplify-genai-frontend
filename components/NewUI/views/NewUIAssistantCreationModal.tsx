@@ -31,6 +31,7 @@ import React, {
     useContext,
     useEffect,
 } from 'react';
+import { v4 as uuidv4 } from 'uuid';
 import {
     IconLock,
     IconShare,
@@ -81,6 +82,7 @@ import { opLanguageOptionsMap } from '@/types/op';
 import { Flag } from '@/components/ReusableComponents/FlagsMap';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
+import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { AssistantEmailEventsPanel } from '@/components/NewUI/views/assistant/AssistantEmailEventsPanel';
 import { addEventTemplate } from '@/services/emailEventService';
 import { formatEmailEventTemplate, safeEmailEventTag } from '@/utils/app/assistantEmailEvents';
@@ -441,6 +443,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const [subOption, setSubOption] = useState<ManagedSubOption>('public');
     const [emailList, setEmailList] = useState<string[]>([]);
     const [slug, setSlug] = useState('');
+    const generatedRestrictedPath = useRef(`a-${uuidv4().replace(/-/g, '')}`);
     const [slugError, setSlugError] = useState('');
 
     // Group (Team) sub-state
@@ -663,10 +666,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         }
         const astPath = def.astPath ?? ((def.data as any)?.astPath as string | undefined);
         if (astPath) {
-            setSlug(astPath);
-            // Existing path is already registered — mark it as available without re-checking
-            setSlugAvailable(true);
-            setSlugCheckMessage('Current path');
+            generatedRestrictedPath.current = astPath.toLowerCase();
             const astPathData = (def.data as any)?.astPathData;
             if (astPathData?.isPublic === false) {
                 setSubOption('specific');
@@ -674,6 +674,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 if (Array.isArray(accessToUsers)) setEmailList(accessToUsers);
             } else {
                 setSubOption('public');
+                setSlug(astPath);
+                // Existing public path is already registered — skip re-checking.
+                setSlugAvailable(true);
+                setSlugCheckMessage('Current path');
             }
         }
 
@@ -1032,15 +1036,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         if (accessType === 'collaborative' && !userIdentifier) return false;
         if (accessType === 'managed') {
             if (!featureFlags.assistantPathPublishing) return false;
-            // A path is mandatory for public assistants. Specific-people access
-            // can be created without publishing a URL; if one is supplied, it
-            // must still be valid and available.
-            const requiresSlug = subOption === 'public' || !!slug.trim();
-            if (requiresSlug) {
-                if (!!validateSlug(slug)) return false;
-                if (isCheckingSlug) return false;
-                // Require a supplied path to be verified as available before saving
-                if (slugAvailable !== true) return false;
+            if (subOption === 'specific') {
+                if (emailList.length === 0) return false;
+            } else if (!slug.trim() || !!validateSlug(slug) || isCheckingSlug || slugAvailable !== true) {
+                return false;
             }
         }
         if (accessType === 'collaborative') {
@@ -1227,8 +1226,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     // groupId for team assistants
                     ...(groupId ? { groupId } : {}),
                 } as any,
-                // Pre-set astPath for Managed URL
-                ...(accessType === 'managed' && slug ? { astPath: slug.toLowerCase() } : {}),
+                // The restricted path is an internal lookup key; only public access exposes a user-chosen URL.
+                ...(accessType === 'managed'
+                    ? { astPath: subOption === 'public' ? slug.toLowerCase() : generatedRestrictedPath.current }
+                    : {}),
             };
 
             // 5. Call the create service
@@ -1263,10 +1264,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 }
             }
 
-            // 6b. If Managed URL, register the path
-            if (accessType === 'managed' && slug) {
-                const formattedPath = slug.toLowerCase();
-                setLoadingMessage(`Publishing assistant to /assistants/${formattedPath}…`);
+            // 6b. Register an internal restricted path or the user-chosen public URL.
+            if (accessType === 'managed') {
+                const formattedPath = subOption === 'public' ? slug.toLowerCase() : generatedRestrictedPath.current!;
+                if (subOption === 'public') {
+                    setLoadingMessage(`Publishing assistant to /assistants/${formattedPath}…`);
+                }
                 const astPathData: AstPathData =
                     subOption === 'public'
                         ? { isPublic: true, accessTo: { amplifyGroups: [], users: [] } }
@@ -1286,13 +1289,21 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         astPathData.isPublic,
                         astPathData.accessTo
                     );
-                    if (pathResult.success) {
-                        def.astPath = formattedPath;
-                        (def.data as any).astPath = formattedPath;
-                        (def.data as any).astPathData = astPathData;
+                    if (!pathResult.success) {
+                        setSaveError('Unable to save assistant access settings. Please try again.');
+                        setIsSaving(false);
+                        setLoadingMessage('');
+                        return;
                     }
+                    def.astPath = formattedPath;
+                    (def.data as any).astPath = formattedPath;
+                    (def.data as any).astPathData = astPathData;
                 } catch (pathErr) {
                     console.error('Error saving assistant path:', pathErr);
+                    setSaveError('Unable to save assistant access settings. Please try again.');
+                    setIsSaving(false);
+                    setLoadingMessage('');
+                    return;
                 }
             }
 
@@ -1509,132 +1520,102 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                     {/* ── Managed URL config ─────────────────── */}
                                     {accessType === 'managed' && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                                            <SegmentedControl
+                                                items={[
+                                                    { id: 'specific', label: 'Specific people' },
+                                                    { id: 'public', label: 'Anyone with the link' },
+                                                ]}
+                                                value={subOption}
+                                                onChange={(value) => setSubOption(value as ManagedSubOption)}
+                                                aria-label="Managed assistant access"
+                                            />
 
-                                            {/* Radio: Specific people */}
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-                                                <input
-                                                    type="radio"
-                                                    name="access-managed-sub"
-                                                    value="specific"
-                                                    checked={subOption === 'specific'}
-                                                    onChange={() => setSubOption('specific')}
-                                                    style={{ accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 }}
-                                                />
-                                                <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                                                    Specific people — I&apos;ll list emails
-                                                </span>
-                                            </label>
-
-                                            {/* Email input — animated reveal */}
-                                            <div
-                                                style={{
-                                                    display: 'grid',
-                                                    gridTemplateRows: subOption === 'specific' ? '1fr' : '0fr',
-                                                    transition: 'grid-template-rows 150ms ease',
-                                                    paddingLeft: 26,
-                                                }}
-                                            >
-                                                <div style={{ overflow: 'visible' }}>
-                                                    <div style={{ paddingBottom: 4 }}>
-                                                        <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                                                            Who has access
-                                                        </label>
-                                                        <EmailChipsInput
-                                                            selected={emailList}
-                                                            onChange={setEmailList}
-                                                            allEmails={Object.values(amplifyUsers as Record<string, string>)}
-                                                            currentUserEmail={session?.user?.email ?? undefined}
-                                                            fontSize={12}
-                                                            inputId="assistant-access-emails"
-                                                            ariaLabel="Who has access — email addresses"
-                                                        />
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* Radio: Anyone with link */}
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', userSelect: 'none' }}>
-                                                <input
-                                                    type="radio"
-                                                    name="access-managed-sub"
-                                                    value="public"
-                                                    checked={subOption === 'public'}
-                                                    onChange={() => setSubOption('public')}
-                                                    style={{ accentColor: 'var(--accent)', cursor: 'pointer', flexShrink: 0 }}
-                                                />
-                                                <span style={{ fontSize: 13, color: 'var(--text-primary)' }}>
-                                                    Anyone with the link — accessible at a URL
-                                                </span>
-                                            </label>
-
-                                            {/* URL slug (always visible when managed is active) */}
-                                            <div style={{ paddingLeft: 26 }}>
-                                                <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                                                    URL path{subOption === 'public' ? <span style={{ color: '#e05252' }}> *</span> : null}
-                                                </label>
-                                                <div style={{ position: 'relative' }}>
-                                                    <input
-                                                        type="text"
-                                                        value={slug}
-                                                        onChange={(e) => handleSlugChange(e.target.value)}
-                                                        onBlur={handleSlugBlur}
-                                                        placeholder="my-assistant"
-                                                        maxLength={40}
-                                                        style={{
-                                                            ...fieldStyle,
-                                                            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                                                            fontSize: 13,
-                                                            paddingRight: 34,
-                                                            borderColor: slugError
-                                                                ? '#e05252'
-                                                                : slugAvailable === true
-                                                                    ? '#3aa764'
-                                                                    : 'var(--border-subtle)',
-                                                        }}
+                                            {subOption === 'specific' && (
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                                        Who has access <span style={{ color: '#e05252' }}>*</span>
+                                                    </label>
+                                                    <EmailChipsInput
+                                                        selected={emailList}
+                                                        onChange={setEmailList}
+                                                        allEmails={Object.values(amplifyUsers as Record<string, string>)}
+                                                        currentUserEmail={session?.user?.email ?? undefined}
+                                                        fontSize={12}
+                                                        inputId="assistant-access-emails"
+                                                        ariaLabel="Who has access — email addresses"
                                                     />
-                                                    {/* Inline status icon */}
-                                                    {slug && (
-                                                        <span
-                                                            style={{
-                                                                position: 'absolute',
-                                                                right: 10,
-                                                                top: '50%',
-                                                                transform: 'translateY(-50%)',
-                                                                lineHeight: 0,
-                                                                pointerEvents: 'none',
-                                                            }}
-                                                        >
-                                                            {isCheckingSlug ? (
-                                                                <IconLoader2
-                                                                    size={14}
-                                                                    className="motion-safe:animate-spin motion-reduce:animate-none"
-                                                                    style={{ color: 'var(--text-muted)' }}
-                                                                />
-                                                            ) : slugAvailable === true ? (
-                                                                <IconCheck size={14} style={{ color: '#3aa764' }} />
-                                                            ) : slugError ? (
-                                                                <IconAlertTriangle size={14} style={{ color: '#e05252' }} />
-                                                            ) : null}
-                                                        </span>
-                                                    )}
                                                 </div>
-                                                {/* Status messages below the input */}
-                                                {slugError ? (
-                                                    <p style={{ fontSize: 11, color: '#e05252', margin: '4px 0 0' }}>{slugError}</p>
-                                                ) : isCheckingSlug ? (
-                                                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                                                        Checking availability…
-                                                    </p>
-                                                ) : slugAvailable === true ? (
-                                                    <p style={{ fontSize: 11, color: '#3aa764', margin: '4px 0 0' }}>
-                                                        {slugCheckMessage} — will be at /assistants/{slug}
-                                                    </p>
-                                                ) : slug && !slugError && slugAvailable === null ? (
-                                                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                                                        Click away to verify path availability
-                                                    </p>
-                                                ) : null}
-                                            </div>
+                                            )}
+
+                                            {subOption === 'public' && (
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
+                                                        URL path<span style={{ color: '#e05252' }}> *</span>
+                                                    </label>
+                                                    <div style={{ position: 'relative' }}>
+                                                        <input
+                                                            type="text"
+                                                            value={slug}
+                                                            onChange={(e) => handleSlugChange(e.target.value)}
+                                                            onBlur={handleSlugBlur}
+                                                            placeholder="my-assistant"
+                                                            maxLength={40}
+                                                            style={{
+                                                                ...fieldStyle,
+                                                                fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                                                                fontSize: 13,
+                                                                paddingRight: 34,
+                                                                borderColor: slugError
+                                                                    ? '#e05252'
+                                                                    : slugAvailable === true
+                                                                        ? '#3aa764'
+                                                                        : 'var(--border-subtle)',
+                                                            }}
+                                                        />
+                                                        {/* Inline status icon */}
+                                                        {slug && (
+                                                            <span
+                                                                style={{
+                                                                    position: 'absolute',
+                                                                    right: 10,
+                                                                    top: '50%',
+                                                                    transform: 'translateY(-50%)',
+                                                                    lineHeight: 0,
+                                                                    pointerEvents: 'none',
+                                                                }}
+                                                            >
+                                                                {isCheckingSlug ? (
+                                                                    <IconLoader2
+                                                                        size={14}
+                                                                        className="motion-safe:animate-spin motion-reduce:animate-none"
+                                                                        style={{ color: 'var(--text-muted)' }}
+                                                                    />
+                                                                ) : slugAvailable === true ? (
+                                                                    <IconCheck size={14} style={{ color: '#3aa764' }} />
+                                                                ) : slugError ? (
+                                                                    <IconAlertTriangle size={14} style={{ color: '#e05252' }} />
+                                                                ) : null}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {/* Status messages below the input */}
+                                                    {slugError ? (
+                                                        <p style={{ fontSize: 11, color: '#e05252', margin: '4px 0 0' }}>{slugError}</p>
+                                                    ) : isCheckingSlug ? (
+                                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                                                            Checking availability…
+                                                        </p>
+                                                    ) : slugAvailable === true ? (
+                                                        <p style={{ fontSize: 11, color: '#3aa764', margin: '4px 0 0' }}>
+                                                            {slugCheckMessage} — will be at /assistants/{slug}
+                                                        </p>
+                                                    ) : slug && !slugError && slugAvailable === null ? (
+                                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
+                                                            Click away to verify path availability
+                                                        </p>
+                                                    ) : null}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
