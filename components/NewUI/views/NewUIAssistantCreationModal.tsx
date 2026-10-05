@@ -82,6 +82,7 @@ import { opLanguageOptionsMap } from '@/types/op';
 import { Flag } from '@/components/ReusableComponents/FlagsMap';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { AssistantEmailEventsPanel } from '@/components/NewUI/views/assistant/AssistantEmailEventsPanel';
 import { addEventTemplate } from '@/services/emailEventService';
@@ -117,6 +118,7 @@ const ATTACH_FILE_INPUT_ID = '__attachFile_newui_assistant';
  * and reports nothing while it does, so this must sit comfortably above that.
  */
 const UPLOAD_STALL_MS = 150_000;
+const SLUG_CHECK_DEBOUNCE_MS = 2_000;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 
@@ -445,6 +447,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const [slug, setSlug] = useState('');
     const generatedRestrictedPath = useRef(`a-${uuidv4().replace(/-/g, '')}`);
     const [slugError, setSlugError] = useState('');
+    const slugCheckRequestSeq = useRef(0);
 
     // Group (Team) sub-state
     const [teamMode, setTeamMode] = useState<TeamMode>(() => {
@@ -740,27 +743,37 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // ── Slug validation on change ─────────────────────────────────────────
     const handleSlugChange = (raw: string) => {
         const clean = raw.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40);
+        // Immediately invalidate in-flight checks so they cannot validate this new value.
+        slugCheckRequestSeq.current += 1;
         setSlug(clean);
         setSlugError(validateSlug(clean));
-        // Reset availability check whenever the value changes
+        setIsCheckingSlug(false);
         setSlugAvailable(null);
         setSlugCheckMessage('');
     };
 
-    // ── Slug availability check on blur (profanity + uniqueness) ─────────
-    const handleSlugBlur = async () => {
-        if (!slug || slugError) return; // nothing to check or format is invalid
+    // ── Slug validation (profanity + uniqueness) ───────────────────────────
+    const checkSlugAvailability = useCallback(async (slugToCheck: string, requestId: number) => {
+        const isCurrentRequest = () => requestId === slugCheckRequestSeq.current;
+        if (!slugToCheck || validateSlug(slugToCheck)) return;
 
-        // Check system-reserved terms first (instant, no network)
-        const systemErr = checkSlugSystemTerms(slug);
+        const systemErr = checkSlugSystemTerms(slugToCheck);
         if (systemErr) {
-            setSlugError(systemErr);
-            setSlugAvailable(false);
+            if (isCurrentRequest()) {
+                setSlugError(systemErr);
+                setSlugAvailable(false);
+                setSlugCheckMessage('');
+                setIsCheckingSlug(false);
+            }
             return;
         }
 
+        setIsCheckingSlug(true);
+        setSlugAvailable(null);
+        setSlugCheckMessage('');
+
         // Profanity / appropriateness check — matches AssistantPathEditor logic:
-        // Start the LLM check asynchronously, then fall back to bad-words if needed.
+        // Try the LLM check first, then fall back to the local bad-words filter.
         const checkPathIsAppropriate = async (path: string): Promise<boolean> => {
             if (chatEndpoint) {
                 try {
@@ -779,38 +792,32 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         statsService,
                         20,
                     );
-                    if (response) {
-                        // "YES" means appropriate; "NO" means inappropriate
-                        return response.includes('YES') || !response.includes('NO');
-                    }
+                    if (response) return response.includes('YES') || !response.includes('NO');
                 } catch {
-                    // Fall through to bad-words
+                    // Fall through to bad-words.
                 }
             }
-            // Fallback: local bad-words filter
             try {
                 const filter = new Filter();
                 return !filter.isProfane(path);
             } catch {
-                return true; // assume appropriate if filter fails
+                return true;
             }
         };
 
-        const isAppropriate = await checkPathIsAppropriate(slug);
-        if (!isAppropriate) {
-            setSlugError('Path contains inappropriate content. Please choose a different path.');
-            setSlugAvailable(false);
-            return;
-        }
-
-        // Availability check via the assistant lookup service
-        setIsCheckingSlug(true);
-        setSlugAvailable(null);
-        setSlugCheckMessage('');
         try {
-            const result = await lookupAssistant(slug);
+            const isAppropriate = await checkPathIsAppropriate(slugToCheck);
+            if (!isCurrentRequest()) return;
+            if (!isAppropriate) {
+                setSlugError('Path contains inappropriate content. Please choose a different path.');
+                setSlugAvailable(false);
+                return;
+            }
+
+            const result = await lookupAssistant(slugToCheck);
+            if (!isCurrentRequest()) return;
             if (result.success) {
-                // Path is already registered — check if it belongs to this assistant (edit mode)
+                // Path is already registered — allow it only for this assistant (edit mode).
                 const existingDef = editingAssistant?.data?.assistant?.definition as AssistantDefinition | undefined;
                 const existingAssistantId = existingDef?.assistantId;
                 if (existingAssistantId && result.assistantId === existingAssistantId) {
@@ -821,16 +828,35 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     setSlugAvailable(false);
                 }
             } else {
-                // Not found → path is available
                 setSlugAvailable(true);
                 setSlugCheckMessage('Available');
             }
         } catch {
-            setSlugCheckMessage('Could not verify — check your connection');
+            if (isCurrentRequest()) setSlugCheckMessage('Could not verify — check your connection');
         } finally {
-            setIsCheckingSlug(false);
+            if (isCurrentRequest()) setIsCheckingSlug(false);
         }
-    };
+    }, [chatEndpoint, defaultAccount, editingAssistant, getDefaultModel, statsService]);
+
+    // Debounce public path checks; cleanup cancels the timer and supersedes in-flight work.
+    useEffect(() => {
+        if (accessType !== 'managed' || subOption !== 'public') {
+            slugCheckRequestSeq.current += 1;
+            setIsCheckingSlug(false);
+            return;
+        }
+        if (!slug || slugError || slugAvailable === true) return;
+
+        const timer = window.setTimeout(() => {
+            const requestId = ++slugCheckRequestSeq.current;
+            void checkSlugAvailability(slug, requestId);
+        }, SLUG_CHECK_DEBOUNCE_MS);
+
+        return () => {
+            window.clearTimeout(timer);
+            slugCheckRequestSeq.current += 1;
+        };
+    }, [slug, slugError, slugAvailable, accessType, subOption, checkSlugAvailability]);
 
     // ── Attachment download handler ───────────────────────────────────────
     /**
@@ -1386,7 +1412,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         icon: <IconShare size={18} />,
                         title: 'I manage it, others can use it',
                         description: featureFlags.assistantPathPublishing
-                            ? 'You control it. Choose how others access it.'
+                            ? 'You control the original. Others can use it or make their own copy, but cannot edit it.'
                             : 'Requires path publishing to be enabled by admin.',
                         disabled: !featureFlags.assistantPathPublishing,
                     },
@@ -1532,9 +1558,16 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
                                             {subOption === 'specific' && (
                                                 <div>
-                                                    <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                                                        Who has access <span style={{ color: '#e05252' }}>*</span>
-                                                    </label>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                                                        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                                            Who has access <span style={{ color: '#e05252' }}>*</span>
+                                                        </label>
+                                                        <InfoTooltip
+                                                            text="People you add can use this assistant, view its instructions, and make a copy they can edit. They can’t edit the original. Choose a Group assistant if others need to edit or manage it."
+                                                            ariaLabel="Who has access permissions"
+                                                            maxWidth={320}
+                                                        />
+                                                    </div>
                                                     <EmailChipsInput
                                                         selected={emailList}
                                                         onChange={setEmailList}
@@ -1557,7 +1590,6 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                             type="text"
                                                             value={slug}
                                                             onChange={(e) => handleSlugChange(e.target.value)}
-                                                            onBlur={handleSlugBlur}
                                                             placeholder="my-assistant"
                                                             maxLength={40}
                                                             style={{
@@ -1611,7 +1643,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                         </p>
                                                     ) : slug && !slugError && slugAvailable === null ? (
                                                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                                                            Click away to verify path availability
+                                                            We’ll check availability after you stop typing.
                                                         </p>
                                                     ) : null}
                                                 </div>
