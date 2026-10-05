@@ -1639,7 +1639,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                         </p>
                                                     ) : slugAvailable === true ? (
                                                         <p style={{ fontSize: 11, color: '#3aa764', margin: '4px 0 0' }}>
-                                                            {slugCheckMessage} — will be at /assistants/{slug}
+                                                            {slugCheckMessage} — will be at {typeof window !== 'undefined' ? window.location.origin : ''}/assistants/{slug}
                                                         </p>
                                                     ) : slug && !slugError && slugAvailable === null ? (
                                                         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
