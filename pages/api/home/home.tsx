@@ -104,6 +104,8 @@ import { NewHome } from '@/components/NewUI/home/NewHome';
 import { NewLogin } from '@/components/NewUI/home/NewLogin';
 import { ChatsListView } from '@/components/NewUI/views/ChatsListView';
 import { NewLibraryView } from '@/components/NewUI/views/NewLibraryView';
+import { NewProjectsView } from '@/components/NewUI/views/NewProjectsView';
+import { PROJECTS_ENABLED } from '@/utils/app/projectsFlag';
 import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import { PromptTemplateDialogHost } from '@/components/NewUI/shared/PromptTemplateDialogHost';
@@ -1793,6 +1795,9 @@ const Home = ({
                                     )}
                                     {(page as any) === 'library' && (
                                         <NewLibraryView />
+                                    )}
+                                    {(page as any) === 'projects' && PROJECTS_ENABLED && (
+                                        <NewProjectsView />
                                     )}
                                     {page === 'assistantGallery' && (
                                         <NewAssistantsView />

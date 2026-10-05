@@ -31,6 +31,7 @@ import {
   IconFolderPlus,
   IconFolderMinus,
   IconChevronLeft,
+  IconStack2,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
@@ -38,6 +39,9 @@ import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { PINNED_TAG } from '@/components/NewUI/shared/chatFilters';
 import { getUserChatFolders } from '@/components/NewUI/shared/chatFolderHelpers';
+import { MoveToProjectDialog } from '@/components/NewUI/projects/MoveToProjectDialog';
+import { useProjectRegistry } from '@/components/NewUI/projects/projectRegistry';
+import { PROJECTS_ENABLED } from '@/utils/app/projectsFlag';
 import { GeneratingSpinner } from '@/components/NewUI/shared/GeneratingSpinner';
 
 interface ConversationRowProps {
@@ -67,6 +71,10 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showMoveToProject, setShowMoveToProject] = useState(false);
+  // Names are only requested when this chat actually belongs to a project.
+  const { byId: projectsById } = useProjectRegistry(!!conversation.projectId);
+  const projectName = conversation.projectId ? projectsById.get(conversation.projectId)?.name : undefined;
 
   // ── Inline rename state ─────────────────────────────────────────────────────
   const [isRenaming, setIsRenaming] = useState(false);
@@ -309,6 +317,15 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
               Move to folder
             </button>
 
+            {/* Move to project */}
+            {PROJECTS_ENABLED && <button
+              onClick={(e) => { e.stopPropagation(); closeMenu(); setShowMoveToProject(true); }}
+              className={menuItemCls}
+            >
+              <IconStack2 size={14} />
+              {conversation.projectId ? 'Change project' : 'Move to project'}
+            </button>}
+
             {/* Share */}
             <button onClick={handleShare} className={menuItemCls}>
               <IconShare size={14} />
@@ -418,7 +435,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
       ) : (
         <button
           onClick={onSelect}
-          title={conversation.name}
+          title={projectName ? `${conversation.name} — in ${projectName}` : conversation.name}
           className={`
             w-full flex items-center gap-[8px] h-[32px] pl-[10px] rounded-[8px] text-left
             ${(isHovered || isMenuOpen || isGenerating) ? 'pr-[34px]' : 'pr-[8px]'}
@@ -429,6 +446,13 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
           {/* min-w-0 is required: without it a flex-1 item cannot shrink below its
               content width, so overflow/truncate never fires. truncate = overflow-hidden
               + whitespace-nowrap + text-overflow:ellipsis (all three must be co-located). */}
+          {conversation.projectId && (
+            <IconStack2
+              size={13}
+              className="flex-shrink-0 text-[--text-muted]"
+              aria-label={projectName ? `In project ${projectName}` : 'In a project'}
+            />
+          )}
           <span className="flex-1 min-w-0 text-[14px] font-normal leading-[20px] truncate">
             {conversation.name || 'New Conversation'}
           </span>
@@ -502,6 +526,10 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
         onConfirm={() => { setConfirmDeleteOpen(false); onDelete(); }}
         onCancel={() => setConfirmDeleteOpen(false)}
       />
+
+      {showMoveToProject && (
+        <MoveToProjectDialog conversation={conversation} onClose={() => setShowMoveToProject(false)} />
+      )}
 
       {/* Share modal — portalled to document.body so it sits above the sidebar */}
       {showShareModal && typeof document !== 'undefined'

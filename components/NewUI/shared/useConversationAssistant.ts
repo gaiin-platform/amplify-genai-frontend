@@ -69,7 +69,7 @@ export const isRealAssistant = (
 const detachedConversationIds = new Set<string>();
 
 /** Build a display-capable Assistant from just the name/id stored on a message. */
-const syntheticAssistant = (
+export const syntheticAssistant = (
   name: string,
   assistantId?: string,
   uri?: string,
@@ -90,7 +90,7 @@ const syntheticAssistant = (
 });
 
 /** Find the full Assistant object for an id/name among prompts + layered assistants. */
-const lookupAssistant = (
+export const lookupAssistant = (
   prompts: Prompt[],
   layered: LayeredAssistant[],
   assistantId?: string,

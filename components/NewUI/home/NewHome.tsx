@@ -56,8 +56,25 @@ import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { getUserDefaultModelId } from '@/components/NewUI/shared/userDefaultModel';
 import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
+import { IconAdjustmentsHorizontal, IconArrowLeft, IconStack2 } from '@tabler/icons-react';
+import { useProjectSummary } from '@/components/NewUI/projects/useProjectSummary';
+import { useProjectAssistant } from '@/components/NewUI/projects/useProjectAssistants';
+import { ProjectChatDrawer } from '@/components/NewUI/projects/ProjectChatDrawer';
+import { setSelectedProjectId } from '@/components/NewUI/projects/projectNavigation';
 
-export const NewHome: React.FC = () => {
+interface NewHomeProps {
+  /** Associate conversations created from this composer with a project. */
+  projectId?: string;
+  /** Embed only the composer, without the standard Amplify landing greeting. */
+  compact?: boolean;
+  placeholder?: string;
+}
+
+export const NewHome: React.FC<NewHomeProps> = ({
+  projectId,
+  compact = false,
+  placeholder = 'Ask anything…',
+}) => {
   const {
     state: {
       availableModels, defaultModelId, featureFlags, ragOn, selectedAssistant,
@@ -70,8 +87,27 @@ export const NewHome: React.FC = () => {
 
   // Active assistant (non-default) for chip display and for handing off to the
   // conversation this landing page is about to create.
-  const activeAssistant = isRealAssistant(selectedAssistant) ? selectedAssistant : null;
+  //
+  // Inside a project, the project's attached assistant is the default: it shows
+  // as the chip and travels with the conversation, until the user picks another
+  // assistant or removes the chip. Nothing global is mutated until send.
+  const effectiveProjectId = projectId ?? (page === 'chat' ? selectedConversation?.projectId : undefined);
+  const project = useProjectSummary(effectiveProjectId);
+  const projectAssistantCandidate = useProjectAssistant(project);
+  const [projectAssistantDismissed, setProjectAssistantDismissed] = useState(false);
+  useEffect(() => { setProjectAssistantDismissed(false); }, [effectiveProjectId]);
+  const projectAssistant =
+    project && project.status === 'active' && !projectAssistantDismissed && isRealAssistant(projectAssistantCandidate)
+      ? projectAssistantCandidate
+      : null;
+  const [showProjectContext, setShowProjectContext] = useState(false);
+
+  const activeAssistant = isRealAssistant(selectedAssistant) ? selectedAssistant : projectAssistant;
   const activeAssistantName = activeAssistant?.definition?.name;
+  // A project's default assistant can pin its model. Only that case is handled here, so a
+  // regular chat's model selection is exactly what it was before Projects.
+  const assistantEnforcedModelId: string | undefined =
+    activeAssistant && activeAssistant === projectAssistant ? activeAssistant.definition?.data?.model : undefined;
 
   // Enforced model from the active assistant (if any). Takes priority over
   // user default and admin default — the assistant's requirement wins.
@@ -387,6 +423,8 @@ export const NewHome: React.FC = () => {
 
   // ── Send ──────────────────────────────────────────────────────────────────
   const handleSend = (markdown: string) => {
+    const modelIdForSend =
+      assistantEnforcedModelId && availableModels[assistantEnforcedModelId] ? assistantEnforcedModelId : selectedModelId;
     const trimmed = markdown.trim();
     const readyAttachments = uiAttachments.filter((a) => a.status !== 'failed');
     if (!trimmed && readyAttachments.length === 0) return;
@@ -400,8 +438,8 @@ export const NewHome: React.FC = () => {
       if (trimmed) sessionStorage.setItem('amplify_pending_message', trimmed);
       if (attachedDocs.length > 0)
         sessionStorage.setItem('amplify_pending_docs', JSON.stringify(attachedDocs));
-      if (selectedModelId)
-        sessionStorage.setItem('amplify_pending_model_id', selectedModelId);
+      if (modelIdForSend)
+        sessionStorage.setItem('amplify_pending_model_id', modelIdForSend);
       // NOTE: effort is NOT bridged through sessionStorage. Nothing reads such a
       // key — the only channel is `conversation.data.reasoningLevel`, set in the
       // handleNewConversation call below. (`amplify_pending_model_id` is likewise
@@ -502,6 +540,11 @@ export const NewHome: React.FC = () => {
     // Only applies when page='chat'. On page='home' there is no pre-created
     // conversation and we always need to create one.
     if (page === 'chat' && selectedConversation) {
+      // The reused conversation is sent by ConversationViewShell, which reads the
+      // global assistant — make sure a project's default assistant is attached.
+      if (activeAssistant && activeAssistant !== selectedAssistant) {
+        dispatch({ field: 'selectedAssistant', value: activeAssistant });
+      }
       // ── Build the fully-updated conversation in one pass ─────────────────
       //
       // WHY NOT handleUpdateConversation (the obvious choice):
@@ -559,8 +602,9 @@ export const NewHome: React.FC = () => {
     }
     handleNewConversation({
       prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
-      ...(selectedModelId && availableModels[selectedModelId]
-        ? { model: availableModels[selectedModelId] }
+      ...(projectId ? { projectId } : {}),
+      ...(modelIdForSend && availableModels[modelIdForSend]
+        ? { model: availableModels[modelIdForSend] }
         : {}),
       // Reasoning effort has no per-request field — useChatSendService reads it
       // off `selectedConversation.data?.reasoningLevel` (:629-644) and turns it
@@ -617,7 +661,7 @@ export const NewHome: React.FC = () => {
 
   return (
     <div
-      className="relative flex-1 flex flex-col items-center justify-start bg-[--bg-app] overflow-hidden"
+      className={`relative flex-1 flex flex-col items-center justify-start bg-[--bg-app] ${compact ? 'overflow-visible' : 'overflow-hidden'}`}
       style={{ fontFamily: 'Inter, sans-serif' }}
       {...dropHandlers}
     >
@@ -642,18 +686,63 @@ export const NewHome: React.FC = () => {
       {/* Centered content column */}
       <div
         className="w-full max-w-[760px] px-6 flex flex-col items-center"
-        style={{ paddingTop: 'max(72px, 26vh)' }}
+        style={{ paddingTop: compact ? 0 : 'max(72px, 26vh)' }}
       >
-        {/* Greeting */}
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <Image src="/amplify-logo.png" alt="Amplify" width={40} height={40} style={{ borderRadius: 6 }} />
-          <h1
-            className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
-            style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
-          >
-            How can I help?
-          </h1>
-        </div>
+        {/* Greeting — or, for an empty chat inside a project, the project banner */}
+        {!compact && !project && (
+          <div className="flex items-center gap-3 mb-8 justify-center">
+            <Image src="/amplify-logo.png" alt="Amplify" width={40} height={40} style={{ borderRadius: 6 }} />
+            <h1
+              className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
+              style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
+            >
+              How can I help?
+            </h1>
+          </div>
+        )}
+        {!compact && project && (
+          <div className="mb-8 flex flex-col items-center text-center">
+            <div
+              className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl"
+              style={{ background: 'color-mix(in srgb, var(--accent) 14%, var(--bg-raised))', color: 'var(--accent)' }}
+              aria-hidden="true"
+            >
+              <IconStack2 size={22} />
+            </div>
+            <h1
+              className="max-w-full break-words text-[32px] text-[--text-primary] leading-tight tracking-[-0.01em]"
+              style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
+            >
+              New chat in {project.name}
+            </h1>
+            <p className="mt-2 max-w-md text-[13px] leading-5 text-[--text-muted]">
+              {project.status === 'archived'
+                ? 'This project is archived, so its assistant, instructions, files and memory are not applied.'
+                : projectAssistant
+                  ? `Starts with ${projectAssistant.definition.name}, plus this project's files, instructions and memory.`
+                  : "This project's files, instructions and memory apply to this chat."}
+            </p>
+            <div className="mt-3 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => { setSelectedProjectId(project.id); dispatch({ field: 'page', value: 'projects' as any }); }}
+                className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+                style={{ borderColor: 'var(--border-subtle)' }}
+              >
+                <IconArrowLeft size={14} aria-hidden="true" /> Back to project
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowProjectContext(true)}
+                aria-haspopup="dialog"
+                className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[13px] text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+                style={{ borderColor: 'var(--border-subtle)' }}
+              >
+                <IconAdjustmentsHorizontal size={14} aria-hidden="true" /> Project context
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Composer box — 3-band grid: rail | textarea | toolbar */}
         <div
@@ -685,9 +774,9 @@ export const NewHome: React.FC = () => {
             onChange={(value) => setHasContent(value.trim().length > 0)}
             onLargePaste={handleLargePaste}
             onImagePaste={addFileToRail}
-            placeholder="Ask anything…"
+            placeholder={project && !compact && placeholder === 'Ask anything…' ? `Message ${project.name}…` : placeholder}
             editorClassName="max-h-[240px] overflow-y-auto"
-            autoFocus
+            autoFocus={!compact}
             hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
           />
 
@@ -713,7 +802,7 @@ export const NewHome: React.FC = () => {
               {/* Active toggle chips */}
               <AttachMenuChips
                 assistantName={activeAssistantName}
-                onRemoveAssistant={() => dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
+                onRemoveAssistant={() => { dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT }); setProjectAssistantDismissed(true); }}
                 selectedActions={selectedActions}
                 onRemoveActions={() => setSelectedActions([])}
               />
@@ -785,6 +874,13 @@ export const NewHome: React.FC = () => {
           initialIndex={uiAttachments.findIndex((a) => a.id === previewId)}
           originRect={previewOriginRect}
           onClose={() => { setPreviewId(null); setPreviewOriginRect(undefined); }}
+        />
+      )}
+      {!compact && project && (
+        <ProjectChatDrawer
+          projectId={project.id}
+          open={showProjectContext}
+          onClose={() => setShowProjectContext(false)}
         />
       )}
     </div>
