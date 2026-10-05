@@ -73,6 +73,7 @@ import { getOpsForUser } from '@/services/opsService';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { createAssistantPrompt, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { getUserIdentifier } from '@/utils/app/data';
+import { resolveUsernameForEmail } from '@/components/NewUI/shared/emailSuggestions';
 import { promptForData } from '@/utils/app/llm';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import { getSettings } from '@/utils/app/settings';
@@ -443,8 +444,23 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const [slugError, setSlugError] = useState('');
 
     // Group (Team) sub-state
-    const [teamMode, setTeamMode] = useState<TeamMode>('existing');
-    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(initialGroupId ?? null);
+    const [teamMode, setTeamMode] = useState<TeamMode>(() => {
+        if (initialGroupId) return 'existing';
+        const hasManageableGroup = groups.some((group: Group) => {
+            const access = userIdentifier ? group.members?.[userIdentifier] : undefined;
+            return access === GroupAccessType.ADMIN || access === GroupAccessType.WRITE;
+        });
+        return hasManageableGroup ? 'existing' : 'new';
+    });
+    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(() => {
+        if (initialGroupId) return initialGroupId;
+        const manageableGroup = groups.find((group: Group) => {
+            const access = userIdentifier ? group.members?.[userIdentifier] : undefined;
+            return access === GroupAccessType.ADMIN || access === GroupAccessType.WRITE;
+        });
+        return manageableGroup?.id ?? null;
+    });
+    const createdGroupRef = useRef<Group | null>(null);
     const [newTeamName, setNewTeamName] = useState('');
     const [selectedMemberEmails, setSelectedMemberEmails] = useState<string[]>([]);
     const [newMemberAccessMap, setNewMemberAccessMap] = useState<Record<string, GroupAccessType>>({});
@@ -710,7 +726,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         const access = g.members?.[userIdentifier];
         return access === GroupAccessType.ADMIN || access === GroupAccessType.WRITE;
     });
-    const hasGroupAccess = featureFlags.assistantAdminInterface && adminGroups.length > 0;
+    // Any signed-in user may create a new team; existing groups remain role-gated.
+    const hasGroupAccess = Boolean(userIdentifier);
 
     // ── Access radio card refs (roving tabindex keyboard nav) ─────────────
     // cardRefs[i] corresponds to visibleCards[i] — built at render time
@@ -1012,6 +1029,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // ── Save-enabled logic ─────────────────────────────────────────────────
     const canSave = (): boolean => {
         if (!name.trim()) return false;
+        if (accessType === 'collaborative' && !userIdentifier) return false;
         if (accessType === 'managed') {
             if (!featureFlags.assistantPathPublishing) return false;
             if (!!validateSlug(slug)) return false;
@@ -1022,7 +1040,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         if (accessType === 'collaborative') {
             if (teamMode === 'existing') {
                 if (adminGroups.length === 0) return false;
-                if (adminGroups.length > 1 && !selectedGroupId) return false;
+                if (!adminGroups.some((group) => group.id === selectedGroupId)) return false;
             } else {
                 if (!newTeamName.trim()) return false;
             }
@@ -1038,10 +1056,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
         if (teamMode === 'existing') {
             if (adminGroups.length === 1) return adminGroups[0].id;
-            return selectedGroupId;
+            const selectedGroup = adminGroups.find((group) => group.id === selectedGroupId);
+            if (!selectedGroup) throw new Error('Choose a group you have permission to manage.');
+            return selectedGroup.id;
         }
 
-        // PORT: Copied from NewAssistantTypeSelector.tsx Card 3 "Create new team" logic
+        if (!userIdentifier) throw new Error('Sign in before creating a group.');
         const result = await createAstAdminGroup({
             name: newTeamName.trim(),
             groupTypes: [],
@@ -1053,23 +1073,52 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             throw new Error('Failed to create team. Please try again.');
         }
 
-        if (selectedMemberEmails.length > 0) {
-            const members: Record<string, string> = {};
-            if (userIdentifier) {
-                members[userIdentifier] = GroupAccessType.ADMIN;
+        const members: Record<string, GroupAccessType> = {
+            [userIdentifier]: GroupAccessType.ADMIN,
+        };
+        selectedMemberEmails.forEach((email: string) => {
+            const username = resolveUsernameForEmail(email, amplifyUsers);
+            if (username !== userIdentifier) {
+                members[username] = newMemberAccessMap[email] ?? GroupAccessType.WRITE;
             }
-            selectedMemberEmails.forEach((email: string) => {
-                const username =
-                    Object.keys(amplifyUsers).find(
-                        (k) => (amplifyUsers as Record<string, string>)[k] === email
-                    ) || email;
-                if (username !== userIdentifier) {
-                    members[username] = newMemberAccessMap[email] ?? GroupAccessType.WRITE;
-                }
-            });
+        });
 
-            await updateGroupMembers({ groupId: result.id, members });
+        const createdGroup: Group = {
+            ...result,
+            id: result.id,
+            name: result.name ?? newTeamName.trim(),
+            members: { ...(result.members ?? {}), ...members },
+            assistants: result.assistants ?? [],
+            layeredAssistants: result.layeredAssistants ?? [],
+            groupTypes: result.groupTypes ?? [],
+            amplifyGroups: result.amplifyGroups ?? [],
+            systemUsers: result.systemUsers ?? [],
+        };
+        const membersUpdated = await updateGroupMembers({
+            group_id: result.id,
+            update_type: 'ADD',
+            members,
+        });
+        if (!membersUpdated) {
+            // The group itself exists, so retain it locally and offer a clear retry path.
+            createdGroupRef.current = createdGroup;
+            homeDispatch({
+                field: 'groups',
+                value: groups.some((group: Group) => group.id === createdGroup.id)
+                    ? groups.map((group: Group) => group.id === createdGroup.id ? createdGroup : group)
+                    : [...groups, createdGroup],
+            });
+            throw new Error('The group was created, but its members could not be saved. Please try again.');
         }
+
+        // Publish the group only after the creator's Admin membership is saved.
+        createdGroupRef.current = createdGroup;
+        homeDispatch({
+            field: 'groups',
+            value: groups.some((group: Group) => group.id === createdGroup.id)
+                ? groups.map((group: Group) => group.id === createdGroup.id ? createdGroup : group)
+                : [...groups, createdGroup],
+        });
 
         return result.id;
     };
@@ -1257,7 +1306,13 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             await handleUpdateAssistantPrompt(aPrompt, prompts, homeDispatch, selectedAssistant);
 
             if (groupId) {
-                const updatedGroups = groups.map((g: Group) => {
+                const groupExists = groups.some((g: Group) => g.id === groupId);
+                const baseGroups = groupExists
+                    ? groups
+                    : createdGroupRef.current?.id === groupId
+                        ? [...groups, createdGroupRef.current]
+                        : groups;
+                const updatedGroups = baseGroups.map((g: Group) => {
                     if (g.id !== groupId) return g;
                     if (isEditMode) {
                         // Replace the existing assistant entry

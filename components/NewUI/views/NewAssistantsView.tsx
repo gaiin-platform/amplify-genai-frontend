@@ -955,12 +955,10 @@ const GroupAssistantsTab: React.FC = () => {
     const [search, setSearch] = useState('');
 
     const hasAdminAccess = (group: Group) => {
-        if (!userIdentifier || !featureFlags.assistantAdminInterface) return false;
+        if (!userIdentifier) return false;
         const access = group.members?.[userIdentifier];
         return access === GroupAccessType.ADMIN || access === GroupAccessType.WRITE;
     };
-
-    const anyAdminAccess = groups.some((g: Group) => hasAdminAccess(g));
 
     // EDIT path only — used when admin opens AssistantModal from the admin interface
     const handleUpdateGroupAssistant = (updatedPrompt: Prompt) => {
@@ -1062,16 +1060,14 @@ const GroupAssistantsTab: React.FC = () => {
                 style={{ borderColor: 'var(--border-subtle)' }}
             >
                 <SearchInput value={search} onChange={setSearch} placeholder="Search groups…" />
-                {anyAdminAccess && (
-                    <button
-                        onClick={() => setShowGroupCreationModal(true)}
-                        className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
-                        style={{ backgroundColor: 'var(--accent)' }}
-                    >
-                        <IconPlus size={14} />
-                        New Assistant
-                    </button>
-                )}
+                <button
+                    onClick={() => setShowGroupCreationModal(true)}
+                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: 'var(--accent)' }}
+                >
+                    <IconPlus size={14} />
+                    New Assistant
+                </button>
             </div>
 
             {/* List */}
@@ -1157,7 +1153,7 @@ const GroupAssistantsTab: React.FC = () => {
                                             name={a.name}
                                             description={a.description}
                                             onClick={() => handleStartConversation(a)}
-                                            onEdit={isAdmin ? (e) => {
+                                            onEdit={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
                                                 e.stopPropagation();
                                                 openAdminInterface(group, a);
                                             } : undefined}
@@ -1170,7 +1166,7 @@ const GroupAssistantsTab: React.FC = () => {
                                             name={la.name}
                                             description={la.description}
                                             onClick={() => handleStartLayeredConversation(la)}
-                                            onEdit={isAdmin ? (e) => {
+                                            onEdit={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
                                                 e.stopPropagation();
                                                 openAdminInterface(group, undefined, la);
                                             } : undefined}
@@ -1434,14 +1430,13 @@ export const NewAssistantsView: React.FC = () => {
         return saved && valid.includes(saved) ? saved : 'individual';
     });
 
-    const shouldShowGroupTab = syncingPrompts || groups.length > 0;
+    const shouldShowGroupTab = true; // Show the empty state so every user can create a group.
     const shouldShowLayeredTab = true; // Always show so first-time users can discover and create layered assistants
 
     // If the current tab becomes hidden, fall back to individual
     useEffect(() => {
-        if (activeTab === 'group' && !shouldShowGroupTab) setActiveTab('individual');
         if (activeTab === 'layered' && !shouldShowLayeredTab) setActiveTab('individual');
-    }, [shouldShowGroupTab, shouldShowLayeredTab, activeTab]);
+    }, [shouldShowLayeredTab, activeTab]);
 
     const changeTab = (tab: MainTab) => {
         setActiveTab(tab);
