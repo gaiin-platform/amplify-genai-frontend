@@ -1032,10 +1032,16 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         if (accessType === 'collaborative' && !userIdentifier) return false;
         if (accessType === 'managed') {
             if (!featureFlags.assistantPathPublishing) return false;
-            if (!!validateSlug(slug)) return false;
-            if (isCheckingSlug) return false;
-            // Require the path to be verified as available before saving
-            if (slug && slugAvailable !== true) return false;
+            // A path is mandatory for public assistants. Specific-people access
+            // can be created without publishing a URL; if one is supplied, it
+            // must still be valid and available.
+            const requiresSlug = subOption === 'public' || !!slug.trim();
+            if (requiresSlug) {
+                if (!!validateSlug(slug)) return false;
+                if (isCheckingSlug) return false;
+                // Require a supplied path to be verified as available before saving
+                if (slugAvailable !== true) return false;
+            }
         }
         if (accessType === 'collaborative') {
             if (teamMode === 'existing') {
