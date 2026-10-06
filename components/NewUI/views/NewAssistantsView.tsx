@@ -848,7 +848,7 @@ const MyAssistantsTab: React.FC = () => {
                     title="Hide shared assistant?"
                     message={
                         <>
-                            <strong style={{ color: 'var(--text-primary)' }}>{promptToHide.name}</strong> will be hidden from My Assistants on all your devices. This will not delete the original assistant.
+                            <strong style={{ color: 'var(--text-primary)' }}>{promptToHide.name}</strong> will be hidden from My Assistants on all your devices. This will not delete the original assistant, and you can re-import it from Shared with Me.
                         </>
                     }
                     confirmLabel={hidingSharedAssistant ? 'Hiding…' : 'Hide'}
@@ -886,7 +886,7 @@ const MyAssistantsTab: React.FC = () => {
 
 // ── Tab 1b: Shared with Me ────────────────────────────────────────────────────
 
-const SharedWithMeTab: React.FC = () => {
+const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) => {
     const {
         state: { prompts, statsService, availableModels, featureFlags, conversations, folders, amplifyUsers },
         dispatch: homeDispatch,
@@ -1035,20 +1035,26 @@ const SharedWithMeTab: React.FC = () => {
     // A pending share is "already imported" if any prompt from its bundle already
     // exists in state.prompts (match by prompt.id).  Null-bundle items are treated
     // as not imported (conservative — we can't confirm without the bundle).
+    // Hidden imports are no longer "imported": a sync/reseed may briefly restore
+    // them, so ignore those when deciding what to offer under Pending Imports.
     const pendingNotImported = useMemo(() => {
         if (!pendingShares) return [];
+        const activePrompts = prompts.filter((prompt: Prompt) =>
+            !isReceivedSharedAssistant(prompt) ||
+            !getSharedAssistantIdentity(prompt).some((id) => dismissedSharedAssistantIds.includes(id))
+        );
         const receivedSourceIds = new Set(
-            prompts
+            activePrompts
                 .map((prompt: Prompt) => shareProvenance(prompt)?.sourceAssistantId)
                 .filter((id): id is string => Boolean(id))
         );
         const receivedPromptIds = new Set(
-            prompts
+            activePrompts
                 .map((prompt: Prompt) => shareProvenance(prompt)?.sourcePromptId)
                 .filter((id): id is string => Boolean(id))
         );
         return pendingShares.filter((csi) => {
-            const alreadyImported = prompts.some((prompt: Prompt) => {
+            const alreadyImported = activePrompts.some((prompt: Prompt) => {
                 const provenance = shareProvenance(prompt);
                 return provenance?.sharedBy === csi.item.sharedBy &&
                     provenance.sharedAt === csi.item.sharedAt &&
@@ -1056,18 +1062,14 @@ const SharedWithMeTab: React.FC = () => {
             });
             if (alreadyImported) return false;
             const shareIdentity = getSharedShareIdentity(csi.item);
-            if (dismissedSharedAssistantIds.includes(shareIdentity)) return false;
             if (csi.bundle === null) {
-                return !prompts.some((prompt: Prompt) =>
+                return !activePrompts.some((prompt: Prompt) =>
                     isReceivedSharedAssistant(prompt) && getSharedAssistantIdentity(prompt).includes(shareIdentity)
                 );
             }
             const assistantPrompts = (csi.bundle.prompts ?? []).filter((prompt) => isAssistant(prompt));
             const sourceIds = assistantPrompts.map((prompt) => prompt.data?.assistant?.definition?.assistantId).filter(Boolean);
             const sourcePromptIds = assistantPrompts.map((prompt) => prompt.id);
-            const dismissed = sourceIds.some((id) => dismissedSharedAssistantIds.includes(`assistant:${id}`)) ||
-                sourcePromptIds.some((id) => dismissedSharedAssistantIds.includes(`prompt:${id}`));
-            if (dismissed) return false;
             return !sourceIds.some((id) => receivedSourceIds.has(id)) &&
                 !sourcePromptIds.some((id) => receivedPromptIds.has(id));
         });
@@ -1182,6 +1184,28 @@ const SharedWithMeTab: React.FC = () => {
                 return p;
             });
 
+            // Re-importing a previously hidden share un-hides it on all devices.
+            const reimportedIds = new Set(finalPrompts
+                .filter((p: Prompt) => bundlePromptIds.has(p.id) && isAssistant(p))
+                .flatMap((p: Prompt) => getSharedAssistantIdentity(p)));
+            const currentDismissed = readDismissedSharedAssistantIds();
+            const remainingDismissed = currentDismissed.filter((id) => !reimportedIds.has(id));
+            if (remainingDismissed.length !== currentDismissed.length) {
+                const saved = await saveDisplayPrefsToServer({ dismissedSharedAssistantIds: remainingDismissed });
+                if (!saved) {
+                    try {
+                        const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+                        settings.dismissedSharedAssistantIds = currentDismissed;
+                        localStorage.setItem('settings', JSON.stringify(settings));
+                    } catch {
+                        // The server remains authoritative if local storage is unavailable.
+                    }
+                    toast.error('Could not import this assistant. Please try again.');
+                    return;
+                }
+                setDismissedSharedAssistantIds(remainingDismissed);
+            }
+
             homeDispatch({ field: 'conversations', value: merged.history });
             saveConversations(merged.history);
             homeDispatch({ field: 'folders', value: merged.folders });
@@ -1189,11 +1213,13 @@ const SharedWithMeTab: React.FC = () => {
             homeDispatch({ field: 'prompts', value: finalPrompts });
             savePrompts(finalPrompts);
 
-            toast.success('Assistant imported successfully');
+            const importedName = bundle.prompts?.find((p) => isAssistant(p))?.name;
+            toast.success(`${importedName ? `"${importedName}"` : 'Assistant'} imported. You can find it in My Assistants.`);
 
-            // Invalidate cache and refetch so this item moves to "Imported".
+            // Invalidate cache so Pending Imports refreshes, then show My Assistants.
             invalidateSharedItemsCache();
             setPendingShares(null);
+            onImported?.();
         } catch {
             toast.error('An unexpected error occurred. Please try again.');
         } finally {
@@ -1997,7 +2023,7 @@ export const NewAssistantsView: React.FC = () => {
             {/* ── Tab content ── */}
             <div className="flex-1 overflow-hidden">
                 {activeTab === 'individual' && <MyAssistantsTab />}
-                {activeTab === 'shared' && <SharedWithMeTab />}
+                {activeTab === 'shared' && <SharedWithMeTab onImported={() => changeTab('individual')} />}
                 {activeTab === 'group' && shouldShowGroupTab && <GroupAssistantsTab />}
                 {activeTab === 'layered' && shouldShowLayeredTab && <LayeredAssistantsTab />}
             </div>
