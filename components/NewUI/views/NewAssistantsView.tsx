@@ -22,6 +22,8 @@ import {
     IconShare,
     IconSettings,
     IconChevronRight,
+    IconEye,
+    IconCopy,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Prompt } from '@/types/prompt';
@@ -62,6 +64,19 @@ import {
 
 type MainTab = 'individual' | 'shared' | 'group' | 'layered';
 
+type ShareProvenance = {
+    sharedBy: string;
+    sharedAt?: number;
+    note?: string;
+    sourceAssistantId?: string;
+    sourcePromptId?: string;
+};
+
+const shareProvenance = (prompt: Prompt): ShareProvenance | undefined => {
+    const value = prompt.data?.sharedAssistant as ShareProvenance | undefined;
+    return value?.sharedBy ? value : undefined;
+};
+
 // ── Shared row component ──────────────────────────────────────────────────────
 
 interface RowProps {
@@ -72,10 +87,100 @@ interface RowProps {
     onEdit?: (e: React.MouseEvent) => void;
     onShare?: (e: React.MouseEvent) => void;
     onDelete?: (e: React.MouseEvent) => void;
+    onPreview?: (e: React.MouseEvent) => void;
     isDeleting?: boolean;
     /** Optional access-type pill badge (Private / Shared / URL) */
     accessBadge?: { label: string; bg: string; color: string };
+    /** Indicates an owned copy that originated from a received share. */
+    sharedBy?: string;
+    onCopy?: (e: React.MouseEvent) => void;
 }
+
+const AssistantPromptPreview: React.FC<{
+    prompt: Prompt;
+    sharedBy: string;
+    note?: string;
+    onClose: () => void;
+    onCopy?: () => void;
+}> = ({ prompt, sharedBy, note, onClose, onCopy }) => {
+    const panelRef = useRef<HTMLDivElement>(null);
+    const definition = prompt.data?.assistant?.definition as AssistantDefinition | undefined;
+    const instructions = definition?.instructions || prompt.content || '';
+
+    useEffect(() => {
+        const panel = panelRef.current;
+        panel?.focus();
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.stopImmediatePropagation();
+                onClose();
+            } else if (event.key === 'Tab' && panel) {
+                const focusable = Array.from(panel.querySelectorAll<HTMLElement>(
+                    'button:not([disabled]),[href],input:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+                ));
+                if (!focusable.length) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown, true);
+        return () => document.removeEventListener('keydown', handleKeyDown, true);
+    }, [onClose]);
+
+    return ReactDOM.createPortal(
+        <div
+            className="fixed inset-0 flex items-center justify-center p-4"
+            style={{ zIndex: 10001, background: 'rgba(0,0,0,0.5)' }}
+            data-new-ui-shell="true"
+            onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+        >
+            <section
+                ref={panelRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="shared-assistant-preview-title"
+                tabIndex={-1}
+                className="flex flex-col w-full max-w-[760px] max-h-[min(720px,90dvh)] rounded-[12px] border outline-none"
+                style={{ background: 'var(--bg-raised)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+                onMouseDown={(event) => event.stopPropagation()}
+            >
+                <header className="flex items-start justify-between gap-4 px-5 py-4 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <div className="min-w-0">
+                        <h2 id="shared-assistant-preview-title" className="text-[16px] font-semibold truncate">{prompt.name}</h2>
+                        {prompt.description && <p className="text-[13px] mt-1" style={{ color: 'var(--text-secondary)' }}>{prompt.description}</p>}
+                        <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Shared by {sharedBy}</p>
+                        {note && note !== prompt.name && <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Share note: {note}</p>}
+                    </div>
+                    <button type="button" onClick={onClose} aria-label="Close prompt preview" className="flex items-center justify-center w-8 h-8 rounded-[6px]" style={{ color: 'var(--text-secondary)' }}>
+                        <IconX size={17} />
+                    </button>
+                </header>
+                <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+                    <h3 className="text-[12px] uppercase tracking-wide font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Instructions / system prompt</h3>
+                    <pre className="whitespace-pre-wrap break-words rounded-[8px] border p-4 text-[13px] leading-relaxed font-sans" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}>
+                        {instructions || 'No prompt instructions were included with this share.'}
+                    </pre>
+                </div>
+                <footer className="flex justify-end gap-2 px-5 py-3 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <button type="button" onClick={onClose} className="h-9 px-4 rounded-[7px] text-[13px]" style={{ color: 'var(--text-secondary)', background: 'var(--bg-hover)' }}>Close</button>
+                    {onCopy && (
+                        <button type="button" onClick={onCopy} className="flex items-center gap-2 h-9 px-4 rounded-[7px] text-[13px] font-medium" style={{ color: 'var(--accent-fg)', background: 'var(--accent)' }}>
+                            <IconCopy size={14} /> Make a copy
+                        </button>
+                    )}
+                </footer>
+            </section>
+        </div>,
+        document.body
+    );
+};
 
 const AssistantRow: React.FC<RowProps> = ({
     icon,
@@ -85,8 +190,11 @@ const AssistantRow: React.FC<RowProps> = ({
     onEdit,
     onShare,
     onDelete,
+    onPreview,
+    onCopy,
     isDeleting,
     accessBadge,
+    sharedBy,
 }) => {
     const [hovered, setHovered] = useState(false);
 
@@ -133,6 +241,15 @@ const AssistantRow: React.FC<RowProps> = ({
                             {accessBadge.label}
                         </span>
                     )}
+                    {sharedBy && (
+                        <span
+                            className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                            style={{ background: 'var(--bg-active)', color: 'var(--accent)' }}
+                            title={`Received from ${sharedBy}`}
+                        >
+                            Shared
+                        </span>
+                    )}
                 </div>
                 {description && (
                     <p
@@ -140,6 +257,11 @@ const AssistantRow: React.FC<RowProps> = ({
                         style={{ color: 'var(--text-secondary)' }}
                     >
                         {description}
+                    </p>
+                )}
+                {sharedBy && (
+                    <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+                        {sharedBy}
                     </p>
                 )}
             </div>
@@ -172,6 +294,29 @@ const AssistantRow: React.FC<RowProps> = ({
                     Chat
                     <IconChevronRight size={12} />
                 </button>
+
+                {onCopy && (
+                    <button
+                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onClick={onCopy}
+                        aria-label={`Make a copy of ${name}`}
+                        title="Make a copy"
+                    >
+                        <IconCopy size={14} />
+                    </button>
+                )}
+                {onPreview && (
+                    <button
+                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onClick={onPreview}
+                        aria-label={`View prompt for ${name}`}
+                        title="View prompt"
+                    >
+                        <IconEye size={14} />
+                    </button>
+                )}
 
                 {onEdit && (
                     <button
@@ -327,7 +472,7 @@ const SearchInput: React.FC<{ value: string; onChange: (v: string) => void; plac
 
 const MyAssistantsTab: React.FC = () => {
     const {
-        state: { prompts, statsService, availableModels, selectedAssistant, featureFlags, groups },
+        state: { prompts, statsService, availableModels, selectedAssistant, featureFlags, groups, amplifyUsers },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -345,22 +490,32 @@ const MyAssistantsTab: React.FC = () => {
     const [editingAssistant, setEditingAssistant] = useState<Prompt | null>(null);
     // Share modal
     const [assistantForShare, setAssistantForShare] = useState<Prompt | null>(null);
+    const [previewPrompt, setPreviewPrompt] = useState<Prompt | null>(null);
+    const [copyingAssistant, setCopyingAssistant] = useState<{ prompt: Prompt; provenance: ShareProvenance } | null>(null);
     // Delete confirm dialog
     const [confirmDeleteAssistant, setConfirmDeleteAssistant] = useState<Prompt | null>(null);
     // prompt.id of the row whose backend delete is in flight (null = idle)
     const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
 
     const canEdit = (p: Prompt) => !p.data?.noEdit;
+    const resolveSharedBy = (identifier: string): string => {
+        if (!identifier) return 'Unknown';
+        if (amplifyUsers?.[identifier]) return amplifyUsers[identifier];
+        const entry = Object.entries(amplifyUsers ?? {}).find(
+            ([, value]) => value?.toLowerCase() === identifier.toLowerCase()
+        );
+        return entry?.[1] || identifier;
+    };
 
     // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts/assistants marked
     // data.hidden unless featureFlags.overrideInvisiblePrompts is set.
     const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
 
-    // My Assistants = assistants I own/manage (canEdit=true), no groupId.
-    // Shared-with-me assistants (noEdit=true) are in the "Shared with Me" tab.
+    // My Assistants includes recipient-owned copies of shared assistants. Original
+    // imported records remain read-only in Shared with Me until copied by the user.
     const allAssistants = useMemo(() =>
         prompts
-            .filter((p: Prompt) => isAssistant(p) && !p.groupId && canEdit(p) && isVisible(p))
+            .filter((p: Prompt) => isAssistant(p) && !p.groupId && (canEdit(p) || !!shareProvenance(p) || p.data?.noEdit === true) && isVisible(p))
             .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name)),
         [prompts, featureFlags.overrideInvisiblePrompts]
     );
@@ -368,11 +523,17 @@ const MyAssistantsTab: React.FC = () => {
     const filtered = useMemo(() => {
         if (!search.trim()) return allAssistants;
         const q = search.toLowerCase();
-        return allAssistants.filter((p: Prompt) =>
-            p.name.toLowerCase().includes(q) ||
-            (p.description && p.description.toLowerCase().includes(q))
-        );
+        return allAssistants.filter((p: Prompt) => {
+            const provenance = shareProvenance(p);
+            return p.name.toLowerCase().includes(q) ||
+                (p.description && p.description.toLowerCase().includes(q)) ||
+                (provenance && resolveSharedBy(provenance.sharedBy).toLowerCase().includes(q));
+        });
     }, [allAssistants, search]);
+
+    const openCopyAssistant = (prompt: Prompt, provenance: ShareProvenance) => {
+        setCopyingAssistant({ prompt, provenance });
+    };
 
     const handleStartConversation = (p: Prompt) => {
         if (isAssistant(p) && p.data) {
@@ -513,10 +674,16 @@ const MyAssistantsTab: React.FC = () => {
                             name={p.name}
                             description={p.description}
                             accessBadge={getAccessBadge(p)}
+                            sharedBy={shareProvenance(p) ? `Shared by ${resolveSharedBy(shareProvenance(p)!.sharedBy)}` : p.data?.noEdit ? 'Shared with you' : undefined}
                             onClick={() => handleStartConversation(p)}
-                            onEdit={(e) => handleEditAssistant(e, p)}
-                            onShare={(e) => handleShareAssistant(e, p)}
-                            onDelete={(e) => {
+                            onPreview={shareProvenance(p) ? (e) => { e.stopPropagation(); setPreviewPrompt(p); } : undefined}
+                            onCopy={shareProvenance(p) && p.data?.noEdit ? (e) => {
+                                e.stopPropagation();
+                                openCopyAssistant(p, shareProvenance(p)!);
+                            } : undefined}
+                            onEdit={p.data?.noEdit ? undefined : (e) => handleEditAssistant(e, p)}
+                            onShare={p.data?.noShare ? undefined : (e) => handleShareAssistant(e, p)}
+                            onDelete={p.data?.noDelete ? undefined : (e) => {
                                 e.stopPropagation();
                                 setConfirmDeleteAssistant(p);
                             }}
@@ -526,6 +693,13 @@ const MyAssistantsTab: React.FC = () => {
                 )}
             </div>
 
+            {copyingAssistant && (
+                <NewUIAssistantCreationModal
+                    copyingAssistant={copyingAssistant.prompt}
+                    copyProvenance={copyingAssistant.provenance}
+                    onClose={() => setCopyingAssistant(null)}
+                />
+            )}
             {/* Blocks the list while the backend delete is in flight so it can't double-fire */}
             <NewUILoadingStatus open={!!deletingPromptId} message="Deleting assistant…" />
 
@@ -533,6 +707,27 @@ const MyAssistantsTab: React.FC = () => {
             {showCreationModal && (
                 <NewUIAssistantCreationModal
                     onClose={() => setShowCreationModal(false)}
+                />
+            )}
+
+            {copyingAssistant && (
+                <NewUIAssistantCreationModal
+                    copyingAssistant={copyingAssistant.prompt}
+                    copyProvenance={copyingAssistant.provenance}
+                    onClose={() => setCopyingAssistant(null)}
+                />
+            )}
+
+            {previewPrompt && (
+                <AssistantPromptPreview
+                    prompt={previewPrompt}
+                    sharedBy={resolveSharedBy(shareProvenance(previewPrompt)?.sharedBy ?? '')}
+                    note={shareProvenance(previewPrompt)?.note}
+                    onClose={() => setPreviewPrompt(null)}
+                    onCopy={shareProvenance(previewPrompt) ? () => {
+                        openCopyAssistant(previewPrompt, shareProvenance(previewPrompt)!);
+                        setPreviewPrompt(null);
+                    } : undefined}
                 />
             )}
 
@@ -616,6 +811,10 @@ const SharedWithMeTab: React.FC = () => {
     const [pendingLoading, setPendingLoading] = useState(false);
     const [pendingError, setPendingError] = useState<string | null>(null);
     const [importingKey, setImportingKey] = useState<string | null>(null);
+    const [previewLoadingKey, setPreviewLoadingKey] = useState<string | null>(null);
+    const [previewError, setPreviewError] = useState<string | null>(null);
+    const [pendingPreview, setPendingPreview] = useState<{ prompt: Prompt; provenance: ShareProvenance } | null>(null);
+    const [copyingAssistant, setCopyingAssistant] = useState<{ prompt: Prompt; provenance: ShareProvenance } | null>(null);
 
     // Re-arm the alive ref on every mount (Rule 16 — StrictMode mounts twice).
     const aliveRef = useRef(true);
@@ -630,8 +829,58 @@ const SharedWithMeTab: React.FC = () => {
         setPendingError(null);
         try {
             const classified = await getClassifiedSharedItems(user);
-            if (aliveRef.current) {
-                setPendingShares(classified.assistants);
+            if (!aliveRef.current) return;
+            setPendingShares(classified.assistants);
+
+            // Migrate imported shares saved before we recorded provenance.
+            let migratedPrompts = promptsRef.current;
+            const hasLegacyImports = migratedPrompts.some((prompt) =>
+                isAssistant(prompt) && prompt.data?.noEdit === true && !shareProvenance(prompt)
+            );
+            if (hasLegacyImports) {
+                for (const share of classified.assistants) {
+                    let bundle = share.bundle;
+                    if (!bundle) {
+                        try {
+                            const response = await loadSharedItem(share.item.key);
+                            if (response.success) bundle = JSON.parse(response.item);
+                        } catch {
+                            // Legacy records remain visible with a generic attribution.
+                        }
+                    }
+                    if (!bundle) continue;
+                    const sharedPrompts = (bundle.prompts ?? []).filter((prompt) => isAssistant(prompt));
+                    const ids = new Set(sharedPrompts.map((prompt) => prompt.id));
+                    const assistantIds = new Set(sharedPrompts.map((prompt) => prompt.data?.assistant?.definition?.assistantId).filter(Boolean));
+                    migratedPrompts = migratedPrompts.map((prompt) => {
+                        if (!isAssistant(prompt) || shareProvenance(prompt) ||
+                            (!ids.has(prompt.id) && !assistantIds.has(prompt.data?.assistant?.definition?.assistantId))) return prompt;
+                        return {
+                            ...prompt,
+                            data: {
+                                ...prompt.data,
+                                sharedAssistant: {
+                                    sharedBy: share.item.sharedBy,
+                                    sharedAt: share.item.sharedAt,
+                                    note: share.item.note,
+                                    sourcePromptId: prompt.id,
+                                    ...(prompt.data?.assistant?.definition?.assistantId
+                                        ? { sourceAssistantId: prompt.data.assistant.definition.assistantId }
+                                        : {}),
+                                },
+                                noEdit: true,
+                                noCopy: true,
+                                noShare: true,
+                                noDelete: true,
+                            },
+                        };
+                    });
+                }
+            }
+            if (migratedPrompts !== promptsRef.current && aliveRef.current) {
+                promptsRef.current = migratedPrompts;
+                homeDispatch({ field: 'prompts', value: migratedPrompts });
+                savePrompts(migratedPrompts);
             }
         } catch {
             invalidateSharedItemsCache();
@@ -650,30 +899,38 @@ const SharedWithMeTab: React.FC = () => {
         }
     }, [pendingShares, pendingLoading, loadPendingShares]);
 
-    // Shared assistants already imported = those with noEdit=true, no groupId.
+    // Shared originals remain read-only; imported records are surfaced from My Assistants.
     const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
-
-    const allImported = useMemo(() =>
-        prompts
-            .filter((p: Prompt) =>
-                isAssistant(p) &&
-                !p.groupId &&
-                p.data?.noEdit === true &&
-                isVisible(p)
-            )
-            .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name)),
-        [prompts, featureFlags.overrideInvisiblePrompts]
-    );
 
     // A pending share is "already imported" if any prompt from its bundle already
     // exists in state.prompts (match by prompt.id).  Null-bundle items are treated
     // as not imported (conservative — we can't confirm without the bundle).
     const pendingNotImported = useMemo(() => {
         if (!pendingShares) return [];
-        const importedIds = new Set(prompts.map((p: Prompt) => p.id));
+        const receivedSourceIds = new Set(
+            prompts
+                .map((prompt: Prompt) => shareProvenance(prompt)?.sourceAssistantId)
+                .filter((id): id is string => Boolean(id))
+        );
+        const receivedPromptIds = new Set(
+            prompts
+                .map((prompt: Prompt) => shareProvenance(prompt)?.sourcePromptId)
+                .filter((id): id is string => Boolean(id))
+        );
         return pendingShares.filter((csi) => {
+            const alreadyImported = prompts.some((prompt: Prompt) => {
+                const provenance = shareProvenance(prompt);
+                return provenance?.sharedBy === csi.item.sharedBy &&
+                    provenance.sharedAt === csi.item.sharedAt &&
+                    provenance.note === csi.item.note;
+            });
+            if (alreadyImported) return false;
             if (csi.bundle === null) return true;
-            return !csi.bundle.prompts?.some((p) => importedIds.has(p.id));
+            const assistantPrompts = (csi.bundle.prompts ?? []).filter((prompt) => isAssistant(prompt));
+            const sourceIds = assistantPrompts.map((prompt) => prompt.data?.assistant?.definition?.assistantId).filter(Boolean);
+            const sourcePromptIds = assistantPrompts.map((prompt) => prompt.id);
+            return !sourceIds.some((id) => receivedSourceIds.has(id)) &&
+                !sourcePromptIds.some((id) => receivedPromptIds.has(id));
         });
     }, [pendingShares, prompts]);
 
@@ -683,18 +940,37 @@ const SharedWithMeTab: React.FC = () => {
         const q = search.toLowerCase();
         return pendingNotImported.filter((csi) =>
             csi.item.note.toLowerCase().includes(q) ||
-            csi.item.sharedBy.toLowerCase().includes(q)
+            csi.item.sharedBy.toLowerCase().includes(q) ||
+            resolveSharedBy(csi.item.sharedBy).toLowerCase().includes(q)
         );
     }, [pendingNotImported, search]);
 
-    const filteredImported = useMemo(() => {
-        if (!search.trim()) return allImported;
-        const q = search.toLowerCase();
-        return allImported.filter((p: Prompt) =>
-            p.name.toLowerCase().includes(q) ||
-            (p.description && p.description.toLowerCase().includes(q))
-        );
-    }, [allImported, search]);
+    const openPendingPreview = async (csi: ClassifiedShareItem) => {
+        setPreviewError(null);
+        setPreviewLoadingKey(csi.item.key);
+        try {
+            let bundle = csi.bundle;
+            if (!bundle) {
+                const result = await loadSharedItem(csi.item.key);
+                if (!result.success) throw new Error('This share may have been deleted.');
+                bundle = JSON.parse(result.item);
+            }
+            const sharedPrompt = (bundle?.prompts ?? []).find((prompt: Prompt) => isAssistant(prompt));
+            if (!sharedPrompt) throw new Error('This share does not contain an assistant prompt.');
+            const provenance: ShareProvenance = {
+                sharedBy: csi.item.sharedBy,
+                sharedAt: csi.item.sharedAt,
+                note: csi.item.note,
+                sourceAssistantId: sharedPrompt.data?.assistant?.definition?.assistantId,
+                sourcePromptId: sharedPrompt.id,
+            };
+            setPendingPreview({ prompt: sharedPrompt, provenance });
+        } catch (error) {
+            setPreviewError(error instanceof Error ? error.message : 'Could not load the shared prompt.');
+        } finally {
+            setPreviewLoadingKey(null);
+        }
+    };
 
     const handleStartConversation = (p: Prompt) => {
         if (isAssistant(p) && p.data) {
@@ -727,6 +1003,10 @@ const SharedWithMeTab: React.FC = () => {
                 bundle = JSON.parse(res.item);
             }
             if (!bundle) return;
+            if (!bundle.prompts?.some((prompt) => isAssistant(prompt))) {
+                toast.error('This share does not contain an assistant.');
+                return;
+            }
 
             const defaultModel = getDefaultModel(DefaultModels.DEFAULT);
             const merged = importData(bundle, conversations, promptsRef.current, folders, defaultModel);
@@ -738,10 +1018,19 @@ const SharedWithMeTab: React.FC = () => {
             const bundlePromptIds = new Set((bundle.prompts ?? []).map((p) => p.id));
             const finalPrompts = merged.prompts.map((p: Prompt) => {
                 if (bundlePromptIds.has(p.id) && isAssistant(p)) {
+                    const sourceAssistantId = p.data?.assistant?.definition?.assistantId;
+                    const provenance: ShareProvenance = {
+                        sharedBy: csi.item.sharedBy,
+                        sharedAt: csi.item.sharedAt,
+                        note: csi.item.note,
+                        ...(sourceAssistantId ? { sourceAssistantId } : {}),
+                        sourcePromptId: p.id,
+                    };
                     return {
                         ...p,
                         data: {
                             ...p.data,
+                            sharedAssistant: provenance,
                             noEdit: true,
                             noCopy: true,
                             noShare: true,
@@ -771,9 +1060,7 @@ const SharedWithMeTab: React.FC = () => {
         }
     };
 
-    const noPending = filteredPending.length === 0;
-    const noImported = filteredImported.length === 0;
-    const nothingAtAll = noPending && noImported;
+    const nothingAtAll = filteredPending.length === 0;
 
     return (
         <div className="flex flex-col h-full overflow-hidden">
@@ -810,6 +1097,12 @@ const SharedWithMeTab: React.FC = () => {
                     </div>
                 )}
 
+                {previewError && (
+                    <div className="mx-3 mt-2 rounded-[8px] border px-3 py-2 text-[12px]" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-error)' }} role="alert">
+                        {previewError}
+                    </div>
+                )}
+
                 {/* Loading skeleton for pending shares */}
                 {pendingLoading && (
                     <div className="flex flex-col px-3 gap-2 pt-2">
@@ -822,6 +1115,32 @@ const SharedWithMeTab: React.FC = () => {
                             />
                         ))}
                     </div>
+                )}
+
+                {previewError && (
+                    <div className="mx-3 mt-2 rounded-[8px] border px-3 py-2 text-[12px]" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-error)' }} role="alert">
+                        {previewError}
+                    </div>
+                )}
+
+                {pendingPreview && (
+                    <AssistantPromptPreview
+                        prompt={pendingPreview.prompt}
+                        sharedBy={resolveSharedBy(pendingPreview.provenance.sharedBy)}
+                        note={pendingPreview.provenance.note}
+                        onClose={() => setPendingPreview(null)}
+                        onCopy={() => {
+                            setCopyingAssistant({ prompt: pendingPreview.prompt, provenance: pendingPreview.provenance });
+                            setPendingPreview(null);
+                        }}
+                    />
+                )}
+                {copyingAssistant && (
+                    <NewUIAssistantCreationModal
+                        copyingAssistant={copyingAssistant.prompt}
+                        copyProvenance={copyingAssistant.provenance}
+                        onClose={() => setCopyingAssistant(null)}
+                    />
                 )}
 
                 {/* Both sections empty → global empty state */}
@@ -878,6 +1197,16 @@ const SharedWithMeTab: React.FC = () => {
                                         </p>
                                     </div>
 
+                                    <button
+                                        onClick={() => void openPendingPreview(csi)}
+                                        disabled={previewLoadingKey === csi.item.key}
+                                        aria-label={`View prompt for ${csi.item.note || 'shared assistant'}`}
+                                        className="flex-shrink-0 flex items-center gap-1.5 h-[28px] px-3 rounded-[6px] text-[12px] font-medium"
+                                        style={{ color: 'var(--text-secondary)', background: 'var(--bg-active)' }}
+                                    >
+                                        {previewLoadingKey === csi.item.key ? <IconLoader2 size={12} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={13} />}
+                                        View prompt
+                                    </button>
                                     {/* Import button */}
                                     <button
                                         onClick={() => !isImporting && handleImportPendingShare(csi)}
@@ -906,21 +1235,6 @@ const SharedWithMeTab: React.FC = () => {
                     </div>
                 )}
 
-                {/* ── Already imported section ── */}
-                {filteredImported.length > 0 && (
-                    <div>
-                        <SectionHeading label="Imported" count={filteredImported.length} />
-                        {filteredImported.map((p: Prompt) => (
-                            <AssistantRow
-                                key={p.id}
-                                name={p.name}
-                                description={p.description}
-                                onClick={() => handleStartConversation(p)}
-                                // Read-only: no edit/delete buttons
-                            />
-                        ))}
-                    </div>
-                )}
             </div>
         </div>
     );

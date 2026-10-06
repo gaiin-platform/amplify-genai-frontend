@@ -141,6 +141,15 @@ export interface NewUIAssistantCreationModalProps {
      *    treats the call as an update rather than a create.
      */
     editingAssistant?: Prompt;
+    /** Prefill a new assistant from a received shared assistant; never edits the source. */
+    copyingAssistant?: Prompt;
+    copyProvenance?: {
+        sharedBy: string;
+        sharedAt?: number;
+        note?: string;
+        sourceAssistantId?: string;
+        sourcePromptId?: string;
+    };
 }
 
 // ── Shared field styles ────────────────────────────────────────────────────────
@@ -403,8 +412,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     onClose,
     initialGroupId,
     editingAssistant,
+    copyingAssistant,
+    copyProvenance,
 }) => {
     const isEditMode = !!editingAssistant;
+    const sourceAssistant = editingAssistant ?? copyingAssistant;
+    const isCopyMode = !isEditMode && !!copyingAssistant;
     const {
         state: {
             featureFlags,
@@ -437,6 +450,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             if (def?.astPath || (def?.data?.astPath as string | undefined)) return 'managed';
             return 'private';
         }
+        // Copies always begin as private, recipient-owned assistants.
+        if (isCopyMode) return 'private';
         return initialGroupId ? 'collaborative' : 'private';
     };
     const [accessType, setAccessType] = useState<AccessModel>(deriveInitialAccessType);
@@ -575,23 +590,23 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const [isSaving, setIsSaving] = useState(false);
     const [saveError, setSaveError] = useState('');
 
-    // ── Pre-populate form from editing assistant (edit mode only) ─────────
+    // ── Pre-populate form from an existing assistant or copy source ─────────
     useEffect(() => {
-        if (!editingAssistant) return;
+        if (!sourceAssistant) return;
 
-        const def = editingAssistant.data?.assistant?.definition as AssistantDefinition | undefined;
+        const def = sourceAssistant.data?.assistant?.definition as AssistantDefinition | undefined;
         if (!def) return;
 
         // Section B — core fields
-        setName(def.name ?? '');
+        setName(isCopyMode ? `${def.name ?? ''} (Copy)` : (def.name ?? ''));
         setDescription(def.description ?? '');
         setInstructions(def.instructions ?? '');
         setDisclaimer(def.disclaimer ?? '');
 
         // Tags
-        if (Array.isArray(def.tags)) setTags(def.tags.join(', '));
+        if (Array.isArray(def.tags) && !isCopyMode) setTags(def.tags.join(', '));
         const convTags = (def.data as any)?.conversationTags;
-        if (Array.isArray(convTags)) setConversationTags(convTags.join(', '));
+        if (Array.isArray(convTags) && !isCopyMode) setConversationTags(convTags.join(', '));
 
         // Enforce model
         const enforcedModel = (def.data as any)?.model as string | undefined;
@@ -605,10 +620,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         // would spin forever waiting on an upload that already happened.
         if (Array.isArray(def.dataSources)) {
             const existing = def.dataSources as AttachedDocument[];
-            setDataSources(existing);
+            // Copy mode keeps file references but never reuses mutable source objects.
+            const copiedSources = existing.map((source) => ({ ...source }));
+            setDataSources(copiedSources);
             setDocumentState((prev) => {
                 const next = { ...prev };
-                existing.forEach((ds) => { next[ds.id] = 100; });
+                copiedSources.forEach((ds) => { next[ds.id] = 100; });
                 return next;
             });
         }
@@ -618,9 +635,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         // when it is truthy) drops every drive file the assistant had, and the
         // panel shows nothing as selected.
         const driveData = (def.data as any)?.integrationDriveData as DriveFilesDataSources | undefined;
-        if (driveData && Object.keys(driveData).length > 0) {
-            setIntegrationDataSources(driveData);
-            initIntegrationDataSources.current = driveData;
+        if (!isCopyMode && driveData && Object.keys(driveData).length > 0) {
+            const copiedDriveData = isCopyMode
+                ? JSON.parse(JSON.stringify(driveData)) as DriveFilesDataSources
+                : driveData;
+            setIntegrationDataSources(copiedDriveData);
+            initIntegrationDataSources.current = copiedDriveData;
         }
 
         // Website URLs
@@ -633,7 +653,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         const skillMode = (def.data as any)?.skillSelectionMode;
         if (skillMode) setSkillSelectionMode(skillMode);
 
-        // Tools / APIs
+        // Tools / APIs are usable configuration; integration-owned selections may
+        // be unavailable to the recipient, so those stay opt-in via a fresh copy.
         if (Array.isArray(def.tools)) setSelectedApis(def.tools);
         const opInfo = (def.data as any)?.operations;
         if (Array.isArray(opInfo)) setApiInfo(opInfo);
@@ -651,7 +672,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         // Advanced
         const opsVersion = (def.data as any)?.opsLanguageVersion as string | undefined;
         if (opsVersion) setOpsLanguageVersion(opsVersion);
-        if ((def.data as any)?.availableOnRequest) setAvailableOnRequest(true);
+        if (isEditMode && (def.data as any)?.availableOnRequest) setAvailableOnRequest(true);
 
         // Option flags — merge over defaults
         const dsOpts = (def.data as any)?.dataSourceOptions;
@@ -663,11 +684,11 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         const apiOpts = (def.data as any)?.apiOptions;
         if (apiOpts) setApiOptions((prev) => ({ ...prev, ...apiOpts }));
 
-        // Section A — access type sub-config
-        if (editingAssistant.groupId) {
+        // Section A — access type sub-config. Source ownership is never copied.
+        if (isEditMode && editingAssistant?.groupId) {
             setSelectedGroupId(editingAssistant.groupId);
         }
-        const astPath = def.astPath ?? ((def.data as any)?.astPath as string | undefined);
+        const astPath = isEditMode ? (def.astPath ?? ((def.data as any)?.astPath as string | undefined)) : undefined;
         if (astPath) {
             generatedRestrictedPath.current = astPath.toLowerCase();
             const astPathData = (def.data as any)?.astPathData;
@@ -686,14 +707,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
         // Email events
         const emailEvents = (def.data as any)?.emailEvents;
-        if (emailEvents?.tag) {
+        if (isEditMode && emailEvents?.tag) {
             setEnableEmailEvents(true);
             setEmailEventTag(emailEvents.tag);
             setEmailEventTemplate(emailEvents.template);
             setIsEmailTagAvailable(true); // assume existing tag is still valid
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // run once on mount — editingAssistant is stable (passed as prop, not expected to change)
+    }, []); // run once on mount — source assistant is stable for this modal instance
 
     // ── Lazy load APIs and agent tools ────────────────────────────────────
     const refreshAvailableApis = useCallback(async () => {
@@ -1221,14 +1242,15 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 tools: selectedApis || [],
                 tags: tagList,
                 dataSources: processedDataSources as any,
-                version: existingDef?.version ?? 1,
-                fileKeys: existingDef?.fileKeys ?? [],
+                version: isEditMode ? (existingDef?.version ?? 1) : 1,
+                fileKeys: isEditMode ? (existingDef?.fileKeys ?? []) : [],
                 provider: AssistantProviderID.AMPLIFY,
                 // Carry forward existing IDs in edit mode
                 ...(isEditMode && existingDef?.id ? { id: existingDef.id } : {}),
                 ...(isEditMode && existingDef?.assistantId ? { assistantId: existingDef.assistantId } : {}),
                 data: {
                     access: { read: true, write: true },
+                    ...(copyProvenance ? { sharedAssistant: copyProvenance } : {}),
                     tags: tagList,
                     conversationTags: conversationTagList,
                     websiteUrls,
@@ -1389,10 +1411,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // ── Render ─────────────────────────────────────────────────────────────
     return (
         <CreationModalShell
-            title={isEditMode ? 'Edit Assistant' : 'New Assistant'}
+            title={isEditMode ? 'Edit Assistant' : isCopyMode ? 'Make a Copy' : 'New Assistant'}
             onClose={onClose}
             onSave={handleSave}
-            saveLabel={isEditMode ? 'Save Changes' : 'Create'}
+            saveLabel={isEditMode ? 'Save Changes' : isCopyMode ? 'Create Copy' : 'Create'}
             isSaving={isSaving}
             saveDisabled={!canSave()}
         >
