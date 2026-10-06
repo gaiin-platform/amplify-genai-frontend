@@ -21,6 +21,8 @@ import { useChatService } from "@/hooks/useChatService";
 import { DEFAULT_TEMPERATURE } from "@/utils/app/const";
 import { uploadConversation } from "@/services/remoteConversationService";
 import { doReadMemoryOp } from '@/services/memoryService';
+import { loadProjectContext } from '@/services/projectContextCache';
+import { listProjectMemories, addProjectMemory } from '@/services/projectService';
 import {
     ExtractedFact,
     Memory,
@@ -33,7 +35,8 @@ import { promptForData } from '@/utils/app/llm';
 import {
     buildExtractFactsPrompt,
     getRelevantMemories,
-    buildMemoryContextPrompt
+    buildMemoryContextPrompt,
+    buildProjectExtractFactsPrompt
 } from '@/utils/app/memory';
 import { handleAgentRun, handleAgentRunResult, isWaitingForAgentResponse } from '@/utils/app/agent';
 import { lzwCompress } from '@/utils/app/lzwCompression';
@@ -493,9 +496,9 @@ export function useSendService() {
                         chatBody.codeInterpreterOnly = true;
                     }
 
-                    if (selectedConversation?.projectId) {
+                    if (updatedConversation.projectId) {
                         // console.log("Selected Project Memory ID:", selectedConversation.projectId);
-                        chatBody.projectId = selectedConversation.projectId;
+                        chatBody.projectId = updatedConversation.projectId;
                     }
 
                     // Handle memory operations in parallel with the main request flow
@@ -557,6 +560,28 @@ export function useSendService() {
                         if (filteredDataSources.length > 0) {
                             chatBody.dataSources = filteredDataSources;
                         }
+                    }
+
+                    // Project context. The backend (amplify-lambda-js) attaches everything
+                    // from chatBody.projectId itself — the project's assistant-independent
+                    // instructions, its approved memories, and its knowledge-base files —
+                    // so sending never waits on, or fails because of, a browser lookup.
+                    // The only client-side pieces: tell the server which project files the
+                    // user removed from this chat, and warn (without delaying the send)
+                    // when the project is archived and therefore not applied.
+                    if (updatedConversation.projectId) {
+                        if (removedIds.size > 0) {
+                            chatBody.excludedProjectFileIds = Array.from(removedIds).slice(0, 200);
+                        }
+                        loadProjectContext(updatedConversation.projectId, 1500)
+                            .then(({ project }) => {
+                                if (project.status !== 'active') {
+                                    toast("This project is archived, so its instructions, files and memory aren't applied.", {
+                                        id: 'project-context-notice',
+                                    });
+                                }
+                            })
+                            .catch(() => undefined);
                     }
 
 
@@ -1614,7 +1639,9 @@ export function useSendService() {
                         }
 
                         // Run memory extraction after main response is processed
-                        if (isMemoryOn && memoryExtractionEnabled) {
+                        // Project chats never feed the global (cross-chat) memory: their facts belong to
+                        // the project's own, approval-gated memory below.
+                        if (isMemoryOn && memoryExtractionEnabled && !updatedConversation.projectId) {
                             // This runs completely independently and doesn't affect the main response flow
                             (async () => {
                                 try {
@@ -1694,6 +1721,140 @@ export function useSendService() {
                                     });
                                 } catch (error) {
                                     console.warn('Fact extraction process failed:', error);
+                                }
+                            })();
+                        }
+
+                        // Project memory extraction — separate from the global-memory
+                        // block above (different gate: the project's own memoryEnabled
+                        // flag, not the featureFlags.memory/includeMemory pair), and
+                        // saves suggestions as pending. They appear in the project
+                        // workspace but are never injected until the user approves them.
+                        if (updatedConversation.projectId) {
+                            (async () => {
+                                try {
+                                    const projectId = updatedConversation.projectId as string;
+                                    const { project } = await loadProjectContext(projectId, 10000);
+                                    if (project.status !== 'active' || !project.memoryEnabled) return;
+
+                                    // What the extractor sees: the user's message and the assistant's
+                                    // reply to it. A long message is a pasted document, not the user
+                                    // talking about the project, so it is skipped entirely, and both
+                                    // texts are bounded so nothing large is re-sent every turn.
+                                    const messages = updatedConversation.messages as any[];
+                                    const lastAssistant = messages[messages.length - 1]?.role === 'assistant' ? messages[messages.length - 1] : undefined;
+                                    const lastUser = [...messages].reverse().find((candidate) => candidate.role === 'user');
+                                    const userText: string = typeof lastUser?.content === 'string' ? lastUser.content : '';
+                                    if (userText.trim().length < 20 || userText.length > 3000) return;
+                                    const assistantText: string = typeof lastAssistant?.content === 'string' ? lastAssistant.content.slice(0, 1500) : '';
+                                    const userInput = userText;
+
+                                    const existingMemoriesResult = await listProjectMemories(projectId);
+                                    const existingMemories = existingMemoriesResult.success ? (existingMemoriesResult.data || []) : [];
+                                    const normalizeMemoryText = (text: string) => text.toLowerCase().replace(/\s+/g, ' ').trim();
+                                    const existingContents = new Set(existingMemories.map((m: any) => normalizeMemoryText(m.content)));
+                                    // So a corrected/updated fact (see "supersedes" below) can retire the
+                                    // exact old record it replaces, rather than just sitting alongside it.
+                                    const existingIdByContent = new Map(existingMemories.map((m: any) => [normalizeMemoryText(m.content), m.id]));
+
+                                    const extractFactsPrompt = buildProjectExtractFactsPrompt(
+                                        userInput,
+                                        existingMemories.map((m: any) => m.content),
+                                        assistantText
+                                    );
+
+                                    // The dev-config "cheapest" model can be mis-configured on the
+                                    // backend for reasoning-disabled calls (see getDefaultModel usage
+                                    // elsewhere); extraction only needs a quick structured-output call,
+                                    // so reuse the model already known-good for this conversation instead
+                                    // of forcing a separate, possibly-broken "cheapest" tier model.
+                                    const extractionModel = updatedConversation.model || getDefaultModel(DefaultModels.CHEAPEST);
+
+                                    // A request with only a system message and no user turn at all gets
+                                    // rejected by some providers (Bedrock in particular) before it ever
+                                    // reaches a model-specific error path, surfacing as the same generic
+                                    // "Error retrieving response" regardless of which model is configured.
+                                    // Give it a minimal real user turn instead of an empty messages array.
+                                    const extractionMessages = [newMessage({ role: 'user', content: 'Extract the facts now.' })];
+
+                                    let extractionTimeout: ReturnType<typeof setTimeout> | undefined;
+                                    const extractFactsResult = await Promise.race([
+                                        promptForData(
+                                            chatEndpoint || '',
+                                            extractionMessages,
+                                            extractionModel,
+                                            extractFactsPrompt,
+                                            defaultAccount,
+                                            statsService
+                                        ),
+                                        new Promise<null>((resolve) => {
+                                            extractionTimeout = setTimeout(() => resolve(null), 15000);
+                                        }),
+                                    ]).finally(() => {
+                                        if (extractionTimeout) clearTimeout(extractionTimeout);
+                                    });
+
+                                    if (!extractFactsResult) return;
+
+                                    const cleanedResult = extractFactsResult
+                                        .trim()
+                                        .replace(/^```(?:json)?\s*/i, '')
+                                        .replace(/\s*```$/, '');
+                                    const parsed = JSON.parse(cleanedResult);
+                                    const newFacts: string[] = Array.isArray(parsed?.facts)
+                                        ? parsed.facts
+                                            .filter((fact: unknown): fact is string => typeof fact === 'string')
+                                            .map((fact: string) => fact.trim().slice(0, 1000))
+                                            .filter(Boolean)
+                                            .slice(0, 3)
+                                        : [];
+
+                                    // Old records a new fact corrects/replaces, e.g. a stated name that
+                                    // changed. The model is asked to copy the exact existing text so it
+                                    // can be matched back to its record id. Nothing is deleted here: the
+                                    // superseded ids just ride along on the new PENDING suggestion, and the
+                                    // backend only retires them if and when the owner approves this new
+                                    // memory (service/project_memory.py: edit_project_memory). Rejecting
+                                    // the suggestion, or never acting on it, leaves the old fact untouched.
+                                    const supersedes: string[] = Array.isArray(parsed?.supersedes)
+                                        ? parsed.supersedes
+                                            .filter((item: unknown): item is string => typeof item === 'string')
+                                            .slice(0, 5)
+                                        : [];
+                                    const supersededIds = Array.from(new Set(
+                                        supersedes
+                                            .map((old) => existingIdByContent.get(normalizeMemoryText(old)))
+                                            .filter((id): id is string => Boolean(id))
+                                    ));
+
+                                    const uniqueFacts = newFacts.filter((fact) => {
+                                        const normalized = fact.toLowerCase().replace(/\s+/g, ' ').trim();
+                                        if (existingContents.has(normalized)) return false;
+                                        existingContents.add(normalized);
+                                        return true;
+                                    });
+
+                                    let suggested = 0;
+                                    for (const fact of uniqueFacts) {
+                                        const saved = await addProjectMemory({
+                                            projectId,
+                                            content: fact,
+                                            sourceConversationId: updatedConversation.id,
+                                            status: 'pending',
+                                            ...(supersededIds.length > 0 ? { supersedesIds: supersededIds } : {}),
+                                        });
+                                        if (saved.success && saved.message !== 'Memory already exists.') suggested += 1;
+                                    }
+                                    if (suggested > 0) {
+                                        // Nudge: the chat header shows a badge and this toast points at it.
+                                        toast(`${suggested} memory suggestion${suggested === 1 ? '' : 's'} for ${project.name}. Open Project context to review.`, {
+                                            id: 'project-memory-suggested',
+                                            duration: 6000,
+                                        });
+                                        window.dispatchEvent(new CustomEvent('amplifyProjectMemorySuggested', { detail: { projectId, count: suggested } }));
+                                    }
+                                } catch (error) {
+                                    console.warn('Project memory extraction failed:', error);
                                 }
                             })();
                         }

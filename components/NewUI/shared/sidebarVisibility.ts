@@ -19,6 +19,7 @@ export interface SidebarVisibility {
   chats: boolean;       // "Chats" nav item (full chats list view)
   assistants: boolean;  // "Assistants" nav item
   library: boolean;     // "Library" nav item
+  projects: boolean;    // "Projects" nav item
   workflows: boolean;   // "Workflows" nav item (only relevant when feature flag is on)
   notebook: boolean;    // "Notebook" nav item (only relevant when feature flag is on)
   scheduled: boolean;   // "Scheduled" nav item (only relevant when feature flag is on)
@@ -28,6 +29,7 @@ export const DEFAULT_SIDEBAR_VISIBILITY: SidebarVisibility = {
   chats: true,
   assistants: true,
   library: true,
+  projects: true,
   workflows: true,
   notebook: true,
   scheduled: true,

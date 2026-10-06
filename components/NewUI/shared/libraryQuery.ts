@@ -9,6 +9,7 @@
 
 import { FileQuery, FileRecord, PageKey } from '@/services/fileService';
 import { mimeTypeToCommonName } from '@/utils/app/fileTypeTranslations';
+import { PROJECTS_ENABLED } from '@/utils/app/projectsFlag';
 
 /** The index the library lists against: newest first. */
 export const LIBRARY_SORT_INDEX = 'createdAt';
@@ -22,6 +23,18 @@ export const LIBRARY_EXCLUDE_ASSISTANT_FILTER = {
     attribute: 'data.type',
     operator: 'not_startsWith',
     value: 'assistant',
+} as const;
+
+/**
+ * Project knowledge-base files (knowledgeBase = "proj/<uuid>") belong to their
+ * project and are managed from its Files section; listing them here would let
+ * deleting one from the Library silently break a project. Existing files have no
+ * knowledgeBase or "default", both of which this leaves untouched.
+ */
+export const LIBRARY_EXCLUDE_PROJECT_FILES_FILTER = {
+    attribute: 'knowledgeBase',
+    operator: 'not_startsWith',
+    value: 'proj/',
 } as const;
 
 /**
@@ -70,7 +83,11 @@ export function buildLibraryQuery(opts: {
         pageSize: opts.pageSize,
         sortIndex: LIBRARY_SORT_INDEX,
         forwardScan: false, // newest first
-        filters: [{ ...LIBRARY_EXCLUDE_ASSISTANT_FILTER }],
+        // The project-file filter only exists while Projects is on; otherwise this query is unchanged.
+        filters: [
+            { ...LIBRARY_EXCLUDE_ASSISTANT_FILTER },
+            ...(PROJECTS_ENABLED ? [{ ...LIBRARY_EXCLUDE_PROJECT_FILES_FILTER }] : []),
+        ],
     };
     const pageKey = sanitizePageKey(opts.pageKey, LIBRARY_SORT_INDEX);
     if (pageKey) query.pageKey = pageKey;

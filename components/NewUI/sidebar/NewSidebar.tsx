@@ -25,6 +25,7 @@ import {
   IconArrowUpRight,
   IconAdjustmentsHorizontal,
   IconBooks,
+  IconStack2,
   IconAdjustments,
   IconLayoutSidebarLeftExpand,
   IconPuzzle,
@@ -64,6 +65,8 @@ import {
   isPinnedConv,
   isBlankPlaceholderConversation,
 } from '@/components/NewUI/shared/chatFilters';
+import { useProjectRegistry } from '@/components/NewUI/projects/projectRegistry';
+import { PROJECTS_ENABLED } from '@/utils/app/projectsFlag';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import {
@@ -518,9 +521,11 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     [conversations]
   );
 
+  const anyProjectChats = useMemo(() => listableConversations.some((c: Conversation) => !!c.projectId), [listableConversations]);
+  const { names: projectNames } = useProjectRegistry(anyProjectChats);
   const chatFilterGroups = useMemo(
-    () => buildChatFilterGroups(listableConversations, { includePinned: false, includeSort: true }),
-    [listableConversations]
+    () => buildChatFilterGroups(listableConversations, { includePinned: false, includeSort: true, projectNames }),
+    [listableConversations, projectNames]
   );
 
   const sortMode = (chatFilters.sort ?? CHAT_FILTER_DEFAULTS.sort) as ChatSortMode;
@@ -677,6 +682,14 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       action: () => dispatch({ field: 'page', value: 'library' as any }),
     },
     {
+      icon: <IconStack2 size={18} />,
+      label: 'Projects',
+      title: 'Projects',
+      id: 'projects',
+      visible: sidebarVisibility.projects && PROJECTS_ENABLED,
+      action: () => dispatch({ field: 'page', value: 'projects' as any }),
+    },
+    {
       icon: <IconAdjustments size={18} />,
       label: 'Customize',
       title: 'Customize',
@@ -717,6 +730,8 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     settingsSection !== null ? 'customize'
     : page === 'assistantGallery' ? 'assistants'
     : (page as any) === 'library' ? 'library'
+    : (page as any) === 'projects' ? 'projects'
+    : (page === 'chat' && selectedConversation?.projectId) ? 'projects' // chats inside a project stay under Projects
     : page === 'notebook' ? 'notebook'
     : (page as any) === 'chats' ? 'chats'
     : (page as any) === 'scheduledTasks' ? 'scheduled'

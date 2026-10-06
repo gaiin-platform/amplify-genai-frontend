@@ -28,6 +28,7 @@ export const CHAT_FILTER_DEFAULTS: Record<string, string> = {
     pinned: 'all',
     storage: 'all',
     assistant: 'all',
+    project: 'all',
     sort: 'recent',
 };
 
@@ -102,11 +103,13 @@ interface BuildGroupsOptions {
     includePinned?: boolean;
     /** Offer single-select sort options. Off where column headers own sorting. */
     includeSort?: boolean;
+    /** Project id → name, so individual projects can be offered as filter options. */
+    projectNames?: Map<string, string>;
 }
 
 export function buildChatFilterGroups(
     conversations: Conversation[],
-    { includePinned = true, includeSort = false }: BuildGroupsOptions = {}
+    { includePinned = true, includeSort = false, projectNames }: BuildGroupsOptions = {}
 ): FilterGroupSpec[] {
     const groups: FilterGroupSpec[] = [];
 
@@ -141,6 +144,26 @@ export function buildChatFilterGroups(
                 { id: 'all', label: 'All' },
                 { id: 'with', label: 'With assistant' },
                 { id: 'without', label: 'No assistant' },
+            ],
+        });
+    }
+
+    // Project chats: offered only when at least one chat belongs to a project.
+    // Individual projects are listed only when their name is known.
+    if (conversations.some((c) => !!c.projectId)) {
+        const inProject = new Set(conversations.map((c) => c.projectId).filter(Boolean) as string[]);
+        const perProject = Array.from(inProject)
+            .filter((id) => projectNames?.has(id))
+            .map((id) => ({ id: `p:${id}`, label: projectNames!.get(id) as string }))
+            .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+        groups.push({
+            id: 'project',
+            label: 'Project',
+            options: [
+                { id: 'all', label: 'All' },
+                { id: 'any', label: 'In a project' },
+                { id: 'none', label: 'Not in a project' },
+                ...perProject,
             ],
         });
     }
@@ -187,6 +210,18 @@ export function applyChatFilters(
             filters.assistant === 'with'
                 ? !!conversationAssistantName(c)
                 : !conversationAssistantName(c)
+        );
+    }
+
+    const projectGroup = groups.find((g) => g.id === 'project');
+    // A saved "p:<id>" for a project that is no longer offered is ignored rather
+    // than silently filtering everything out.
+    if (projectGroup && filters.project && filters.project !== 'all'
+        && projectGroup.options.some((o) => o.id === filters.project)) {
+        list = list.filter((c) =>
+            filters.project === 'any' ? !!c.projectId
+            : filters.project === 'none' ? !c.projectId
+            : c.projectId === filters.project.slice(2)
         );
     }
 

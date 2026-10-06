@@ -14,17 +14,50 @@ import {
   IconShare,
   IconTrash,
   IconSparkles,
+  IconStack2,
+  IconAdjustmentsHorizontal,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
+import { useProjectSummary } from '@/components/NewUI/projects/useProjectSummary';
+import { PROJECTS_ENABLED } from '@/utils/app/projectsFlag';
+import { getLastReplyContext, summarizeReplyContext } from '@/components/NewUI/projects/lastReplyContext';
+import { MoveToProjectDialog } from '@/components/NewUI/projects/MoveToProjectDialog';
+import { ProjectChatDrawer } from '@/components/NewUI/projects/ProjectChatDrawer';
+import { setSelectedProjectId } from '@/components/NewUI/projects/projectNavigation';
 
 export const ConversationHeader: React.FC = () => {
   const {
     state: { selectedConversation, lightMode },
     handleUpdateConversation,
+    dispatch,
   } = useContext(HomeContext);
+
+  // Chats started inside a Project link back to it.
+  const project = useProjectSummary(selectedConversation?.projectId);
+  const [showProjectContext, setShowProjectContext] = useState(false);
+  const [showMoveToProject, setShowMoveToProject] = useState(false);
+  // New memory suggestions for this chat's project (raised by the send service after a reply).
+  const [suggestedCount, setSuggestedCount] = useState(0);
+  const lastReplySummary = summarizeReplyContext(getLastReplyContext(selectedConversation?.messages));
+  const chatProjectId = selectedConversation?.projectId;
+  useEffect(() => {
+    setSuggestedCount(0);
+    if (!chatProjectId) return;
+    const onSuggested = (event: Event) => {
+      const detail = (event as CustomEvent).detail;
+      if (detail?.projectId === chatProjectId) setSuggestedCount((count) => count + (Number(detail.count) || 1));
+    };
+    window.addEventListener('amplifyProjectMemorySuggested', onSuggested);
+    return () => window.removeEventListener('amplifyProjectMemorySuggested', onSuggested);
+  }, [chatProjectId]);
+  const openProject = () => {
+    if (!project) return;
+    setSelectedProjectId(project.id);
+    dispatch({ field: 'page', value: 'projects' as any });
+  };
 
   // Resolved per-conversation assistant — survives the first send and a reload,
   // unlike the global `selectedAssistant` field. See useConversationAssistant.
@@ -126,6 +159,21 @@ export const ConversationHeader: React.FC = () => {
     >
       {/* ── Left: title trigger ── */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
+        {project && (
+          <>
+            <button
+              type="button"
+              onClick={openProject}
+              className="flex items-center gap-1.5 rounded-[8px] px-2 py-1 text-[13px] flex-shrink-0 transition-colors text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+              aria-label={`Back to project ${project.name}`}
+              title={`Back to project ${project.name}`}
+            >
+              <IconStack2 size={14} aria-hidden="true" />
+              <span className="truncate max-w-[18ch]">{project.name}</span>
+            </button>
+            <span aria-hidden="true" className="flex-shrink-0" style={{ color: 'var(--text-muted)' }}>/</span>
+          </>
+        )}
         {renaming ? (
           <input
             ref={renameInputRef}
@@ -194,6 +242,28 @@ export const ConversationHeader: React.FC = () => {
 
       {/* ── Right: Share chat button ── */}
       <div className="flex items-center gap-2.5 flex-shrink-0">
+        {project && (
+          <button
+            type="button"
+            onClick={() => { setShowProjectContext(true); setSuggestedCount(0); }}
+            aria-haspopup="dialog"
+            className="flex items-center gap-1.5 rounded-[8px] px-2.5 text-[13px] transition-colors text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+            style={{ height: 30 }}
+            title={lastReplySummary ? `The last reply used ${lastReplySummary}. Click to view or edit this project's context.` : "View and edit this project's instructions, files and memory"}
+          >
+            <IconAdjustmentsHorizontal size={15} aria-hidden="true" />
+            <span className="hidden sm:inline">Project context</span>
+            {suggestedCount > 0 && (
+              <span
+                className="ml-0.5 min-w-[18px] rounded-full px-1.5 text-center text-[11px] font-medium text-white"
+                style={{ background: 'var(--accent)' }}
+                aria-label={`${suggestedCount} new memory suggestion${suggestedCount === 1 ? '' : 's'}`}
+              >
+                {suggestedCount}
+              </span>
+            )}
+          </button>
+        )}
         <button
           type="button"
           onClick={handleShare}
@@ -243,6 +313,14 @@ export const ConversationHeader: React.FC = () => {
             <IconShare size={15} />
             Share
           </button>
+          {PROJECTS_ENABLED && <button
+            role="menuitem"
+            className={menuItemCls}
+            onClick={() => { setMenuOpen(false); setShowMoveToProject(true); }}
+          >
+            <IconStack2 size={15} />
+            {selectedConversation?.projectId ? 'Change project' : 'Move to project'}
+          </button>}
           <div className="h-px bg-[--border-subtle] mx-2 my-1" />
           <button
             role="menuitem"
@@ -280,6 +358,16 @@ export const ConversationHeader: React.FC = () => {
         conversationId={selectedConversation.id}
         conversationTitle={selectedConversation.name}
         onClose={() => setShowShareModal(false)}
+      />
+    )}
+    {showMoveToProject && selectedConversation && (
+      <MoveToProjectDialog conversation={selectedConversation} onClose={() => setShowMoveToProject(false)} />
+    )}
+    {selectedConversation?.projectId && project && (
+      <ProjectChatDrawer
+        projectId={selectedConversation.projectId}
+        open={showProjectContext}
+        onClose={() => setShowProjectContext(false)}
       />
     )}
     </>

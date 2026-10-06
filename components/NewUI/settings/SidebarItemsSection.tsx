@@ -11,10 +11,12 @@
  */
 
 import React, { useEffect, useId, useState } from 'react';
+import { PROJECTS_ENABLED } from '@/utils/app/projectsFlag';
 import {
   IconMessageCircle,
   IconSparkles,
   IconBooks,
+  IconStack2,
   IconPuzzle,
   IconClock,
   IconLayoutGridAdd,
@@ -163,6 +165,13 @@ const SidebarItemsSection: React.FC = () => {
       icon: <IconBooks size={16} />,
       label: 'Library',
     },
+    ...(PROJECTS_ENABLED
+      ? [{
+          key: 'projects' as keyof SidebarVisibility,
+          icon: <IconStack2 size={16} />,
+          label: 'Projects',
+        }]
+      : []),
     // Feature-flagged items — only included when the corresponding flag is on
     ...(featureFlags.createAssistantWorkflows
       ? [

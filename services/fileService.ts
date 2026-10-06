@@ -115,13 +115,13 @@ export function checkContentReady(url: string, maxSeconds: number, abortControll
     });
 }
 
-export const addFile = async (metadata: AttachedDocument, file: File, onProgress?: (progress: number) => void, ragEnabled: boolean = true, tags: string[] = [], abortSignal: AbortSignal | null = null) => {
+export const addFile = async (metadata: AttachedDocument, file: File, onProgress?: (progress: number) => void, ragEnabled: boolean = true, tags: string[] = [], abortSignal: AbortSignal | null = null, knowledgeBase: string = "default") => {
     const requestBody = {
         data: {
             actions: [],
             type: metadata.type,
             name: metadata.name,
-            knowledgeBase: "default",
+            knowledgeBase: knowledgeBase,
             tags: tags,
             data: metadata.data,
             groupId: metadata.groupId,
@@ -232,6 +232,7 @@ export type FileUpdateTagsResult = {
 
 export type FileQueryResult = {
     success: boolean;
+    message?: string;
     data: {
         items: FileRecord[];
         pageKey?: PageKey;
@@ -300,6 +301,29 @@ export const queryUserFiles = async (query: FileQuery, abortSignal: AbortSignal 
     return await doRequestOp(op);
 }
 
+/** Query every page for a knowledge base. Callers may cap the returned set. */
+export const queryKnowledgeBaseFiles = async (
+    knowledgeBase: string,
+    abortSignal: AbortSignal | null = null,
+    maxItems = 500,
+): Promise<FileQueryResult> => {
+    const items: FileRecord[] = [];
+    let pageKey: PageKey | null = null;
+
+    do {
+        const result = await queryUserFiles({
+            pageSize: Math.min(100, maxItems - items.length),
+            pageKey,
+            filters: [{ attribute: 'knowledgeBase', operator: 'equals', value: knowledgeBase }],
+        }, abortSignal) as FileQueryResult;
+        if (!result.success) return result;
+        items.push(...(result.data?.items || []));
+        pageKey = result.data?.pageKey || null;
+    } while (pageKey && items.length < maxItems && !abortSignal?.aborted);
+
+    return { success: true, data: { items: items.slice(0, maxItems), pageKey: pageKey || undefined } };
+}
+
 export const renameFile = async (id: string, name: string) => {
     const op = {
         method: 'POST',
@@ -336,4 +360,3 @@ export const reprocessFile = async (key: string, groupId?: string) => {
     };
     return await doRequestOp(op);
 }
-

@@ -40,6 +40,7 @@ import {
     IconPin,
     IconPinnedOff,
     IconPinFilled,
+    IconStack2,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Conversation } from '@/types/chat';
@@ -60,6 +61,9 @@ import {
 import { DefaultModels } from '@/types/model';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
+import { MoveToProjectDialog } from '@/components/NewUI/projects/MoveToProjectDialog';
+import { useProjectRegistry } from '@/components/NewUI/projects/projectRegistry';
+import { PROJECTS_ENABLED } from '@/utils/app/projectsFlag';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
@@ -106,7 +110,7 @@ function relativeDate(isoString?: string | number): string {
 // so this view and the sidebar Recents list stay in agreement.
 
 /** Reserved width of the hover-action cell: 4 × 28px buttons + 3 × 4px gaps. */
-const ACTION_CELL_WIDTH = 124;
+const ACTION_CELL_WIDTH = 156;
 
 // ── Tab definition ────────────────────────────────────────────────────────────
 
@@ -214,9 +218,11 @@ export const ChatsListView: React.FC = () => {
         [conversations],
     );
 
+    const anyProjectChats = useMemo(() => listableConversations.some((c) => !!c.projectId), [listableConversations]);
+    const { names: projectNames } = useProjectRegistry(anyProjectChats);
     const filterGroups = useMemo(
-        () => buildChatFilterGroups(listableConversations),
-        [listableConversations],
+        () => buildChatFilterGroups(listableConversations, { projectNames }),
+        [listableConversations, projectNames],
     );
     const hasAssistantConvs = filterGroups.some((g) => g.id === 'assistant');
     const activeFilterCount = countActiveChatFilters(filters, filterGroups);
@@ -687,6 +693,11 @@ const MyChatRow: React.FC<MyChatRowProps> = ({
     // ── Share modal state ────────────────────────────────────────────────
     const [showShareModal, setShowShareModal] = useState(false);
 
+    // ── Project label / move dialog ──────────────────────────────────────
+    const [showMoveToProject, setShowMoveToProject] = useState(false);
+    const { byId: projectsById } = useProjectRegistry(!!conversation.projectId);
+    const projectName = conversation.projectId ? projectsById.get(conversation.projectId)?.name : undefined;
+
     // ── Delete confirm state ─────────────────────────────────────────────
     const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
 
@@ -719,7 +730,7 @@ const MyChatRow: React.FC<MyChatRowProps> = ({
     };
 
     // While renaming or a modal is open, keep the hover highlight even if pointer leaves
-    const keepHighlight = isRenaming || showShareModal || confirmDeleteOpen;
+    const keepHighlight = isRenaming || showShareModal || confirmDeleteOpen || showMoveToProject;
 
     // Row background class
     const rowBg = isSelected ? 'bg-[--bg-active]'
@@ -778,6 +789,16 @@ const MyChatRow: React.FC<MyChatRowProps> = ({
                             aria-label="Pinned"
                         />
                     )}
+                    {conversation.projectId && (
+                        <span
+                            className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 max-w-[160px] rounded-full px-2 py-0.5 text-[11px]"
+                            style={{ background: 'var(--bg-hover)', color: 'var(--text-secondary)' }}
+                            title={projectName ? `In project ${projectName}` : 'In a project'}
+                        >
+                            <IconStack2 size={11} aria-hidden="true" />
+                            <span className="truncate">{projectName ?? 'Project'}</span>
+                        </span>
+                    )}
                 </button>
             )}
 
@@ -806,6 +827,25 @@ const MyChatRow: React.FC<MyChatRowProps> = ({
                 style={{ width: ACTION_CELL_WIDTH }}
                 onClick={(e) => e.stopPropagation()}
             >
+                    {/* Move to project */}
+                    {PROJECTS_ENABLED && <button
+                        aria-label={`${conversation.projectId ? 'Change project for' : 'Move to project:'} ${conversation.name || 'conversation'}`}
+                        title={conversation.projectId ? 'Change project' : 'Move to project'}
+                        onClick={(e) => { e.stopPropagation(); setShowMoveToProject(true); }}
+                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
+                        style={{ color: 'var(--text-muted)' }}
+                        onMouseEnter={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                        }}
+                        onMouseLeave={(e) => {
+                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                        }}
+                    >
+                        <IconStack2 size={14} />
+                    </button>}
+
                     {/* Pin / Unpin */}
                     <button
                         aria-label={`${isPinned ? 'Unpin' : 'Pin'} ${conversation.name || 'conversation'}`}
@@ -882,6 +922,13 @@ const MyChatRow: React.FC<MyChatRowProps> = ({
                         <IconTrash size={14} />
                     </button>
             </div>
+
+            {showMoveToProject && (
+                <MoveToProjectDialog
+                    conversation={conversation}
+                    onClose={() => { setShowMoveToProject(false); setIsHovered(false); }}
+                />
+            )}
 
             {/* Share modal — portalled to document.body */}
             {showShareModal && typeof document !== 'undefined' && ReactDOM.createPortal(
