@@ -142,18 +142,22 @@ export function useSendService() {
 
 
     useEffect(() => {
-        const awaitAgentRun = async (sessionId: string) => {
+        const awaitAgentRun = async (sessionId: string, runKey: string) => {
+            // `runKey` identifies ONE run. The backend reuses the conversation id as
+            // the sessionId for every agent run in a chat, so guarding on sessionId
+            // alone blocked every run after the first (e.g. a connector reused on a
+            // later turn). Polling still uses the real sessionId.
             // Already polled to a terminal state — never poll it again. Guards the
             // case where `endTime` failed to persist back onto the conversation.
-            if (_exhaustedAgentSessions.has(sessionId)) return;
+            if (_exhaustedAgentSessions.has(runKey)) return;
 
             // Some other useSendService() instance is already polling this session.
             // Only one poller per session may exist app-wide, otherwise the extra
             // pollers keep hammering the endpoint after the winner consumes the
             // result (the backend then stops returning `result`, so those loops run
             // to the full 5-minute timeout).
-            if (_activeAgentPolls.has(sessionId)) return;
-            _activeAgentPolls.add(sessionId);
+            if (_activeAgentPolls.has(runKey)) return;
+            _activeAgentPolls.add(runKey);
 
             try {
                 homeDispatch({ field: 'messageIsStreaming', value: true });
@@ -188,10 +192,10 @@ export function useSendService() {
                 // Never let a throw here leave the session eligible for re-polling.
                 console.error("Agent run handling failed:", e);
             } finally {
-                _activeAgentPolls.delete(sessionId);
+                _activeAgentPolls.delete(runKey);
                 // Permanently mark as exhausted so future useEffect ticks (triggered
                 // by message changes while the poll was running) cannot restart it.
-                _exhaustedAgentSessions.add(sessionId);
+                _exhaustedAgentSessions.add(runKey);
                 cleanupHomeState();
             }
         }
@@ -199,6 +203,10 @@ export function useSendService() {
         if (selectedConversation) {
             const agentRunData = isWaitingForAgentResponse(selectedConversation);
             if (agentRunData?.sessionId) {
+                // startTime may be a Date or its serialized string; normalize so the
+                // same run always yields the same key.
+                const startMs = agentRunData.startTime ? new Date(agentRunData.startTime).getTime() : NaN;
+                const runKey = `${agentRunData.sessionId}:${Number.isNaN(startMs) ? '' : startMs}`;
                 // A conversation reloaded from storage can carry an agentRun that never
                 // got an endTime (tab closed mid-run, crash, WAF block). Polling it is
                 // pointless — the run is long dead — and it would burn a full 5-minute
@@ -207,9 +215,9 @@ export function useSendService() {
                 const startedAt = agentRunData.startTime ? new Date(agentRunData.startTime).getTime() : NaN;
                 const isStale = !Number.isNaN(startedAt) && (Date.now() - startedAt) > STALE_AGENT_RUN_MS;
                 if (isStale) {
-                    _exhaustedAgentSessions.add(agentRunData.sessionId);
+                    _exhaustedAgentSessions.add(runKey);
                 } else {
-                    awaitAgentRun(agentRunData.sessionId);
+                    awaitAgentRun(agentRunData.sessionId, runKey);
                 }
             }
         }

@@ -75,6 +75,12 @@ import { Plugin } from '@/types/plugin';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
+import {
+  CONVERSATION_CONNECTOR_ACTIONS_KEY,
+  getConfiguredToolsForActions,
+  getConversationConnectorActions,
+  withConversationConnectorActions,
+} from '@/components/NewUI/shared/conversationConnectorActions';
 // For the direct-send path (pasted images with S3 keys)
 import { handleFile } from '@/components/Chat/AttachFile';
 import toast from 'react-hot-toast';
@@ -149,6 +155,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       statsService,
     },
     handleUpdateConversation,
+    handleUpdateSelectedConversation,
   } = useContext(HomeContext);
 
   // ── Direct-send service (for pasted images with S3 keys) ─────────────────
@@ -198,24 +205,41 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     if (convEffort) setSelectedEffort(convEffort);
   }, [selectedConversation?.data?.reasoningLevel]);
 
+  const selectedConversationRef = useRef(selectedConversation);
+  selectedConversationRef.current = selectedConversation;
+
   // Optional web-search, artifact, and interpreter selection is owned by backend routing.
-  // Seed connector actions from sessionStorage so the chip re-appears when the
-  // ConversationComposer mounts for a conversation that was started from the
-  // landing page with a connector selected. The key is written by NewHome and
-  // cleared by ConversationViewShell's tryInject → clearPending after the first
-  // message fires, so the initializer only reads something on the very first
-  // mount of a new conversation; subsequent conversations and page refreshes find
-  // nothing and default to [].
-  const [selectedActions, setSelectedActions] = useState<SelectedAction[]>(() => {
-    if (typeof window === 'undefined') return [];
-    const raw = sessionStorage.getItem('amplify_pending_actions');
-    if (!raw) return [];
-    try {
-      return JSON.parse(raw) as SelectedAction[];
-    } catch {
-      return [];
-    }
-  });
+  // Connector selection is stored on this conversation's data so it survives the
+  // one-shot home→chat bridge and never leaks into another chat. NewHome writes the
+  // destination conversation metadata before the bridge sends the first message.
+  const [selectedActions, setSelectedActions] = useState<SelectedAction[]>(() =>
+    getConversationConnectorActions(selectedConversation),
+  );
+  const selectedActionsRef = useRef(selectedActions);
+  selectedActionsRef.current = selectedActions;
+  const updateSelectedActions = useCallback((actions: SelectedAction[]) => {
+    selectedActionsRef.current = actions;
+    setSelectedActions(actions);
+    const conversation = selectedConversationRef.current;
+    if (!conversation) return;
+    handleUpdateSelectedConversation(withConversationConnectorActions(conversation, actions));
+  }, [handleUpdateSelectedConversation]);
+
+  // The shell is keyed by conversation id, but keep this explicit so a future
+  // mounting change cannot leave the previous chat's actions visible or sendable.
+  useEffect(() => {
+    const actions = getConversationConnectorActions(selectedConversationRef.current);
+    selectedActionsRef.current = actions;
+    setSelectedActions(actions);
+  }, [selectedConversation?.id]);
+
+  // Home's first-send bridge updates conversation.data while this composer is
+  // already mounted. Adopt that handoff before the shell clears its one-shot key.
+  useEffect(() => {
+    const actions = getConversationConnectorActions(selectedConversationRef.current);
+    selectedActionsRef.current = actions;
+    setSelectedActions(actions);
+  }, [selectedConversation?.data?.[CONVERSATION_CONNECTOR_ACTIONS_KEY]]);
 
   // ── Assistant attached to THIS conversation ───────────────────────────────
   // Resolved rather than read straight off `selectedAssistant`: home state's
@@ -234,9 +258,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   // useChatSendService actually sends with it — the default-model logic elsewhere
   // must not win over an explicit assistant-level enforcement.
   const enforcedModelId = activeAssistant?.definition?.data?.model as string | undefined;
-
-  const selectedConversationRef = useRef(selectedConversation);
-  selectedConversationRef.current = selectedConversation;
 
   useEffect(() => {
     if (!enforcedModelId) return;
@@ -519,7 +540,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     // Build configuredTools from the connector actions captured at send time
     const deferredConfiguredTools =
       pendingActions && pendingActions.length > 0
-        ? pendingActions.flatMap((a) => a.ops)
+        ? getConfiguredToolsForActions(pendingActions)
         : undefined;
 
     // Build and fire ChatRequest (same construction as PATH A in handleSend)
@@ -673,7 +694,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     // Build configuredTools from selected connector actions
     const configuredTools =
       selectedActions.length > 0
-        ? selectedActions.flatMap((a) => a.ops)
+        ? getConfiguredToolsForActions(selectedActions)
         : undefined;
 
     // Merge current-turn docs with prior-message dataSources (dedup by key) so
@@ -1188,7 +1209,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 attachedLibraryIds={attachedDocs.map((d) => d.id)}
                 onAddIntegrationFile={(file) => attachFiles([file])}
                 selectedActions={selectedActions}
-                onActionsChange={setSelectedActions}
+                onActionsChange={updateSelectedActions}
                 chatEndpoint={chatEndpoint ?? undefined}
                 composerRef={composerRef}
               />
@@ -1196,7 +1217,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 assistantName={activeAssistantName}
                 onRemoveAssistant={detachAssistant}
                 selectedActions={selectedActions}
-                onRemoveActions={() => setSelectedActions([])}
+                onRemoveActions={() => updateSelectedActions([])}
               />
             </div>
 

@@ -56,6 +56,7 @@ import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { getUserDefaultModelId } from '@/components/NewUI/shared/userDefaultModel';
 import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
+import { CONVERSATION_CONNECTOR_ACTIONS_KEY } from '@/components/NewUI/shared/conversationConnectorActions';
 
 export const NewHome: React.FC = () => {
   const {
@@ -406,8 +407,11 @@ export const NewHome: React.FC = () => {
       // key — the only channel is `conversation.data.reasoningLevel`, set in the
       // handleNewConversation call below. (`amplify_pending_model_id` is likewise
       // only consumed as a hint; the model itself travels in that same call.)
-      if (selectedActions.length > 0)
+      if (selectedActions.length > 0) {
         sessionStorage.setItem('amplify_pending_actions', JSON.stringify(selectedActions));
+      } else {
+        sessionStorage.removeItem('amplify_pending_actions');
+      }
     }
     // ── Optimistic first message (Phase 66 + sidebar-immediate fix) ────────
     //
@@ -527,8 +531,17 @@ export const NewHome: React.FC = () => {
       }
 
       // Effort: write to data.reasoningLevel — the only field useChatSendService
-      // reads (§31). Preserve other conversation metadata.
-      convBase = { ...convBase, data: { ...convBase.data, reasoningLevel: selectedEffort } };
+      // reads (§31). Preserve other conversation metadata. The connector selection
+      // is conversation-scoped too, so the already-mounted composer can retain it
+      // after the one-shot pending-message bridge is cleared.
+      convBase = {
+        ...convBase,
+        data: {
+          ...convBase.data,
+          reasoningLevel: selectedEffort,
+          [CONVERSATION_CONNECTOR_ACTIONS_KEY]: selectedActions,
+        },
+      };
 
       // System prompt: apply any active custom instruction.
       const customPrompt = buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT);
@@ -568,7 +581,10 @@ export const NewHome: React.FC = () => {
       // picker is decorative and the backend applies its own default.
       // ConversationViewShell's applyWebSearch spreads `conversation.data`, so
       // this survives the web-search/skills write that follows.
-      data: { reasoningLevel: selectedEffort },
+      data: {
+        reasoningLevel: selectedEffort,
+        [CONVERSATION_CONNECTOR_ACTIONS_KEY]: selectedActions,
+      },
       ...(optimisticMessage ? { messages: [optimisticMessage] } : {}),
       // MUST be passed: handleNewConversation unconditionally dispatches
       // `selectedAssistant = paramAssistant ?? DEFAULT_ASSISTANT`, so omitting it
