@@ -112,6 +112,29 @@ describe('saveDisplayPrefsToServer', () => {
         expect(sent.chatFont).toBe('sans');
     });
 
+    it('preserves dismissed shared assistant identities alongside server settings', async () => {
+        vi.mocked(fetchUserSettings).mockResolvedValue({
+            success: true,
+            data: {
+                theme: 'dark',
+                featureOptions: { includeArtifacts: true },
+                hiddenModelIds: ['model-a'],
+                uiPreference: 'new',
+            },
+        } as any);
+
+        const dismissedSharedAssistantIds = ['assistant:source-a', 'share:sender:1:note'];
+        const ok = await saveDisplayPrefsToServer({ dismissedSharedAssistantIds });
+
+        expect(ok).toBe(true);
+        const sent = vi.mocked(saveUserSettings).mock.calls[0][0];
+        expect(schemaAccepts(sent)).toBe(true);
+        expect(sent.dismissedSharedAssistantIds).toEqual(dismissedSharedAssistantIds);
+        expect(sent.uiPreference).toBe('new');
+        expect(sent.hiddenModelIds).toEqual(['model-a']);
+        expect(JSON.parse(store.get('settings')!).dismissedSharedAssistantIds).toEqual(dismissedSharedAssistantIds);
+    });
+
     it('preserves unrelated server fields instead of replacing them', async () => {
         vi.mocked(fetchUserSettings).mockResolvedValue({
             success: true,

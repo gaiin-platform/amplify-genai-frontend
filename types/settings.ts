@@ -2,6 +2,8 @@ export interface Settings {
   theme: Theme;
   hiddenModelIds: string[];
   featureOptions: { [key: string]: boolean };
+  /** Stable share/source identities hidden by this user across devices. */
+  dismissedSharedAssistantIds?: string[];
   chatColorPalette?: string;
   avatarColorTone?: 'userPrimary' | 'userSecondary' | 'assistantPrimary' | 'assistantSecondary';
   /**

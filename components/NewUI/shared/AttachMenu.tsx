@@ -43,6 +43,7 @@ import {
 } from '@floating-ui/react';
 import toast from 'react-hot-toast';
 import HomeContext from '@/pages/api/home/home.context';
+import { resolveSharedAssistantAccess } from './sharedAssistantCard';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { LayeredAssistant } from '@/types/layeredAssistant';
@@ -1122,10 +1123,6 @@ interface AssistantCardInfo {
   modelName?: string;
 }
 
-/** astPath = published at a URL → "Shared"; groupId = team-owned → "Group". */
-const accessLabel = (astPath?: string, groupId?: string): AssistantCardInfo['access'] =>
-  groupId ? 'Group' : astPath ? 'Shared' : 'Private';
-
 const normalizeCardText = (raw?: string): string | undefined => {
   const flat = (raw ?? '').replace(/\s+/g, ' ').trim();
   return flat || undefined;
@@ -1136,9 +1133,14 @@ const assistantCardInfo = (
   resolveModelName: (id?: string) => string | undefined,
 ): AssistantCardInfo => {
   const def = a.definition ?? ({} as Assistant['definition']);
+  const sharedAssistant = (def.data as Record<string, any> | undefined)?.sharedAssistant;
   return {
     name: def.name || 'Untitled assistant',
-    access: accessLabel(def.astPath, def.groupId),
+    access: resolveSharedAssistantAccess({
+      astPath: def.astPath,
+      groupId: def.groupId,
+      sharedAssistant,
+    }),
     description: (def.description ?? '').trim() || undefined,
     instructions: normalizeCardText(def.instructions),
     tags: (def.tags ?? []).filter(Boolean),
@@ -1152,7 +1154,7 @@ const layeredCardInfo = (
   resolveModelName: (id?: string) => string | undefined,
 ): AssistantCardInfo => ({
   name: la.name || 'Untitled assistant',
-  access: accessLabel(la.astPath, la.groupId),
+  access: resolveSharedAssistantAccess({ astPath: la.astPath, groupId: la.groupId }),
   kind: 'Layered',
   description: (la.description ?? '').trim() || undefined,
   instructions: normalizeCardText(la.rootNode?.instructions),
@@ -1562,8 +1564,19 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     .map((p: any) => {
       const ast = p.data?.assistant;
       if (!ast) return null;
-      if (p.groupId && !ast.definition?.groupId)
-        return { ...ast, definition: { ...ast.definition, groupId: p.groupId } };
+      const hasSharedProvenance = !!p.data?.sharedAssistant;
+      if ((p.groupId && !ast.definition?.groupId) || hasSharedProvenance) {
+        return {
+          ...ast,
+          definition: {
+            ...ast.definition,
+            ...(p.groupId && !ast.definition?.groupId ? { groupId: p.groupId } : {}),
+            ...(hasSharedProvenance
+              ? { data: { ...ast.definition?.data, sharedAssistant: p.data.sharedAssistant } }
+              : {}),
+          },
+        };
+      }
       return ast;
     })
     .filter(Boolean) as Assistant[];

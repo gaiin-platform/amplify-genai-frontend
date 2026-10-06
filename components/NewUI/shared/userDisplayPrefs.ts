@@ -65,6 +65,8 @@ export interface DisplayPrefs {
     storageSelection?: string;
     userDefaultModelId?: string | null;
     userDefaultEffort?: EffortLevel | null;
+    /** Stable share/source identities hidden across devices. */
+    dismissedSharedAssistantIds?: string[];
 }
 
 const VALID_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'off'];
