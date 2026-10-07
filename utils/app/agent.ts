@@ -44,8 +44,96 @@ export const listenForAgentUpdates = async function(sessionId: string, onAgentSt
 }
 
 
+const MAX_AGENT_LOG_ENTRY_CHARS = 8_000;
+const MAX_AGENT_LOG_CHARS = 150_000;
+
+const stringifyAgentValue = (value: any) => {
+    if (typeof value === 'string') return value;
+    const serialized = JSON.stringify(value);
+    return serialized === undefined ? String(value ?? '') : serialized;
+};
+
+const truncateAgentLogText = (value: string, maxChars: number) => {
+    if (value.length <= maxChars) return value;
+    return `${value.slice(0, maxChars)}\n[agent log entry truncated]`;
+};
+
+/** Keep the final summarization request bounded without dropping its useful shape. */
+const boundedAgentLog = (result: any) => {
+    if (!Array.isArray(result)) return result;
+
+    const entries = result.map((entry: any) => {
+        const serialized = JSON.stringify(entry);
+        if (serialized.length <= MAX_AGENT_LOG_ENTRY_CHARS) return entry;
+
+        if (entry?.role === 'environment') {
+            const content = entry.content;
+            const tool = content && typeof content === 'object' ? content.tool : undefined;
+            const rawResult = content && typeof content === 'object' && 'result' in content
+                ? content.result
+                : content;
+            return {
+                role: entry.role,
+                content: {
+                    ...(tool ? { tool } : {}),
+                    result: truncateAgentLogText(
+                        stringifyAgentValue(rawResult),
+                        MAX_AGENT_LOG_ENTRY_CHARS,
+                    ),
+                    truncated: true,
+                },
+            };
+        }
+
+        return {
+            ...entry,
+            content: truncateAgentLogText(
+                stringifyAgentValue(entry.content),
+                MAX_AGENT_LOG_ENTRY_CHARS,
+            ),
+        };
+    });
+
+    if (JSON.stringify(entries).length <= MAX_AGENT_LOG_CHARS) return entries;
+
+    // Preserve both the beginning (what was attempted) and the end (the final
+    // tool/stop result), while replacing the middle with an explicit marker.
+    const head: any[] = [];
+    const tail: any[] = [];
+    let headChars = 0;
+    let tailChars = 0;
+    const halfBudget = Math.floor(MAX_AGENT_LOG_CHARS / 2);
+
+    for (const entry of entries) {
+        const chars = JSON.stringify(entry).length;
+        if (headChars + chars <= halfBudget) {
+            head.push(entry);
+            headChars += chars;
+        } else {
+            break;
+        }
+    }
+    for (let index = entries.length - 1; index >= head.length; index--) {
+        const entry = entries[index];
+        const chars = JSON.stringify(entry).length;
+        if (tailChars + chars <= halfBudget) {
+            tail.unshift(entry);
+            tailChars += chars;
+        } else {
+            break;
+        }
+    }
+
+    return [
+        ...head,
+        { role: 'system', content: '[middle of agent log omitted to fit response context]' },
+        ...tail,
+    ];
+};
+
 export const agentMessages = (agentResult: any, userPrompt: string, msgData: any, dataSources?: any[], conversationMessages?: Message[])  => {
     const msgs: any[] = [];
+    const workLog = boundedAgentLog(agentResult.data.result);
 
     // FIRST MESSAGE AT INDEX 0: Collect ALL data sources from conversation in ONE message
     // This will be picked up by the backend as RAG sources (since it's not the last message)
@@ -99,7 +187,7 @@ export const agentMessages = (agentResult: any, userPrompt: string, msgData: any
         data: {...msgData},
         content:
             `The user's prompt was: ${userPrompt}` +
-            `\n\nAn assistant has attempted to help with this request. Here is the log of their work:\n---------------------\n${JSON.stringify(agentResult.data.result)}` +
+            `\n\nAn assistant has attempted to help with this request. Here is the log of their work:\n---------------------\n${JSON.stringify(workLog)}` +
             `\n\n---------------------` +
             `\n\n**CRITICAL INSTRUCTIONS - READ CAREFULLY:**\n` +
             `1. ONLY use information from: (a) The assistant's work log above, (b) Reference documents provided to you in this conversation.\n` +
@@ -224,9 +312,9 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
     const decoder = new TextDecoder();
     let done = false;
     let text = '';
+    let statusCleared = false;
     const lastIndex = updatedConversation.messages.length - 1;
     try {
-        homeDispatch({ field: 'status', value: [] });
         while (!done) {
             if (controller.signal.aborted)  break;
     
@@ -238,6 +326,10 @@ export const handleAgentRunResult = async (agentResult: any, selectedConversatio
             if (done) break;
     
             text += chunkValue;
+            if (!statusCleared && text.trim().length > 0) {
+                statusCleared = true;
+                homeDispatch({ field: 'status', value: [] });
+            }
             if (updatedConversation) {
               let updatedMessages: Message[] = [];
               updatedMessages = updatedConversation.messages.map((message, index) => {
