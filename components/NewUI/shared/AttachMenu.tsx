@@ -1541,6 +1541,9 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
 
   const [primaryOpen, setPrimaryOpen] = useState(false);
   const [submenu, setSubmenu] = useState<'connectors' | 'library' | 'assistant' | null>(null);
+  // A clicked submenu stays open even if the pointer leaves its trigger row. This
+  // prevents the hover-close timer from dismissing an option the user selected.
+  const submenuPinnedRef = useRef(false);
   // True while any nested connector panel (file picker / actions / info) is open.
   // Suppresses the hover-close timer so a layout shift in the floating container
   // can't race the 300 ms close and dismiss the panel the user just opened.
@@ -1677,16 +1680,28 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const submenuTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const openSubmenu = useCallback((which: typeof submenu) => {
     if (submenuTimerRef.current) clearTimeout(submenuTimerRef.current);
+    if (submenuPinnedRef.current) return;
     submenuTimerRef.current = setTimeout(() => setSubmenu(which), 150);
   }, []);
   const scheduleClose = useCallback(() => {
     if (submenuTimerRef.current) clearTimeout(submenuTimerRef.current);
+    if (submenuPinnedRef.current || connectorPanelActive) return;
     submenuTimerRef.current = setTimeout(() => setSubmenu(null), 300);
-  }, []);
+  }, [connectorPanelActive]);
   const cancelClose = useCallback(() => {
     if (submenuTimerRef.current) clearTimeout(submenuTimerRef.current);
   }, []);
+  const toggleSubmenuFromClick = useCallback((which: typeof submenu) => {
+    cancelClose();
+    // A click on an already hover-open submenu must pin it, not toggle it off.
+    // The hover-opened panel is the content the user is explicitly choosing.
+    submenuPinnedRef.current = true;
+    setSubmenu(which);
+  }, [cancelClose]);
   useEffect(() => () => { if (submenuTimerRef.current) clearTimeout(submenuTimerRef.current); }, []);
+  useEffect(() => {
+    if (!primaryOpen) submenuPinnedRef.current = false;
+  }, [primaryOpen]);
 
   // When the connectors submenu closes (submenu changes away from 'connectors'),
   // reset the nested-panel flag so it doesn't linger for the next open.
@@ -1862,7 +1877,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     // mid-task. Clearing the timer still cancels a *pending* open
                     // if they leave before the 150ms hover-intent fires.
                     onMouseLeave={cancelClose}
-                    onClick={() => setSubmenu(submenu === 'library' ? null : 'library')}
+                    onClick={() => toggleSubmenuFromClick('library')}
                   />
                 )}
                 {showAssistant && (
@@ -1873,7 +1888,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     isOpen={submenu === 'assistant'}
                     onMouseEnter={() => openSubmenu('assistant')}
                     onMouseLeave={scheduleClose}
-                    onClick={() => setSubmenu(submenu === 'assistant' ? null : 'assistant')}
+                    onClick={() => toggleSubmenuFromClick('assistant')}
                   />
                 )}
               </>
@@ -1896,8 +1911,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     onClick={() => {
                       // Cancel any pending hover-close timer so a click-to-open
                       // can't race with a previously scheduled close.
-                      cancelClose();
-                      setSubmenu(submenu === 'connectors' ? null : 'connectors');
+                      toggleSubmenuFromClick('connectors');
                     }}
                   />
                 )}
