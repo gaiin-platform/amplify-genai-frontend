@@ -2602,6 +2602,53 @@
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   "Thinking…" for an empty assistant turn with no visible PromptStatus
+   ═══════════════════════════════════════════════════════════════════════════
+   ConversationViewShell.tsx prepends <div class="new-ui-awaiting-answer"> into
+   the last assistant message's #chatHover while messageIsStreaming is true, the
+   message has no text yet, and the status list has no visible entry. Typical
+   case: the window after a connector/agent run, between `status` being cleared
+   and the first answer token arriving. Looks identical to PromptStatus's
+   "● Thinking…" row, so the hand-off between them is seamless.
+   ─────────────────────────────────────────────────────────────────────────── */
+[data-new-ui="true"] .new-ui-awaiting-answer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+  color: var(--text-muted);
+  /* #chatHover forces prose font-size/line-height with !important */
+  font-size: 13px !important;
+  line-height: 1 !important;
+  font-style: italic;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+[data-new-ui="true"] .new-ui-awaiting-answer::before {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--accent);
+  opacity: 0.6;
+  flex-shrink: 0;
+}
+
+[data-new-ui="true"] .new-ui-awaiting-answer::after {
+  content: "Thinking\2026";
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-new-ui="true"] .new-ui-awaiting-answer::before {
+    animation: new-ui-thinking-pulse 1.8s ease-in-out infinite;
+  }
+  [data-new-ui="true"] .new-ui-awaiting-answer::after {
+    animation: new-ui-loading-pulse 2s ease-in-out infinite;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    "Stopped Before Completing." indicator
    ═══════════════════════════════════════════════════════════════════════════
 

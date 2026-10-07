@@ -150,7 +150,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
   stopConversationRef,
 }) => {
   const {
-    state: { messageIsStreaming, selectedConversation, featureFlags, selectedAssistant },
+    state: { messageIsStreaming, selectedConversation, featureFlags, selectedAssistant, status },
     handleUpdateConversation,
   } = useContext(HomeContext);
 
@@ -282,6 +282,80 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       shellRef.current.removeAttribute('data-awaiting-first-token');
     }
   }, [showPendingIndicator]);
+
+  // ── "Thinking…" while an assistant turn exists but has no text yet ───────
+  //
+  // Gap this covers: the assistant message exists (so the "Sending…" indicator
+  // above is off), but no PromptStatus card is visible and no answer text has
+  // arrived. The main case is connector/agent runs: once the agent finishes, the
+  // agent-result handler in utils/app/agent.ts clears `status` as soon as the
+  // final-answer request returns its response headers, before the first token.
+  // With a large tool log as input, the time to first token can be long.
+  // The old UI's only loader for that window is <l-ping>, which the new UI hides.
+  // Left as is, the user sees just the "Reasoning / Actions" dropdown and assumes
+  // the response is finished.
+  //
+  // The visibility test matches PromptingStatusDisplay's own filter, so this
+  // indicator only shows when PromptStatus would render nothing (no double dot).
+  const hasVisibleStatus = (status ?? []).some((s) => s?.inProgress || s?.sticky);
+  const lastAssistantIsEmpty =
+    lastMessage?.role === 'assistant' &&
+    !lastMessage?.data?.actionResult &&
+    (typeof lastMessage.content !== 'string' || lastMessage.content.trim() === '');
+  const showAwaitingAnswer = messageIsStreaming && lastAssistantIsEmpty && !hasVisibleStatus;
+
+  useEffect(() => {
+    const INDICATOR_CLASS = 'new-ui-awaiting-answer';
+    const removeAll = () => {
+      document.querySelectorAll<HTMLElement>(`.${INDICATOR_CLASS}`).forEach((el) => el.remove());
+    };
+
+    if (!showAwaitingAnswer) {
+      removeAll();
+      return;
+    }
+
+    // Place it at the top of the LAST assistant message's #chatHover, which is
+    // where PromptStatus sat a moment ago and where the answer text will appear.
+    // The transcript DOM can be one commit behind state (§35), so this re-checks
+    // the target on every mutation and moves the node if a newer turn mounted.
+    const inject = () => {
+      const assistants = document.querySelectorAll<HTMLElement>(
+        '[data-new-ui="true"] .enhanced-chat-message.assistant-message',
+      );
+      const target = assistants[assistants.length - 1];
+      const host = target?.querySelector<HTMLElement>('#chatHover') ?? target;
+      if (!host) return;
+      const existing = document.querySelector<HTMLElement>(`.${INDICATOR_CLASS}`);
+      if (existing && existing.parentElement === host) return;
+      existing?.remove();
+      const el = document.createElement('div');
+      el.className = INDICATOR_CLASS;
+      // aria-hidden: the sr-only live region at the end of the shell announces it.
+      el.setAttribute('aria-hidden', 'true');
+      host.prepend(el);
+    };
+
+    let observer: MutationObserver | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    const startObserving = () => {
+      const chatContainer = document.querySelector('.chatcontainer');
+      if (!chatContainer) {
+        retryTimer = setTimeout(startObserving, 300);
+        return;
+      }
+      inject();
+      observer = new MutationObserver(inject);
+      observer.observe(chatContainer, { childList: true, subtree: true });
+    };
+    startObserving();
+
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer);
+      observer?.disconnect();
+      removeAll();
+    };
+  }, [showAwaitingAnswer]);
 
   // ── "Stopped Before Completing." — detect stop events ────────────────────
   //
@@ -1606,7 +1680,11 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
           live region covers the gap per wiki §9 standing rule 15. Emptying it when
           the window ends stops the message being re-announced. */}
       <span className="sr-only" aria-live="polite">
-        {showPendingIndicator ? 'Message sent, waiting for a response' : ''}
+        {showPendingIndicator
+          ? 'Message sent, waiting for a response'
+          : showAwaitingAnswer
+            ? 'Generating response'
+            : ''}
       </span>
 
       {/* Floating action row (Copy / Edit / Read Aloud) */}
