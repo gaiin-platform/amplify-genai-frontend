@@ -59,6 +59,7 @@ import {
   OPEN_AT_LATEST_STABLE_FRAMES,
 } from '@/components/NewUI/shared/openAtLatest';
 import type { AttachedDocument } from '@/types/attacheddocument';
+import { skillSelectionOptions, getConversationSkillSelection } from '@/components/NewUI/shared/conversationSkillSelection';
 
 interface ConversationViewShellProps {
   stopConversationRef: MutableRefObject<boolean>;
@@ -746,6 +747,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
         const settings = typeof window !== 'undefined' ? getSettings(featureFlags) : null;
         const plugins = settings ? getActivePlugins(settings, featureFlags).filter((p) => p.id === 'mcp') : [];
 
+        const skillOptions = skillSelectionOptions(getConversationSkillSelection(conversation));
         const request: ChatRequest = {
           message: msg,
           // deleteCount:1 pops the optimistic copy of THIS message before
@@ -756,7 +758,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
           documents: docsWithKeys,
           plugins,
           conversationId: conversation.id,
-          ...(assistantOptions ? { options: assistantOptions } : {}),
+          ...(assistantOptions || skillOptions ? { options: { ...(assistantOptions ?? {}), ...(skillOptions ?? {}) } } : {}),
         };
 
         // Record the optimistic send so the scroll-anchoring effects below know

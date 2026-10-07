@@ -29,6 +29,8 @@ import {
   IconPlus,
   IconRobot,
   IconSearch,
+  IconBrain,
+  IconServer,
 } from '@tabler/icons-react';
 import {
   autoUpdate,
@@ -76,6 +78,9 @@ import {
   DataSourceLibraryPicker,
   type PickedLibraryFile,
 } from './DataSourceLibraryPicker';
+import { SkillAttachSubmenu } from './SkillAttachSubmenu';
+import { NEW_UI_SETTINGS_EVENT } from './newUISettingsEvents';
+import { useStableFeatureFlags } from './useStableFeatureFlags';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Integration display helpers
@@ -200,6 +205,8 @@ export interface AttachMenuProps {
    * Receives the full updated list (caller may replace state directly).
    */
   onActionsChange?: (actions: SelectedAction[]) => void;
+  selectedSkillIds?: string[];
+  onSkillIdsChange?: (skillIds: string[]) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1445,7 +1452,9 @@ export const AttachMenuChips: React.FC<{
   onRemoveAssistant?: () => void;
   selectedActions?: SelectedAction[];
   onRemoveActions?: () => void;
-}> = ({ assistantName, onRemoveAssistant, selectedActions, onRemoveActions }) => {
+  selectedSkillIds?: string[];
+  onRemoveSkills?: () => void;
+}> = ({ assistantName, onRemoveAssistant, selectedActions, onRemoveActions, selectedSkillIds, onRemoveSkills }) => {
   const chips: React.ReactNode[] = [];
 
   if (assistantName && onRemoveAssistant) {
@@ -1478,6 +1487,18 @@ export const AttachMenuChips: React.FC<{
           <IconX size={12} />
         </button>
       </div>
+    );
+  }
+
+  if (selectedSkillIds && selectedSkillIds.length > 0 && onRemoveSkills) {
+    chips.push(
+      <div key="skills" className="flex items-center gap-1 pl-2 rounded-[6px] text-[12.5px] flex-shrink-0" style={{ height: 26, background: 'var(--bg-active)', color: 'var(--text-primary)' }}>
+        <IconBrain size={14} style={{ color: 'var(--accent)' }} />
+        <span>{selectedSkillIds.length} skills</span>
+        <button type="button" onClick={onRemoveSkills} className="flex items-center justify-center w-[22px] h-full rounded-r-[6px]" style={{ color: 'var(--text-muted)' }} aria-label="Remove skills">
+          <IconX size={12} />
+        </button>
+      </div>,
     );
   }
 
@@ -1532,15 +1553,18 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   onAddIntegrationFile,
   selectedActions = [],
   onActionsChange,
+  selectedSkillIds = [],
+  onSkillIdsChange,
 }) => {
   const {
-    state: { featureFlags, prompts, selectedAssistant, layeredAssistants, groups, availableModels, defaultModelId },
+    state: { prompts, selectedAssistant, layeredAssistants, groups, availableModels, defaultModelId },
     dispatch,
     handleUpdateConversation,
   } = useContext(HomeContext);
+  const featureFlags = useStableFeatureFlags();
 
   const [primaryOpen, setPrimaryOpen] = useState(false);
-  const [submenu, setSubmenu] = useState<'connectors' | 'library' | 'assistant' | null>(null);
+  const [submenu, setSubmenu] = useState<'connectors' | 'library' | 'assistant' | 'skills' | null>(null);
   // A clicked submenu stays open even if the pointer leaves its trigger row. This
   // prevents the hover-close timer from dismissing an option the user selected.
   const submenuPinnedRef = useRef(false);
@@ -1642,18 +1666,23 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   };
 
   // Badge: any active toggle, non-default assistant, or connector actions
-  const anyToggleActive = !isDefaultAssistant || selectedActions.length > 0;
+  const anyToggleActive = !isDefaultAssistant || selectedActions.length > 0 || selectedSkillIds.length > 0;
 
   // Feature gates
   const showFiles = featureFlags.uploadDocuments;
   const showLibrary = featureFlags.dataSourceSelectorOnInput;
   // Assistant selector: always show when there are assistants available
   const showAssistant = availableAssistants.length > 0 || allLayeredAssistants.length > 0;
+  // Skills are a user-facing attachment capability, not a plugin toggle. Keep the
+  // entry visible whenever the composer has a chat endpoint; the skill picker
+  // handles an empty/error response without making the plus menu option vanish.
+  const showSkills = Boolean(chatEndpoint) && Boolean(onSkillIdsChange);
   // Backend routing owns optional chat tools; only explicit connectors remain here.
   const showConnectors = featureFlags.integrations;
+  const showMcpSettings = featureFlags.mcp;
 
-  const hasGroup1 = showFiles || showLibrary || showAssistant;
-  const hasGroup2 = showConnectors;
+  const hasGroup1 = showFiles || showLibrary || showAssistant || showSkills;
+  const hasGroup2 = showConnectors || showMcpSettings;
 
   // Floating UI — same flip pattern as model picker
   const placement = isNewChat ? 'bottom-start' : 'top-start';
@@ -1721,6 +1750,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const libraryRowRef = useRef<HTMLButtonElement>(null);
   const connectorsRowRef = useRef<HTMLButtonElement>(null);
   const assistantRowRef = useRef<HTMLButtonElement>(null);
+  const skillsRowRef = useRef<HTMLButtonElement>(null);
   const primaryPanelRef = useRef<HTMLDivElement | null>(null);
 
   // ── Submenu positioning (Phase 48 / Fix 3) ────────────────────────────────
@@ -1750,6 +1780,13 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     whileElementsMounted: autoUpdate,
   } as any);
 
+  const skillsFloating = useFloating({
+    open: submenu === 'skills',
+    placement: SUBMENU_PLACEMENT,
+    middleware: submenuMiddleware(),
+    whileElementsMounted: autoUpdate,
+  } as any);
+
   // Bind each submenu's reference to its trigger row when that submenu opens.
   // Done in an effect rather than an inline callback ref: an inline ref would be
   // invoked with (null, node) on every render and thrash setReference's state.
@@ -1757,6 +1794,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     if (submenu === 'library') libraryFloating.refs.setReference(libraryRowRef.current);
     if (submenu === 'connectors') connectorsFloating.refs.setReference(connectorsRowRef.current);
     if (submenu === 'assistant') assistantFloating.refs.setReference(assistantRowRef.current);
+    if (submenu === 'skills') skillsFloating.refs.setReference(skillsRowRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submenu]);
 
@@ -1880,6 +1918,17 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     onClick={() => toggleSubmenuFromClick('library')}
                   />
                 )}
+                {showSkills && (
+                  <SubmenuRowEl
+                    ref={skillsRowRef}
+                    icon={<IconBrain size={18} />}
+                    label="Add skills"
+                    isOpen={submenu === 'skills'}
+                    onMouseEnter={() => openSubmenu('skills')}
+                    onMouseLeave={scheduleClose}
+                    onClick={() => toggleSubmenuFromClick('skills')}
+                  />
+                )}
                 {showAssistant && (
                   <SubmenuRowEl
                     ref={assistantRowRef}
@@ -1909,10 +1958,15 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     onMouseEnter={() => openSubmenu('connectors')}
                     onMouseLeave={scheduleClose}
                     onClick={() => {
-                      // Cancel any pending hover-close timer so a click-to-open
-                      // can't race with a previously scheduled close.
                       toggleSubmenuFromClick('connectors');
                     }}
+                  />
+                )}
+                {showMcpSettings && (
+                  <ActionRow
+                    icon={<IconServer size={18} />}
+                    label="MCP servers"
+                    onClick={() => openSettings('mcp')}
                   />
                 )}
               </>
@@ -1961,6 +2015,24 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                   selectedActions={selectedActions}
                   onActionsChange={onActionsChange ?? (() => {})}
                   onNestedPanelActiveChange={handleConnectorPanelActiveChange}
+                />
+              </div>
+            )}
+
+            {/* ── Skills submenu ── */}
+            {submenu === 'skills' && onSkillIdsChange && (
+              <div
+                ref={skillsFloating.refs.setFloating}
+                role="presentation"
+                style={submenuStyle(skillsFloating, 'attachMenuEnter')}
+                onMouseEnter={cancelClose}
+                onMouseLeave={scheduleClose}
+              >
+                <SkillAttachSubmenu
+                  chatEndpoint={chatEndpoint}
+                  selectedSkillIds={selectedSkillIds}
+                  onSelectionChange={onSkillIdsChange}
+                  onClose={closeAll}
                 />
               </div>
             )}

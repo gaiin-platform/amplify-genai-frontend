@@ -56,12 +56,16 @@ import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssist
 import { getUserDefaultModelId } from '@/components/NewUI/shared/userDefaultModel';
 import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
 import { CONVERSATION_CONNECTOR_ACTIONS_KEY } from '@/components/NewUI/shared/conversationConnectorActions';
+import {
+  getConversationSkillSelection,
+  withConversationSkillSelection,
+} from '@/components/NewUI/shared/conversationSkillSelection';
 
 export const NewHome: React.FC = () => {
   const {
     state: {
       availableModels, defaultModelId, featureFlags, ragOn, selectedAssistant,
-      statsService, selectedConversation, page,
+      statsService, selectedConversation, page, chatEndpoint,
     },
     handleNewConversation,
     handleUpdateSelectedConversation,
@@ -79,6 +83,24 @@ export const NewHome: React.FC = () => {
 
   const composerRef = useRef<RichComposerHandle>(null);
   const [hasContent, setHasContent] = useState(false);
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>(() => getConversationSkillSelection(selectedConversation).skillIds);
+  const selectedSkillIdsRef = useRef(selectedSkillIds);
+  selectedSkillIdsRef.current = selectedSkillIds;
+
+  useEffect(() => {
+    const next = getConversationSkillSelection(selectedConversation).skillIds;
+    selectedSkillIdsRef.current = next;
+    setSelectedSkillIds(next);
+  }, [selectedConversation?.id, selectedConversation?.data?.nuiSkillIds]);
+
+  const updateSelectedSkillIds = useCallback((skillIds: string[]) => {
+    const next = getConversationSkillSelection(withConversationSkillSelection({}, skillIds)).skillIds;
+    selectedSkillIdsRef.current = next;
+    setSelectedSkillIds(next);
+    if (selectedConversation) {
+      handleUpdateSelectedConversation(withConversationSkillSelection(selectedConversation, next));
+    }
+  }, [handleUpdateSelectedConversation, selectedConversation]);
 
   // ── Model + effort ────────────────────────────────────────────────────────
   // Priority (highest → lowest):
@@ -548,6 +570,8 @@ export const NewHome: React.FC = () => {
           ...convBase.data,
           reasoningLevel: selectedEffort,
           [CONVERSATION_CONNECTOR_ACTIONS_KEY]: selectedActions,
+          nuiSkillIds: selectedSkillIdsRef.current,
+          nuiSkillSelectionMode: 'manual',
         },
       };
 
@@ -732,6 +756,9 @@ export const NewHome: React.FC = () => {
                 onAddIntegrationFile={(file) => addFileToRail(file)}
                 selectedActions={selectedActions}
                 onActionsChange={setSelectedActions}
+                selectedSkillIds={selectedSkillIds}
+                onSkillIdsChange={updateSelectedSkillIds}
+                chatEndpoint={chatEndpoint ?? undefined}
                 composerRef={composerRef}
               />
 
@@ -741,6 +768,8 @@ export const NewHome: React.FC = () => {
                 onRemoveAssistant={() => dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
                 selectedActions={selectedActions}
                 onRemoveActions={() => setSelectedActions([])}
+                selectedSkillIds={selectedSkillIds}
+                onRemoveSkills={() => updateSelectedSkillIds([])}
               />
             </div>
 

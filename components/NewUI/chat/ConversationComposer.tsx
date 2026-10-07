@@ -80,6 +80,11 @@ import {
   getConversationConnectorActions,
   withConversationConnectorActions,
 } from '@/components/NewUI/shared/conversationConnectorActions';
+import {
+  getConversationSkillSelection,
+  withConversationSkillSelection,
+  skillSelectionOptions,
+} from '@/components/NewUI/shared/conversationSkillSelection';
 // For the direct-send path (pasted images with S3 keys)
 import { handleFile } from '@/components/Chat/AttachFile';
 import toast from 'react-hot-toast';
@@ -125,6 +130,7 @@ interface PendingUploadSend {
   /** Connector actions selected at send time — carried through so the auto-fire
    *  path includes configuredTools exactly as the immediate PATH A does. */
   selectedActions: SelectedAction[];
+  selectedSkillIds: string[];
 }
 
 /** How long an upload may stall (no key callback) before we mark it failed. */
@@ -219,6 +225,18 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   const [selectedActions, setSelectedActions] = useState<SelectedAction[]>(() =>
     getConversationConnectorActions(selectedConversation),
   );
+  const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>(() =>
+    getConversationSkillSelection(selectedConversation).skillIds,
+  );
+  const selectedSkillIdsRef = useRef(selectedSkillIds);
+  selectedSkillIdsRef.current = selectedSkillIds;
+  const updateSelectedSkillIds = useCallback((skillIds: string[]) => {
+    const next = getConversationSkillSelection(withConversationSkillSelection({}, skillIds)).skillIds;
+    selectedSkillIdsRef.current = next;
+    setSelectedSkillIds(next);
+    const conversation = selectedConversationRef.current;
+    if (conversation) handleUpdateSelectedConversation(withConversationSkillSelection(conversation, next));
+  }, [handleUpdateSelectedConversation]);
   const selectedActionsRef = useRef(selectedActions);
   selectedActionsRef.current = selectedActions;
   const updateSelectedActions = useCallback((actions: SelectedAction[]) => {
@@ -236,6 +254,12 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     selectedActionsRef.current = actions;
     setSelectedActions(actions);
   }, [selectedConversation?.id]);
+
+  useEffect(() => {
+    const next = getConversationSkillSelection(selectedConversationRef.current).skillIds;
+    selectedSkillIdsRef.current = next;
+    setSelectedSkillIds(next);
+  }, [selectedConversation?.id, selectedConversation?.data?.nuiSkillIds]);
 
   // Home's first-send bridge updates conversation.data while this composer is
   // already mounted. Adopt that handoff before the shell clears its one-shot key.
@@ -563,6 +587,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         })),
       },
       ...(deferredConfiguredTools ? { configuredTools: deferredConfiguredTools } : {}),
+      ...(pending.selectedSkillIds.length > 0 ? { data: { ...pastedMessage.data, skills: pending.selectedSkillIds, skillSelectionMode: 'manual', dataSources: allDocs.map((d) => ({ id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`, type: d.type, name: d.name || '', metadata: d.metadata || {} })) } } : {}),
     });
     msg = setAssistantInMsg(msg, activeAssistant ?? DEFAULT_ASSISTANT);
 
@@ -585,7 +610,12 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       documents: allDocs,
       plugins,
       conversationId: selectedConversation.id,
-      ...(assistantOptions ? { options: assistantOptions } : {}),
+      ...(assistantOptions || pending.selectedSkillIds.length > 0 ? {
+        options: {
+          ...(assistantOptions ?? {}),
+          ...(pending.selectedSkillIds.length > 0 ? { skills: pending.selectedSkillIds, skillSelectionMode: 'manual' } : {}),
+        },
+      } : {}),
     };
 
     sendViaServiceRef.current(request, () => false);
@@ -688,6 +718,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         newDocs: [],
         remainingCount: uploadingAttachments.length,
         selectedActions: [...selectedActions],
+        selectedSkillIds: [...selectedSkillIdsRef.current],
       };
       // pendingUploadState.done tracks how many of the originally-uploading
       // attachments have since completed (starts at 0).
@@ -710,7 +741,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     ];
 
     // ── PATH A: docs attached OR connector actions selected ───────────────────
-    if ((mergedDocs.length > 0 || pastedAttachments.length > 0 || selectedActions.length > 0) && selectedConversation) {
+    if ((mergedDocs.length > 0 || pastedAttachments.length > 0 || selectedActions.length > 0 || selectedSkillIdsRef.current.length > 0) && selectedConversation) {
       // Clear local doc + attachment state (priorDataSources live in conv messages, not UI state)
       const docsToSend = mergedDocs;
       setAttachedDocs([]);
@@ -736,6 +767,14 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           } : {}),
         },
         ...(configuredTools ? { configuredTools } : {}),
+        ...(selectedSkillIdsRef.current.length > 0 ? {
+          data: {
+            ...pastedMessage.data,
+            skills: selectedSkillIdsRef.current,
+            skillSelectionMode: 'manual',
+            ...(docsToSend.length > 0 ? { dataSources: docsToSend.map((d) => ({ id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`, type: d.type, name: d.name || '', metadata: d.metadata || {} })) } : {}),
+          },
+        } : {}),
       });
       msg = setAssistantInMsg(msg, activeAssistant ?? DEFAULT_ASSISTANT);
 
@@ -759,7 +798,12 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         documents: docsToSend,
         plugins,
         conversationId: selectedConversation.id,
-        ...(assistantOptions ? { options: assistantOptions } : {}),
+        ...(assistantOptions || selectedSkillIdsRef.current.length > 0 ? {
+          options: {
+            ...(assistantOptions ?? {}),
+            ...(selectedSkillIdsRef.current.length > 0 ? { skills: selectedSkillIdsRef.current, skillSelectionMode: 'manual' } : {}),
+          },
+        } : {}),
       };
 
       sendViaServiceRef.current(request, () => false /* ConversationComposer has no stopRef */);
@@ -1242,6 +1286,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 onAddIntegrationFile={(file) => attachFiles([file])}
                 selectedActions={selectedActions}
                 onActionsChange={updateSelectedActions}
+                selectedSkillIds={selectedSkillIds}
+                onSkillIdsChange={updateSelectedSkillIds}
                 chatEndpoint={chatEndpoint ?? undefined}
                 composerRef={composerRef}
               />
@@ -1250,6 +1296,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 onRemoveAssistant={detachAssistant}
                 selectedActions={selectedActions}
                 onRemoveActions={() => updateSelectedActions([])}
+                selectedSkillIds={selectedSkillIds}
+                onRemoveSkills={() => updateSelectedSkillIds([])}
               />
             </div>
 
