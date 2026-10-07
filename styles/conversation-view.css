@@ -1384,10 +1384,10 @@
   background-color: transparent;  /* invisible at rest */
 }
 [data-new-ui-shell="true"] .new-ui-sidebar-recents[data-scrolling="true"]::-webkit-scrollbar-thumb {
-  background-color: var(--border-subtle);  /* subtle — low-prominence sidebar thumb */
+  background-color: var(--accent);  /* branded blue while scrolling */
 }
 [data-new-ui-shell="true"] .new-ui-sidebar-recents::-webkit-scrollbar-thumb:hover {
-  background-color: var(--text-muted);
+  background-color: var(--accent);
 }
 
 /* ─────────────────────────────────────────────────────────────────────────────

@@ -19,11 +19,17 @@ import HomeContext from '@/pages/api/home/home.context';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
+import {
+  formatConversationAsMarkdown,
+  MarkdownExportMenuItems,
+} from '@/components/NewUI/shared/ArtifactExportMenu';
 
 export const ConversationHeader: React.FC = () => {
   const {
     state: { selectedConversation, lightMode },
     handleUpdateConversation,
+    getCompleteConversation,
   } = useContext(HomeContext);
 
   // Resolved per-conversation assistant — survives the first send and a reload,
@@ -35,6 +41,7 @@ export const ConversationHeader: React.FC = () => {
   const [renameValue, setRenameValue] = useState('');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const renameInputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +114,7 @@ export const ConversationHeader: React.FC = () => {
 
   return (
     <>
+    <NewUILoadingStatus open={downloadBusy} variant="overlay" message="Preparing download…" />
     <div
       className="new-ui-header"
       style={{
@@ -243,6 +251,22 @@ export const ConversationHeader: React.FC = () => {
             <IconShare size={15} />
             Share
           </button>
+          <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+          {selectedConversation && (
+            <MarkdownExportMenuItems
+              resolvePayload={async () => {
+                const complete = await getCompleteConversation(selectedConversation);
+                return complete
+                  ? {
+                      name: complete.name || title,
+                      content: formatConversationAsMarkdown(complete),
+                    }
+                  : null;
+              }}
+              onBusyChange={setDownloadBusy}
+              onComplete={() => setMenuOpen(false)}
+            />
+          )}
           <div className="h-px bg-[--border-subtle] mx-2 my-1" />
           <button
             role="menuitem"

@@ -9,6 +9,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { downloadArtifacts } from '@/utils/app/artifacts';
 import { extractCodeBlocksAndText } from '@/utils/app/codeblock';
 import { generateXLSXBlob } from '@/utils/app/xlsxGenerator';
+import type { Conversation } from '@/types/chat';
 
 import Papa from 'papaparse';
 
@@ -73,6 +74,160 @@ function stripCodeFence(content: string): string {
   const match = content.match(/^```(?:\w+)?\s*\n([\s\S]*?)(?:```\s*$|$)/m);
   return match ? match[1] : content;
 }
+
+const roleLabel = (role: string): string =>
+  role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Message';
+
+/** Format a complete conversation without changing its Markdown content. */
+export function formatConversationAsMarkdown(conversation: Conversation): string {
+  const title = conversation.name?.trim() || 'Conversation';
+  const turns = (conversation.messages ?? [])
+    .map((message) => {
+      const content = typeof message.content === 'string' ? message.content.trim() : '';
+      if (!content) return null;
+      return `## ${roleLabel(message.role)}\n\n${content}`;
+    })
+    .filter((turn): turn is string => turn !== null);
+
+  return [`# ${title}`, ...turns].join('\n\n');
+}
+
+export interface ConversationExportPayload {
+  name: string;
+  content: string;
+}
+
+interface MarkdownExportMenuItemsProps {
+  resolvePayload: () => Promise<ConversationExportPayload | null | undefined>;
+  onComplete?: () => void;
+  onBusyChange?: (busy: boolean) => void;
+}
+
+const downloadMarkdown = (name: string, content: string) => {
+  const slugName = slugify(name);
+  const url = URL.createObjectURL(new Blob([content], { type: 'text/markdown' }));
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = `${slugName}.md`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
+/** The three document actions shared by artifact and conversation menus. */
+export const MarkdownExportMenuItems: React.FC<MarkdownExportMenuItemsProps> = ({
+  resolvePayload,
+  onComplete,
+  onBusyChange,
+}) => {
+  const [busy, setBusy] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
+  const run = async (
+    action: (payload: ConversationExportPayload) => void | Promise<void>,
+    settleMs = 0,
+  ) => {
+    if (busy) return;
+    setBusy(true);
+    onBusyChange?.(true);
+    try {
+      const payload = await resolvePayload();
+      if (!payload?.content) return;
+      await action(payload);
+    } catch {
+    } finally {
+      if (settleMs > 0) await new Promise((resolve) => window.setTimeout(resolve, settleMs));
+      setBusy(false);
+      onBusyChange?.(false);
+      onComplete?.();
+    }
+  };
+
+  const menuItemCls =
+    'w-full flex items-center gap-2.5 px-3 h-[34px] text-[14px] rounded-[8px] ' +
+    'text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] transition-colors text-left';
+  const exportOptionCls = `${menuItemCls} pl-6`;
+
+  return (
+    <div onMouseEnter={() => setExpanded(true)}>
+      <button
+        type="button"
+        role="menuitem"
+        aria-haspopup="true"
+        aria-expanded={expanded}
+        disabled={busy}
+        className={menuItemCls}
+        onClick={(event) => {
+          event.stopPropagation();
+          setExpanded((value) => !value);
+        }}
+      >
+        <IconDownload size={15} />
+        <span className="flex-1">Download</span>
+        <IconChevronDown
+          size={14}
+          className="transition-transform duration-150"
+          style={{ transform: expanded ? 'rotate(180deg)' : undefined }}
+        />
+      </button>
+
+      {expanded && (
+        <div className="ml-2 border-l border-[--border-subtle]" role="group" aria-label="Download options">
+          <button
+            type="button"
+            role="menuitem"
+            disabled={busy}
+            className={exportOptionCls}
+            onClick={(event) => {
+              event.stopPropagation();
+              void run(async ({ content }) => navigator.clipboard?.writeText(content));
+            }}
+          >
+            <IconCopy size={15} />
+            <span>
+              <span className="block leading-tight">Copy as Markdown</span>
+              <span className="block text-[11px] leading-tight text-[--text-muted]">To clipboard</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={busy}
+            className={exportOptionCls}
+            onClick={(event) => {
+              event.stopPropagation();
+              void run(({ name, content }) => downloadMarkdown(name, content), 300);
+            }}
+          >
+            <IconDownload size={15} />
+            <span>
+              <span className="block leading-tight">Download Markdown</span>
+              <span className="block text-[11px] leading-tight text-[--text-muted]">.md file</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={busy}
+            className={exportOptionCls}
+            onClick={(event) => {
+              event.stopPropagation();
+              void run(({ name, content }) =>
+                downloadArtifacts(slugify(name), content, extractCodeBlocksAndText(content)),
+                300,
+              );
+            }}
+          >
+            <IconDownload size={15} />
+            <span>
+              <span className="block leading-tight">Download Word</span>
+              <span className="block text-[11px] leading-tight text-[--text-muted]">.docx file</span>
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const ArtifactExportMenu: React.FC<Props> = ({
   type,

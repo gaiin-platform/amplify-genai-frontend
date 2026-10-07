@@ -39,6 +39,11 @@ import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { PINNED_TAG } from '@/components/NewUI/shared/chatFilters';
 import { getUserChatFolders } from '@/components/NewUI/shared/chatFolderHelpers';
 import { GeneratingSpinner } from '@/components/NewUI/shared/GeneratingSpinner';
+import {
+  formatConversationAsMarkdown,
+  MarkdownExportMenuItems,
+} from '@/components/NewUI/shared/ArtifactExportMenu';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 
 interface ConversationRowProps {
   conversation: Conversation;
@@ -67,6 +72,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [downloadBusy, setDownloadBusy] = useState(false);
 
   // ── Inline rename state ─────────────────────────────────────────────────────
   const [isRenaming, setIsRenaming] = useState(false);
@@ -81,10 +87,11 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
 
   // Position for the portalled fixed menu — captured from the dots button on open
   const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const [menuMaxHeight, setMenuMaxHeight] = useState<number | null>(null);
 
   // Estimated menu height:
-  // py-[6px]=12 + 4×h-[34px]=136 + divider≈9 + delete h-[34px]=34 = ~191px
-  const MENU_ESTIMATED_HEIGHT = 200;
+  // Main rows plus the three export actions and their dividers.
+  const MENU_ESTIMATED_HEIGHT = 340;
   const MENU_MIN_WIDTH = 200;
 
   const dotsButtonRef = useRef<HTMLButtonElement>(null);
@@ -93,6 +100,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   const {
     handleUpdateConversation,
     handleCreateFolder,
+    getCompleteConversation,
     state: { conversations, folders },
     dispatch,
   } = useContext(HomeContext);
@@ -145,7 +153,12 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   // ── Close menu on scroll ────────────────────────────────────────────────────
   useEffect(() => {
     if (!isMenuOpen) return;
-    const handler = () => closeMenu();
+    const handler = (event: Event) => {
+      // Scrolling the menu itself must not dismiss it; only an ancestor/page
+      // scroll should invalidate the captured fixed position.
+      if (menuRef.current?.contains(event.target as Node)) return;
+      closeMenu();
+    };
     window.addEventListener('scroll', handler, true);
     return () => window.removeEventListener('scroll', handler, true);
   }, [isMenuOpen]);
@@ -161,13 +174,14 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
 
       // ── Vertical: prefer below; flip above if not enough room ──────────────
       const spaceBelow = window.innerHeight - rect.bottom - GAP;
-      let top: number;
-      if (spaceBelow >= MENU_ESTIMATED_HEIGHT) {
-        top = rect.bottom + GAP;
-      } else {
-        // Open upward; clamp so it never disappears above the top edge either
-        top = Math.max(SCREEN_PADDING, rect.top - MENU_ESTIMATED_HEIGHT - GAP);
-      }
+      const spaceAbove = rect.top - GAP;
+      const opensBelow = spaceBelow >= spaceAbove;
+      const availableHeight = Math.max(120, (opensBelow ? spaceBelow : spaceAbove) - SCREEN_PADDING);
+      const menuHeight = Math.min(MENU_ESTIMATED_HEIGHT, availableHeight);
+      const top = opensBelow
+        ? rect.bottom + GAP
+        : Math.max(SCREEN_PADDING, rect.top - menuHeight - GAP);
+      setMenuMaxHeight(availableHeight);
 
       // ── Horizontal: keep the right edge within the viewport ────────────────
       // `right` is CSS right offset (distance from viewport's right edge).
@@ -285,8 +299,15 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
     isMenuOpen && menuPos ? (
       <div
         ref={menuRef}
-        style={{ position: 'fixed', top: menuPos.top, right: menuPos.right, zIndex: 9999, minWidth: MENU_MIN_WIDTH }}
-        className="bg-[--bg-raised] border border-[--border-subtle] rounded-[--radius-panel] shadow-[0_8px_24px_rgba(0,0,0,0.3)] py-[6px] max-h-[280px] overflow-y-auto"
+        style={{
+          position: 'fixed',
+          top: menuPos.top,
+          right: menuPos.right,
+          zIndex: 9999,
+          minWidth: MENU_MIN_WIDTH,
+          maxHeight: menuMaxHeight ?? MENU_ESTIMATED_HEIGHT,
+        }}
+        className="bg-[--bg-raised] border border-[--border-subtle] rounded-[--radius-panel] shadow-[0_8px_24px_rgba(0,0,0,0.3)] py-[6px] overflow-y-auto [scrollbar-color:var(--accent)_transparent] [scrollbar-width:thin]"
         onClick={(e) => e.stopPropagation()}
       >
         {menuView === 'main' ? (
@@ -314,6 +335,21 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
               <IconShare size={14} />
               Share
             </button>
+
+            <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+            <MarkdownExportMenuItems
+              resolvePayload={async () => {
+                const complete = await getCompleteConversation(conversation);
+                return complete
+                  ? {
+                      name: complete.name || conversation.name,
+                      content: formatConversationAsMarkdown(complete),
+                    }
+                  : null;
+              }}
+              onBusyChange={setDownloadBusy}
+              onComplete={closeMenu}
+            />
 
             {/* Divider before destructive action */}
             <div className="h-px bg-[--border-subtle] mx-2 my-1" />
@@ -386,6 +422,8 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
     ) : null;
 
   return (
+    <>
+    <NewUILoadingStatus open={downloadBusy} variant="overlay" message="Preparing download…" />
     <div
       // Background lives on the outer div so CSS :hover fires for the full row area
       // (including the absolutely-positioned dots overlay), eliminating the React
@@ -515,6 +553,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
           )
         : null}
     </div>
+    </>
   );
 };
 
