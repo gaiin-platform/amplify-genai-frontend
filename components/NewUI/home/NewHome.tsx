@@ -23,7 +23,6 @@ import React, { useContext, useRef, useState, useCallback, useEffect } from 'rea
 import Image from 'next/image';
 import {
   IconArrowUp,
-  IconMicrophone,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 import HomeContext from '@/pages/api/home/home.context';
@@ -735,7 +734,7 @@ export const NewHome: React.FC = () => {
               />
             </div>
 
-            {/* Right: model picker + mic/send */}
+            {/* Right: send button + model picker at the composer edge */}
             <div className="flex items-center gap-2">
               <ModelPicker
                 selectedModelId={selectedModelId}
@@ -747,38 +746,12 @@ export const NewHome: React.FC = () => {
                 enforcedByAssistant={!!enforcedModelId}
               />
 
-              {/*
-               * §7 Send ↔ Voice slot (32×32, zero layout shift).
-               * One slot, two occupants — cross-fade over 120ms:
-               *   empty → Voice button (transparent bg, mic icon)
-               *   content → Send button (--accent bg, ArrowUp icon)
-               */}
-              <div className="relative w-[32px] h-[32px]">
-                {/* Voice — when empty */}
+              {canSend && (
                 <button
-                  className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
-                  style={{
-                    background: 'transparent',
-                    color: 'var(--text-muted)',
-                    opacity: canSend ? 0 : 1,
-                    pointerEvents: canSend ? 'none' : 'auto',
-                  }}
-                  title="Voice input"
-                  aria-label="Voice input"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
-                >
-                  <IconMicrophone size={17} />
-                </button>
-                {/* Send — when content */}
-                <button
-                  className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
+                  className="flex h-[32px] w-[32px] items-center justify-center rounded-[8px]"
                   style={{
                     background: 'var(--accent)',
                     color: 'var(--accent-fg)',
-                    opacity: canSend ? 1 : 0,
-                    pointerEvents: canSend ? 'auto' : 'none',
                     cursor: 'pointer',
                   }}
                   onMouseDown={(e) => e.preventDefault()}
@@ -788,7 +761,8 @@ export const NewHome: React.FC = () => {
                 >
                   <IconArrowUp size={18} strokeWidth={2.5} />
                 </button>
-              </div>
+              )}
+
             </div>
           </div>
         </div>

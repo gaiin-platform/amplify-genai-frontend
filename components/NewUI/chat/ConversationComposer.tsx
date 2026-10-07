@@ -48,7 +48,6 @@ import React, {
 } from 'react';
 import {
   IconArrowUp,
-  IconMicrophone,
   IconPlayerStop,
 } from '@tabler/icons-react';
 import HomeContext from '@/pages/api/home/home.context';
@@ -1221,7 +1220,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
               />
             </div>
 
-            {/* Right: model picker + mic + send/stop */}
+            {/* Right: send/stop + model picker at the composer edge */}
             <div className="flex items-center gap-2">
               <ModelPicker
                 selectedModelId={selectedModelId}
@@ -1233,70 +1232,45 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 enforcedByAssistant={!!enforcedModelId}
               />
 
-              {/*
-               * §7 Send ↔ Voice ↔ Stop slot (32×32, zero layout shift).
-               * One slot, three possible occupants — all absolutely positioned,
-               * cross-fading via opacity+pointer-events over 120ms:
-               *   streaming         → Stop button  (--bg-active, PlayerStop icon)
-               *   pendingUpload     → Voice button (dimmed, non-interactive)
-               *   idle + empty      → Voice button (transparent, mic icon, 28×28)
-               *   idle + has content→ Send button  (--accent, ArrowUp icon)
-               */}
-              <div className="relative w-[32px] h-[32px]">
-                {/* Stop — when streaming */}
-                <button
-                  type="button"
-                  className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
-                  style={{
-                    background: 'var(--bg-active)',
-                    color: 'var(--text-primary)',
-                    opacity: messageIsStreaming ? 1 : 0,
-                    pointerEvents: messageIsStreaming ? 'auto' : 'none',
-                  }}
-                  onClick={handleStop}
-                  title="Stop generating"
-                  aria-label="Stop generating"
-                >
-                  <IconPlayerStop size={16} />
-                </button>
+              {(messageIsStreaming || canSend) && (
+                <div className="relative h-[32px] w-[32px]">
+                  {/* Stop — when streaming */}
+                  <button
+                    type="button"
+                    className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
+                    style={{
+                      background: 'var(--bg-active)',
+                      color: 'var(--text-primary)',
+                      opacity: messageIsStreaming ? 1 : 0,
+                      pointerEvents: messageIsStreaming ? 'auto' : 'none',
+                    }}
+                    onClick={handleStop}
+                    title="Stop generating"
+                    aria-label="Stop generating"
+                  >
+                    <IconPlayerStop size={16} />
+                  </button>
 
-                {/* Voice — idle + empty composer (dimmed while upload pending) */}
-                <button
-                  type="button"
-                  className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
-                  style={{
-                    background: 'transparent',
-                    color: 'var(--text-muted)',
-                    // Show when idle and nothing to send; dim if upload pending
-                    opacity: (!messageIsStreaming && !canSend) ? (pendingUploadState ? 0.35 : 1) : 0,
-                    pointerEvents: (!messageIsStreaming && !canSend && !pendingUploadState) ? 'auto' : 'none',
-                  }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-                  title="Voice input"
-                  aria-label="Voice input"
-                >
-                  <IconMicrophone size={17} />
-                </button>
+                  {/* Send — idle + has content */}
+                  <button
+                    type="button"
+                    className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
+                    style={{
+                      background: 'var(--accent)',
+                      color: 'var(--accent-fg)',
+                      opacity: (!messageIsStreaming && canSend) ? 1 : 0,
+                      pointerEvents: (!messageIsStreaming && canSend) ? 'auto' : 'none',
+                      cursor: 'pointer',
+                    }}
+                    onClick={handleSend}
+                    title="Send (Enter)"
+                    aria-label="Send message"
+                  >
+                    <IconArrowUp size={18} strokeWidth={2.5} />
+                  </button>
+                </div>
+              )}
 
-                {/* Send — idle + has content */}
-                <button
-                  type="button"
-                  className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
-                  style={{
-                    background: 'var(--accent)',
-                    color: 'var(--accent-fg)',
-                    opacity: (!messageIsStreaming && canSend) ? 1 : 0,
-                    pointerEvents: (!messageIsStreaming && canSend) ? 'auto' : 'none',
-                    cursor: 'pointer',
-                  }}
-                  onClick={handleSend}
-                  title="Send (Enter)"
-                  aria-label="Send message"
-                >
-                  <IconArrowUp size={18} strokeWidth={2.5} />
-                </button>
-              </div>
             </div>
           </div>
         </div>
