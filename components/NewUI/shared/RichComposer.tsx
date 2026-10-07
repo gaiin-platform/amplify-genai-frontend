@@ -49,6 +49,8 @@ export interface RichComposerHandle {
   getHTML: () => string;
   /** Restore a previously-snapshotted HTML state. */
   setHTML: (html: string) => void;
+  /** Append plain text as composer content without invoking clipboard paste handling. */
+  appendText: (text: string) => void;
 }
 
 interface RichComposerProps {
@@ -183,6 +185,23 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
     const editorRef = useRef<HTMLDivElement>(null);
     const [hasContent, setHasContent] = useState(false);
 
+    // Keep imperative updates on the same state/change path as user input. This
+    // deliberate insertion does not dispatch a paste event or run paste thresholds.
+    const updateHasContent = useCallback(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const text = (editor.textContent ?? '').replace(new RegExp(ZWS, 'g'), '').trim();
+      setHasContent(text.length > 0);
+      onChange?.(text);
+
+      const lastChild = editor.lastChild;
+      if (lastChild instanceof HTMLElement && lastChild.classList.contains(CODE_BLOCK_CLS)) {
+        const newLine = document.createElement('div');
+        newLine.innerHTML = '<br>';
+        editor.appendChild(newLine);
+      }
+    }, [onChange]);
+
     // Expose imperative handle so parent can clear/focus/get value
     useImperativeHandle(ref, () => ({
       clear: () => {
@@ -203,6 +222,34 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
           onChange?.(t);
         }
       },
+      appendText: (text: string) => {
+        const editor = editorRef.current;
+        if (!editor) return;
+        if (!text) {
+          editor.focus();
+          return;
+        }
+
+        const hasPreviousText = domToMarkdown(editor).trim().length > 0;
+        const addedBlock = document.createElement('div');
+        if (hasPreviousText) addedBlock.appendChild(document.createElement('br'));
+        text.split('\n').forEach((line, index) => {
+          if (index > 0) addedBlock.appendChild(document.createElement('br'));
+          if (line) addedBlock.appendChild(document.createTextNode(line));
+        });
+        editor.appendChild(addedBlock);
+        editor.focus();
+        const selection = window.getSelection();
+        if (selection) {
+          const range = document.createRange();
+          range.setStart(addedBlock, addedBlock.childNodes.length);
+          range.collapse(true);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        updateHasContent();
+        editor.scrollTop = editor.scrollHeight;
+      },
     }));
 
     // Auto-focus on mount
@@ -212,25 +259,6 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
 
     // Keep track of whether editor has visible content (for placeholder visibility)
     // Also fires the optional onChange callback so parents can react to content changes.
-    const updateHasContent = useCallback(() => {
-      const editor = editorRef.current;
-      if (!editor) return;
-      const text = (editor.textContent ?? '').replace(new RegExp(ZWS, 'g'), '').trim();
-      setHasContent(text.length > 0);
-      onChange?.(text);
-
-      // Safety net: if the last child is a code block, silently append a fresh
-      // continuation line so the user can always navigate below the block (via
-      // Down arrow or Escape). We do NOT move the cursor — the user may have
-      // deliberately backspaced into the code block and should stay there.
-      const lastChild = editor.lastChild;
-      if (lastChild instanceof HTMLElement && lastChild.classList.contains(CODE_BLOCK_CLS)) {
-        const newLine = document.createElement('div');
-        newLine.innerHTML = '<br>';
-        editor.appendChild(newLine);
-      }
-    }, [onChange]);
-
     // ── Paste: strip formatting; intercept large pastes + images (spec §6) ──
     const handlePaste = useCallback((e: React.ClipboardEvent<HTMLDivElement>) => {
       // 1. Check clipboard items for image data first
@@ -475,7 +503,7 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
           return;
         }
       },
-      [onSend, insertCodeBlock, escapCodeBlock, hasExternalContent]
+      [onSend, insertCodeBlock, escapCodeBlock, hasExternalContent, updateHasContent]
     );
 
     return (

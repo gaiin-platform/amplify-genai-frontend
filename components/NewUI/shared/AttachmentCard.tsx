@@ -12,7 +12,7 @@
  *   §13  reduced-motion
  */
 import React, { useRef, useState } from 'react';
-import { IconLoader2 } from '@tabler/icons-react';
+import { IconEdit, IconLoader2 } from '@tabler/icons-react';
 import { UIAttachment, formatBytes } from './attachmentTypes';
 
 interface AttachmentCardProps {
@@ -23,6 +23,8 @@ interface AttachmentCardProps {
   onPreview: (id: string, originRect: DOMRect) => void;
   /** Called when the user clicks "Retry" on a failed card. */
   onRetry?: (id: string) => void;
+  /** Called to restore an eligible clipboard paste into the prompt editor. */
+  onEdit?: (id: string) => void;
   /** Whether to make the remove × always visible (mobile, where no hover). */
   alwaysShowRemove?: boolean;
   /** Animation entry state — used by parent to control enter animation class. */
@@ -45,11 +47,17 @@ const CARD_SIZE = 160;
 /** Below this edge length the 14px inset leaves too little room for text. */
 const COMPACT_BELOW = 150;
 
+/** Visible-text version for the paste card only; the source attachment stays untouched. */
+export function normalizePastePreview(text: string | undefined): string {
+  return text?.replace(/\s+/g, ' ').trim() ?? '';
+}
+
 export const AttachmentCard: React.FC<AttachmentCardProps> = ({
   attachment,
   onRemove,
   onPreview,
   onRetry,
+  onEdit,
   alwaysShowRemove = false,
   enterState = 'entered',
   width = CARD_SIZE,
@@ -73,9 +81,14 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
   } = attachment;
 
   const isFailed = status === 'failed';
-  const compact = Math.min(width, height) < COMPACT_BELOW;
-  const inset = compact ? 10 : 14;
-  const pasteFontSize = compact ? 11.5 : 12.5;
+  const composerPaste = kind === 'paste' && !readOnly && !attachment.sourceMessageId;
+  const canEditPaste = composerPaste && Boolean(onEdit);
+  const cardWidth = composerPaste ? 240 : width;
+  const cardHeight = composerPaste ? 240 : height;
+  const compact = Math.min(cardWidth, cardHeight) < COMPACT_BELOW;
+  const inset = composerPaste ? 18 : compact ? 10 : 14;
+  const pasteFontSize = composerPaste ? 13.5 : compact ? 11.5 : 12.5;
+  const pastePreview = normalizePastePreview(bodyPreview);
 
   // Progress bar fill: determinate when progress is a number, indeterminate when undefined
   const progressFraction = progress ?? 0;
@@ -107,8 +120,8 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
       role="listitem"
       className="relative flex-shrink-0"
       style={{
-        width,
-        height,
+        width: cardWidth,
+        height: cardHeight,
         scrollSnapAlign: 'start',
       }}
       onMouseEnter={() => setHovered(true)}
@@ -134,7 +147,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
           }}
           className="group w-full h-full rounded-[12px] overflow-hidden"
           style={{
-            background: 'var(--bg-app)',
+            background: canEditPaste ? 'var(--bg-raised)' : 'var(--bg-app)',
             border: isFailed
               ? '1px solid #6E4540'
               : '1px solid var(--border-subtle)',
@@ -179,16 +192,26 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
                 )}
               </div>
             ) : kind === 'paste' ? (
-              /* Paste variant: first ~400 chars of text, faded at bottom */
+              /* Paste preview: collapse whitespace visually and clamp without altering source text. */
               <div
                 className="relative w-full h-full overflow-hidden"
-                style={{
+                style={!composerPaste ? {
                   maskImage: 'linear-gradient(to bottom, #000 70%, transparent 100%)',
                   WebkitMaskImage: 'linear-gradient(to bottom, #000 70%, transparent 100%)',
-                }}
+                } : undefined}
               >
                 <span
-                  style={{
+                  style={composerPaste ? {
+                    fontSize: pasteFontSize,
+                    lineHeight: 1.5,
+                    color: 'var(--text-secondary)',
+                    whiteSpace: 'normal',
+                    wordBreak: 'break-all',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 6,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                  } : {
                     fontSize: pasteFontSize,
                     lineHeight: 1.5,
                     color: 'var(--text-muted)',
@@ -197,7 +220,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
                     display: 'block',
                   }}
                 >
-                  {bodyPreview}
+                  {composerPaste ? pastePreview : bodyPreview}
                 </span>
               </div>
             ) : (
@@ -232,7 +255,14 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
 
           {/* ── Badge row ── */}
           {(ext || kind === 'paste' || isFailed) && kind !== 'image' && (
-            <div style={{ padding: `0 ${inset}px ${inset}px`, display: 'flex', alignItems: 'flex-end' }}>
+            <div
+              style={{
+                padding: canEditPaste ? `0 ${inset + 48}px ${inset}px ${inset}px` : `0 ${inset}px ${inset}px`,
+                display: 'flex',
+                alignItems: 'flex-end',
+                justifyContent: 'space-between',
+              }}
+            >
               <span
                 style={{
                   fontSize: 11,
@@ -240,9 +270,10 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
                   letterSpacing: '0.04em',
                   textTransform: 'uppercase',
                   color: isFailed ? '#C4756B' : 'var(--text-secondary)',
-                  background: isFailed ? '#3A2A28' : 'var(--bg-active)',
+                  background: isFailed ? '#3A2A28' : canEditPaste ? 'transparent' : 'var(--bg-active)',
+                  border: canEditPaste ? '1px solid var(--border-subtle)' : '1px solid transparent',
                   borderRadius: 6,
-                  padding: '3px 9px',
+                  padding: '4px 8px',
                   lineHeight: 1,
                 }}
               >
@@ -353,6 +384,24 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
         >
           ×
         </button>
+        )}
+
+        {/* ── Edit button — only wired for clipboard-paste cards in composer rails ── */}
+        {canEditPaste && onEdit && (
+          <button
+            type="button"
+            aria-label="Edit pasted text"
+            title="Edit"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(id);
+            }}
+            className="absolute bottom-[18px] right-[18px] flex h-[38px] w-[38px] items-center justify-center rounded-[8px] border-0 text-[--accent-fg] transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] focus-visible:ring-offset-2"
+            style={{ background: 'var(--accent)', zIndex: 2 }}
+          >
+            <IconEdit size={18} aria-hidden="true" />
+          </button>
         )}
 
         {/* ── Retry button — shown on failed cards (absolute, bottom-center) ── */}

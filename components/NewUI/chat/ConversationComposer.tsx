@@ -833,6 +833,15 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   // (uiAttachments, previewId, previewOriginRect, thumbUrlsRef declared above
   //  so handleSend can reference uiAttachments without a forward-reference error)
 
+  const handleEditPastedAttachment = (id: string) => {
+    const attachment = uiAttachments.find(
+      (item) => item.id === id && item.kind === 'paste' && !item.sourceMessageId,
+    );
+    if (typeof attachment?.fullText !== 'string') return;
+    richComposerRef.current?.appendText(attachment.fullText);
+    handleRemoveAttachment(id);
+  };
+
   const handleRemoveAttachment = (id: string) => {
     if (thumbUrlsRef.current[id]) {
       URL.revokeObjectURL(thumbUrlsRef.current[id]);
@@ -1185,6 +1194,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           <AttachmentRail
             attachments={uiAttachments}
             onRemove={handleRemoveAttachment}
+            onEdit={handleEditPastedAttachment}
             onRetry={handleRetryAttachment}
             onPreview={(id, rect) => {
               setPreviewId(id);

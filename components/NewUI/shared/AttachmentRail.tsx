@@ -2,7 +2,8 @@
  * AttachmentRail — horizontal scrolling row of AttachmentCards above the textarea.
  *
  * Lives in the composer's "rail" band (grid row 1 of 3).
- * Collapses to zero height when empty; expands to 176px when cards are present.
+ * Collapses to zero height when empty; expands to 176px for file/image cards or
+ * 256px when an editable pasted-text card needs its larger footprint.
  * New cards animate in with opacity+scale+translateY; removed cards animate out.
  *
  * Key spec refs:
@@ -23,9 +24,12 @@ interface AttachmentRailProps {
   onPreview: (id: string, originRect: DOMRect) => void;
   /** Called when the user clicks Retry on a failed card. Optional — omit to hide retry button. */
   onRetry?: (id: string) => void;
+  /** Called when the user restores an eligible clipboard paste into the composer. */
+  onEdit?: (id: string) => void;
 }
 
-const RAIL_HEIGHT = 176; // px — fixed single-row height (spec §3)
+const DEFAULT_RAIL_HEIGHT = 176; // px — fixed single-row height for file/image cards
+const PASTE_RAIL_HEIGHT = 256; // px — fits the 240px editable paste card plus insets
 const EASE_OUT = 'cubic-bezier(.2,.8,.2,1)';
 const EASE_IN = 'cubic-bezier(.4,0,1,1)';
 
@@ -42,6 +46,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
   onRemove,
   onPreview,
   onRetry,
+  onEdit,
 }) => {
   const railRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -55,6 +60,9 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
   // Whether the rail is currently visible (has or had cards, allowing collapse animation)
   const [railOpen, setRailOpen] = useState(false);
   const reduced = prefersReducedMotion();
+  const railHeight = attachments.some((a) => a.kind === 'paste' && !a.sourceMessageId && onEdit)
+    ? PASTE_RAIL_HEIGHT
+    : DEFAULT_RAIL_HEIGHT;
 
   // ── Entry animation ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -150,7 +158,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
       ref={railRef}
       className="overflow-x-auto overflow-y-hidden"
       style={{
-        height: railOpen ? RAIL_HEIGHT : 0,
+        height: railOpen ? railHeight : 0,
         transition: reduced
           ? 'none'
           : `height 220ms ${railOpen ? EASE_OUT : EASE_OUT}`,
@@ -179,6 +187,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
             onRemove={onRemove}
             onPreview={onPreview}
             onRetry={onRetry}
+            onEdit={a.kind === 'paste' && !a.sourceMessageId ? onEdit : undefined}
             enterState={enteringIds.has(a.id) ? 'entering' : 'entered'}
           />
         ))}

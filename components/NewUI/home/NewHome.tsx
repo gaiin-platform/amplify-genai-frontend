@@ -187,6 +187,15 @@ export const NewHome: React.FC = () => {
     setAttachedDocs((prev) => prev.filter((d) => d.id !== id));
   };
 
+  const handleEditPastedAttachment = (id: string) => {
+    const attachment = uiAttachments.find(
+      (item) => item.id === id && item.kind === 'paste' && !item.sourceMessageId,
+    );
+    if (typeof attachment?.fullText !== 'string') return;
+    composerRef.current?.appendText(attachment.fullText);
+    handleRemoveAttachment(id);
+  };
+
   /** Apply an update to one rail entry — the shape shared/libraryAttachment wants. */
   const patchUIAttachment = useCallback(
     (id: string, update: (attachment: UIAttachment) => UIAttachment) => {
@@ -687,6 +696,7 @@ export const NewHome: React.FC = () => {
           <AttachmentRail
             attachments={uiAttachments}
             onRemove={handleRemoveAttachment}
+            onEdit={handleEditPastedAttachment}
             onPreview={(id, rect) => {
               setPreviewId(id);
               setPreviewOriginRect(rect);
