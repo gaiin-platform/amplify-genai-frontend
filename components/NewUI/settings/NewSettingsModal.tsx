@@ -55,7 +55,11 @@ import { getUserDefaultEffort, setUserDefaultEffort } from '@/components/NewUI/s
 import { EFFORT_OPTIONS } from '@/components/NewUI/shared/ModelPicker';
 import type { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
-import { NewUILoadingStatus, NewUILegacyLoadingAdapter } from '@/components/NewUI/shared/NewUILoadingStatus';
+import {
+  NewUILoadingStatus,
+  NewUILegacyLoadingAdapter,
+  NewUILegacyPortalLoadingAdapter,
+} from '@/components/NewUI/shared/NewUILoadingStatus';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -964,6 +968,54 @@ const StorageSection: FC<{ active: boolean }> = ({ active }) => {
 // API Keys Section
 // ---------------------------------------------------------------------------
 
+const API_RESOURCES_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
+
+const API_ACCESS_TEXT_REPLACEMENTS = new Map([
+  ['🔑 New API Key Created', 'New API Key Created'],
+  ['🔐', ''],
+  ['⚠️ NEW API KEY GENERATED - COPY NOW', 'New API Key Generated — Copy Now'],
+  ['⚠️ This key will only be shown once!', 'This key will only be shown once.'],
+  ['Key Management', 'API Key Access'],
+  [
+    'Replace with a new key if compromised or lost',
+    'View and copy this key. Rotate it only if it is compromised or lost.',
+  ],
+  ['Rotate Key', 'Rotate API Key'],
+]);
+
+const normalizeApiAccessText = (text: string | null | undefined) =>
+  text?.replace(/\s+/g, ' ').trim() ?? '';
+
+const patchApiAccessText = (root: ParentNode) => {
+  root.querySelectorAll<HTMLElement>('*').forEach((element) => {
+    if (element.children.length > 0) return;
+    const replacement = API_ACCESS_TEXT_REPLACEMENTS.get(
+      normalizeApiAccessText(element.textContent),
+    );
+    if (replacement && element.textContent !== replacement) element.textContent = replacement;
+  });
+
+  root.querySelectorAll<HTMLElement>('.accounts-info-title').forEach((element) => {
+    element.querySelector('.accounts-info-icon')?.remove();
+  });
+};
+
+const patchApiAccessPortalText = () => {
+  Array.from(document.body.children)
+    .filter(
+      (element) =>
+        element.classList.contains('fixed') &&
+        element.classList.contains('inset-0') &&
+        element.classList.contains('z-[9999]'),
+    )
+    .forEach((element) => {
+      const text = normalizeApiAccessText(element.textContent);
+      if (Array.from(API_ACCESS_TEXT_REPLACEMENTS.keys()).some((legacy) => text.includes(legacy))) {
+        patchApiAccessText(element);
+      }
+    });
+};
+
 const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
   const apiKeysWrapperRef = useRef<HTMLDivElement>(null);
   const [unsaved, setUnsaved] = useState(false);
@@ -981,12 +1033,44 @@ const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
     rotateConfirmationResolver.current = null;
     resolve?.(confirmed);
   };
+
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
   const [accountsError, setAccountsError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const requestId = useRef(0);
+
+  useEffect(() => {
+    const wrapper = apiKeysWrapperRef.current;
+    if (!active || !wrapper) return;
+
+    const reconcile = () => {
+      patchApiAccessText(wrapper);
+      if (document.body) patchApiAccessPortalText();
+    };
+    reconcile();
+
+    const observer = new MutationObserver(reconcile);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    const handleApiDocsClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest('#amplifyDocumentationButton');
+      if (!button || !wrapper.contains(button)) return;
+
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      window.open(API_RESOURCES_URL, '_blank', 'noopener,noreferrer');
+    };
+
+    document.addEventListener('click', handleApiDocsClick, true);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('click', handleApiDocsClick, true);
+    };
+  }, [active, isLoadingAccounts]);
 
   useEffect(() => {
     if (!active) return;
@@ -1070,6 +1154,12 @@ const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
           matchText="Loading API Keys..."
           message="Loading API keys…"
           inlineClassName="nui-inline-loading-api-keys"
+        />
+        <NewUILegacyPortalLoadingAdapter
+          matchText="Creating API Key..."
+          message="Creating API key…"
+          markerName="data-new-ui-portal-loading-kind"
+          markerValue="api-key-creation"
         />
       </div>
     </>

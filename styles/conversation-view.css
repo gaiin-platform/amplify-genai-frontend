@@ -3189,6 +3189,10 @@
   display: none !important;
 }
 
+[data-new-ui-portal-loading-kind="api-key-creation"] {
+  display: none !important;
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    Skills + MCP: remap purple-* Tailwind classes to --accent blue
    Scope: .new-ui-skills-override wrapper (set on Skills and MCP sections in

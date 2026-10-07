@@ -45,6 +45,17 @@ export interface NewUILegacyLoadingAdapterProps {
   inlineClassName?: string;
 }
 
+export interface NewUILegacyPortalLoadingAdapterProps {
+  /** Exact legacy text used to identify the portalled loading state. */
+  matchText: string;
+  /** Contextual status message for the replacement indicator. */
+  message: string;
+  /** Attribute name used by CSS to hide the matched legacy portal. */
+  markerName: string;
+  /** Attribute value that identifies this specific replacement. */
+  markerValue: string;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Component
 // ─────────────────────────────────────────────────────────────────────────────
@@ -327,6 +338,63 @@ export const NewUILegacyLoadingAdapter: React.FC<NewUILegacyLoadingAdapterProps>
       />
     </div>
   ) : null;
+};
+
+const normalizeLoadingText = (text: string | null | undefined) =>
+  text?.replace(/\s+/g, ' ').trim() ?? '';
+
+export const isLegacyPortalLoadingNode = (node: Element, matchText: string) =>
+  node.parentElement === document.body &&
+  node.classList.contains('animate-float') &&
+  node.classList.contains('pointer-events-none') &&
+  normalizeLoadingText(node.textContent) === normalizeLoadingText(matchText);
+
+/**
+ * Replaces one recognized legacy action loader rendered directly into body.
+ * This is intentionally separate from NewUILegacyLoadingAdapter: initial-load
+ * rows are wrapper-scoped, while action loaders may be portalled elsewhere.
+ */
+export const NewUILegacyPortalLoadingAdapter: React.FC<NewUILegacyPortalLoadingAdapterProps> = ({
+  matchText,
+  message,
+  markerName,
+  markerValue,
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const matchedNodeRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (typeof document === 'undefined' || !document.body) return;
+
+    const reconcile = () => {
+      const nextNode = Array.from(document.body.children).find((node) =>
+        isLegacyPortalLoadingNode(node, matchText),
+      ) as HTMLElement | undefined;
+      const currentNode = matchedNodeRef.current;
+
+      if (currentNode && currentNode !== nextNode) {
+        currentNode.removeAttribute(markerName);
+        matchedNodeRef.current = null;
+      }
+      if (nextNode && nextNode !== matchedNodeRef.current) {
+        nextNode.setAttribute(markerName, markerValue);
+        matchedNodeRef.current = nextNode;
+      }
+      setIsLoading(Boolean(nextNode));
+    };
+
+    reconcile();
+    const observer = new MutationObserver(reconcile);
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+
+    return () => {
+      observer.disconnect();
+      matchedNodeRef.current?.removeAttribute(markerName);
+      matchedNodeRef.current = null;
+    };
+  }, [markerName, markerValue, matchText]);
+
+  return <NewUILoadingStatus open={isLoading} message={message} />;
 };
 
 export default NewUILoadingStatus;
