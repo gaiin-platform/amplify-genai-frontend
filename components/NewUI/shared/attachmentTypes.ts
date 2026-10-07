@@ -50,6 +50,8 @@ export interface UIAttachment {
   previewState: UIAttachmentPreviewState;
   /** Third meta-slot in preview header: caveat shown only when relevant. */
   caveat?: string;
+  /** Assistant message this pasted text was replied from, when applicable. */
+  sourceMessageId?: string;
 
   progress?: number;  // 0..1 while uploading; undefined = indeterminate
   error?: string;     // §4.5 failure reason
@@ -246,7 +248,7 @@ export function createUIAttachmentFromDoc(
 }
 
 /** Build a UIAttachment for a large paste (spec §6). */
-export function createPasteAttachment(text: string): UIAttachment {
+export function createPasteAttachment(text: string, sourceMessageId?: string): UIAttachment {
   const id = Math.random().toString(36).slice(2);
   const name = derivePasteTitle(text);
   const bytes = new TextEncoder().encode(text).byteLength;
@@ -269,6 +271,7 @@ export function createPasteAttachment(text: string): UIAttachment {
     fullText: text,
     lineCount,
     previewState,
+    ...(sourceMessageId ? { sourceMessageId } : {}),
     caveat: 'Formatting may be inconsistent from source',
   };
 }
@@ -292,6 +295,7 @@ export interface LargeTextBlockLike {
   lineCount?: number;
   wordCount?: number;
   preview?: { start?: string; end?: string };
+  sourceMessageId?: string;
 }
 
 /**
@@ -363,6 +367,7 @@ export function createUIAttachmentFromLargeTextBlock(
     fullText: block.originalText,
     lineCount,
     previewState,
+    ...(block.sourceMessageId ? { sourceMessageId: block.sourceMessageId } : {}),
     caveat: 'Formatting may be inconsistent from source',
   };
 }
@@ -398,6 +403,9 @@ export function buildPastedTextMessage(
       preview: { start: fullText.slice(0, 500), end: '' },
       originalText: fullText,
       pastePosition: messageText.length,
+      ...(attachment.sourceMessageId
+        ? { sourceMessageId: attachment.sourceMessageId }
+        : {}),
     };
   });
 

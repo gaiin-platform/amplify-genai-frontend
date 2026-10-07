@@ -137,10 +137,15 @@ export interface ConversationComposerProps {
    * the shell needing to know anything about the upload pipeline.
    */
   attachFilesRef?: React.MutableRefObject<((files: File[]) => void) | null>;
+  /** Intake used by the New UI selection Reply action. */
+  selectionReplyRef?: React.MutableRefObject<
+    ((text: string, sourceMessageId?: string) => void) | null
+  >;
 }
 
 export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   attachFilesRef,
+  selectionReplyRef,
 }) => {
   const {
     state: {
@@ -1086,6 +1091,24 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       attachFilesRef.current = null;
     };
   }, [attachFilesRef, attachFiles]);
+
+  const addSelectionReply = useCallback((text: string, sourceMessageId?: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setUIAttachments((prev) => [
+      ...prev,
+      createPasteAttachment(trimmed, sourceMessageId),
+    ]);
+    requestAnimationFrame(() => richComposerRef.current?.focus());
+  }, []);
+
+  useEffect(() => {
+    if (!selectionReplyRef) return;
+    selectionReplyRef.current = addSelectionReply;
+    return () => {
+      selectionReplyRef.current = null;
+    };
+  }, [selectionReplyRef, addSelectionReply]);
 
   // canSend:
   //   — Send button visible when RichComposer has content OR any non-failed attachment

@@ -36,6 +36,7 @@ import { NewUIUserMessageMarkdownLayer } from './NewUIUserMessageMarkdownLayer';
 import { NewUITranscriptAttachmentsLayer } from './NewUITranscriptAttachmentsLayer';
 import { NewUITranscriptPastedTextLayer } from './NewUITranscriptPastedTextLayer';
 import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
+import { NewUISelectionReplyLayer } from './NewUISelectionReplyLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
 import { ArtifactPanelLayer } from './ArtifactPanelLayer';
 import { ArtifactSplitterLayer } from './ArtifactSplitterLayer';
@@ -160,6 +161,9 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
    * the user would have to put the file anyway.
    */
   const composerAttachFilesRef = useRef<((files: File[]) => void) | null>(null);
+  const composerSelectionReplyRef = useRef<
+    ((text: string, sourceMessageId?: string) => void) | null
+  >(null);
   const { active: isFileDragOver, dropHandlers } = useFileDropTarget({
     onFiles: (files) => composerAttachFilesRef.current?.(files),
     disabled: !featureFlags.uploadDocuments,
@@ -1622,7 +1626,16 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       <ConversationHeader />
 
       {/* Composer overlay — position:absolute at bottom (handled inside ConversationComposer) */}
-      <ConversationComposer attachFilesRef={composerAttachFilesRef} />
+      <ConversationComposer
+        attachFilesRef={composerAttachFilesRef}
+        selectionReplyRef={composerSelectionReplyRef}
+      />
+
+      <NewUISelectionReplyLayer
+        shellRef={shellRef}
+        selectionReplyRef={composerSelectionReplyRef}
+        conversationId={selectedConversation?.id}
+      />
 
       {/* Jump-to-latest button — centered on the message column, above the composer */}
       <div

@@ -41,6 +41,8 @@
      Use var(--accent-fg) for text/icons on accent backgrounds. */
   --accent:    #3b82f6;
   --accent-fg: #ffffff;
+  --selection-reply-bg: #1a1a1a;
+  --selection-reply-fg: #ffffff;
 
   /* Error text (failure reasons, invalid input). Not an interactive accent. */
   --text-error: #B42318;
@@ -81,6 +83,8 @@
 
   --accent:    #006FEE;
   --accent-fg: #ffffff;
+  --selection-reply-bg: #000000;
+  --selection-reply-fg: #ffffff;
 
   --text-error: #F97066;
 

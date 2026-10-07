@@ -258,6 +258,51 @@
   padding-right: calc(24px - var(--nui-sb-clear)) !important;
 }
 
+/* Direct child of the shell, so it must opt out of the shell-wide
+   `[data-new-ui="true"] > div { background-color: var(--bg-app) !important }`
+   rule — otherwise this full-bleed overlay paints over the whole chat view. */
+[data-new-ui="true"] [data-new-ui-legacy-highlighter] {
+  display: none !important;
+}
+
+[data-new-ui="true"] .new-ui-selection-reply-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  background: transparent !important;
+}
+
+[data-new-ui="true"] .new-ui-selection-reply {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 7px;
+  background: var(--selection-reply-bg);
+  color: var(--selection-reply-fg);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  pointer-events: auto;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--selection-reply-bg) 18%, transparent);
+}
+
+[data-new-ui="true"] .new-ui-selection-reply:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-new-ui="true"] .new-ui-selection-reply {
+    transition: none;
+  }
+}
+
 /* ─────────────────────────────────────────────────────────────────────────────
    #overflowScroll — empty-conversation state container
    Chat.tsx sets minHeight/maxHeight inline; override both so the empty-state
