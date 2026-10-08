@@ -91,6 +91,17 @@ import { useLegacySettingsEventBridge } from '@/components/NewUI/shared/newUISet
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const PENDING_TASK_KEY = 'amplify_pending_scheduled_task';
+const TASK_LIST_WIDTH_KEY = 'nui-scheduled-task-list-width';
+const TASK_LIST_DEFAULT_WIDTH = 340;
+const TASK_LIST_MIN_WIDTH = 260;
+const TASK_DETAIL_MIN_WIDTH = 420;
+const TASK_SPLITTER_WIDTH = 10;
+const TASK_SPLITTER_KEYBOARD_STEP = 24;
+
+const clampTaskListWidth = (width: number, containerWidth: number) => {
+    const maxWidth = Math.max(TASK_LIST_MIN_WIDTH, containerWidth - TASK_DETAIL_MIN_WIDTH - TASK_SPLITTER_WIDTH);
+    return Math.min(Math.max(width, TASK_LIST_MIN_WIDTH), maxWidth);
+};
 
 const emptyTask = (): ScheduledTask => ({
     taskId: '',
@@ -253,6 +264,102 @@ export const NewScheduledTasksView: React.FC = () => {
     useLegacySettingsEventBridge();
 
     const { state: { featureFlags, prompts }, dispatch: homeDispatch } = useContext(HomeContext);
+    const paneContainerRef = useRef<HTMLDivElement>(null);
+    const splitterRef = useRef<HTMLDivElement>(null);
+    const [taskListWidth, setTaskListWidth] = useState(() => {
+        if (typeof window === 'undefined') return TASK_LIST_DEFAULT_WIDTH;
+        try {
+            const storedWidth = Number(localStorage.getItem(TASK_LIST_WIDTH_KEY));
+            return Number.isFinite(storedWidth) && storedWidth > 0 ? storedWidth : TASK_LIST_DEFAULT_WIDTH;
+        } catch {
+            return TASK_LIST_DEFAULT_WIDTH;
+        }
+    });
+    const [isResizingPanes, setIsResizingPanes] = useState(false);
+    const isResizingPanesRef = useRef(false);
+    const [paneContainerWidth, setPaneContainerWidth] = useState(0);
+    const availablePaneWidth = paneContainerWidth || (
+        typeof window === 'undefined'
+            ? TASK_LIST_DEFAULT_WIDTH + TASK_DETAIL_MIN_WIDTH + TASK_SPLITTER_WIDTH
+            : window.innerWidth
+    );
+    const taskListWidthRef = useRef(taskListWidth);
+    const dragStartXRef = useRef(0);
+    const dragStartWidthRef = useRef(taskListWidth);
+    const previousUserSelectRef = useRef<string | null>(null);
+
+    const applyTaskListWidth = (requestedWidth: number, persist = false) => {
+        const containerWidth = paneContainerRef.current?.clientWidth ?? (
+            typeof window === 'undefined'
+                ? TASK_LIST_DEFAULT_WIDTH + TASK_DETAIL_MIN_WIDTH + TASK_SPLITTER_WIDTH
+                : window.innerWidth
+        );
+        const nextWidth = clampTaskListWidth(requestedWidth, containerWidth);
+        taskListWidthRef.current = nextWidth;
+        setTaskListWidth(nextWidth);
+        if (persist) {
+            try {
+                localStorage.setItem(TASK_LIST_WIDTH_KEY, String(nextWidth));
+            } catch {
+                // Keep resizing usable when localStorage is unavailable.
+            }
+        }
+    };
+
+    useEffect(() => {
+        const container = paneContainerRef.current;
+        if (!container) return;
+        const resizeObserver = new ResizeObserver(() => {
+            setPaneContainerWidth(container.clientWidth);
+            const clamped = clampTaskListWidth(taskListWidthRef.current, container.clientWidth);
+            if (clamped !== taskListWidthRef.current) applyTaskListWidth(clamped, true);
+        });
+        resizeObserver.observe(container);
+        applyTaskListWidth(taskListWidthRef.current);
+        return () => resizeObserver.disconnect();
+        // The observer tracks the mounted pane container; resizes use the latest width ref.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleSplitterPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragStartXRef.current = event.clientX;
+        dragStartWidthRef.current = taskListWidthRef.current;
+        isResizingPanesRef.current = true;
+        setIsResizingPanes(true);
+        previousUserSelectRef.current = document.body.style.userSelect;
+        document.body.style.userSelect = 'none';
+    };
+
+    const handleSplitterPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!isResizingPanes) return;
+        applyTaskListWidth(dragStartWidthRef.current + event.clientX - dragStartXRef.current);
+    };
+
+    const finishSplitterResize = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        if (!isResizingPanes) return;
+        isResizingPanesRef.current = false;
+        setIsResizingPanes(false);
+        document.body.style.userSelect = previousUserSelectRef.current ?? '';
+        previousUserSelectRef.current = null;
+        try {
+            localStorage.setItem(TASK_LIST_WIDTH_KEY, String(taskListWidthRef.current));
+        } catch {
+            // Keep resizing usable when localStorage is unavailable.
+        }
+    };
+
+    const handleSplitterKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        const delta = event.key === 'ArrowRight' ? TASK_SPLITTER_KEYBOARD_STEP : -TASK_SPLITTER_KEYBOARD_STEP;
+        applyTaskListWidth(taskListWidthRef.current + delta, true);
+    };
 
     // Consume the one-shot sessionStorage handoff (mirrors the pending-message bridge pattern)
     const initTask = useMemo<ScheduledTask | undefined>(() => {
@@ -1432,10 +1539,10 @@ export const NewScheduledTasksView: React.FC = () => {
             </div>
 
             {/* Body: list + detail */}
-            <div className="flex flex-1 overflow-hidden">
+            <div ref={paneContainerRef} className="flex flex-1 overflow-hidden" data-scheduled-task-resizing={isResizingPanes ? 'true' : undefined}>
                 {/* List pane */}
-                <div className="flex flex-col flex-shrink-0 w-[340px] border-r overflow-hidden" style={{ borderColor: 'var(--border-subtle)' }}>
-                    <div className="flex flex-col gap-2 px-4 py-3 border-b flex-shrink-0" style={{ borderColor: 'var(--border-subtle)' }}>
+                <div className="flex flex-col flex-shrink-0 overflow-hidden" style={{ width: taskListWidth }}>
+                    <div className="flex flex-col gap-2 px-4 py-3 flex-shrink-0">
                         <div className="flex items-center justify-between gap-2">
                             <SearchInput value={search} onChange={setSearch} placeholder="Search tasks…" />
                         </div>
@@ -1456,7 +1563,7 @@ export const NewScheduledTasksView: React.FC = () => {
                         )}
                     </div>
 
-                    <div className="flex-1 overflow-y-auto px-2 py-2">
+                    <div className="flex-1 overflow-y-auto px-2 py-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
                         {isLoadingTasks ? (
                             <div className="flex flex-col gap-2 px-2 pt-2">
                                 {[1, 2, 3].map((i) => (
@@ -1498,8 +1605,32 @@ export const NewScheduledTasksView: React.FC = () => {
                     </div>
                 </div>
 
+                <div
+                    ref={splitterRef}
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize scheduled task list and details"
+                    aria-valuemin={TASK_LIST_MIN_WIDTH}
+                    aria-valuemax={Math.max(TASK_LIST_MIN_WIDTH, availablePaneWidth - TASK_DETAIL_MIN_WIDTH - TASK_SPLITTER_WIDTH)}
+                    aria-valuenow={Math.round(taskListWidth)}
+                    tabIndex={0}
+                    className="new-ui-scheduled-task-splitter"
+                    data-dragging={isResizingPanes ? 'true' : undefined}
+                    onPointerDown={handleSplitterPointerDown}
+                    onPointerMove={handleSplitterPointerMove}
+                    onPointerUp={finishSplitterResize}
+                    onPointerCancel={finishSplitterResize}
+                    onLostPointerCapture={(event) => {
+                        if (isResizingPanesRef.current) finishSplitterResize(event);
+                    }}
+                    onKeyDown={handleSplitterKeyDown}
+                    style={{ flex: `0 0 ${TASK_SPLITTER_WIDTH}px` }}
+                >
+                    <div className="new-ui-scheduled-task-splitter-line" />
+                </div>
+
                 {/* Detail pane */}
-                <div className="flex flex-col flex-1 overflow-hidden">
+                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
                     {isViewingLogs ? renderLogsPanel() : renderEditorPanel()}
                 </div>
             </div>
