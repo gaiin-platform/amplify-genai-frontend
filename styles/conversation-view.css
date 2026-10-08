@@ -717,10 +717,6 @@
   display: block !important;
 }
 
-[data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.inset-0:not(.cursor-pointer) {
-  background: transparent !important;
-}
-
 [data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.bottom-0.left-0.right-0 {
   display: none !important;
 }

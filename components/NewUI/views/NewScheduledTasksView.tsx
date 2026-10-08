@@ -43,13 +43,12 @@ import {
     IconChevronRight,
     IconChevronUp,
     IconExclamationCircle,
-    IconBulb,
     IconDeviceFloppy,
     IconAdjustments,
-    IconInfoCircle,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/pages/api/home/home.context';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import {
     ScheduleDateRange,
     ScheduledTask,
@@ -1220,16 +1219,6 @@ export const NewScheduledTasksView: React.FC = () => {
                         </div>
                     )}
 
-                    <div className="mb-4 p-3 rounded-[8px] flex items-start gap-2" style={{ backgroundColor: 'var(--bg-raised)' }}>
-                        <IconInfoCircle size={16} className="flex-shrink-0 mt-0.5" style={{ color: 'var(--text-muted)' }} />
-                        <p className="text-[12.5px] leading-relaxed" style={{ color: 'var(--text-secondary)' }}>
-                            Scheduled tasks automate your Assistants, Action Sets, or Workflows to run at times you define.
-                            {featureFlags.assistantEmailEvents && (
-                                <> <IconBulb size={13} className="inline mx-0.5" style={{ color: '#E8A030' }} /> Tip: list assistant email event addresses under notifications.</>
-                            )}
-                        </p>
-                    </div>
-
                     <div className="space-y-4">
                         <div>
                             <FieldLabel>Task Name</FieldLabel>
@@ -1258,8 +1247,16 @@ export const NewScheduledTasksView: React.FC = () => {
                         </div>
 
                         <div>
-                            <FieldLabel>Task Instructions</FieldLabel>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <label htmlFor="scheduled-task-instructions" className="text-[12px] font-medium" style={{ color: 'var(--text-secondary)' }}>Task Instructions</label>
+                                <InfoTooltip
+                                    ariaLabel="About task instructions"
+                                    maxWidth={380}
+                                    text="These instructions are sent to the selected assistant, action, or workflow each time the task runs. Describe what it should do and the result you want. If you want something emailed to you, include your full email address here—don't just say ‘email me.’"
+                                />
+                            </div>
                             <textarea
+                                id="scheduled-task-instructions"
                                 value={selectedTask.taskInstructions}
                                 onChange={(e) => setSelectedTask({ ...selectedTask, taskInstructions: e.target.value })}
                                 className={textFieldClass}
@@ -1308,7 +1305,14 @@ export const NewScheduledTasksView: React.FC = () => {
                         </label>
 
                         <div title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''}>
-                            <FieldLabel>Task Type</FieldLabel>
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                                <span className="text-[12px] font-medium" style={{ color: 'var(--text-secondary)' }}>Task Type</span>
+                                <InfoTooltip
+                                    ariaLabel="About task type"
+                                    maxWidth={360}
+                                    text="Choose what this task will run: an assistant, an action, or a workflow. The selected type determines which item you can choose below."
+                                />
+                            </div>
                             <select
                                 disabled={isDisabled()}
                                 value={selectedTask.taskType === 'actionSet' || selectedTask.taskType === 'apiTool' ? 'actions' : (selectedTask.taskType ?? '')}
@@ -1363,8 +1367,16 @@ export const NewScheduledTasksView: React.FC = () => {
                                     <span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Notify on Run Failure</span>
                                 </label>
                                 <div>
-                                    <FieldLabel>Notification Email Addresses</FieldLabel>
+                                    <div className="flex items-center gap-1.5 mb-1.5">
+                                        <label htmlFor="scheduled-task-notification-emails" className="text-[12px] font-medium" style={{ color: 'var(--text-secondary)' }}>Notification Email Addresses</label>
+                                        <InfoTooltip
+                                            ariaLabel="About notification email addresses"
+                                            maxWidth={360}
+                                            text="Enter the full email addresses that should receive task completion or failure notifications. Separate multiple addresses with commas."
+                                        />
+                                    </div>
                                     <input
+                                        id="scheduled-task-notification-emails"
                                         type="text"
                                         value={notifyEmailsInput}
                                         onChange={(e) => setNotifyEmailsInput(e.target.value)}
@@ -1411,6 +1423,11 @@ export const NewScheduledTasksView: React.FC = () => {
                 <div className="flex items-center gap-2">
                     <IconAlarm size={16} style={{ color: 'var(--text-muted)' }} />
                     <span className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Scheduled Tasks</span>
+                    <InfoTooltip
+                        ariaLabel="About scheduled tasks"
+                        maxWidth={360}
+                        text="Scheduled tasks automate assistants, action sets, or workflows to run on a schedule you choose."
+                    />
                 </div>
             </div>
 
