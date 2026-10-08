@@ -17,6 +17,8 @@ import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
 import { extractSensitivityLabel } from '@/utils/app/files';
 import { VIDEO_FILE_TYPES } from '@/utils/app/const';
 
+const UPLOAD_ERROR_EVENT = 'amplify:upload-error';
+
 interface Props {
     onAttach: (data: AttachedDocument) => void;
     onUploadProgress?: (data: AttachedDocument, progress: number) => void;
@@ -219,7 +221,9 @@ export const handleFile = async (file: any,
                 console.error('[UPLOAD DEBUG] Error in upload flow:', e);
                 // @ts-ignore
                 if (e.message !== 'Abort') {
-                    alert("Upload file aborted");
+                    window.dispatchEvent(new CustomEvent(UPLOAD_ERROR_EVENT, {
+                        detail: { message: 'Upload file aborted' },
+                    }));
                     if (docKey) safeCleanUp(docKey);
                 }
             }
@@ -245,6 +249,16 @@ export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMet
 
     // State for sensitivity block modal
     const [blockedFile, setBlockedFile] = useState<{ fileName: string; labelName: string } | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+
+    React.useEffect(() => {
+        const handleUploadError = (event: Event) => {
+            const message = (event as CustomEvent<{ message?: string }>).detail?.message;
+            if (message) setUploadError(message);
+        };
+        window.addEventListener(UPLOAD_ERROR_EVENT, handleUploadError);
+        return () => window.removeEventListener(UPLOAD_ERROR_EVENT, handleUploadError);
+    }, []);
 
     const handleSensitivityBlock = (fileName: string, labelName: string) => {
         setBlockedFile({ fileName, labelName });
@@ -305,6 +319,17 @@ export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMet
             </button>
 
             {/* Sensitivity Block Modal */}
+            {uploadError && (
+                <ConfirmModal
+                    title="Upload failed"
+                    message={uploadError}
+                    confirmLabel="OK"
+                    onConfirm={() => setUploadError(null)}
+                    width={450}
+                    height={220}
+                />
+            )}
+
             {blockedFile && (
                 <ConfirmModal
                     title="🔒 Sensitive File Detected"
