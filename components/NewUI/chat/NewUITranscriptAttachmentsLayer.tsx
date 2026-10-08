@@ -6,7 +6,10 @@
  * download, loading, and metadata behavior while giving the New UI an
  * independent attachment surface above the text bubble.
  */
-import React, { useCallback, useContext, useEffect, useRef } from 'react';
+import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
+
+import { InlineLoadingIndicator } from '@/components/NewUI/shared/NewUILoadingStatus';
 
 import { Message } from '@/types/chat';
 
@@ -63,6 +66,7 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
   } = useContext(HomeContext);
   const conversationRef = useRef(selectedConversation);
   conversationRef.current = selectedConversation;
+  const [loadingCards, setLoadingCards] = useState<HTMLElement[]>([]);
 
   const scan = useCallback(() => {
     const container = document.querySelector('.chatcontainer');
@@ -73,6 +77,7 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
     const messageElements = Array.from(
       container.querySelectorAll<HTMLElement>('.enhanced-chat-message'),
     );
+    const nextLoadingCards: HTMLElement[] = [];
 
     messageElements.forEach((messageElement, index) => {
       const message = messages[index];
@@ -207,6 +212,19 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
             if (label && label.textContent !== middleEllipsis(name))
               label.textContent = middleEllipsis(name);
           }
+          const imageFace = card.querySelector<HTMLElement>(
+            ':scope > .absolute.inset-0.bg-cover.bg-center',
+          );
+          const loadingOverlay = imageFace && card.querySelector<HTMLElement>(
+            ':scope > .absolute.inset-0.flex.items-center.justify-center',
+          );
+          if (imageFace && loadingOverlay) {
+            card.dataset.newUiImageLoading = 'true';
+            nextLoadingCards.push(card);
+          } else {
+            delete card.dataset.newUiImageLoading;
+          }
+
           if (!card.dataset.newUiKeyboard) {
             card.dataset.newUiKeyboard = 'true';
             card.addEventListener('keydown', (event) => {
@@ -218,6 +236,13 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
           }
         });
     });
+
+    setLoadingCards((previous) =>
+      previous.length === nextLoadingCards.length &&
+      previous.every((card, index) => card === nextLoadingCards[index])
+        ? previous
+        : nextLoadingCards,
+    );
   }, []);
 
   useEffect(() => {
@@ -252,7 +277,20 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
     return () => clearTimeout(timer);
   }, [selectedConversation?.messages?.length, scan]);
 
-  return null;
+  return (
+    <>
+      {loadingCards.map((card) =>
+        createPortal(
+          <InlineLoadingIndicator
+            message="Loading image…"
+            className="new-ui-transcript-image-loading"
+          />,
+          card,
+          `transcript-image-loading-${loadingCards.indexOf(card)}`,
+        ),
+      )}
+    </>
+  );
 };
 
 export default NewUITranscriptAttachmentsLayer;

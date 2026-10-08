@@ -717,6 +717,30 @@
   display: block !important;
 }
 
+/* Replace the legacy image placeholder/spinner with the reusable New UI loader
+   while DataSourcesBlock is resolving the post-send image. */
+[data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative[data-new-ui-image-loading] > .absolute.inset-0.bg-cover.bg-center {
+  background-image: none !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative[data-new-ui-image-loading] > .absolute.inset-0.flex.items-center.justify-center {
+  display: none !important;
+}
+
+[data-new-ui="true"] .new-ui-transcript-attachments .new-ui-transcript-image-loading {
+  position: absolute !important;
+  inset: 0 !important;
+  z-index: 2 !important;
+  min-height: 0 !important;
+  height: 100% !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  justify-content: center !important;
+  background: var(--bg-raised) !important;
+  color: var(--accent) !important;
+  pointer-events: none !important;
+}
+
 [data-new-ui="true"] .new-ui-transcript-attachments .rounded-lg.shadow-lg.overflow-hidden.relative > .absolute.bottom-0.left-0.right-0 {
   display: none !important;
 }
