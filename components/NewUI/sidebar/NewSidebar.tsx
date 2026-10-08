@@ -15,7 +15,7 @@
  *   760-1099px: collapsed icon rail (60px)  [TODO: Phase 4]
  *   <760px: off-canvas drawer               [TODO: Phase 4]
  */
-import React, { useContext, useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useContext, useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import {
   IconMessage2,
   IconSparkles,
@@ -52,6 +52,7 @@ import { ConversationRow } from './ConversationRow';
 import { FolderRow } from './FolderRow';
 import { AccountMenu } from './AccountMenu';
 import { getUserChatFolders } from '@/components/NewUI/shared/chatFolderHelpers';
+import NoticeDialog from '@/components/NewUI/shared/NoticeDialog';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
 import { FilterMenu } from '@/components/NewUI/shared/FilterMenu';
 import {
@@ -81,6 +82,8 @@ const PENDING_SCHEDULED_TASK_KEY = 'amplify_pending_scheduled_task';
 
 // Recents filter/sort selections, persisted so they survive navigation and reload.
 const CHAT_FILTERS_KEY = 'amplify_sidebar_chat_filters';
+const INACCESSIBLE_CONVERSATION_MESSAGE =
+  'This conversation is no longer accessible, it has been made private in another browser or has been removed by another device.';
 
 // ── Sidebar resize constants ──────────────────────────────────────────────
 // Drag handle on right edge lets users resize the sidebar between MIN and MAX.
@@ -248,6 +251,27 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // settingsSection: null = closed, 'general' = open to General, 'skills' = open to Customize
   const [settingsSection, setSettingsSection] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showInaccessibleConversationNotice, setShowInaccessibleConversationNotice] = useState(false);
+
+  // The legacy conversation loader is not allowed to change, so intercept only
+  // its known inaccessible-conversation notice while the New UI is mounted.
+  useLayoutEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const nativeAlert = window.alert;
+    const interceptedAlert = (message?: string) => {
+      if (message === INACCESSIBLE_CONVERSATION_MESSAGE) {
+        setShowInaccessibleConversationNotice(true);
+        return;
+      }
+      nativeAlert.call(window, message);
+    };
+    window.alert = interceptedAlert;
+
+    return () => {
+      if (window.alert === interceptedAlert) window.alert = nativeAlert;
+    };
+  }, []);
 
   // ── Sidebar item visibility ───────────────────────────────────────────────
   // Reads from localStorage on mount. Spread over DEFAULT_SIDEBAR_VISIBILITY so
@@ -814,6 +838,12 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             onClose={() => setSettingsSection(null)}
           />
         )}
+        <NoticeDialog
+          open={showInaccessibleConversationNotice}
+          title="Conversation unavailable"
+          message={INACCESSIBLE_CONVERSATION_MESSAGE}
+          onClose={() => setShowInaccessibleConversationNotice(false)}
+        />
       </>
     );
   }
@@ -1060,6 +1090,12 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
           onClose={() => setSettingsSection(null)}
         />
       )}
+      <NoticeDialog
+        open={showInaccessibleConversationNotice}
+        title="Conversation unavailable"
+        message={INACCESSIBLE_CONVERSATION_MESSAGE}
+        onClose={() => setShowInaccessibleConversationNotice(false)}
+      />
     </>
   );
 };
