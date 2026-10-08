@@ -29,6 +29,7 @@ import { getSettings } from '@/utils/app/settings';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { isBasePrompt } from '@/utils/app/basePrompts';
 import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
+import { getUserWebSearchEnabled } from '@/components/NewUI/shared/userWebSearch';
 import { promptForData } from '@/utils/app/llm';
 import {
     buildExtractFactsPrompt,
@@ -462,7 +463,13 @@ export function useSendService() {
                     };
 
                     // Backend routing owns optional web-search selection. Do not
-                    // send user preference fields that could bias that decision.
+                    // send user preference fields that could bias that decision —
+                    // the one exception is the user's explicit opt-out (Settings →
+                    // General, for Level 3 data), which is a hard veto the backend
+                    // must honour. Absence means "no veto" (web search defaults ON).
+                    if (!getUserWebSearchEnabled()) {
+                        chatBody.disableWebSearch = true;
+                    }
 
                     // Check if MCP is enabled (requires feature flag AND plugin enabled)
                     const isMCPOn = featureFlags.mcp && (plugins?.some(p => p.id === PluginID.MCP) ?? false);

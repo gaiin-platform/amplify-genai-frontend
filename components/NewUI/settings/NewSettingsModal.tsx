@@ -56,6 +56,9 @@ import { getUserDefaultEffort, setUserDefaultEffort } from '@/components/NewUI/s
 import { EFFORT_OPTIONS } from '@/components/NewUI/shared/ModelPicker';
 import type { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
+import { getUserWebSearchEnabled, setUserWebSearchEnabled, WEB_SEARCH_LEVEL3_INFO } from '@/components/NewUI/shared/userWebSearch';
+import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
+import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import {
   NewUILoadingStatus,
   NewUILegacyLoadingAdapter,
@@ -191,6 +194,18 @@ const GeneralSection: FC = () => {
   };
 
   const selectedEffortLabel = EFFORT_OPTIONS.find((e) => e.id === userDefaultEffortId)?.label ?? 'Medium (default)';
+
+  // ── Web search (default ON; the user's off-switch for Level 3 data) ───
+  const webSearchAvailable = getDeploymentFeatureAvailability(featureFlags).webSearch;
+  const [webSearchEnabled, setWebSearchEnabledState] = useState<boolean>(() => getUserWebSearchEnabled());
+
+  const handleWebSearchChange = (enabled: boolean) => {
+    setWebSearchEnabledState(enabled);
+    setUserWebSearchEnabled(enabled);
+    // Always publish the explicit boolean (including `true`) so turning it back
+    // on clears an "off" held by other devices.
+    void saveDisplayPrefsToServer({ webSearchEnabled: enabled });
+  };
 
   // ── Appearance (system / light / dark) ───────────────────────────────
   const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
@@ -760,6 +775,42 @@ const GeneralSection: FC = () => {
             )}
           </div>
         </div>
+
+        {/* Web search row */}
+        {webSearchAvailable && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '16px',
+              paddingBottom: '14px',
+              borderBottom: '1px solid var(--border-subtle)',
+              marginBottom: '14px',
+            }}
+          >
+            <div>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <span id="settings-web-search-label" style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+                  Web search
+                </span>
+                <InfoTooltip
+                  ariaLabel="About web search and Level 3 data"
+                  maxWidth={320}
+                  text={WEB_SEARCH_LEVEL3_INFO}
+                />
+              </span>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
+                Turn off when working with Level 3 data.
+              </p>
+            </div>
+            <ToggleSwitch
+              checked={webSearchEnabled}
+              onChange={handleWebSearchChange}
+              aria-labelledby="settings-web-search-label"
+            />
+          </div>
+        )}
 
         {/* Storage row */}
         <div

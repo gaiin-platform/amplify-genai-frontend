@@ -6,8 +6,9 @@
  *   - conversation storage (`storageSelection`)
  *   - default model        (`amplify_user_default_model_id`)
  *   - default effort       (`amplify_user_default_effort`)
+ *   - web search on/off    (`amplify_user_web_search_enabled`, default ON)
  *
- * All four ride along in the `settings` server object, following the precedent
+ * All five ride along in the `settings` server object, following the precedent
  * set by `uiPreference` (see UIPreferenceBanner#setUIPreference), and are
  * mirrored into their dedicated localStorage keys so every existing consumer
  * (ConversationViewShell, ModelPicker, NewHome, ConversationComposer) keeps
@@ -38,6 +39,7 @@
 import { saveUserSettings, fetchUserSettings } from '@/services/settingsService';
 import { getUserDefaultModelId, setUserDefaultModelId } from './userDefaultModel';
 import { getUserDefaultEffort, setUserDefaultEffort } from './userDefaultEffort';
+import { getStoredUserWebSearchChoice, setUserWebSearchEnabled } from './userWebSearch';
 import type { EffortLevel } from './ModelPicker';
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
@@ -65,6 +67,8 @@ export interface DisplayPrefs {
     storageSelection?: string;
     userDefaultModelId?: string | null;
     userDefaultEffort?: EffortLevel | null;
+    /** Web search on/off. Default ON; only an explicit `false` is a veto. */
+    webSearchEnabled?: boolean;
     /** Stable share/source identities hidden across devices. */
     dismissedSharedAssistantIds?: string[];
 }
@@ -239,6 +243,13 @@ export const applyServerPrefsToLocalStorage = (): {
         }
     }
 
+    // ── Web search ─────────────────────────────────────────────────────────
+    // Absent = server has no opinion (user never touched it → default ON).
+    if (typeof blob.webSearchEnabled === 'boolean'
+        && getStoredUserWebSearchChoice() !== blob.webSearchEnabled) {
+        setUserWebSearchEnabled(blob.webSearchEnabled);
+    }
+
     // ── Storage selection ──────────────────────────────────────────────────
     if (typeof blob.storageSelection === 'string' && blob.storageSelection) {
         storageSelection = blob.storageSelection;
@@ -294,6 +305,11 @@ export const backfillLocalDefaultsToServer = async (): Promise<boolean> => {
     if (!('userDefaultEffort' in server)) {
         const local = getUserDefaultEffort();
         if (local) patch.userDefaultEffort = local;
+    }
+
+    if (!('webSearchEnabled' in server)) {
+        const local = getStoredUserWebSearchChoice();
+        if (local !== null) patch.webSearchEnabled = local;
     }
 
     if (Object.keys(patch).length === 0) return false;
