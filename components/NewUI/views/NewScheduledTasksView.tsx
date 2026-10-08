@@ -27,7 +27,6 @@ import cloneDeep from 'lodash/cloneDeep';
 import toast from 'react-hot-toast';
 import {
     IconX,
-    IconSearch,
     IconPlus,
     IconTrash,
     IconLoader2,
@@ -49,6 +48,9 @@ import {
 
 import HomeContext from '@/pages/api/home/home.context';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
+import { SearchInput } from '@/components/NewUI/shared/SearchInput';
+import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { ScheduledTaskScheduleBuilder } from '@/components/NewUI/shared/ScheduledTaskScheduleBuilder';
 import {
     ScheduleDateRange,
     ScheduledTask,
@@ -78,7 +80,6 @@ import { OpDef, OpBindingMode } from '@/types/op';
 import { CompositeFunction } from '@/utils/app/compositeFunctions';
 
 // PORT: old, unmodified sub-widgets reused as-is
-import { CronScheduleBuilder } from '@/components/Agent/CronScheduleBuilder';
 import { ActionSetList } from '@/components/Agent/ActionSets';
 import CompositeActionsPanel from '@/components/Agent/CompositeActionsPanel';
 import { ApiItemSelector } from '@/components/AssistantApi/ApiSelector';
@@ -131,28 +132,14 @@ const TYPE_ICON: Record<ScheduledTaskType, React.ReactNode> = {
 
 // ── Small shared primitives (matching NewAssistantsView / NewLibraryView) ──────
 
-const SearchInput: React.FC<{ value: string; onChange: (v: string) => void; placeholder?: string }> = ({
-    value, onChange, placeholder = 'Search…',
-}) => (
-    <div className="relative">
-        <IconSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: 'var(--text-muted)' }} />
-        <input
-            type="text"
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={placeholder}
-            className="h-[34px] pl-9 pr-3 rounded-[8px] text-[13px] border focus:outline-none w-[200px] transition-colors"
-            style={{ backgroundColor: 'var(--bg-raised)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
-        />
-    </div>
+const FieldLabel: React.FC<{ children: React.ReactNode; htmlFor?: string }> = ({ children, htmlFor }) => (
+    <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-medium" style={{ color: 'var(--text-secondary)' }}>{children}</label>
 );
 
-const FieldLabel: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-    <label className="block text-[12px] font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>{children}</label>
-);
-
-const textFieldClass = "w-full px-3 py-2 rounded-[8px] text-[13px] border focus:outline-none transition-colors";
+const textFieldClass = "w-full h-9 px-3 rounded-[8px] text-[13px] border focus:outline-none focus:ring-2 focus:ring-[--accent] focus:ring-offset-1 transition-colors";
 const textFieldStyle = { backgroundColor: 'var(--bg-raised)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' };
+const sectionClass = "border-t pt-5";
+const sectionTitleClass = "text-[15px] font-semibold mb-3";
 
 const PrimaryButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: React.ReactNode }> = ({ icon, children, className = '', ...rest }) => (
     <button
@@ -1283,224 +1270,114 @@ export const NewScheduledTasksView: React.FC = () => {
 
     // ── Editor panel ──
     const renderEditorPanel = () => (
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        <div className="flex-1 overflow-y-auto">
             {isLoadingTask ? (
-                <div className="flex flex-col items-center justify-center h-full gap-3">
+                <div className="flex h-full flex-col items-center justify-center gap-3">
                     <IconLoader2 size={26} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--accent)' }} />
                     <p className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Loading task details…</p>
                 </div>
             ) : (
                 <>
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-[15px] font-semibold" style={{ color: 'var(--text-primary)' }}>
-                            {selectedTask.taskId ? 'Edit Task' : 'New Task'}
-                        </h2>
-                        <div className="flex items-center gap-2">
+                    <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3" style={{ backgroundColor: 'var(--bg-app)', borderColor: 'var(--border-subtle)' }}>
+                        <div className="min-w-0">
+                            <h2 className="truncate text-[16px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                {selectedTask.taskId ? (selectedTask.taskName || 'Edit Task') : 'New Task'}
+                            </h2>
+                            {selectedTask.taskId && <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-muted)' }}>Edit scheduled task</p>}
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <span id="scheduled-task-active-label" className="text-[13px] font-medium" style={{ color: 'var(--text-secondary)' }}>Active</span>
+                            <ToggleSwitch checked={selectedTask.active} onChange={(active) => setSelectedTask({ ...selectedTask, active })} aria-labelledby="scheduled-task-active-label" />
                             {selectedTask.taskId && (
                                 <>
-                                    <GhostButton
-                                        icon={isTestingTask ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconPlayerPlay size={14} />}
-                                        onClick={() => handleRunTask(selectedTask.taskId)}
-                                        disabled={isTestingTask}
-                                    >
+                                    <GhostButton type="button" icon={isTestingTask ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconPlayerPlay size={14} />} onClick={() => handleRunTask(selectedTask.taskId)} disabled={isTestingTask}>
                                         {isTestingTask ? 'Running…' : 'Run Task'}
                                     </GhostButton>
-                                    <GhostButton icon={<IconNotes size={14} />} onClick={() => setIsViewingLogs(true)}>
-                                        View Logs
-                                    </GhostButton>
+                                    <GhostButton type="button" icon={<IconNotes size={14} />} onClick={() => setIsViewingLogs(true)}>View Logs</GhostButton>
                                 </>
                             )}
-                            <PrimaryButton
-                                icon={isSubmitting ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconDeviceFloppy size={14} />}
-                                onClick={handleSaveTask}
-                                disabled={isSubmitting}
-                            >
+                            <PrimaryButton type="button" icon={isSubmitting ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconDeviceFloppy size={14} />} onClick={handleSaveTask} disabled={isSubmitting}>
                                 {isSubmitting ? 'Saving…' : 'Save Task'}
                             </PrimaryButton>
                         </div>
                     </div>
 
-                    {error && (
-                        <div className="mb-4 p-3 rounded-[8px] text-[13px] border" style={{ backgroundColor: 'rgba(200,60,60,0.1)', borderColor: 'rgba(200,60,60,0.3)', color: '#e05252' }}>
-                            {error}
-                        </div>
-                    )}
+                    <div className="space-y-7 px-6 py-5">
+                        {error && <div className="rounded-[8px] border p-3 text-[13px]" role="alert" style={{ backgroundColor: 'color-mix(in srgb, var(--text-error) 10%, transparent)', borderColor: 'var(--text-error)', color: 'var(--text-error)' }}>{error}</div>}
 
-                    <div className="space-y-4">
-                        <div>
-                            <FieldLabel>Task Name</FieldLabel>
-                            <input
-                                disabled={isDisabled()}
-                                title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''}
-                                type="text"
-                                value={selectedTask.taskName}
-                                onChange={(e) => setSelectedTask({ ...selectedTask, taskName: e.target.value })}
-                                className={textFieldClass}
-                                style={textFieldStyle}
-                                placeholder="Name your task"
-                            />
-                        </div>
-
-                        <div>
-                            <FieldLabel>Description</FieldLabel>
-                            <textarea
-                                value={selectedTask.description}
-                                onChange={(e) => setSelectedTask({ ...selectedTask, description: e.target.value })}
-                                className={textFieldClass}
-                                style={textFieldStyle}
-                                rows={2}
-                                placeholder="Describe what this task does"
-                            />
-                        </div>
-
-                        <div>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                                <label htmlFor="scheduled-task-instructions" className="text-[12px] font-medium" style={{ color: 'var(--text-secondary)' }}>Task Instructions</label>
-                                <InfoTooltip
-                                    ariaLabel="About task instructions"
-                                    maxWidth={380}
-                                    text="These instructions are sent to the selected assistant, action, or workflow each time the task runs. Describe what it should do and the result you want. If you want something emailed to you, include your full email address here—don't just say ‘email me.’"
-                                />
-                            </div>
-                            <textarea
-                                id="scheduled-task-instructions"
-                                value={selectedTask.taskInstructions}
-                                onChange={(e) => setSelectedTask({ ...selectedTask, taskInstructions: e.target.value })}
-                                className={textFieldClass}
-                                style={textFieldStyle}
-                                rows={4}
-                                placeholder="Provide todo instructions for this task"
-                            />
-                        </div>
-
-                        {!isDisabled() && (
-                            <div>
-                                <FieldLabel>Task Schedule</FieldLabel>
-                                <div className="rounded-[8px] border p-3 text-neutral-900 dark:text-white" style={{ borderColor: 'var(--border-subtle)' }}>
-                                    <CronScheduleBuilder
-                                        key={selectedTask.taskId || 'new'}
-                                        value={selectedTask.cronExpression}
-                                        onChange={(cronExpression) => setSelectedTask((prev) => ({ ...prev, cronExpression }))}
-                                        dateRange={selectedTask.dateRange}
-                                        onRangeChange={(range: ScheduleDateRange) => setSelectedTask((prev) => ({ ...prev, dateRange: range ? { ...range } : undefined }))}
-                                        exclusionsEnabled={selectedTask.exclusionsEnabled}
-                                        excludedDaysOfWeek={selectedTask.excludedDaysOfWeek}
-                                        excludedWeeksOfMonth={selectedTask.excludedWeeksOfMonth}
-                                        excludedMonths={selectedTask.excludedMonths}
-                                        excludedDates={selectedTask.excludedDates}
-                                        onExclusionsChange={(exclusions) => setSelectedTask((prev) => ({
-                                            ...prev,
-                                            exclusionsEnabled: exclusions.exclusionsEnabled,
-                                            excludedDaysOfWeek: exclusions.excludedDaysOfWeek,
-                                            excludedWeeksOfMonth: exclusions.excludedWeeksOfMonth,
-                                            excludedMonths: exclusions.excludedMonths,
-                                            excludedDates: exclusions.excludedDates,
-                                        }))}
-                                    />
-                                </div>
-                            </div>
-                        )}
-
-                        <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={selectedTask.active}
-                                onChange={(e) => setSelectedTask({ ...selectedTask, active: e.target.checked })}
-                                className="w-4 h-4"
-                            />
-                            <span className="text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>Active</span>
-                        </label>
-
-                        <div title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''}>
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                                <span className="text-[12px] font-medium" style={{ color: 'var(--text-secondary)' }}>Task Type</span>
-                                <InfoTooltip
-                                    ariaLabel="About task type"
-                                    maxWidth={360}
-                                    text="Choose what this task will run: an assistant, an action, or a workflow. The selected type determines which item you can choose below."
-                                />
-                            </div>
-                            <select
-                                disabled={isDisabled()}
-                                value={selectedTask.taskType === 'actionSet' || selectedTask.taskType === 'apiTool' ? 'actions' : (selectedTask.taskType ?? '')}
-                                onChange={(e) => {
-                                    const val = e.target.value;
-                                    setNewActionSetActions([]);
-                                    setNewActionSetName('');
-                                    if (val === 'actions') {
-                                        setShowActionSelector(true);
-                                        setActionSubMode('apiTool');
-                                        setSelectedTask({ ...selectedTask, objectInfo: { objectId: '', objectName: '' }, taskType: 'apiTool' });
-                                        return;
-                                    }
-                                    setSelectedTask({ ...selectedTask, objectInfo: { objectId: '', objectName: '' }, taskType: val as ScheduledTaskType });
-                                }}
-                                className={textFieldClass}
-                                style={textFieldStyle}
-                            >
-                                <option value="">Select Task Type</option>
-                                <option value="assistant">Assistant</option>
-                                {(featureFlags.actionSets || featureFlags.integrations) && <option value="actions">Action</option>}
-                                {featureFlags.assistantWorkflows && <option value="workflow">Workflow</option>}
-                            </select>
-                        </div>
-
-                        <div title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''}>
-                            {getObjectSelector()}
-                        </div>
-
-                        <div>
-                            <FieldLabel>Tags (comma separated)</FieldLabel>
-                            <input
-                                type="text"
-                                value={tagsInput}
-                                onChange={(e) => setTagsInput(e.target.value)}
-                                onBlur={commitTagsInput}
-                                className={textFieldClass}
-                                style={textFieldStyle}
-                                placeholder="maintenance, report, etc."
-                            />
-                        </div>
-
-                        <div className="border-t pt-4" style={{ borderColor: 'var(--border-subtle)' }}>
-                            <h3 className="text-[13px] font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>Notification Settings</h3>
-                            <div className="space-y-3">
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" checked={selectedTask.notifyOnCompletion ?? false} onChange={(e) => setSelectedTask({ ...selectedTask, notifyOnCompletion: e.target.checked })} className="w-4 h-4" />
-                                    <span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Notify on Successful Completion</span>
-                                </label>
-                                <label className="flex items-center gap-2 cursor-pointer">
-                                    <input type="checkbox" checked={selectedTask.notifyOnFailure ?? false} onChange={(e) => setSelectedTask({ ...selectedTask, notifyOnFailure: e.target.checked })} className="w-4 h-4" />
-                                    <span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Notify on Run Failure</span>
-                                </label>
+                        <section aria-labelledby="scheduled-details-heading">
+                            <h3 id="scheduled-details-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Details</h3>
+                            <div className="grid gap-4">
                                 <div>
-                                    <div className="flex items-center gap-1.5 mb-1.5">
-                                        <label htmlFor="scheduled-task-notification-emails" className="text-[12px] font-medium" style={{ color: 'var(--text-secondary)' }}>Notification Email Addresses</label>
-                                        <InfoTooltip
-                                            ariaLabel="About notification email addresses"
-                                            maxWidth={360}
-                                            text="Enter the full email addresses that should receive task completion or failure notifications. Separate multiple addresses with commas."
-                                        />
-                                    </div>
-                                    <input
-                                        id="scheduled-task-notification-emails"
-                                        type="text"
-                                        value={notifyEmailsInput}
-                                        onChange={(e) => setNotifyEmailsInput(e.target.value)}
-                                        onBlur={commitNotifyEmailsInput}
-                                        className={textFieldClass}
-                                        style={textFieldStyle}
-                                        placeholder="email1@example.com, email2@example.com"
-                                    />
-                                    <p className="text-[11.5px] mt-1" style={{ color: 'var(--text-muted)' }}>Enter email addresses separated by commas</p>
-                                    {invalidNotifyEmails.length > 0 && (
-                                        <p className="text-[11.5px] mt-1" style={{ color: '#e05252' }}>
-                                            Doesn&apos;t look like a valid email: {invalidNotifyEmails.join(', ')}
-                                        </p>
-                                    )}
+                                    <FieldLabel htmlFor="scheduled-task-name">Task Name</FieldLabel>
+                                    <input id="scheduled-task-name" disabled={isDisabled()} title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''} type="text" value={selectedTask.taskName} onChange={(e) => setSelectedTask({ ...selectedTask, taskName: e.target.value })} className={textFieldClass} style={textFieldStyle} placeholder="Name your task" />
+                                </div>
+                                <div>
+                                    <FieldLabel htmlFor="scheduled-task-description">Description</FieldLabel>
+                                    <textarea id="scheduled-task-description" value={selectedTask.description} onChange={(e) => setSelectedTask({ ...selectedTask, description: e.target.value })} className={`${textFieldClass} h-auto py-2`} style={textFieldStyle} rows={2} placeholder="Describe what this task does" />
+                                </div>
+                                <div>
+                                    <FieldLabel htmlFor="scheduled-task-tags">Tags <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(comma separated)</span></FieldLabel>
+                                    <input id="scheduled-task-tags" type="text" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} onBlur={commitTagsInput} className={textFieldClass} style={textFieldStyle} placeholder="maintenance, report, etc." />
                                 </div>
                             </div>
-                        </div>
+                        </section>
+
+                        <section className={sectionClass} aria-labelledby="scheduled-instructions-heading" style={{ borderColor: 'var(--border-subtle)' }}>
+                            <h3 id="scheduled-instructions-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Instructions</h3>
+                            <div className="flex items-center gap-1.5">
+                                <FieldLabel htmlFor="scheduled-task-instructions">Task Instructions</FieldLabel>
+                                <InfoTooltip ariaLabel="About task instructions" maxWidth={380} text="These instructions are sent to the selected assistant, action, or workflow each time the task runs. Describe what it should do and the result you want. If you want something emailed to you, include your full email address here—don't just say ‘email me.’" />
+                            </div>
+                            <textarea id="scheduled-task-instructions" value={selectedTask.taskInstructions} onChange={(e) => setSelectedTask({ ...selectedTask, taskInstructions: e.target.value })} className={`${textFieldClass} h-auto py-2`} style={textFieldStyle} rows={4} placeholder="What should this task do each time it runs?" />
+                        </section>
+
+                        {!isDisabled() && <section className={sectionClass} aria-labelledby="scheduled-schedule-heading" style={{ borderColor: 'var(--border-subtle)' }}>
+                            <h3 id="scheduled-schedule-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Schedule</h3>
+                            <ScheduledTaskScheduleBuilder
+                                key={selectedTask.taskId || 'new'}
+                                value={selectedTask.cronExpression}
+                                onChange={(cronExpression) => setSelectedTask((prev) => ({ ...prev, cronExpression }))}
+                                dateRange={selectedTask.dateRange}
+                                onRangeChange={(range: ScheduleDateRange) => setSelectedTask((prev) => ({ ...prev, dateRange: range ? { ...range } : undefined }))}
+                                exclusionsEnabled={selectedTask.exclusionsEnabled}
+                                excludedDaysOfWeek={selectedTask.excludedDaysOfWeek}
+                                excludedWeeksOfMonth={selectedTask.excludedWeeksOfMonth}
+                                excludedMonths={selectedTask.excludedMonths}
+                                excludedDates={selectedTask.excludedDates}
+                                onExclusionsChange={(exclusions) => setSelectedTask((prev) => ({ ...prev, ...exclusions }))}
+                            />
+                        </section>}
+
+                        <section className={sectionClass} aria-labelledby="scheduled-runs-as-heading" style={{ borderColor: 'var(--border-subtle)' }}>
+                            <h3 id="scheduled-runs-as-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Runs as</h3>
+                            <div className="grid gap-4">
+                                <div title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''}>
+                                    <div className="flex items-center gap-1.5"><FieldLabel htmlFor="scheduled-task-type">Task Type</FieldLabel><InfoTooltip ariaLabel="About task type" maxWidth={360} text="Choose what this task will run: an assistant, an action, or a workflow. The selected type determines which item you can choose below." /></div>
+                                    <select id="scheduled-task-type" disabled={isDisabled()} value={selectedTask.taskType === 'actionSet' || selectedTask.taskType === 'apiTool' ? 'actions' : (selectedTask.taskType ?? '')} onChange={(e) => { const val = e.target.value; setNewActionSetActions([]); setNewActionSetName(''); if (val === 'actions') { setShowActionSelector(true); setActionSubMode('apiTool'); setSelectedTask({ ...selectedTask, objectInfo: { objectId: '', objectName: '' }, taskType: 'apiTool' }); return; } setSelectedTask({ ...selectedTask, objectInfo: { objectId: '', objectName: '' }, taskType: val as ScheduledTaskType }); }} className={`${textFieldClass} appearance-none`} style={textFieldStyle}>
+                                        <option value="">Select Task Type</option><option value="assistant">Assistant</option>{(featureFlags.actionSets || featureFlags.integrations) && <option value="actions">Action</option>}{featureFlags.assistantWorkflows && <option value="workflow">Workflow</option>}
+                                    </select>
+                                </div>
+                                <div title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''}>
+                                    <FieldLabel>Assistant or action</FieldLabel>
+                                    {getObjectSelector()}
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className={sectionClass} aria-labelledby="scheduled-notifications-heading" style={{ borderColor: 'var(--border-subtle)' }}>
+                            <h3 id="scheduled-notifications-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Notifications</h3>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3"><ToggleSwitch id="notify-on-completion" checked={selectedTask.notifyOnCompletion ?? false} onChange={(checked) => setSelectedTask({ ...selectedTask, notifyOnCompletion: checked })} aria-label="Notify on successful completion" /><span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Notify on successful completion</span></div>
+                                <div className="flex items-center gap-3"><ToggleSwitch id="notify-on-failure" checked={selectedTask.notifyOnFailure ?? false} onChange={(checked) => setSelectedTask({ ...selectedTask, notifyOnFailure: checked })} aria-label="Notify on run failure" /><span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Notify on run failure</span></div>
+                                {(selectedTask.notifyOnCompletion || selectedTask.notifyOnFailure) ? <div>
+                                    <div className="flex items-center gap-1.5"><FieldLabel htmlFor="scheduled-task-notification-emails">Notification Email Addresses</FieldLabel><InfoTooltip ariaLabel="About notification email addresses" maxWidth={360} text="Enter the full email addresses that should receive task completion or failure notifications. Separate multiple addresses with commas." /></div>
+                                    <input id="scheduled-task-notification-emails" type="text" value={notifyEmailsInput} onChange={(e) => setNotifyEmailsInput(e.target.value)} onBlur={commitNotifyEmailsInput} className={textFieldClass} style={textFieldStyle} placeholder="email1@example.com, email2@example.com" />
+                                    <p className="mt-1 text-[12px]" style={{ color: 'var(--text-muted)' }}>Enter email addresses separated by commas</p>
+                                    {invalidNotifyEmails.length > 0 && <p className="mt-1 text-[12px]" style={{ color: 'var(--text-error)' }}>Doesn&apos;t look like a valid email: {invalidNotifyEmails.join(', ')}</p>}
+                                </div> : <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Enable a notification above to add recipient email addresses.</p>}
+                            </div>
+                        </section>
                     </div>
                 </>
             )}
@@ -1514,10 +1391,12 @@ export const NewScheduledTasksView: React.FC = () => {
         >
             {/* Top bar */}
             <div
-                className="flex-shrink-0 flex items-center px-4 border-b gap-3"
+                className="sticky top-0 z-20 flex-shrink-0 flex items-center px-4 border-b gap-3"
                 style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-subtle)', height: 48 }}
             >
                 <button
+                    type="button"
+                    aria-label="Back to chat"
                     onClick={() => homeDispatch({ field: 'page', value: 'chat' })}
                     className="flex items-center justify-center h-8 w-8 rounded-[8px] transition-colors flex-shrink-0"
                     style={{ color: 'var(--text-muted)' }}
@@ -1544,16 +1423,17 @@ export const NewScheduledTasksView: React.FC = () => {
                 <div className="flex flex-col flex-shrink-0 overflow-hidden" style={{ width: taskListWidth }}>
                     <div className="flex flex-col gap-2 px-4 py-3 flex-shrink-0">
                         <div className="flex items-center justify-between gap-2">
-                            <SearchInput value={search} onChange={setSearch} placeholder="Search tasks…" />
+                            <SearchInput value={search} onChange={setSearch} placeholder="Search tasks…" fullWidth aria-label="Search scheduled tasks" onClear={() => setSearch('')} />
                         </div>
                         <PrimaryButton onClick={handleNewTask} icon={<IconPlus size={14} />} className="w-full">
                             New Task
                         </PrimaryButton>
                         {availableTypes.length > 1 && (
                             <select
+                                aria-label="Filter scheduled tasks by type"
                                 value={typeFilter}
                                 onChange={(e) => setTypeFilter(e.target.value)}
-                                className="w-full px-2 py-1.5 rounded-[8px] text-[12.5px] border focus:outline-none"
+                                className={`${textFieldClass} w-full appearance-none`}
                                 style={textFieldStyle}
                             >
                                 {availableTypes.map((t) => (
