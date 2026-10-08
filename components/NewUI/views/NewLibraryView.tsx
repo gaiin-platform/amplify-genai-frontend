@@ -64,6 +64,7 @@ import ArtifactPreviewModal from '@/components/NewUI/shared/ArtifactPreviewModal
 import ConfirmDialog from '@/components/NewUI/shared/ConfirmDialog';
 import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
 import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { UIAttachment, getAttachmentMime } from '@/components/NewUI/shared/attachmentTypes';
 import {
     loadLibraryPreview,
@@ -1144,6 +1145,11 @@ export const NewLibraryView: React.FC = () => {
                     >
                         Library
                     </h1>
+                    <InfoTooltip
+                        ariaLabel="About the library"
+                        maxWidth={360}
+                        text="Your library contains files you have uploaded for use in conversations and artifacts generated in your chats. Switch between Files and Artifacts to browse each collection."
+                    />
                 </div>
 
                 {/* Right: search + actions */}

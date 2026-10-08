@@ -1412,6 +1412,13 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     return (
         <CreationModalShell
             title={isEditMode ? 'Edit Assistant' : isCopyMode ? 'Make a Copy' : 'New Assistant'}
+            titleAdornment={!isEditMode && !isCopyMode ? (
+                <InfoTooltip
+                    ariaLabel="About assistants"
+                    maxWidth={360}
+                    text="Assistants are reusable AI configurations with instructions, tools, and data sources for specific tasks. Create one here, then select it from the + menu in a chat to have the AI follow its setup."
+                />
+            ) : undefined}
             onClose={onClose}
             onSave={handleSave}
             saveLabel={isEditMode ? 'Save Changes' : isCopyMode ? 'Create Copy' : 'Create'}

@@ -49,6 +49,8 @@ const FOCUSABLE_SEL = [
 export interface CreationModalShellProps {
     /** Title shown in the header row */
     title: string;
+    /** Optional content shown beside the title, such as a contextual info tooltip. */
+    titleAdornment?: ReactNode;
     /** Called when the modal should close (× button, backdrop, Escape) */
     onClose: () => void;
     /**
@@ -68,6 +70,7 @@ export interface CreationModalShellProps {
 // ── Component ──────────────────────────────────────────────────────────────────
 export const CreationModalShell: React.FC<CreationModalShellProps> = ({
     title,
+    titleAdornment,
     onClose,
     onSave,
     saveLabel = 'Save',
@@ -171,18 +174,21 @@ export const CreationModalShell: React.FC<CreationModalShellProps> = ({
                         flexShrink: 0,
                     }}
                 >
-                    <h2
-                        id="creation-modal-title"
-                        style={{
-                            fontSize: 18,
-                            fontWeight: 700,
-                            margin: 0,
-                            color: 'var(--text-primary)',
-                            lineHeight: '1.2',
-                        }}
-                    >
-                        {title}
-                    </h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                        <h2
+                            id="creation-modal-title"
+                            style={{
+                                fontSize: 18,
+                                fontWeight: 700,
+                                margin: 0,
+                                color: 'var(--text-primary)',
+                                lineHeight: '1.2',
+                            }}
+                        >
+                            {title}
+                        </h2>
+                        {titleAdornment}
+                    </div>
 
                     {/* Close × button — borderless per wiki §9 rule 19 */}
                     <button
