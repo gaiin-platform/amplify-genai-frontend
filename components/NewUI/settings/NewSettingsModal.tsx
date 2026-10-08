@@ -32,6 +32,7 @@ import HomeContext from '@/pages/api/home/home.context';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from '@/types/conversationStorage';
 import { saveConversations } from '@/utils/app/conversation';
@@ -1298,6 +1299,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   const [pendingLeaveAction, setPendingLeaveAction] = useState<(() => void) | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const previousOpenToSectionRef = useRef(openToSection);
 
   const requestLeave = useCallback((action: () => void) => {
     if (!accountHasUnsavedChanges) {
@@ -1306,6 +1308,20 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
     }
     setPendingLeaveAction(() => action);
   }, [accountHasUnsavedChanges]);
+
+  // The sidebar can request a different section while this modal is already
+  // mounted (for example, a deep link from API Key Management). Keep the active
+  // content in sync and honor the existing unsaved-account confirmation.
+  useEffect(() => {
+    if (previousOpenToSectionRef.current === openToSection) return;
+    previousOpenToSectionRef.current = openToSection;
+    if (!openToSection || openToSection === activeSection) return;
+    requestLeave(() => {
+      setActiveSection(openToSection);
+      setShowAdminUI(openToSection === 'admin');
+      setSearchQuery('');
+    });
+  }, [openToSection, activeSection, requestLeave]);
 
   const confirmLeave = useCallback(() => {
     const action = pendingLeaveAction;
@@ -1616,17 +1632,61 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
             }}
           >
             {/* Section heading — id used by aria-labelledby on the dialog panel */}
-            <h2
-              id="settings-modal-heading"
-              style={{
-                fontSize: '18px',
-                fontWeight: 700,
-                color: 'var(--text-primary)',
-                margin: 0,
-              }}
-            >
-              {activeItem?.label ?? activeSection}
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h2
+                id="settings-modal-heading"
+                style={{
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  margin: 0,
+                }}
+              >
+                {activeItem?.label ?? activeSection}
+              </h2>
+              {activeSection === 'connectors' && (
+                <InfoTooltip
+                  ariaLabel="About connectors"
+                  maxWidth={360}
+                  text="Connecting a service lets you attach its related actions and tools to your chats. It does not let Amplify use the service however it wants; only the actions you attach are available to the AI."
+                />
+              )}
+              {activeSection === 'skills' && (
+                <InfoTooltip
+                  ariaLabel="About skills"
+                  maxWidth={360}
+                  text="Skills are reusable instruction sets that guide the AI for specific tasks. Manage your skills here, then choose up to three from the + menu for each conversation. The AI uses the selected skills as relevant to that chat."
+                />
+              )}
+              {activeSection === 'mcp' && (
+                <InfoTooltip
+                  ariaLabel="About MCP servers"
+                  maxWidth={360}
+                  text="Model Context Protocol (MCP) lets the AI use external tools and services. MCP servers are available across all conversations; you do not attach them to individual chats. The AI automatically uses tools from enabled servers when you ask or when they are relevant to the conversation."
+                />
+              )}
+              {activeSection === 'sidebarItems' && (
+                <InfoTooltip
+                  ariaLabel="About sidebar items"
+                  maxWidth={360}
+                  text="Choose which items appear in your sidebar. New Chat, Customize, and Recent conversations are always visible."
+                />
+              )}
+              {activeSection === 'customInstructions' && (
+                <InfoTooltip
+                  ariaLabel="About custom instructions"
+                  maxWidth={360}
+                  text="Custom instructions are added to the system prompt for new standard, template, and assistant conversations to tailor responses to your preferences. Select None to turn them off."
+                />
+              )}
+              {activeSection === 'promptTemplates' && (
+                <InfoTooltip
+                  ariaLabel="About prompt templates"
+                  maxWidth={360}
+                  text="Prompt templates help streamline repetitive prompting scenarios. To use one, click its template from this menu, fill in any requested details, and submit it to start a conversation."
+                />
+              )}
+            </div>
 
             <button
               onClick={() => requestLeave(onClose)}

@@ -45,7 +45,7 @@ function App({ Component, pageProps }: AppProps) {
                 >
                     Skip to main content
                 </a>
-                <Toaster/>
+                <Toaster containerStyle={{ zIndex: 10001 }} />
                 <QueryClientProvider client={queryClient}>
                     <Component {...pageProps} />
                 </QueryClientProvider>

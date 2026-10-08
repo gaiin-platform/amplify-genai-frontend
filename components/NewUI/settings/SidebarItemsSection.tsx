@@ -204,30 +204,6 @@ const SidebarItemsSection: React.FC = () => {
           padding: '20px',
         }}
       >
-        <h3
-          style={{
-            color: 'var(--text-primary)',
-            fontSize: '15px',
-            fontWeight: 600,
-            marginBottom: '4px',
-          }}
-        >
-          Sidebar Items
-        </h3>
-        <p
-          style={{
-            color: 'var(--text-secondary)',
-            fontSize: '13px',
-            marginBottom: '16px',
-            lineHeight: '1.5',
-          }}
-        >
-          Choose which items appear in your sidebar.{' '}
-          <span style={{ color: 'var(--text-muted)' }}>
-            New Chat, Customize, and Recent conversations are always visible.
-          </span>
-        </p>
-
         {/* Toggle rows */}
         <div>
           {items.map((item, index) => (

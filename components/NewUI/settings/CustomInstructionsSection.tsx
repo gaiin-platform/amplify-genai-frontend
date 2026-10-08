@@ -17,7 +17,6 @@ import {
 } from '@tabler/icons-react';
 
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
-import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import {
   CustomInstruction,
   CustomInstructionsStore,
@@ -534,16 +533,6 @@ export const CustomInstructionsSection: React.FC = () => {
           }}
         >
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
-                Custom Instructions
-              </h3>
-              <InfoTooltip
-                ariaLabel="About custom instructions"
-                maxWidth={320}
-                text="The active instruction is added to the system prompt for new standard, template, and assistant conversations, helping tailor responses to your preferences. Select None to turn it off."
-              />
-            </div>
             <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>
               {instructions.length === 0
                 ? 'None created yet'

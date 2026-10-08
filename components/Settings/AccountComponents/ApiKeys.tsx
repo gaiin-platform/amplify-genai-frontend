@@ -519,7 +519,21 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                 {/* API Key Management */}
                 <div className="accounts-info-content">
                     <p className="accounts-info-description">
-                        API keys are used to authenticate and authorize access to specific Amplify services. You can create API keys for yourself and others.
+                        Add a COA (billing Account) on the{' '}
+                        <a
+                            href="#settings-account"
+                            className="font-medium underline"
+                            onClick={(event) => {
+                                event.preventDefault();
+                                window.dispatchEvent(new CustomEvent('openNewUISettingsSection', { detail: { section: 'account' } }));
+                            }}
+                        >
+                            Account page in Settings
+                        </a>{' '}
+                        first. Every API key must be linked to an Account, and an Account is required to create or use an API key.
+                    </p>
+                    <p className="accounts-info-description mt-1">
+                        API keys authenticate and authorize access to specific Amplify services. When you create a key, it is linked to the Account you select.
                     </p>
                     <p className="accounts-info-description mt-1">
                         <strong>Important:</strong> API keys are shown only once upon creation. Make sure to copy and store your API key securely as you will not be able to view it again. If you lose your API key, you can <strong>rotate</strong> it to generate a new key while preserving all associated data and settings.

@@ -38,6 +38,7 @@ import { DefaultModels } from '@/types/model';
 import { loadSharedItem } from '@/services/shareService';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
+import toast from 'react-hot-toast';
 import {
   getClassifiedSharedItems,
   invalidateSharedItemsCache,
@@ -46,6 +47,7 @@ import {
 import { NewUIPromptCreationModal } from '@/components/NewUI/views/NewUIPromptCreationModal';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { promptTemplateVariables } from '@/components/NewUI/shared/PromptTemplateDialog';
 import { openPromptTemplateDialog } from '@/components/NewUI/shared/PromptTemplateDialogHost';
@@ -71,21 +73,6 @@ const relativeDate = (ts: number | string): string => {
   if (days < 30) return `${Math.floor(days / 7)}w ago`;
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 };
-
-// ── Skeleton row ─────────────────────────────────────────────────────────────
-
-const SkeletonRow: React.FC = () => (
-  <div
-    className="flex items-center gap-3 px-3 h-[52px] rounded-[8px] motion-safe:animate-pulse motion-reduce:animate-none"
-    aria-hidden="true"
-  >
-    <div className="w-10 h-10 rounded-[8px] flex-shrink-0" style={{ background: 'var(--bg-raised)' }} />
-    <div className="flex-1 space-y-1.5">
-      <div className="h-3 rounded" style={{ background: 'var(--bg-raised)', width: '60%' }} />
-      <div className="h-2.5 rounded" style={{ background: 'var(--bg-raised)', width: '40%' }} />
-    </div>
-  </div>
-);
 
 // ── Section heading ───────────────────────────────────────────────────────────
 
@@ -246,7 +233,7 @@ const TemplateRow: React.FC<TemplateRowProps> = ({
 
 const PromptTemplatesSection: React.FC = () => {
   const {
-    state: { prompts, statsService, availableModels, featureFlags, conversations, folders },
+    state: { prompts, statsService, availableModels, featureFlags, conversations, folders, amplifyUsers },
     dispatch: homeDispatch,
     handleNewConversation,
     getDefaultModel,
@@ -257,6 +244,15 @@ const PromptTemplatesSection: React.FC = () => {
 
   const { data: session } = useSession();
   const user = getUserIdentifier(session?.user) ?? '';
+
+  const resolveSharedBy = (identifier: string): string => {
+    if (!identifier) return 'Unknown';
+    if (amplifyUsers?.[identifier]) return amplifyUsers[identifier];
+    const entry = Object.entries(amplifyUsers ?? {}).find(
+      ([, value]) => value?.toLowerCase() === identifier.toLowerCase(),
+    );
+    return entry?.[1] || identifier;
+  };
 
   // ── Search + tab ────────────────────────────────────────────────────────
   const [search, setSearch] = useState('');
@@ -344,6 +340,7 @@ const PromptTemplatesSection: React.FC = () => {
         const result = await loadSharedItem(csi.item.key);
         if (!result.success) {
           setSharedError('Could not open this item — it may have been deleted.');
+          toast.error('Could not load this prompt template — it may have been deleted.');
           return;
         }
         sharedData = JSON.parse(result.item) as ExportFormatV4;
@@ -358,8 +355,11 @@ const PromptTemplatesSection: React.FC = () => {
       saveFolders(merged.folders);
       homeDispatch({ field: 'prompts', value: merged.prompts });
       savePrompts(merged.prompts);
+      toast.success('Prompt template imported. You can find it in My Templates.');
+      setActiveTab('mine');
     } catch {
       setSharedError('An unexpected error occurred. Please try again.');
+      toast.error('Could not import this prompt template. Please try again.');
     } finally {
       setOpeningKey(null);
     }
@@ -569,9 +569,7 @@ const PromptTemplatesSection: React.FC = () => {
 
           {/* Loading */}
           {sharedLoading && (
-            <div className="flex flex-col">
-              {[1, 2, 3].map((n) => <SkeletonRow key={n} />)}
-            </div>
+            <NewUILoadingStatus open message="Loading shared templates…" variant="inline" />
           )}
 
           {/* Empty */}
@@ -622,7 +620,7 @@ const PromptTemplatesSection: React.FC = () => {
                         {csi.item.note || 'Untitled share'}
                       </p>
                       <p className="text-[12px] truncate mt-0.5" style={{ color: 'var(--text-muted)' }}>
-                        Shared {relativeDate(csi.item.sharedAt)}
+                        Shared by {resolveSharedBy(csi.item.sharedBy)} · {relativeDate(csi.item.sharedAt)}
                       </p>
                     </div>
 

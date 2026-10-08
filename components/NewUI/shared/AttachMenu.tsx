@@ -30,7 +30,6 @@ import {
   IconRobot,
   IconSearch,
   IconBrain,
-  IconServer,
 } from '@tabler/icons-react';
 import {
   autoUpdate,
@@ -1679,10 +1678,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const showSkills = Boolean(chatEndpoint) && Boolean(onSkillIdsChange);
   // Backend routing owns optional chat tools; only explicit connectors remain here.
   const showConnectors = featureFlags.integrations;
-  const showMcpSettings = featureFlags.mcp;
-
   const hasGroup1 = showFiles || showLibrary || showAssistant || showSkills;
-  const hasGroup2 = showConnectors || showMcpSettings;
+  const hasGroup2 = showConnectors;
 
   // Floating UI — same flip pattern as model picker
   const placement = isNewChat ? 'bottom-start' : 'top-start';
@@ -1943,9 +1940,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
               </>
             )}
 
-            {/* Divider 1 */}
-            {hasGroup1 && hasGroup2 && <MenuDivider />}
-
             {/* Explicit connectors remain available; tool modes are backend-routed. */}
             {hasGroup2 && (
               <>
@@ -1960,13 +1954,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     onClick={() => {
                       toggleSubmenuFromClick('connectors');
                     }}
-                  />
-                )}
-                {showMcpSettings && (
-                  <ActionRow
-                    icon={<IconServer size={18} />}
-                    label="MCP servers"
-                    onClick={() => openSettings('mcp')}
                   />
                 )}
               </>
