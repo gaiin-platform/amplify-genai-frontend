@@ -103,7 +103,8 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   const handleSwitchToClassic = () => {
     if (!classicAllowed) return;
     setOpen(false);
-    // Persist then reload — server save is fire-and-forget before the reload
+    // The shared preference gate owns the immediate loading treatment. Persistence
+    // can finish before the reload without leaving the user staring at the menu.
     setUIPreference('classic')
       .catch(() => {})
       .finally(() => window.location.reload());

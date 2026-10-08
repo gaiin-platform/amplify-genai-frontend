@@ -78,6 +78,11 @@ export const PREF_RESOLVE_TIMEOUT_MS = 6000;
 export async function setUIPreference(pref: 'new' | 'classic'): Promise<void> {
   // Persist locally first: offline users still get the selected UI immediately.
   writeLocalUIPreference(pref);
+  // Notify the mounted gate immediately so callers that must await server
+  // persistence (including the classic UserMenu) still get instant feedback.
+  window.dispatchEvent(new CustomEvent('amplifyUIPreferenceSwitch', {
+    detail: { preference: pref },
+  }));
 
   // A failed read means we cannot safely replace the server's full settings object.
   // Keep the local choice and retry on a later explicit switch/startup instead.
@@ -120,6 +125,8 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
 }) => {
   // 'resolving' → checking the stores; 'ask' → popup visible; 'done' → user answered
   const [phase, setPhase] = useState<'resolving' | 'ask' | 'done'>('resolving');
+  const [switchingToNew, setSwitchingToNew] = useState(false);
+  const [switchingToClassic, setSwitchingToClassic] = useState(false);
   // Start restrictive from a prior policy observation to prevent stale server
   // settings from flashing classic before the current policy request resolves.
   const [classicAllowed, setClassicAllowed] = useState<boolean>(() => {
@@ -244,6 +251,16 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    const handlePreferenceSwitch = (event: Event) => {
+      const preference = (event as CustomEvent<{ preference?: unknown }>).detail?.preference;
+      if (preference === 'new') setSwitchingToNew(true);
+      if (preference === 'classic') setSwitchingToClassic(true);
+    };
+    window.addEventListener('amplifyUIPreferenceSwitch', handlePreferenceSwitch);
+    return () => window.removeEventListener('amplifyUIPreferenceSwitch', handlePreferenceSwitch);
+  }, []);
+
   // Focus the recommended card on open and keep Tab inside the dialog.
   // There is deliberately no Escape handler — a choice is required, and dismissing
   // without one would just re-open on the next load.
@@ -282,6 +299,7 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
     if (phase === 'done') return;
     // Honour the deployment policy: classic is unavailable when disallowed.
     const effective: 'new' | 'classic' = !classicAllowed && pref === 'classic' ? 'new' : pref;
+    if (effective === 'new') setSwitchingToNew(true);
     setPhase('done');
     if (effective === 'new') onSelectNew();
     else onSelectClassic();
@@ -304,8 +322,16 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
     );
   }
 
-  // The user answered — home.tsx owns the layout from here.
-  if (phase !== 'ask') return null;
+  // The user answered — home.tsx owns the layout from here. Keep the shared
+  // loader mounted for the new-UI transition so the click has immediate feedback.
+  if (phase !== 'ask') {
+    return (switchingToNew || switchingToClassic) ? (
+      <NewUILoadingStatus
+        open
+        message={switchingToNew ? 'Switching to New UI…' : 'Switching to Classic UI…'}
+      />
+    ) : null;
+  }
 
   const handleNew = () => choose('new');
   const handleClassic = () => choose('classic');
