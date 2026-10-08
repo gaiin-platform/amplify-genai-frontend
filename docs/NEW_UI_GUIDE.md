@@ -96,6 +96,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewUITranscriptPastedTextLayer.tsx` | Renders sent `data.largeTextBlocks` pastes as `shared/AttachmentCard` chips in the transcript rail; opens `shared/AttachmentPreview` on click |
 | `NewUITranscriptPreviewLayer.tsx` | Suppresses the classic `ImageModal` and mirrors post-send attachment previews into `shared/AttachmentPreview` (same component as the composer) |
 | `NewUISourcesLayer.tsx` | Portal-based replacement for `ChatSourcesBlock`/`ExpansionComponent` "Sources" — renders a compact "N source(s)" pill toggle + flat list of source cards; hides original via `data-nui-src-original` CSS attribute |
+| `NewUITokenCostInfoLayer.tsx` | Portals `shared/InfoTooltip` (i) beside the "Total Token Cost" line that `AgentLogBlock` renders inside Reasoning / Actions, explaining the figure is informational and not charged to the user |
 | `UploadPendingIndicator.tsx` | Thin progress bar shown while uploads are in flight |
 | `ArtifactPanelLayer.tsx` | Injects a sticky header into `#artifactsTab` (the forbidden `Artifacts.tsx` panel): title/version dropdown, Download split button (Copy MD / Download .md / Download .docx), expand/fullscreen toggle, close (×). Also writes `--nui-artifact-panel-w` onto the shell so the composer and jump button constrain to the chat column. Listens to `openArtifactsTrigger`. |
 | `ArtifactInlineCardLayer.tsx` | MutationObserver layer that replaces the static "Creating Your Artifact…" box from `AutoArtifactsBlock.tsx` with a polished inline card (generating spinner → completed card with Open/Hide toggle). Also injects `data-nui-artifact-btn` on `#artifactsButtonBlock` elements for CSS restyling without touching forbidden files. |
@@ -130,6 +131,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `ToggleSwitch.tsx` | Pill switch; `role="switch"`, `aria-checked` |
 | `SegmentedControl.tsx` | Tab strip / segmented picker; pass `aria-label` |
 | `ModelPicker.tsx` | Model selector with families, effort levels, hover preview cards |
+| `InfoTooltip.tsx` | Hover/focus (i) icon with a small floating explanation; props `text`, `ariaLabel`, `maxWidth`. The reusable "what is this?" affordance |
 | `InfoFloatCard.tsx` | 250ms hover-in preview card; Floating UI positioned |
 | `AttachMenu.tsx` | ⊕ attach menu (files, library, assistant, explicit connectors). Optional ordinary-chat tools are deployment-managed and selected server-side; skills/plugin mode selectors are not user entry points. "Add from library" opens `DataSourceLibraryPicker` in a `surface='floating'` submenu and emits the picked files — it never opens the local file picker |
 | `AttachmentRail.tsx` | Pre-send attachment card strip above the composer textarea |

@@ -32,11 +32,9 @@
  *
  * • If `message.data.state.sources` is empty or all groups have no items, the
  *   component skips that message (same as ChatSourcesBlock's own guard).
- * • If the only sources belong to `documentContext` (user-uploaded attachments
- *   in this same conversation turn), the pill is hidden — see the
- *   `isDocumentContextOnly` check below.  This aligns with the design brief's
- *   edge-case guidance: a "Sources" disclosure that only names the file the user
- *   just uploaded adds no information and should be hidden.
+ * • Attached-document sources (`documentContext`) get the same pill as every other
+ *   group.  They must NOT be skipped: skipping leaves the original classic
+ *   "Sources" expander visible, which is the unstyled look this layer replaces.
  * • "Show N more" appears when total flattened source count exceeds MAX_VISIBLE.
  * • Sources with a `.url` field open in a new tab; others trigger download
  *   through the same DOM bridge as ChatSource.tsx (clicking the underlying
@@ -107,18 +105,6 @@ function flattenSources(rawSources: RawSources): FlatSource[] {
     }
   }
   return flat;
-}
-
-/**
- * Returns true if every source belongs to the `documentContext` group (the user's
- * own uploaded file for this turn).  When true, the pill is hidden — it reveals
- * no information the user doesn't already know.
- */
-function isDocumentContextOnly(rawSources: RawSources): boolean {
-  const keys = Object.keys(rawSources).filter(
-    (k) => rawSources[k]?.sources?.length > 0,
-  );
-  return keys.length > 0 && keys.every((k) => k === 'documentContext');
 }
 
 /** Pluralise "1 source" / "N sources". */
@@ -414,9 +400,6 @@ export const NewUISourcesLayer: React.FC = () => {
 
       const rawSources: RawSources | undefined = message.data?.state?.sources;
       if (!rawSources || Object.keys(rawSources).length === 0) return;
-
-      // Edge case: skip if only documentContext sources (user's own uploads)
-      if (isDocumentContextOnly(rawSources)) return;
 
       // Count real items
       const totalItems = Object.values(rawSources).reduce(

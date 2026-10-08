@@ -38,6 +38,7 @@ import { NewUITranscriptPastedTextLayer } from './NewUITranscriptPastedTextLayer
 import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import { NewUISelectionReplyLayer } from './NewUISelectionReplyLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
+import { NewUITokenCostInfoLayer } from './NewUITokenCostInfoLayer';
 import { ArtifactPanelLayer } from './ArtifactPanelLayer';
 import { ArtifactSplitterLayer } from './ArtifactSplitterLayer';
 import { ArtifactInlineCardLayer } from './ArtifactInlineCardLayer';
@@ -1722,6 +1723,7 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
       {/* Sources disclosure — replaces ChatSourcesBlock's ExpansionComponent
           with a compact, accessible pill + flat source-card panel. */}
       <NewUISourcesLayer />
+      <NewUITokenCostInfoLayer />
 
       {/* Artifact panel header overlay — injects a sticky header into #artifactsTab
           with title/version dropdown, download button, expand, and close.
