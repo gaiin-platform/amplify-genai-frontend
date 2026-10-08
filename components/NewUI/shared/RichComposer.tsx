@@ -54,7 +54,7 @@ export interface RichComposerHandle {
 }
 
 interface RichComposerProps {
-  onSend: (markdown: string) => void;
+  onSend: (markdown: string) => boolean | void;
   /** Called every time the content changes (with the current raw text value) */
   onChange?: (value: string) => void;
   /**
@@ -505,9 +505,11 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
           // external content (e.g. a pasted-text attachment chip) — in that case
           // the editor itself is empty but there is still something to send.
           if (md.trim() || hasExternalContent) {
-            onSend(md);
-            editor.innerHTML = '';
-            setHasContent(false);
+            const didSend = onSend(md);
+            if (didSend !== false) {
+              editor.innerHTML = '';
+              setHasContent(false);
+            }
           }
           return;
         }
