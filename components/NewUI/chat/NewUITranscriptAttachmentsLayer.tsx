@@ -10,6 +10,10 @@ import React, { useCallback, useContext, useEffect, useRef, useState } from 'rea
 import { createPortal } from 'react-dom';
 
 import { InlineLoadingIndicator } from '@/components/NewUI/shared/NewUILoadingStatus';
+import {
+  NewUITranscriptPdfThumbnail,
+  isPdfDoc,
+} from '@/components/NewUI/chat/NewUITranscriptPdfThumbnail';
 
 import { Message } from '@/types/chat';
 
@@ -60,6 +64,12 @@ function middleEllipsis(value: string, maxLength = 30): string {
   return `${stem.slice(0, left)}…${stem.slice(-right)}${extension}`;
 }
 
+/** A classic non-image PDF tile that should show a first-page thumbnail. */
+interface PdfThumbTarget {
+  face: HTMLElement;
+  doc: { id: string; name?: string; size?: number; groupId?: string };
+}
+
 export const NewUITranscriptAttachmentsLayer: React.FC = () => {
   const {
     state: { selectedConversation },
@@ -67,6 +77,7 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
   const conversationRef = useRef(selectedConversation);
   conversationRef.current = selectedConversation;
   const [loadingCards, setLoadingCards] = useState<HTMLElement[]>([]);
+  const [pdfTargets, setPdfTargets] = useState<PdfThumbTarget[]>([]);
 
   const scan = useCallback(() => {
     const container = document.querySelector('.chatcontainer');
@@ -78,6 +89,7 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
       container.querySelectorAll<HTMLElement>('.enhanced-chat-message'),
     );
     const nextLoadingCards: HTMLElement[] = [];
+    const nextPdfTargets: PdfThumbTarget[] = [];
 
     messageElements.forEach((messageElement, index) => {
       const message = messages[index];
@@ -193,7 +205,7 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
         .querySelectorAll<HTMLElement>(
           '.rounded-lg.shadow-lg.overflow-hidden.relative',
         )
-        .forEach((card) => {
+        .forEach((card, cardIndex) => {
           // Overrides the component's own 200px inline width/height.
           force(card, {
             margin: '0',
@@ -225,6 +237,16 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
             delete card.dataset.newUiImageLoading;
           }
 
+          // Cards render one per data source, in order. A non-image PDF card
+          // gets its classic grey tile face replaced by a first-page thumbnail.
+          const dataSource = message.data?.dataSources?.[cardIndex];
+          const placeholderFace = card.querySelector<HTMLElement>(
+            ':scope > .absolute.inset-0.bg-gradient-to-br',
+          );
+          if (!imageFace && placeholderFace && isPdfDoc(dataSource)) {
+            nextPdfTargets.push({ face: placeholderFace, doc: dataSource });
+          }
+
           if (!card.dataset.newUiKeyboard) {
             card.dataset.newUiKeyboard = 'true';
             card.addEventListener('keydown', (event) => {
@@ -242,6 +264,16 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
       previous.every((card, index) => card === nextLoadingCards[index])
         ? previous
         : nextLoadingCards,
+    );
+    setPdfTargets((previous) =>
+      previous.length === nextPdfTargets.length &&
+      previous.every(
+        (target, index) =>
+          target.face === nextPdfTargets[index].face &&
+          target.doc.id === nextPdfTargets[index].doc.id,
+      )
+        ? previous
+        : nextPdfTargets,
     );
   }, []);
 
@@ -287,6 +319,17 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
           />,
           card,
           `transcript-image-loading-${loadingCards.indexOf(card)}`,
+        ),
+      )}
+      {pdfTargets.map(({ face, doc }, index) =>
+        createPortal(
+          <NewUITranscriptPdfThumbnail
+            doc={doc}
+            width={CARD_WIDTH}
+            height={CARD_HEIGHT}
+          />,
+          face,
+          `transcript-pdf-thumb-${doc.id}-${index}`,
         ),
       )}
     </>

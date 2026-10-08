@@ -93,6 +93,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewUIShareModal.tsx` | Share conversation/assistant modal |
 | `NewUIUserMessageMarkdownLayer.tsx` | Portal-based markdown render inside user bubbles |
 | `NewUITranscriptAttachmentsLayer.tsx` | Moves post-send attachment cards into a sibling surface above user bubbles |
+| `NewUITranscriptPdfThumbnail.tsx` | First-page PDF thumbnail portaled by `NewUITranscriptAttachmentsLayer` into the classic grey "PDF" tile. Lazy-fetches on scroll-into-view, renders the blob in a scaled, non-interactive browser-viewer iframe (no PDF library); falls back to the classic icon on failure or >25 MB |
 | `NewUITranscriptPastedTextLayer.tsx` | Renders sent `data.largeTextBlocks` pastes as `shared/AttachmentCard` chips in the transcript rail; opens `shared/AttachmentPreview` on click |
 | `NewUITranscriptPreviewLayer.tsx` | Suppresses the classic `ImageModal` and mirrors post-send attachment previews into `shared/AttachmentPreview` (same component as the composer) |
 | `NewUISourcesLayer.tsx` | Portal-based replacement for `ChatSourcesBlock`/`ExpansionComponent` "Sources" — renders a compact "N source(s)" pill toggle + flat list of source cards; hides original via `data-nui-src-original` CSS attribute |
