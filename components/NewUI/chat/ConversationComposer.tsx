@@ -96,6 +96,10 @@ import { newMessage, MessageType } from '@/types/chat';
 import { getActivePlugins } from '@/utils/app/plugin';
 import { getSettings } from '@/utils/app/settings';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
+import {
+  canonicalDataSourceKey,
+  extractPriorDataSources,
+} from './conversationDataSources';
 
 /** Inject value into a React-controlled textarea via native setter. */
 function setNativeValue(el: HTMLTextAreaElement, value: string) {
@@ -131,10 +135,19 @@ interface PendingUploadSend {
    *  path includes configuredTools exactly as the immediate PATH A does. */
   selectedActions: SelectedAction[];
   selectedSkillIds: string[];
+  conversationId: string;
+  /** Attachment ids counted by this deferred send. */
+  pendingUploadIds: string[];
+  /** IDs resolved by completion, timeout, or explicit removal. */
+  resolvedUploadIds: Set<string>;
 }
 
-/** How long an upload may stall (no key callback) before we mark it failed. */
-const UPLOAD_STALL_TIMEOUT_MS = 90_000;
+/**
+ * How long an upload + backend processing may take before we mark it failed.
+ * Must exceed handleFile's own metadata poll window (120s) so a slow but valid
+ * document is not failed while the backend is still processing it.
+ */
+const UPLOAD_STALL_TIMEOUT_MS = 150_000;
 
 export interface ConversationComposerProps {
   /**
@@ -302,65 +315,49 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   }, [enforcedModelId]);
 
   // ── Prior-message data sources ─────────────────────────────────────────────
-  // Documents from earlier messages in this conversation. Included on every
-  // subsequent send so the model retains file context beyond the single turn it
-  // was uploaded in — without this, useChatSendService only sends the current
-  // turn's attachments and the model loses access to an uploaded file on the
-  // very next message (confirmed root cause from useChatSendService lines
-  // 556-583: dataSources are built only from the current send's `documents`
-  // argument; there is no aggregation over conversation history).
+  // Conversation history may be full, compressed, or an unhydrated cloud record.
+  // An absent messages field is unknown, not an empty transcript; preserve the
+  // last hydrated source list until the remote record is expanded.
+  const priorDataSourceCacheRef = useRef<Record<string, AttachedDocument[]>>({});
   const priorDataSources = useMemo<AttachedDocument[]>(() => {
-    if (!selectedConversation?.messages?.length) return [];
-    const seen = new Set<string>();
-    const result: AttachedDocument[] = [];
-    for (const msg of selectedConversation.messages) {
-      if (msg.role !== 'user') continue;
-      for (const ds of ((msg.data as any)?.dataSources as any[] | undefined) ?? []) {
-        if (!ds?.id || seen.has(ds.id)) continue;
-        seen.add(ds.id);
-        result.push({
-          id: ds.id,
-          // Already "s3://…"; useChatSendService passes it through unchanged
-          // (line 561: `key.indexOf("://") > -1` branch uses key as-is).
-          key: ds.id,
-          name: ds.name || '',
-          type: ds.type || '',
-          data: null,
-          metadata: ds.metadata || {},
-        } as AttachedDocument);
-      }
+    const conversationId = selectedConversation?.id;
+    if (!conversationId) return [];
+    const extracted = extractPriorDataSources(selectedConversation);
+    if (extracted.known) {
+      priorDataSourceCacheRef.current[conversationId] = extracted.sources;
+      return extracted.sources;
     }
-    return result;
-  }, [selectedConversation?.messages]);
+    return priorDataSourceCacheRef.current[conversationId] ?? [];
+  }, [selectedConversation]);
 
   // ── Helpers: update attachedDocs state from handleFile callbacks ──────────
   const addDocCallback = useCallback((doc: AttachedDocument) => {
+    if (cancelledUploadsRef.current.has(doc.id)) return;
     setAttachedDocs((prev) => [...prev, doc]);
   }, []);
   const handleDocSetMetadata = useCallback(
     (doc: AttachedDocument, metadata: any) => {
+      if (cancelledUploadsRef.current.has(doc.id)) return;
       setAttachedDocs((prev) =>
         prev.map((d) => (d.id === doc.id ? { ...d, metadata } : d)),
       );
     },
     [],
   );
-  const handleDocUploadProgress = useCallback(
-    (doc: AttachedDocument, progress: number) => {
-      // Keep UIAttachment in 'uploading' state until handleDocSetKey marks it ready
-      if (progress < 100) {
-        setUIAttachments((prev) =>
-          prev.map((a) =>
-            a.id === doc.id
-              ? { ...a, status: 'uploading' as const, progress: Math.min(1, progress / 100) }
-              : a,
-          ),
-        );
+  const handleDocSetAbortController = useCallback(
+    (doc: AttachedDocument, abort: (() => void) | AbortController) => {
+      const abortUpload = () => {
+        if (typeof abort === 'function') abort();
+        else abort.abort();
+      };
+      abortUploadsRef.current[doc.id] = abortUpload;
+      if (cancelledUploadsRef.current.has(doc.id)) {
+        abortUpload();
+        delete abortUploadsRef.current[doc.id];
       }
     },
     [],
   );
-
   // ── Attachment rail state (declared here so handleSend can read uiAttachments) ──
   const [uiAttachments, setUIAttachments] = useState<UIAttachment[]>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
@@ -472,41 +469,87 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   const uploadTimeoutsRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   // Original File objects keyed by doc id — needed to re-upload on Retry.
   const originalFilesRef = useRef<Record<string, File>>({});
+  // Abort callbacks are supplied by handleFile after its S3 upload starts.
+  const abortUploadsRef = useRef<Record<string, () => void>>({});
+  // A tombstone covers the race where removal happens before onSetAbortController.
+  const cancelledUploadsRef = useRef<Set<string>>(new Set());
+  const sentinelToDocRef = useRef<Record<string, string>>({});
+
+  const resolvePendingUpload = useCallback((id: string) => {
+    const pending = pendingUploadSendRef.current;
+    if (!pending) return;
+    const pendingId = pending.pendingUploadIds.includes(id)
+      ? id
+      : pending.pendingUploadIds.find((candidate) => sentinelToDocRef.current[candidate] === id);
+    if (!pendingId || pending.resolvedUploadIds.has(pendingId)) return;
+    pending.resolvedUploadIds.add(pendingId);
+    pending.remainingCount = Math.max(0, pending.remainingCount - 1);
+    setPendingUploadState((prev) =>
+      prev ? { done: Math.min(prev.total, prev.done + 1), total: prev.total } : null,
+    );
+  }, []);
 
   // ── handleDocSetKey ─────────────────────────────────────────────────────────
-  // Called when a doc's S3 upload completes.  Marks UIAttachment ready,
-  // clears any stall timer, and feeds the deferred-send accumulator.
+  // handleFile reports the S3 key as soon as the presigned URL is issued —
+  // BEFORE the PUT finishes and before backend processing produces metadata.
+  // So the key is recorded here, but the attachment is NOT ready yet; readiness
+  // is signalled only by onUploadProgress(100) (see handleDocUploadProgress).
   const handleDocSetKey = useCallback((doc: AttachedDocument, key: string) => {
-    // Clear stall timer for this doc
-    if (uploadTimeoutsRef.current[doc.id]) {
-      clearTimeout(uploadTimeoutsRef.current[doc.id]);
-      delete uploadTimeoutsRef.current[doc.id];
-    }
-
+    if (cancelledUploadsRef.current.has(doc.id)) return;
     setAttachedDocs((prev) =>
       prev.map((d) => (d.id === doc.id ? { ...d, key } : d)),
     );
-    setUIAttachments((prev) =>
-      prev.map((a) =>
-        a.id === doc.id ? { ...a, status: 'ready' as const } : a,
-      ),
-    );
-
-    // ── Deferred-send accumulator ──────────────────────────────────────────
-    const pending = pendingUploadSendRef.current;
-    if (pending && pending.remainingCount > 0) {
-      // Guard: don't count a doc that was already in readyDocs at send time
-      const alreadyReady = pending.readyDocs.some((d) => d.id === doc.id);
-      if (!alreadyReady) {
-        pending.newDocs.push({ ...doc, key });
-        pending.remainingCount--;
-        // Trigger the auto-fire useEffect (and update the progress indicator)
-        setPendingUploadState((prev) =>
-          prev ? { done: prev.done + 1, total: prev.total } : null,
-        );
-      }
-    }
   }, []);
+
+  // ── handleDocUploadProgress ─────────────────────────────────────────────────
+  // < 100: upload/processing still in flight (handleFile caps these at 95).
+  // = 100: S3 upload finished AND the metadata poll succeeded (or uploads are
+  //        disabled) — the only completion signal handleFile emits. Marks the
+  //        card ready, clears the stall timer, and feeds the deferred send.
+  const handleDocUploadProgress = useCallback(
+    (doc: AttachedDocument, progress: number) => {
+      if (cancelledUploadsRef.current.has(doc.id)) return;
+
+      if (progress < 100) {
+        setUIAttachments((prev) =>
+          prev.map((a) =>
+            a.id === doc.id
+              ? { ...a, status: 'uploading' as const, progress: Math.min(1, progress / 100) }
+              : a,
+          ),
+        );
+        return;
+      }
+
+      if (uploadTimeoutsRef.current[doc.id]) {
+        clearTimeout(uploadTimeoutsRef.current[doc.id]);
+        delete uploadTimeoutsRef.current[doc.id];
+      }
+      // handleFile mutates its document in place, so `doc` now carries the key
+      // and the processed metadata.
+      setAttachedDocs((prev) =>
+        prev.map((d) =>
+          d.id === doc.id
+            ? { ...d, key: doc.key ?? d.key, metadata: doc.metadata ?? d.metadata }
+            : d,
+        ),
+      );
+      setUIAttachments((prev) =>
+        prev.map((a) =>
+          a.id === doc.id ? { ...a, status: 'ready' as const, progress: 1 } : a,
+        ),
+      );
+
+      // ── Deferred-send accumulator ────────────────────────────────────────
+      const pending = pendingUploadSendRef.current;
+      if (pending && pending.conversationId === selectedConversationRef.current?.id) {
+        const alreadyReady = pending.readyDocs.some((d) => d.id === doc.id);
+        if (!alreadyReady && doc.key) pending.newDocs.push({ ...doc });
+        resolvePendingUpload(doc.id);
+      }
+    },
+    [resolvePendingUpload],
+  );
 
   // ── auto-fire useEffect ────────────────────────────────────────────────────
   // Fires the deferred ChatRequest when all uploads have completed.
@@ -518,9 +561,16 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
 
     const pending = pendingUploadSendRef.current;
     if (!pending || !selectedConversation) return;
+    if (pending.conversationId !== selectedConversation.id) {
+      pendingUploadSendRef.current = null;
+      setPendingUploadState(null);
+      return;
+    }
 
     // Current-turn upload results only (used for abort/fallback checks below)
-    const currentDocs = [...pending.readyDocs, ...pending.newDocs];
+    const currentDocs = [...pending.readyDocs, ...pending.newDocs].filter(
+      (doc) => !cancelledUploadsRef.current.has(doc.id),
+    );
     const {
       msgText,
       pastedAttachments,
@@ -542,10 +592,17 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     }
 
     // Merge prior-message dataSources for continuous file context
-    const currentDocKeys = new Set(currentDocs.map((d) => d.key).filter(Boolean) as string[]);
+    const currentDocKeys = new Set(
+      currentDocs
+        .map((d) => d.key)
+        .filter(Boolean)
+        .map((key) => canonicalDataSourceKey(key as string)),
+    );
     const allDocs = [
       ...currentDocs,
-      ...priorDataSources.filter((p) => p.key && !currentDocKeys.has(p.key)),
+      ...priorDataSources.filter(
+        (p) => p.key && !currentDocKeys.has(canonicalDataSourceKey(p.key)),
+      ),
     ];
 
     // Edge case: all uploads failed but user wrote text.
@@ -579,7 +636,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       type: MessageType.PROMPT,
       data: {
         ...pastedMessage.data,
-        dataSources: allDocs.map((d) => ({
+        // Only this turn's attachments are shown on the message; prior docs are
+        // still sent to the model via request.documents below.
+        dataSources: currentDocs.map((d) => ({
           id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
           type: d.type,
           name: d.name || '',
@@ -587,7 +646,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         })),
       },
       ...(deferredConfiguredTools ? { configuredTools: deferredConfiguredTools } : {}),
-      ...(pending.selectedSkillIds.length > 0 ? { data: { ...pastedMessage.data, skills: pending.selectedSkillIds, skillSelectionMode: 'manual', dataSources: allDocs.map((d) => ({ id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`, type: d.type, name: d.name || '', metadata: d.metadata || {} })) } } : {}),
+      ...(pending.selectedSkillIds.length > 0 ? { data: { ...pastedMessage.data, skills: pending.selectedSkillIds, skillSelectionMode: 'manual', dataSources: currentDocs.map((d) => ({ id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`, type: d.type, name: d.name || '', metadata: d.metadata || {} })) } } : {}),
     });
     msg = setAssistantInMsg(msg, activeAssistant ?? DEFAULT_ASSISTANT);
 
@@ -663,11 +722,16 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     const msgText = richComposerRef.current?.getValue() ?? '';
     const msgHTML = richComposerRef.current?.getHTML() ?? '';
     const hasText = msgText.trim().length > 0;
-    const docsWithKeys = attachedDocs.filter((d) => !!d.key);
     // Any kind of attachment can be mid-upload now that documents (not just
     // pasted images) land in the rail — filtering by kind here would let a
     // still-uploading PDF be silently dropped from the send.
     const uploadingAttachments = uiAttachments.filter((a) => a.status === 'uploading');
+    // A key arrives before processing finishes, so "has a key" alone is not
+    // "ready": exclude docs whose card is still uploading or has failed.
+    const notReadyIds = new Set(
+      uiAttachments.filter((a) => a.status !== 'ready').map((a) => a.id),
+    );
+    const docsWithKeys = attachedDocs.filter((d) => !!d.key && !notReadyIds.has(d.id));
     const pastedAttachmentsEarly = uiAttachments.filter((a) => a.kind === 'paste');
     const hasContentToSend =
       hasText ||
@@ -719,6 +783,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         remainingCount: uploadingAttachments.length,
         selectedActions: [...selectedActions],
         selectedSkillIds: [...selectedSkillIdsRef.current],
+        conversationId: selectedConversation?.id ?? '',
+        pendingUploadIds: uploadingAttachments.map((attachment) => attachment.id),
+        resolvedUploadIds: new Set<string>(),
       };
       // pendingUploadState.done tracks how many of the originally-uploading
       // attachments have since completed (starts at 0).
@@ -734,10 +801,17 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
 
     // Merge current-turn docs with prior-message dataSources (dedup by key) so
     // the model retains access to previously uploaded files on every follow-up.
-    const currentKeySet = new Set(docsWithKeys.map((d) => d.key).filter(Boolean) as string[]);
+    const currentKeySet = new Set(
+      docsWithKeys
+        .map((d) => d.key)
+        .filter(Boolean)
+        .map((key) => canonicalDataSourceKey(key as string)),
+    );
     const mergedDocs = [
       ...docsWithKeys,
-      ...priorDataSources.filter((p) => p.key && !currentKeySet.has(p.key)),
+      ...priorDataSources.filter(
+        (p) => p.key && !currentKeySet.has(canonicalDataSourceKey(p.key)),
+      ),
     ];
 
     // ── PATH A: docs attached OR connector actions selected ───────────────────
@@ -757,8 +831,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         type: MessageType.PROMPT,
         data: {
           ...pastedMessage.data,
-          ...(docsToSend.length > 0 ? {
-            dataSources: docsToSend.map((d) => ({
+          ...(docsWithKeys.length > 0 ? {
+            dataSources: docsWithKeys.map((d) => ({
               id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`,
               type: d.type,
               name: d.name || '',
@@ -772,7 +846,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             ...pastedMessage.data,
             skills: selectedSkillIdsRef.current,
             skillSelectionMode: 'manual',
-            ...(docsToSend.length > 0 ? { dataSources: docsToSend.map((d) => ({ id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`, type: d.type, name: d.name || '', metadata: d.metadata || {} })) } : {}),
+            ...(docsWithKeys.length > 0 ? { dataSources: docsWithKeys.map((d) => ({ id: d.key!.includes('://') ? d.key! : `s3://${d.key!}`, type: d.type, name: d.name || '', metadata: d.metadata || {} })) } : {}),
           },
         } : {}),
       });
@@ -887,19 +961,37 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   };
 
   const handleRemoveAttachment = (id: string) => {
+    const realId = sentinelToDocRef.current[id] ?? id;
+    cancelledUploadsRef.current.add(id);
+    cancelledUploadsRef.current.add(realId);
+
+    // Abort the S3 upload and readiness polling. The callback may arrive later,
+    // so the tombstone above also handles the pre-callback race.
+    abortUploadsRef.current[id]?.();
+    if (realId !== id) abortUploadsRef.current[realId]?.();
+    delete abortUploadsRef.current[id];
+    delete abortUploadsRef.current[realId];
+
     if (thumbUrlsRef.current[id]) {
       URL.revokeObjectURL(thumbUrlsRef.current[id]);
       delete thumbUrlsRef.current[id];
     }
-    // Clear stall timer if any
-    if (uploadTimeoutsRef.current[id]) {
-      clearTimeout(uploadTimeoutsRef.current[id]);
-      delete uploadTimeoutsRef.current[id];
+    if (thumbUrlsRef.current[realId]) {
+      URL.revokeObjectURL(thumbUrlsRef.current[realId]);
+      delete thumbUrlsRef.current[realId];
     }
-    // NOTE: keep originalFilesRef[id] for potential retry after failed removal
-    setUIAttachments((prev) => prev.filter((a) => a.id !== id));
-    // Also remove the backing AttachedDocument so it isn't sent
-    setAttachedDocs((prev) => prev.filter((d) => d.id !== id));
+    // Clear stall timers for either placeholder or real document id.
+    for (const timerId of [id, realId]) {
+      if (uploadTimeoutsRef.current[timerId]) {
+        clearTimeout(uploadTimeoutsRef.current[timerId]);
+        delete uploadTimeoutsRef.current[timerId];
+      }
+    }
+
+    resolvePendingUpload(realId);
+    resolvePendingUpload(id);
+    setUIAttachments((prev) => prev.filter((a) => a.id !== id && a.id !== realId));
+    setAttachedDocs((prev) => prev.filter((d) => d.id !== id && d.id !== realId));
   };
 
   /**
@@ -970,6 +1062,10 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         // real doc.id so all subsequent callbacks (setKey, progress) find it.
         let intercepted = false;
         const wrappedAttach = (doc: AttachedDocument) => {
+          if (cancelledUploadsRef.current.has(sentinelId)) {
+            cancelledUploadsRef.current.add(doc.id);
+          }
+          sentinelToDocRef.current[sentinelId] = doc.id;
           if (!intercepted) {
             intercepted = true;
             // Transfer thumb URL + original file ref from sentinel to real doc id
@@ -1002,6 +1098,12 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
               }
               uploadTimeoutsRef.current[doc.id] = setTimeout(() => {
                 delete uploadTimeoutsRef.current[doc.id];
+                // Stop the S3 upload / metadata polling for the timed-out doc and
+                // ignore any late callbacks — Retry starts a fresh upload.
+                cancelledUploadsRef.current.add(doc.id);
+                abortUploadsRef.current[doc.id]?.();
+                delete abortUploadsRef.current[doc.id];
+                setAttachedDocs((prev) => prev.filter((d) => d.id !== doc.id));
                 // Mark as failed with an actionable error message
                 setUIAttachments((prev) =>
                   prev.map((a) =>
@@ -1016,21 +1118,16 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 );
                 // If a deferred send was waiting on this doc, treat it as done
                 // (without a key — the send will proceed with whatever completed).
-                const pending = pendingUploadSendRef.current;
-                if (pending && pending.remainingCount > 0) {
-                  const alreadyReady = pending.readyDocs.some((d) => d.id === doc.id);
-                  if (!alreadyReady) {
-                    // Don't push to newDocs (no key), just decrement counter
-                    pending.remainingCount--;
-                    setPendingUploadState((prev) =>
-                      prev ? { done: prev.done + 1, total: prev.total } : null,
-                    );
-                  }
-                }
+                resolvePendingUpload(doc.id);
               }, UPLOAD_STALL_TIMEOUT_MS);
             }
           }
           addDocCallback(doc);
+        };
+
+        const handleAbort = (doc: AttachedDocument, abort: (() => void) | AbortController) => {
+          const resolvedId = sentinelToDocRef.current[sentinelId] ?? doc.id;
+          handleDocSetAbortController({ ...doc, id: resolvedId }, abort);
         };
 
         handleFile(
@@ -1039,7 +1136,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           handleDocUploadProgress,
           handleDocSetKey,
           handleDocSetMetadata,
-          () => {}, // onSetAbortController
+          handleAbort,
           featureFlags.uploadDocuments ?? false,
           undefined, // groupId
           ragOn,
@@ -1054,7 +1151,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       addDocCallback,
       handleDocSetKey,
       handleDocSetMetadata,
+      handleDocSetAbortController,
       handleDocUploadProgress,
+      resolvePendingUpload,
       featureFlags.uploadDocuments,
       ragOn,
     ],
@@ -1097,14 +1196,14 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           processDragDropFiles([file], {
             disallowedExtensions: COMMON_DISALLOWED_FILE_EXTENSIONS,
             onAttach: (doc: AttachedDocument) => {
-              // ZIP members have no local File — build the card from the doc.
+              if (cancelledUploadsRef.current.has(doc.id)) return;
               setUIAttachments((prev) => [...prev, createUIAttachmentFromDoc(doc, 0)]);
               addDocCallback(doc);
             },
             onUploadProgress: handleDocUploadProgress,
             onSetKey: handleDocSetKey,
             onSetMetadata: handleDocSetMetadata,
-            onSetAbortController: () => {},
+            onSetAbortController: handleDocSetAbortController,
             statsService,
             featureFlags,
             ragOn,
@@ -1132,6 +1231,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       featureFlags,
       handleDocSetKey,
       handleDocSetMetadata,
+      handleDocSetAbortController,
       handleDocUploadProgress,
       ragOn,
       statsService,
@@ -1146,6 +1246,21 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       attachFilesRef.current = null;
     };
   }, [attachFilesRef, attachFiles]);
+
+  // The shell normally remounts per conversation. Clean up any in-flight upload
+  // work if that lifecycle contract changes or the composer is unmounted.
+  useEffect(() => {
+    const cancelledUploads = cancelledUploadsRef.current;
+    return () => {
+      Object.values(abortUploadsRef.current).forEach((abort) => abort());
+      Object.values(uploadTimeoutsRef.current).forEach((timer) => clearTimeout(timer));
+      Object.values(thumbUrlsRef.current).forEach((url) => URL.revokeObjectURL(url));
+      abortUploadsRef.current = {};
+      uploadTimeoutsRef.current = {};
+      thumbUrlsRef.current = {};
+      cancelledUploads.clear();
+    };
+  }, []);
 
   const addSelectionReply = useCallback((text: string, sourceMessageId?: string) => {
     const trimmed = text.trim();
