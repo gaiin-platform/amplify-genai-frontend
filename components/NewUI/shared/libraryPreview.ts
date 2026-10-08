@@ -17,22 +17,23 @@ export type LibraryPreviewResult =
       bytes: number;
     };
 
-type PreviewRequest = {
+export type PreviewRequest = {
   key: string;
   kind: LibraryPreviewKind;
   mime?: string;
+  groupId?: string;
 };
 
 const inFlight = new Map<string, Promise<LibraryPreviewResult>>();
 const completed = new Map<string, LibraryPreviewResult>();
 let cacheGeneration = 0;
 
-function cacheKey({ key, kind, mime }: PreviewRequest): string {
-  return `${kind}:${mime || ''}:${key}`;
+function cacheKey({ key, kind, mime, groupId }: PreviewRequest): string {
+  return `${kind}:${mime || ''}:${groupId || ''}:${key}`;
 }
 
-async function fetchPreview({ key, kind, mime }: PreviewRequest): Promise<LibraryPreviewResult> {
-  const response = await getFileDownloadUrl(key, undefined);
+async function fetchPreview({ key, kind, mime, groupId }: PreviewRequest): Promise<LibraryPreviewResult> {
+  const response = await getFileDownloadUrl(key, groupId);
   if (!response.success || !response.downloadUrl) {
     throw new Error('Preview URL unavailable');
   }
@@ -46,8 +47,10 @@ async function fetchPreview({ key, kind, mime }: PreviewRequest): Promise<Librar
   }
 
   if (kind === 'pdf') {
-    const payload = await content.arrayBuffer();
-    const contentType = content.headers.get('content-type') || '';
+    const payload = typeof content.arrayBuffer === 'function'
+      ? await content.arrayBuffer()
+      : new TextEncoder().encode(await content.text()).buffer;
+    const contentType = content.headers?.get?.('content-type') || '';
     const rawText = new TextDecoder().decode(payload).trim();
     let candidate = rawText;
     if (contentType.includes('json')) {
@@ -129,6 +132,16 @@ export function releaseAllLibraryPreviews(): void {
     if (result.kind === 'image' || result.kind === 'pdf') URL.revokeObjectURL(result.objectUrl);
   });
   completed.clear();
+}
+
+/** Fetch an uncached PDF preview for a chat-owned object URL. */
+export async function fetchLibraryPdfPreview(
+  request: Omit<PreviewRequest, 'kind'>,
+): Promise<{ objectUrl: string; bytes: number }> {
+  const normalized = { ...request, key: request.key.replace(/^s3:\/\//, '') };
+  const result = await fetchPreview({ ...normalized, kind: 'pdf' });
+  if (result.kind !== 'pdf') throw new Error('Unexpected preview kind');
+  return result;
 }
 
 /** Test-only reset; does not cancel requests already in progress. */

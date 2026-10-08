@@ -163,7 +163,8 @@ export const NewHome: React.FC = () => {
    * because handleFile sets doc.raw = "" and we lose access to the File object.
    */
   const makethumbUrl = (file: File): string | undefined => {
-    if (!file.type.startsWith('image/')) return undefined;
+    const mime = file.type.toLowerCase();
+    if (!mime.startsWith('image/') && mime !== 'application/pdf' && !/\.pdf$/i.test(file.name)) return undefined;
     try {
       const url = URL.createObjectURL(file);
       return url;

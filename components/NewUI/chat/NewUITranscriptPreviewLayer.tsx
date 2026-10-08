@@ -51,6 +51,7 @@ import {
   createUIAttachmentFromDoc,
   getAttachmentMime,
 } from '@/components/NewUI/shared/attachmentTypes';
+import { fetchLibraryPdfPreview } from '@/components/NewUI/shared/libraryPreview';
 
 /** Classic `ImageModal` root: `fixed inset-0 z-50 flex items-center …`. */
 const LEGACY_MODAL_SELECTOR = '.fixed.inset-0.z-50';
@@ -88,6 +89,8 @@ export const NewUITranscriptPreviewLayer: React.FC = () => {
   conversationRef.current = selectedConversation;
 
   const [preview, setPreview] = useState<PreviewState | null>(null);
+  const pdfUrlRef = useRef<string | null>(null);
+  const pdfRequestRef = useRef(0);
   /** The classic modal we are currently mirroring. */
   const mirroredRef = useRef<HTMLElement | null>(null);
   /** Rect of the last card the user activated — drives the FLIP entrance. */
@@ -188,8 +191,15 @@ export const NewUITranscriptPreviewLayer: React.FC = () => {
     return { attachments, initialIndex, originRect: originRectRef.current };
   }, []);
 
+  const revokePdfUrl = useCallback(() => {
+    if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
+    pdfUrlRef.current = null;
+  }, []);
+
   /** Closes our preview and resets the classic component's own state. */
   const close = useCallback(() => {
+    pdfRequestRef.current += 1;
+    revokePdfUrl();
     setPreview(null);
     const modal = mirroredRef.current;
     mirroredRef.current = null;
@@ -201,7 +211,47 @@ export const NewUITranscriptPreviewLayer: React.FC = () => {
     const closeButton = modal.querySelector('button');
     if (closeButton) closeButton.click();
     else modal.click();
-  }, []);
+  }, [revokePdfUrl]);
+
+  const openPdf = useCallback(async (card: HTMLElement, doc: any, index: number) => {
+    const mime = getAttachmentMime(doc?.name ?? '', doc?.type);
+    const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(doc?.name ?? '');
+    if (!isPdf || !doc?.id) return;
+
+    const requestId = ++pdfRequestRef.current;
+    revokePdfUrl();
+    const name = doc.name || card.getAttribute('aria-label')?.replace(/^Open attachment\s*/, '').trim() || `Attachment ${index + 1}`;
+    const pending: UIAttachment = {
+      id: `transcript-pdf-${doc.id}-${index}`,
+      kind: 'file',
+      status: 'ready',
+      name,
+      ext: 'PDF',
+      bytes: Number(doc.size) || 0,
+      mime: 'application/pdf',
+      previewState: 'pending',
+      doc,
+    };
+    setPreview({ attachments: [pending], initialIndex: 0, originRect: card.getBoundingClientRect() });
+
+    try {
+      const result = await fetchLibraryPdfPreview({ key: doc.id, mime, groupId: doc.groupId });
+      if (requestId !== pdfRequestRef.current) {
+        URL.revokeObjectURL(result.objectUrl);
+        return;
+      }
+      pdfUrlRef.current = result.objectUrl;
+      setPreview({
+        attachments: [{ ...pending, previewUrl: result.objectUrl, bytes: result.bytes, previewState: 'available' }],
+        initialIndex: 0,
+        originRect: card.getBoundingClientRect(),
+      });
+    } catch {
+      if (requestId === pdfRequestRef.current) {
+        setPreview({ attachments: [{ ...pending, previewState: 'failed' }], initialIndex: 0, originRect: card.getBoundingClientRect() });
+      }
+    }
+  }, [revokePdfUrl]);
 
   const sync = useCallback(() => {
     const container = document.querySelector<HTMLElement>('.chatcontainer');
@@ -246,6 +296,31 @@ export const NewUITranscriptPreviewLayer: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const onPdfCardClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('button, a, input, select, textarea')) return;
+      const card = target?.closest(CARD_SELECTOR) as HTMLElement | null;
+      if (!card || !card.closest('.new-ui-transcript-attachments')) return;
+
+      const messageEl = card.closest<HTMLElement>('.enhanced-chat-message');
+      const container = document.querySelector<HTMLElement>('.chatcontainer');
+      if (!messageEl || !container) return;
+      const messages = renderedMessages(conversationRef.current?.messages ?? []);
+      const messageElements = Array.from(container.querySelectorAll<HTMLElement>('.enhanced-chat-message'));
+      const message = messages[messageElements.indexOf(messageEl)];
+      const cards = Array.from(card.closest('.new-ui-transcript-attachments')?.querySelectorAll<HTMLElement>(CARD_SELECTOR) ?? []);
+      const doc = message?.data?.dataSources?.[cards.indexOf(card)];
+      const mime = getAttachmentMime(doc?.name ?? '', doc?.type);
+      if (!(mime === 'application/pdf' || /\.pdf$/i.test(doc?.name ?? ''))) return;
+      event.preventDefault();
+      event.stopPropagation();
+      void openPdf(card, doc, cards.indexOf(card));
+    };
+    document.addEventListener('click', onPdfCardClick, true);
+    return () => document.removeEventListener('click', onPdfCardClick, true);
+  }, [openPdf]);
+
+  useEffect(() => {
     let retry: ReturnType<typeof setTimeout> | undefined;
     let observer: MutationObserver | undefined;
 
@@ -286,8 +361,10 @@ export const NewUITranscriptPreviewLayer: React.FC = () => {
     return () => {
       if (retry) clearTimeout(retry);
       observer?.disconnect();
+      pdfRequestRef.current += 1;
+      revokePdfUrl();
     };
-  }, [sync]);
+  }, [sync, revokePdfUrl]);
 
   if (!preview) return null;
 

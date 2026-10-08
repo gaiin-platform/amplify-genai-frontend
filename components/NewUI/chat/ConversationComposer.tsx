@@ -930,8 +930,10 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   const addFileToRail = useCallback(
     (file: File) => {
       try {
-        const isImage = file.type.startsWith('image/');
-        const url = isImage ? URL.createObjectURL(file) : undefined;
+        const mime = file.type.toLowerCase();
+        const isImage = mime.startsWith('image/');
+        const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(file.name);
+        const url = isImage || isPdf ? URL.createObjectURL(file) : undefined;
 
         // Use a sentinel value; the real id comes from handleFile's uuidv4.
         // The wrappedAttach callback below overwrites the UIAttachment once
@@ -952,7 +954,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
               {
                 id: sentinelId,
                 name: file.name || 'pasted-image.png',
-                type: file.type,
+                type: mime,
                 raw: '',
                 data: null,
                 size: file.size,

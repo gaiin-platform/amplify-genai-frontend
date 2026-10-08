@@ -28,6 +28,7 @@ import type { AttachedDocument } from '@/types/attacheddocument';
 import { getFileDownloadUrl } from '@/services/fileService';
 import { extractKey } from '@/utils/app/files';
 import { getMimeTypeFromExtension } from '@/utils/app/fileTypeTranslations';
+import { fetchLibraryPdfPreview } from './libraryPreview';
 import {
     UIAttachment,
     createUIAttachmentFromDoc,
@@ -121,7 +122,7 @@ export type LibraryAttachmentPatch = (
 export interface HydrateLibraryPreviewOptions {
     patch: LibraryAttachmentPatch;
     /**
-     * Receives any object-URL created for an image so the caller can revoke it.
+     * Receives any object-URL created for an image or PDF so the caller can revoke it.
      * Skipping this leaks the URL for the lifetime of the page.
      */
     onObjectUrl?: (id: string, objectUrl: string) => void;
@@ -146,11 +147,33 @@ export async function hydrateLibraryAttachmentPreview(
 ): Promise<void> {
     const mime = getAttachmentMime(doc.name, doc.type);
     const isImage = mime.startsWith('image/');
+    const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(doc.name);
     const isText = isTextPreviewable(doc.name, mime);
 
     try {
         if (!doc.key) throw new Error('Library document has no key');
-        const result = await getFileDownloadUrl(doc.key, undefined);
+        if (isPdf) {
+            const { objectUrl, bytes } = await fetchLibraryPdfPreview({
+                key: doc.key,
+                mime,
+                groupId: doc.groupId,
+            });
+            if (bytes === 0) {
+                URL.revokeObjectURL(objectUrl);
+                patch(doc.id, (attachment) => ({ ...attachment, previewState: 'unsupported' }));
+                return;
+            }
+            onObjectUrl?.(doc.id, objectUrl);
+            patch(doc.id, (attachment) => ({
+                ...attachment,
+                bytes: attachment.bytes || bytes,
+                previewUrl: objectUrl,
+                previewState: 'available',
+            }));
+            return;
+        }
+
+        const result = await getFileDownloadUrl(doc.key, doc.groupId);
         if (!result.success || !result.downloadUrl) throw new Error('Preview URL unavailable');
         const response = await fetch(result.downloadUrl);
         if (!response.ok) throw new Error(`Preview request failed: ${response.status}`);

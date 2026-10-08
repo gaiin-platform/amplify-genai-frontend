@@ -180,11 +180,10 @@ export async function imageResponseToObjectUrl(response: Response): Promise<stri
  * Build a UIAttachment from an AttachedDocument after handleFile completes.
  * previewState is computed locally; in production it should come from the server.
  *
- * @param prebuiltThumbUrl - Pass a pre-generated object-URL for images. The raw File
- *   object is NOT preserved on AttachedDocument (doc.raw is set to "" by handleFile),
- *   so the caller must generate the object-URL from the File BEFORE calling handleFile
- *   and pass it here. The caller is responsible for revoking it when the attachment
- *   is removed.
+ * @param prebuiltPreviewUrl - Pass a pre-generated object-URL for images or PDFs.
+ *   The raw File object is NOT preserved on AttachedDocument (doc.raw is set to ""
+ *   by handleFile), so callers must generate it BEFORE calling handleFile and own
+ *   its lifetime.
  */
 export function createUIAttachmentFromDoc(
   doc: AttachedDocument,
@@ -201,8 +200,11 @@ export function createUIAttachmentFromDoc(
   const bodyPreview = fullText?.slice(0, 400);
   const lineCount = fullText ? fullText.split('\n').length : undefined;
 
+  const isPdf = mime === 'application/pdf' || /\.pdf$/i.test(doc.name);
+
   // Thumbnail for images — use caller-supplied URL first, fall back to doc.data base64
-  let thumbUrl: string | undefined = prebuiltThumbUrl;
+  let thumbUrl: string | undefined = isImage ? prebuiltThumbUrl : undefined;
+  const previewUrl = isPdf ? prebuiltThumbUrl : undefined;
   if (isImage && !thumbUrl) {
     if (typeof doc.data === 'string' && doc.data.startsWith('data:')) {
       thumbUrl = doc.data;
@@ -222,6 +224,8 @@ export function createUIAttachmentFromDoc(
     if (bytes > TOO_LARGE_TEXT_BYTES || (lineCount ?? 0) > TOO_LARGE_TEXT_LINES) {
       previewState = 'too-large';
     }
+  } else if (isPdf && previewUrl) {
+    previewState = 'available';
   } else {
     // Binary or unrecognised type — can't preview
     previewState = 'unsupported';
@@ -238,6 +242,7 @@ export function createUIAttachmentFromDoc(
     bytes,
     mime,
     thumbUrl,
+    previewUrl,
     bodyPreview: pasted ? (typeof doc.data === 'string' ? doc.data.slice(0, 400) : undefined) : bodyPreview,
     fullText: pasted ? (typeof doc.data === 'string' ? doc.data : undefined) : fullText,
     lineCount,
