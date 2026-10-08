@@ -11,6 +11,15 @@
  *     Every plain send streams `data.state.currentAssistant = "default"` and
  *     `currentAssistantId = "default"` onto the reply, so an assistant-less
  *     conversation still looks stamped.
+ *   • `"Amplify Automation"`, `"Code Interpreter Assistant"`, `"Artifacts Assistant"` —
+ *     the backend's **internal, mode-selected** assistants
+ *     (`assistants.js#chooseAssistantForRequest`). They are picked server-side
+ *     (configuredTools → Automation; code-interpreter/artifacts mode) when the
+ *     client names no assistant, and are streamed back with the same
+ *     `currentAssistant`/`currentAssistantId` state (id === name) as `"default"`.
+ *     Treating them as a user pick re-sends them as `options.assistantId`; the
+ *     backend cannot resolve that id, skips its tools/mode branches, and the
+ *     follow-up loses its connectors ("I can't do that").
  *   • `"Standard Conversation"` — the **frontend's** `DEFAULT_ASSISTANT`
  *     (`types/assistant.ts`) and the old-UI `AssistantSelectModal` "Standard
  *     Conversation" row, which dispatches `{ id: 'amplify', assistantId: '' }`.
@@ -27,6 +36,10 @@
 export const PLACEHOLDER_ASSISTANT_NAMES = new Set([
   'standard conversation',
   'default',
+  // Backend-internal assistants chosen per request, never by the client.
+  'amplify automation',
+  'code interpreter assistant',
+  'artifacts assistant',
 ]);
 
 /**

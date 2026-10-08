@@ -109,6 +109,32 @@ describe('deriveConversationAssistant', () => {
     expect(derived).toBeNull();
   });
 
+  // Connector (configuredTools) sends are routed server-side to the internal
+  // "Amplify Automation" assistant, which streams back currentAssistant/Id ==
+  // its name. Adopting it re-sent it as options.assistantId on follow-ups; the
+  // backend could not resolve it and skipped the tools branch, so connectors
+  // stopped working after the first turn.
+  it.each(['Amplify Automation', 'Code Interpreter Assistant', 'Artifacts Assistant'])(
+    'ignores the backend-internal "%s" assistant',
+    (name) => {
+      const derived = deriveConversationAssistant(
+        conversation([userMsg(), replyMsg(name, name)]),
+        [],
+        [],
+      );
+      expect(derived).toBeNull();
+    },
+  );
+
+  it('still recognises a user assistant that reuses an internal name (real ast/ id)', () => {
+    const derived = deriveConversationAssistant(
+      conversation([userMsg(), replyMsg('Amplify Automation', 'ast/123')]),
+      [],
+      [],
+    );
+    expect(derived?.definition.assistantId).toBe('ast/123');
+  });
+
   // The backend's built-in fallback assistant is literally named "default"
   // (amplify-lambda-js/assistants/assistants.js), so EVERY plain send streams
   // currentAssistant: "default" back. Treating that as an assistant showed a
