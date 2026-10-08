@@ -117,7 +117,9 @@ function domToMarkdown(editor: HTMLElement): string {
 
   editor.childNodes.forEach((node) => {
     if (node instanceof HTMLElement && node.classList.contains(CODE_BLOCK_CLS)) {
-      const content = clean(node.innerText || '');
+      // Drop one trailing newline (a just-typed Shift+Enter) so the closing
+      // fence doesn't land after a spurious blank line.
+      const content = clean(node.innerText || '').replace(/\n$/, '');
       parts.push('```\n' + content + '\n```');
     } else if (node instanceof HTMLElement) {
       // innerText handles nested <br> → '\n' correctly
@@ -176,6 +178,41 @@ function lineBeforeCursor(range: Range): string {
   const before = text.slice(0, startOffset);
   const nlIdx = before.lastIndexOf('\n');
   return nlIdx >= 0 ? before.slice(nlIdx + 1) : before;
+}
+
+const isCodeBlock = (n: Node): boolean =>
+  n instanceof HTMLElement && n.classList.contains(CODE_BLOCK_CLS);
+
+/**
+ * Insert plain text (newlines included) at the caret as a raw text node.
+ *
+ * Every multi-line edit inside a code block goes through here. The browser's
+ * own handling of Enter / Shift+Enter / multi-line `insertText` in a
+ * contentEditable *splits the block element* and clones its class onto each
+ * fragment — which is how one block turned into many one-line blocks. The
+ * block is `white-space: pre-wrap`, so a literal "\n" in a text node renders
+ * and round-trips through `innerText` as a real line break.
+ */
+function insertTextInBlock(range: Range, sel: Selection, text: string) {
+  const normalized = text.replace(/\r\n?/g, '\n');
+  if (!range.collapsed) range.deleteContents();
+  const tn = document.createTextNode(normalized);
+  range.insertNode(tn);
+
+  // pre-wrap collapses a trailing newline at the very end of a block, so the
+  // caret would not visibly drop to the new line. Anchor it with a ZWS (which
+  // domToMarkdown strips) placed *after* the caret so Backspace removes the
+  // newline in one press.
+  if (normalized.endsWith('\n')) {
+    let after = '';
+    for (let n = tn.nextSibling; n; n = n.nextSibling) after += n.textContent ?? '';
+    if (after === '') tn.after(document.createTextNode(ZWS));
+  }
+
+  range.setStartAfter(tn);
+  range.collapse(true);
+  sel.removeAllRanges();
+  sel.addRange(range);
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -298,13 +335,7 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
           (n) => n instanceof HTMLElement && (n as HTMLElement).classList.contains(CODE_BLOCK_CLS)
         );
         if (inBlock) {
-          if (!range.collapsed) range.deleteContents();
-          const tn = document.createTextNode(text);
-          range.insertNode(tn);
-          range.setStartAfter(tn);
-          range.collapse(true);
-          sel.removeAllRanges();
-          sel.addRange(range);
+          insertTextInBlock(range, sel, text);
           updateHasContent();
           return;
         }
@@ -489,7 +520,13 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
             editorRef.current!,
             (n) => n instanceof HTMLElement && (n as HTMLElement).classList.contains(CODE_BLOCK_CLS)
           );
-          if (inBlock) return; // let browser insert \n inside the block
+          if (inBlock) {
+            // Don't leave this to the browser: it splits the block (see insertTextInBlock).
+            e.preventDefault();
+            insertTextInBlock(range, sel, '\n');
+            updateHasContent();
+            return;
+          }
 
           // Check if current line ends with ``` (may have text before the backticks)
           const lineBefore = lineBeforeCursor(range);
@@ -505,6 +542,32 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       },
       [onSend, insertCodeBlock, escapCodeBlock, hasExternalContent, updateHasContent]
     );
+
+    // Safety net for paths that bypass keydown/paste (IME, context-menu paste,
+    // drag-drop, mobile keyboards): any paragraph/line-break/text insertion
+    // inside a code block is redirected to a plain text-node insert so the
+    // browser never splits the block.
+    useEffect(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const onBeforeInput = (ev: InputEvent) => {
+        const t = ev.inputType;
+        const isBreak = t === 'insertParagraph' || t === 'insertLineBreak';
+        const isText =
+          (t === 'insertText' || t === 'insertFromPaste' || t === 'insertFromDrop') &&
+          typeof ev.data === 'string' && ev.data.includes('\n');
+        if (!isBreak && !isText) return;
+        const sel = window.getSelection();
+        if (!sel || !sel.rangeCount) return;
+        const range = sel.getRangeAt(0);
+        if (!findAncestor(range.startContainer, editor, isCodeBlock)) return;
+        ev.preventDefault();
+        insertTextInBlock(range, sel, isBreak ? '\n' : (ev.data as string));
+        updateHasContent();
+      };
+      editor.addEventListener('beforeinput', onBeforeInput);
+      return () => editor.removeEventListener('beforeinput', onBeforeInput);
+    }, [updateHasContent]);
 
     return (
       <div className="relative">
