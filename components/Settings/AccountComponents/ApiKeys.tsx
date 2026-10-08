@@ -525,6 +525,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                             className="font-medium underline"
                             onClick={(event) => {
                                 event.preventDefault();
+                                event.stopPropagation();
                                 window.dispatchEvent(new CustomEvent('openNewUISettingsSection', { detail: { section: 'account' } }));
                             }}
                         >

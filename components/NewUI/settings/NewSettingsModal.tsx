@@ -1299,7 +1299,6 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   const [pendingLeaveAction, setPendingLeaveAction] = useState<(() => void) | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const previousOpenToSectionRef = useRef(openToSection);
 
   const requestLeave = useCallback((action: () => void) => {
     if (!accountHasUnsavedChanges) {
@@ -1309,19 +1308,21 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
     setPendingLeaveAction(() => action);
   }, [accountHasUnsavedChanges]);
 
-  // The sidebar can request a different section while this modal is already
-  // mounted (for example, a deep link from API Key Management). Keep the active
-  // content in sync and honor the existing unsaved-account confirmation.
+  // Section requests are events rather than prop changes: the same destination
+  // may be requested repeatedly while Settings remains mounted.
   useEffect(() => {
-    if (previousOpenToSectionRef.current === openToSection) return;
-    previousOpenToSectionRef.current = openToSection;
-    if (!openToSection || openToSection === activeSection) return;
-    requestLeave(() => {
-      setActiveSection(openToSection);
-      setShowAdminUI(openToSection === 'admin');
-      setSearchQuery('');
-    });
-  }, [openToSection, activeSection, requestLeave]);
+    const handleOpenSection = (event: Event) => {
+      const section = (event as CustomEvent<{ section?: string }>).detail?.section;
+      if (!section || section === activeSection) return;
+      requestLeave(() => {
+        setActiveSection(section);
+        setShowAdminUI(section === 'admin');
+        setSearchQuery('');
+      });
+    };
+    window.addEventListener('openNewUISettingsSection', handleOpenSection);
+    return () => window.removeEventListener('openNewUISettingsSection', handleOpenSection);
+  }, [activeSection, requestLeave]);
 
   const confirmLeave = useCallback(() => {
     const action = pendingLeaveAction;
