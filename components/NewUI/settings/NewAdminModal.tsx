@@ -15,75 +15,114 @@
  *   - NewSidebar "Admin" nav item
  *   - AccountMenu "Admin Panel" button
  */
-
-import React, {
-  FC, useCallback, useContext, useEffect, useRef, useState,
-} from 'react';
 import {
-  IconX,
-  IconSearch,
-  IconRefresh,
   IconAdjustments,
-  IconCpu,
-  IconVariable,
-  IconFlag,
-  IconDatabase,
   IconAlertTriangle,
-  IconNetwork,
-  IconDeviceFloppy,
   IconCheck,
+  IconCpu,
   IconCurrencyDollar,
+  IconDatabase,
+  IconDeviceFloppy,
   IconFileText,
+  IconFlag,
+  IconNetwork,
+  IconRefresh,
+  IconSearch,
   IconToggleRight,
+  IconVariable,
+  IconX,
 } from '@tabler/icons-react';
+import React, {
+  FC,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import toast from 'react-hot-toast';
 
-import HomeContext from '@/pages/api/home/home.context';
 import {
-  getAdminConfigs, getAvailableModels, getFeatureFlags,
+  getAdminConfigs,
+  getAvailableModels,
+  getFeatureFlags,
   getPowerPoints,
   updateAdminConfigs,
 } from '@/services/adminService';
+import { checkActiveIntegrations } from '@/services/oauthIntegrationsService';
+
+import { adminTabHasChanges } from '@/utils/app/admin';
+import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
+
 import {
-  AdminConfigTypes, FeatureFlagConfig,
-  SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig,
+  AdminConfigTypes,
+  AdminTab,
+  DefaultModelsConfig,
+  FeatureFlagConfig,
+  SupportedModel,
+  SupportedModelsConfig,
   SystemPromptsConfig,
 } from '@/types/admin';
-import type { DeploymentConfigWithAnnouncement } from '@/components/NewUI/shared/announcement';
-import { adminTabHasChanges } from '@/utils/app/admin';
-import { findOversizedSystemPrompts } from '@/components/NewUI/settings/admin/systemPromptBytes';
-import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
-import { REVALIDATE_ROLLOUT_EVENT } from '@/components/NewUI/UIPreferenceBanner';
-import toast from 'react-hot-toast';
-import InputsMap from '@/components/ReusableComponents/InputMap';
-import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
-import { noRateLimit, normalizeRateLimits, RateLimit, RateLimits } from '@/types/rateLimit';
-import { FeatureFlagsTab } from '@/components/Admin/AdminComponents/FeatureFlags';
-import { emptySupportedModel, SupportedModelsTab } from '@/components/Admin/AdminComponents/SupportedModels';
-import { ConfigurationsTab } from '@/components/NewUI/settings/admin/ConfigurationsTab';
-import { AdminsCard } from '@/components/NewUI/settings/admin/AdminsCard';
-import { SystemPromptsTab } from '@/components/NewUI/settings/admin/SystemPromptsTab';
-import { DeploymentFeaturesTab } from '@/components/NewUI/settings/admin/DeploymentFeaturesTab';
+import { ConversationStorage } from '@/types/conversationStorage';
 import {
-  Integration, IntegrationProviders, integrationProviders, integrationProvidersList,
-  IntegrationSecretsMap, IntegrationsMap, ProviderSettingsMap, AdminWebSearchConfig,
+  AdminWebSearchConfig,
+  Integration,
+  IntegrationProviders,
+  IntegrationSecretsMap,
+  IntegrationsMap,
+  ProviderSettingsMap,
+  integrationProviders,
+  integrationProvidersList,
 } from '@/types/integrations';
-import { checkActiveIntegrations } from '@/services/oauthIntegrationsService';
-import { IntegrationsTab } from '@/components/Admin/AdminComponents/Integrations';
-import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab } from '@/components/Admin/AdminComponents/FeatureData';
+import {
+  RateLimit,
+  RateLimits,
+  noRateLimit,
+  normalizeRateLimits,
+} from '@/types/rateLimit';
+
+import HomeContext from '@/pages/api/home/home.context';
+
 import { CriticalErrorTrackingTab } from '@/components/Admin/AdminComponents/Critical_Error_Tracking';
-import { UserCostsModal } from '@/components/Admin/UserCostModal';
+import {
+  Ast_Group_Data,
+  FeatureDataTab,
+  Pptx_TEMPLATES,
+} from '@/components/Admin/AdminComponents/FeatureData';
+import { FeatureFlagsTab } from '@/components/Admin/AdminComponents/FeatureFlags';
+import { IntegrationsTab } from '@/components/Admin/AdminComponents/Integrations';
+import {
+  SupportedModelsTab,
+  emptySupportedModel,
+} from '@/components/Admin/AdminComponents/SupportedModels';
 import {
   Amplify_Groups,
-  PromptCostAlert, EmailSupport, CriticalErrorsConfig,
+  CriticalErrorsConfig,
+  EmailSupport,
+  PromptCostAlert,
 } from '@/components/Admin/AdminUI';
-import { ConversationStorage } from '@/types/conversationStorage';
+import { UserCostsModal } from '@/components/Admin/UserCostModal';
+import { REVALIDATE_ROLLOUT_EVENT } from '@/components/NewUI/UIPreferenceBanner';
+import { AdminsCard } from '@/components/NewUI/settings/admin/AdminsCard';
+import { ConfigurationsTab } from '@/components/NewUI/settings/admin/ConfigurationsTab';
+import { DeploymentFeaturesTab } from '@/components/NewUI/settings/admin/DeploymentFeaturesTab';
+import { SystemPromptsTab } from '@/components/NewUI/settings/admin/SystemPromptsTab';
 import { normalizeAdminConversationStorage } from '@/components/NewUI/settings/admin/adminDefaults';
+import { findOversizedSystemPrompts } from '@/components/NewUI/settings/admin/systemPromptBytes';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
+import type { DeploymentConfigWithAnnouncement } from '@/components/NewUI/shared/announcement';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import InputsMap from '@/components/ReusableComponents/InputMap';
 
 // ── helpers re-exported from AdminUI ─────────────────────────────────────────
 
 export const loadingState = (
-  <NewUILoadingStatus open variant="inline" message="Loading admin configuration…" />
+  <NewUILoadingStatus
+    open
+    variant="inline"
+    message="Loading admin configuration…"
+  />
 );
 
 // ── Nav definition ────────────────────────────────────────────────────────────
@@ -95,14 +134,18 @@ interface AdminNavItem {
 }
 
 const BASE_ADMIN_TABS: AdminNavItem[] = [
-  { id: 'Configurations',       label: 'Configurations',       Icon: IconAdjustments },
-  { id: 'System Prompts',       label: 'System Prompts',       Icon: IconFileText },
-  { id: 'Deployment',           label: 'Deployment',           Icon: IconToggleRight },
-  { id: 'Supported Models',     label: 'Supported Models',     Icon: IconCpu },
-  { id: 'Application Variables',label: 'Application Variables',Icon: IconVariable },
-  { id: 'Feature Flags',        label: 'Feature Flags',        Icon: IconFlag },
-  { id: 'Feature Data',         label: 'Feature Data',         Icon: IconDatabase },
-  { id: 'User Costs',           label: 'User Costs',           Icon: IconCurrencyDollar },
+  { id: 'Configurations', label: 'Configurations', Icon: IconAdjustments },
+  { id: 'System Prompts', label: 'System Prompts', Icon: IconFileText },
+  { id: 'Deployment', label: 'Deployment', Icon: IconToggleRight },
+  { id: 'Supported Models', label: 'Supported Models', Icon: IconCpu },
+  {
+    id: 'Application Variables',
+    label: 'Application Variables',
+    Icon: IconVariable,
+  },
+  { id: 'Feature Flags', label: 'Feature Flags', Icon: IconFlag },
+  { id: 'Feature Data', label: 'Feature Data', Icon: IconDatabase },
+  { id: 'User Costs', label: 'User Costs', Icon: IconCurrencyDollar },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -145,14 +188,18 @@ const NavRow: FC<NavRowProps> = ({ item, isSelected, hasChanges, onClick }) => {
       }}
       onMouseEnter={(e) => {
         if (!isSelected) {
-          (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)';
-          (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
+          (e.currentTarget as HTMLButtonElement).style.background =
+            'var(--bg-hover)';
+          (e.currentTarget as HTMLButtonElement).style.color =
+            'var(--text-primary)';
         }
       }}
       onMouseLeave={(e) => {
         if (!isSelected) {
-          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-          (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
+          (e.currentTarget as HTMLButtonElement).style.background =
+            'transparent';
+          (e.currentTarget as HTMLButtonElement).style.color =
+            'var(--text-secondary)';
         }
       }}
     >
@@ -176,7 +223,10 @@ const NavRow: FC<NavRowProps> = ({ item, isSelected, hasChanges, onClick }) => {
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 
-export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) => {
+export const NewAdminModal: FC<NewAdminModalProps> = ({
+  onClose,
+  openToTab,
+}) => {
   const {
     state: { statsService, storageSelection, amplifyUsers, featureFlags },
     dispatch: homeDispatch,
@@ -187,40 +237,62 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const [loadData, setLoadData] = useState(true);
   const [stillLoadingData, setStillLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab]             = useState<AdminTab>(openToTab ?? 'Configurations');
-  const [searchQuery, setSearchQuery]         = useState('');
+  const [activeTab, setActiveTab] = useState<AdminTab>(
+    openToTab ?? 'Configurations',
+  );
+  const [searchQuery, setSearchQuery] = useState('');
   const contentRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   // ── Unsaved changes ───────────────────────────────────────────────────────
-  const [unsavedConfigs, setUnsavedConfigs]   = useState<Set<AdminConfigTypes>>(new Set());
+  const [unsavedConfigs, setUnsavedConfigs] = useState<Set<AdminConfigTypes>>(
+    new Set(),
+  );
   const [promptSaveError, setPromptSaveError] = useState<string | null>(null);
   const updateUnsavedConfigs = (type: AdminConfigTypes) =>
     setUnsavedConfigs((prev) => new Set(prev).add(type));
 
   // ── Admin data ────────────────────────────────────────────────────────────
-  const [admins, setAdmins]               = useState<string[]>([]);
-  const [allEmails, setAllEmails]         = useState<string[] | null>(null);
-  const [rateLimits, setRateLimits]       = useState<RateLimits>([]);
-  const [honorPersonalRateLimit, setHonorPersonalRateLimit] =
-    useState<{ enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }>({ enabled: false });
-  const [promptCostAlert, setPromptCostAlert]   = useState<PromptCostAlert>({ isActive: false, alertMessage: '', cost: 0 });
-  const [emailSupport, setEmailSupport]         = useState<EmailSupport>({ isActive: false, email: '' });
+  const [admins, setAdmins] = useState<string[]>([]);
+  const [allEmails, setAllEmails] = useState<string[] | null>(null);
+  const [rateLimits, setRateLimits] = useState<RateLimits>([]);
+  const [honorPersonalRateLimit, setHonorPersonalRateLimit] = useState<{
+    enabled: boolean;
+    scope?: 'both' | 'apiKey' | 'amplifyAccount';
+  }>({ enabled: false });
+  const [promptCostAlert, setPromptCostAlert] = useState<PromptCostAlert>({
+    isActive: false,
+    alertMessage: '',
+    cost: 0,
+  });
+  const [emailSupport, setEmailSupport] = useState<EmailSupport>({
+    isActive: false,
+    email: '',
+  });
   const [criticalErrorsConfig, setCriticalErrorsConfig] =
     useState<CriticalErrorsConfig>({ isActive: false, email: '' });
-  const [aiEmailDomain, setAiEmailDomain]       = useState<string>('');
+  const [aiEmailDomain, setAiEmailDomain] = useState<string>('');
   const [defaultConversationStorage, setDefaultConversationStorage] =
     useState<ConversationStorage>(normalizeAdminConversationStorage(undefined));
-  const [availableModels, setAvailableModels]   = useState<SupportedModelsConfig>({});
-  const [defaultModels, setDefaultModels]       = useState<DefaultModelsConfig>({
-    user: '', advanced: '', cheapest: '', agent: '', documentCaching: '', embeddings: '',
+  const [availableModels, setAvailableModels] = useState<SupportedModelsConfig>(
+    {},
+  );
+  const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({
+    user: '',
+    advanced: '',
+    cheapest: '',
+    agent: '',
+    documentCaching: '',
+    embeddings: '',
   });
-  const [features, setFeatures]                 = useState<FeatureFlagConfig>({});
-  const [appVars, setAppVars]                   = useState<{ [key: string]: string }>({});
-  const [appSecrets, setAppSecrets]             = useState<{ [key: string]: string }>({});
+  const [features, setFeatures] = useState<FeatureFlagConfig>({});
+  const [appVars, setAppVars] = useState<{ [key: string]: string }>({});
+  const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});
   const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
-  const [defaultTimezone, setDefaultTimezone]   = useState<string>('America/Chicago');
-  const [smartMessagesEnabled, setSmartMessagesEnabled] = useState<boolean>(false);
+  const [defaultTimezone, setDefaultTimezone] =
+    useState<string>('America/Chicago');
+  const [smartMessagesEnabled, setSmartMessagesEnabled] =
+    useState<boolean>(false);
   const [systemPrompts, setSystemPrompts] = useState<SystemPromptsConfig>({
     schemaVersion: 1,
     prompts: {
@@ -231,58 +303,92 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       'amplifyHelper.base': { version: 1, text: '' },
     },
   });
-  const [deploymentFeatures, setDeploymentFeatures] = useState<DeploymentConfigWithAnnouncement>({
-    schemaVersion: 1,
-    availability: {
-      promptHighlighter: false,
-      artifacts: true,
-      webSearch: true,
-      codeInterpreter: true,
-      memory: false,
-    },
-    allowClassicUiSwitch: true,
-    routingEnabled: false,
-  });
-  const [astGroups, setAstGroups]               = useState<Ast_Group_Data[]>([]);
+  const [deploymentFeatures, setDeploymentFeatures] =
+    useState<DeploymentConfigWithAnnouncement>({
+      schemaVersion: 1,
+      availability: {
+        promptHighlighter: false,
+        artifacts: true,
+        webSearch: true,
+        codeInterpreter: true,
+        memory: false,
+      },
+      allowClassicUiSwitch: true,
+      routingEnabled: false,
+    });
+  const [astGroups, setAstGroups] = useState<Ast_Group_Data[]>([]);
   const [changedAstGroups, setChangedAstGroups] = useState<string[]>([]);
   const [amplifyAstGroupId, setAmplifyAstGroupId] = useState<string>('');
-  const [templates, setTemplates]               = useState<Pptx_TEMPLATES[]>([]);
+  const [templates, setTemplates] = useState<Pptx_TEMPLATES[]>([]);
   const [changedTemplates, setChangedTemplates] = useState<string[]>([]);
-  const [ampGroups, setAmpGroups]               = useState<Amplify_Groups>({});
-  const [integrations, setIntegrations]         = useState<IntegrationsMap | null>(null);
-  const [integrationSecrets, setIntegrationSecrets] = useState<IntegrationSecretsMap>({});
-  const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>({});
-  const [webSearchConfig, setWebSearchConfig]   = useState<AdminWebSearchConfig | null>(null);
+  const [ampGroups, setAmpGroups] = useState<Amplify_Groups>({});
+  const [integrations, setIntegrations] = useState<IntegrationsMap | null>(
+    null,
+  );
+  const [integrationSecrets, setIntegrationSecrets] =
+    useState<IntegrationSecretsMap>({});
+  const [providerSettings, setProviderSettings] = useState<ProviderSettingsMap>(
+    {},
+  );
+  const [webSearchConfig, setWebSearchConfig] =
+    useState<AdminWebSearchConfig | null>(null);
   const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
   const [showUserCosts, setShowUserCosts] = useState<boolean>(false);
+  const [pendingConfirm, setPendingConfirm] = useState<
+    'reload' | 'close' | null
+  >(null);
 
   // ── Account notice message (customisable by admins; shown to all users in Account settings)
   const ACCOUNT_NOTICE_CONFIG_KEY = 'accountNoticeMessage';
   const [accountNoticeMessage, setAccountNoticeMessage] = useState<string>('');
-  const [accountNoticeUnsaved, setAccountNoticeUnsaved] = useState<boolean>(false);
+  const [accountNoticeUnsaved, setAccountNoticeUnsaved] =
+    useState<boolean>(false);
 
   // ── Tab list (dynamic, based on loaded data) ──────────────────────────────
   const tabs: AdminNavItem[] = [
     ...BASE_ADMIN_TABS,
     ...(integrations || featureFlags.webSearch || features.webSearch?.enabled
-      ? [{ id: 'Integrations' as AdminTab, label: 'Integrations', Icon: IconNetwork }]
+      ? [
+          {
+            id: 'Integrations' as AdminTab,
+            label: 'Integrations',
+            Icon: IconNetwork,
+          },
+        ]
       : []),
-    ...(featureFlags.criticalErrorTracking || features.criticalErrorTracking?.enabled
-      ? [{ id: 'Critical Errors' as AdminTab, label: 'Critical Errors', Icon: IconAlertTriangle }]
+    ...(featureFlags.criticalErrorTracking ||
+    features.criticalErrorTracking?.enabled
+      ? [
+          {
+            id: 'Critical Errors' as AdminTab,
+            label: 'Critical Errors',
+            Icon: IconAlertTriangle,
+          },
+        ]
       : []),
   ];
 
   // ── Helpers ───────────────────────────────────────────────────────────────
-  const isAvailableCheck = (isAvailable: boolean, handleClick: () => void, styling: string = '') => (
+  const isAvailableCheck = (
+    isAvailable: boolean,
+    handleClick: () => void,
+    styling: string = '',
+  ) => (
     <button
-      title={isAvailable ? 'Click to set as unavailable' : 'Click to set as available'}
+      title={
+        isAvailable
+          ? 'Click to set as unavailable'
+          : 'Click to set as available'
+      }
       className={`cursor-pointer ${styling}`}
       style={{ color: 'var(--text-primary)' }}
       onClick={handleClick}
     >
-      {isAvailable
-        ? <IconCheck className="text-green-500 hover:opacity-60" size={18} />
-        : <IconX className="text-red-500 hover:opacity-60" size={18} />}
+      {isAvailable ? (
+        <IconCheck className="text-green-500 hover:opacity-60" size={18} />
+      ) : (
+        <IconX className="text-red-500 hover:opacity-60" size={18} />
+      )}
     </button>
   );
 
@@ -316,7 +422,11 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   };
 
   useEffect(() => {
-    if (!stillLoadingData && !integrations && Object.keys(features).includes('integrations')) {
+    if (
+      !stillLoadingData &&
+      !integrations &&
+      Object.keys(features).includes('integrations')
+    ) {
       getActiveIntegrations(null);
     }
   }, [features]);
@@ -367,18 +477,34 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           setRateLimits(normalizeRateLimits(rlc));
           setHonorPersonalRateLimit({ enabled: false });
         }
-        setPromptCostAlert(d[AdminConfigTypes.PROMPT_COST_ALERT] || promptCostAlert);
-        setDefaultConversationStorage(normalizeAdminConversationStorage(d[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE]));
+        setPromptCostAlert(
+          d[AdminConfigTypes.PROMPT_COST_ALERT] || promptCostAlert,
+        );
+        setDefaultConversationStorage(
+          normalizeAdminConversationStorage(
+            d[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE],
+          ),
+        );
         setEmailSupport(d[AdminConfigTypes.EMAIL_SUPPORT] || emailSupport);
-        setCriticalErrorsConfig(d[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig);
+        setCriticalErrorsConfig(
+          d[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig,
+        );
         setAiEmailDomain(d[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
         setDefaultModels(d[AdminConfigTypes.DEFAULT_MODELS] || {});
         setWebSearchConfig(d[AdminConfigTypes.WEB_SEARCH] || null);
-        setUserDocumentationUrl(d[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
-        setDefaultTimezone(d[AdminConfigTypes.DEFAULT_TIMEZONE] || 'America/Chicago');
-        setSmartMessagesEnabled(d[AdminConfigTypes.DEFAULT_SMART_MESSAGES] ?? false);
-        if (d[AdminConfigTypes.SYSTEM_PROMPTS]) setSystemPrompts(d[AdminConfigTypes.SYSTEM_PROMPTS]);
-        if (d[AdminConfigTypes.DEPLOYMENT_FEATURES]) setDeploymentFeatures(d[AdminConfigTypes.DEPLOYMENT_FEATURES]);
+        setUserDocumentationUrl(
+          d[AdminConfigTypes.USER_DOCUMENTATION_URL] || '',
+        );
+        setDefaultTimezone(
+          d[AdminConfigTypes.DEFAULT_TIMEZONE] || 'America/Chicago',
+        );
+        setSmartMessagesEnabled(
+          d[AdminConfigTypes.DEFAULT_SMART_MESSAGES] ?? false,
+        );
+        if (d[AdminConfigTypes.SYSTEM_PROMPTS])
+          setSystemPrompts(d[AdminConfigTypes.SYSTEM_PROMPTS]);
+        if (d[AdminConfigTypes.DEPLOYMENT_FEATURES])
+          setDeploymentFeatures(d[AdminConfigTypes.DEPLOYMENT_FEATURES]);
         setAccountNoticeMessage(d[ACCOUNT_NOTICE_CONFIG_KEY] || '');
         const nonlazyResult = await nonlazyReq;
         if (nonlazyResult.success) {
@@ -389,28 +515,38 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           const base = emptySupportedModel();
           const updated = Object.entries(am).map(([k, m]) => {
             const up = Object.fromEntries(
-              Object.entries(m as SupportedModel).map(([p, v]) => [p, v === null ? base[p as keyof SupportedModel] : v]),
+              Object.entries(m as SupportedModel).map(([p, v]) => [
+                p,
+                v === null ? base[p as keyof SupportedModel] : v,
+              ]),
             );
             return [k, up];
           });
           setAvailableModels(Object.fromEntries(updated));
-          const astAdminGroups: Ast_Group_Data[] = nd[AdminConfigTypes.AST_ADMIN_GROUPS] || [];
-          const amplifyAstGroupFound = astAdminGroups.find((g: Ast_Group_Data) =>
-            g.groupName === AMPLIFY_ASSISTANTS_GROUP_NAME,
+          const astAdminGroups: Ast_Group_Data[] =
+            nd[AdminConfigTypes.AST_ADMIN_GROUPS] || [];
+          const amplifyAstGroupFound = astAdminGroups.find(
+            (g: Ast_Group_Data) =>
+              g.groupName === AMPLIFY_ASSISTANTS_GROUP_NAME,
           );
-          if (amplifyAstGroupFound) setAmplifyAstGroupId(amplifyAstGroupFound.group_id);
+          if (amplifyAstGroupFound)
+            setAmplifyAstGroupId(amplifyAstGroupFound.group_id);
           setAstGroups(astAdminGroups);
           setStillLoadingData(false);
           return;
         }
       }
-      alert('Unable to fetch admin configurations at this time. Please try again.');
+      alert(
+        'Unable to fetch admin configurations at this time. Please try again.',
+      );
       onClose();
     };
 
     if (loadData) {
       getConfigs().catch(() => {
-        alert('Unable to fetch admin configurations at this time. Please try again.');
+        alert(
+          'Unable to fetch admin configurations at this time. Please try again.',
+        );
         onClose();
       });
     }
@@ -437,25 +573,29 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
 
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && !hasChildModalOpen) {
-        if (unsavedConfigs.size === 0 ||
-          confirm('You have unsaved changes!\n\nYou will lose any unsaved data. Close anyway?')) {
-          onClose();
-        }
+        if (unsavedConfigs.size === 0) onClose();
+        else setPendingConfirm('close');
         return;
       }
       if (e.key !== 'Tab') return;
       const panel = panelRef.current;
       if (!panel) return;
-      const focusable = Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
-        (el) => !el.closest('[aria-hidden="true"]'),
-      );
+      const focusable = Array.from(
+        panel.querySelectorAll<HTMLElement>(FOCUSABLE),
+      ).filter((el) => !el.closest('[aria-hidden="true"]'));
       if (focusable.length === 0) return;
       const first = focusable[0];
       const last = focusable[focusable.length - 1];
       if (e.shiftKey) {
-        if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
       } else {
-        if (document.activeElement === last) { e.preventDefault(); first.focus(); }
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     document.addEventListener('keydown', handler);
@@ -470,10 +610,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const handleOverlayClick = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       if (e.target !== e.currentTarget || hasChildModalOpen) return;
-      if (unsavedConfigs.size === 0 ||
-        confirm('You have unsaved changes!\n\nYou will lose any unsaved data. Close anyway?')) {
-        onClose();
-      }
+      if (unsavedConfigs.size === 0) onClose();
+      else setPendingConfirm('close');
     },
     [onClose, hasChildModalOpen, unsavedConfigs],
   );
@@ -488,9 +626,10 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       case AdminConfigTypes.PROMPT_COST_ALERT:
         return {
           ...promptCostAlert,
-          cost: typeof promptCostAlert.cost === 'string'
-            ? parseFloat(promptCostAlert.cost as string) || 0
-            : Number(promptCostAlert.cost) || 0,
+          cost:
+            typeof promptCostAlert.cost === 'string'
+              ? parseFloat(promptCostAlert.cost as string) || 0
+              : Number(promptCostAlert.cost) || 0,
         };
       case AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE:
         return defaultConversationStorage;
@@ -498,7 +637,10 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         return emailSupport;
       case AdminConfigTypes.CRITICAL_ERRORS: {
         const isActive = Boolean(criticalErrorsConfig.isActive);
-        return { isActive, email: isActive ? String(criticalErrorsConfig.email || '') : '' };
+        return {
+          isActive,
+          email: isActive ? String(criticalErrorsConfig.email || '') : '',
+        };
       }
       case AdminConfigTypes.AI_EMAIL_DOMAIN:
         return aiEmailDomain;
@@ -513,34 +655,66 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         Object.entries(availableModels).forEach(([k, m]) => {
           const s = { ...m } as SupportedModel;
           (['inputContextWindow', 'outputTokenLimit'] as const).forEach((f) => {
-            (s as any)[f] = typeof m[f] === 'string' ? parseInt(String(m[f]), 10) || 0 : (m[f] as number) || 0;
+            (s as any)[f] =
+              typeof m[f] === 'string'
+                ? parseInt(String(m[f]), 10) || 0
+                : (m[f] as number) || 0;
           });
-          (['outputTokenCost', 'inputTokenCost', 'inputCachedTokenCost', 'inputWriteCachedTokenCost'] as const).forEach((f) => {
-            (s as any)[f] = typeof m[f] === 'string' ? parseFloat(String(m[f])) || 0.0 : (m[f] as number) || 0.0;
+          (
+            [
+              'outputTokenCost',
+              'inputTokenCost',
+              'inputCachedTokenCost',
+              'inputWriteCachedTokenCost',
+            ] as const
+          ).forEach((f) => {
+            (s as any)[f] =
+              typeof m[f] === 'string'
+                ? parseFloat(String(m[f])) || 0.0
+                : (m[f] as number) || 0.0;
           });
-          (['supportsImages', 'supportsReasoning', 'supportsSystemPrompts', 'supportsImageGeneration', 'supportsVideo', 'isAvailable', 'isBuiltIn'] as const).forEach((f) => {
+          (
+            [
+              'supportsImages',
+              'supportsReasoning',
+              'supportsSystemPrompts',
+              'supportsImageGeneration',
+              'supportsVideo',
+              'isAvailable',
+              'isBuiltIn',
+            ] as const
+          ).forEach((f) => {
             (s as any)[f] = Boolean(m[f]);
           });
-          (['id', 'name', 'provider', 'description', 'systemPrompt'] as const).forEach((f) => {
+          (
+            ['id', 'name', 'provider', 'description', 'systemPrompt'] as const
+          ).forEach((f) => {
             (s as any)[f] = String(m[f] || '');
           });
-          s.exclusiveGroupAvailability = Array.isArray(m.exclusiveGroupAvailability)
-            ? m.exclusiveGroupAvailability : [];
+          s.exclusiveGroupAvailability = Array.isArray(
+            m.exclusiveGroupAvailability,
+          )
+            ? m.exclusiveGroupAvailability
+            : [];
           sanitized[k] = s;
         });
         return sanitized;
       }
       case AdminConfigTypes.DEFAULT_MODELS: {
         const d: any = { ...defaultModels };
-        Object.keys(d).forEach((k) => { if (d[k] === '') d[k] = null; });
+        Object.keys(d).forEach((k) => {
+          if (d[k] === '') d[k] = null;
+        });
         return d;
       }
       case AdminConfigTypes.AST_ADMIN_GROUPS:
         return astGroups
           .filter((g: Ast_Group_Data) => changedAstGroups.includes(g.group_id))
           .map((g: Ast_Group_Data) => ({
-            group_id: g.group_id, isPublic: g.isPublic,
-            amplifyGroups: g.amplifyGroups, supportConvAnalysis: g.supportConvAnalysis,
+            group_id: g.group_id,
+            isPublic: g.isPublic,
+            amplifyGroups: g.amplifyGroups,
+            supportConvAnalysis: g.supportConvAnalysis,
           }));
       case AdminConfigTypes.AMPLIFY_GROUPS: {
         const ag = { ...ampGroups };
@@ -553,17 +727,26 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         return ag;
       }
       case AdminConfigTypes.PPTX_TEMPLATES:
-        return templates.filter((p: Pptx_TEMPLATES) => changedTemplates.includes(p.name));
+        return templates.filter((p: Pptx_TEMPLATES) =>
+          changedTemplates.includes(p.name),
+        );
       case AdminConfigTypes.INTEGRATIONS:
         return { integrations, provider_settings: providerSettings };
       case AdminConfigTypes.WEB_SEARCH: {
         if (!webSearchConfig) return null;
-        const cfg: any = { allowUserWebSearchKeys: webSearchConfig.allowUserWebSearchKeys };
+        const cfg: any = {
+          allowUserWebSearchKeys: webSearchConfig.allowUserWebSearchKeys,
+        };
         if (webSearchConfig.provider) cfg.provider = webSearchConfig.provider;
-        if ('api_key' in webSearchConfig && webSearchConfig.api_key) cfg.api_key = webSearchConfig.api_key;
+        if ('api_key' in webSearchConfig && webSearchConfig.api_key)
+          cfg.api_key = webSearchConfig.api_key;
         const acFields = [
-          'bedrockAgentCoreGatewayUrl', 'bedrockAgentCoreAuthMode', 'bedrockAgentCoreRegion',
-          'bedrockAgentCoreTokenUrl', 'bedrockAgentCoreClientId', 'bedrockAgentCoreScope',
+          'bedrockAgentCoreGatewayUrl',
+          'bedrockAgentCoreAuthMode',
+          'bedrockAgentCoreRegion',
+          'bedrockAgentCoreTokenUrl',
+          'bedrockAgentCoreClientId',
+          'bedrockAgentCoreScope',
           'bedrockAgentCoreToolName',
         ] as const;
         acFields.forEach((f) => {
@@ -571,7 +754,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           if (typeof v === 'string' && v.trim()) cfg[f] = v.trim();
         });
         if (webSearchConfig.webSearchUserMessage?.trim())
-          cfg.webSearchUserMessage = webSearchConfig.webSearchUserMessage.trim();
+          cfg.webSearchUserMessage =
+            webSearchConfig.webSearchUserMessage.trim();
         return cfg;
       }
       case AdminConfigTypes.USER_DOCUMENTATION_URL:
@@ -594,23 +778,44 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   // ── Validate + Save ───────────────────────────────────────────────────────
   const validateSavedData = () => {
     const models = Object.values(availableModels);
-    if (models.filter((m: SupportedModel) => m.isAvailable && !m.id.includes('embedding')).length === 0)
-      alert("No models are available. Update models under 'Supported Models' to enable chat.");
-    if (Object.keys(defaultModels).some((k) => defaultModels[k as keyof DefaultModelsConfig] === '' && k !== 'agent')) {
+    if (
+      models.filter(
+        (m: SupportedModel) => m.isAvailable && !m.id.includes('embedding'),
+      ).length === 0
+    )
+      alert(
+        "No models are available. Update models under 'Supported Models' to enable chat.",
+      );
+    if (
+      Object.keys(defaultModels).some(
+        (k) =>
+          defaultModels[k as keyof DefaultModelsConfig] === '' && k !== 'agent',
+      )
+    ) {
       alert("Ensure all default models are set in the 'Supported Models' tab.");
       return false;
     }
     if (emailSupport.isActive && !emailSupport.email) {
-      alert('Support Email requires an email address. Please add one or disable the feature.');
+      alert(
+        'Support Email requires an email address. Please add one or disable the feature.',
+      );
       return false;
     }
     const banner = deploymentFeatures.announcement;
-    if (unsavedConfigs.has(AdminConfigTypes.DEPLOYMENT_FEATURES) && banner?.enabled && !banner.message.trim()) {
-      alert('The announcement banner is on but has no message. Add a message or turn the banner off.');
+    if (
+      unsavedConfigs.has(AdminConfigTypes.DEPLOYMENT_FEATURES) &&
+      banner?.enabled &&
+      !banner.message.trim()
+    ) {
+      alert(
+        'The announcement banner is on but has no message. Add a message or turn the banner off.',
+      );
       return false;
     }
     if (criticalErrorsConfig.isActive && !criticalErrorsConfig.email) {
-      alert('Critical Error Notifications require an email address. Please add one or disable the feature.');
+      alert(
+        'Critical Error Notifications require an email address. Please add one or disable the feature.',
+      );
       return false;
     }
     return true;
@@ -620,77 +825,141 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
     const act = (types: AdminConfigTypes[], fn: () => void) => {
       if (types.some((t) => unsavedConfigs.has(t))) fn();
     };
-    act([AdminConfigTypes.FEATURE_FLAGS, AdminConfigTypes.DEPLOYMENT_FEATURES], async () => {
-      const r = await getFeatureFlags();
-      if (r.success && r.data) {
-        homeDispatch({ field: 'featureFlags', value: r.data });
-        localStorage.setItem('mixPanelOn', JSON.stringify(r.data.mixPanel ?? false));
-        window.dispatchEvent(new Event('updateFeatureSettings'));
-        // The New UI rollout may have just changed: re-resolve it for this tab now.
-        window.dispatchEvent(new Event(REVALIDATE_ROLLOUT_EVENT));
-      }
-    });
-    act([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], async () => {
-      const r = await getAvailableModels();
-      if (r.success && r.data && r.data.models.length > 0) {
-        const dm = r.data.default;
-        const models = r.data.models;
-        if (dm) homeDispatch({ field: 'defaultModelId', value: dm.id });
-        if (r.data.cheapest) homeDispatch({ field: 'cheapestModelId', value: r.data.cheapest.id });
-        if (r.data.advanced) homeDispatch({ field: 'advancedModelId', value: r.data.advanced.id });
-        homeDispatch({ field: 'availableModels', value: models.reduce((a: any, m: any) => ({ ...a, [m.id]: m }), {}) });
-        localStorage.setItem('defaultModel', JSON.stringify(dm));
-      }
-    });
+    act(
+      [AdminConfigTypes.FEATURE_FLAGS, AdminConfigTypes.DEPLOYMENT_FEATURES],
+      async () => {
+        const r = await getFeatureFlags();
+        if (r.success && r.data) {
+          homeDispatch({ field: 'featureFlags', value: r.data });
+          localStorage.setItem(
+            'mixPanelOn',
+            JSON.stringify(r.data.mixPanel ?? false),
+          );
+          window.dispatchEvent(new Event('updateFeatureSettings'));
+          // The New UI rollout may have just changed: re-resolve it for this tab now.
+          window.dispatchEvent(new Event(REVALIDATE_ROLLOUT_EVENT));
+        }
+      },
+    );
+    act(
+      [AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS],
+      async () => {
+        const r = await getAvailableModels();
+        if (r.success && r.data && r.data.models.length > 0) {
+          const dm = r.data.default;
+          const models = r.data.models;
+          if (dm) homeDispatch({ field: 'defaultModelId', value: dm.id });
+          if (r.data.cheapest)
+            homeDispatch({
+              field: 'cheapestModelId',
+              value: r.data.cheapest.id,
+            });
+          if (r.data.advanced)
+            homeDispatch({
+              field: 'advancedModelId',
+              value: r.data.advanced.id,
+            });
+          homeDispatch({
+            field: 'availableModels',
+            value: models.reduce((a: any, m: any) => ({ ...a, [m.id]: m }), {}),
+          });
+          localStorage.setItem('defaultModel', JSON.stringify(dm));
+        }
+      },
+    );
     act([AdminConfigTypes.PPTX_TEMPLATES], async () => {
       const r = await getPowerPoints();
-      const pptx = r.success && r.data ? r.data
-        : templates.filter((p: Pptx_TEMPLATES) => p.isAvailable).map((p: Pptx_TEMPLATES) => p.name);
+      const pptx =
+        r.success && r.data
+          ? r.data
+          : templates
+              .filter((p: Pptx_TEMPLATES) => p.isAvailable)
+              .map((p: Pptx_TEMPLATES) => p.name);
       homeDispatch({ field: 'powerPointTemplateOptions', value: pptx });
     });
     act([AdminConfigTypes.EMAIL_SUPPORT], () =>
-      homeDispatch({ field: 'supportEmail', value: emailSupport.email }));
+      homeDispatch({ field: 'supportEmail', value: emailSupport.email }),
+    );
     act([AdminConfigTypes.AI_EMAIL_DOMAIN], () =>
-      homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain }));
+      homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain }),
+    );
     act([AdminConfigTypes.PROMPT_COST_ALERT], () =>
-      homeDispatch({ field: 'promptCostAlert', value: promptCostAlert }));
+      homeDispatch({ field: 'promptCostAlert', value: promptCostAlert }),
+    );
     act([AdminConfigTypes.WEB_SEARCH], () => {
-      homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false });
-      homeDispatch({ field: 'webSearchUserMessage', value: webSearchConfig?.webSearchUserMessage?.trim() ?? null });
+      homeDispatch({
+        field: 'canAddWebSearchApiKey',
+        value: webSearchConfig?.allowUserWebSearchKeys ?? false,
+      });
+      homeDispatch({
+        field: 'webSearchUserMessage',
+        value: webSearchConfig?.webSearchUserMessage?.trim() ?? null,
+      });
     });
     act([AdminConfigTypes.USER_DOCUMENTATION_URL], () =>
-      homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl }));
+      homeDispatch({
+        field: 'userDocumentationUrl',
+        value: userDocumentationUrl,
+      }),
+    );
     act([AdminConfigTypes.DEFAULT_SMART_MESSAGES], () =>
-      homeDispatch({ field: 'featureFlags', value: { ...featureFlags, smartMessages: smartMessagesEnabled } }));
+      homeDispatch({
+        field: 'featureFlags',
+        value: { ...featureFlags, smartMessages: smartMessagesEnabled },
+      }),
+    );
     act([AdminConfigTypes.RATE_LIMIT], () => {
       homeDispatch({ field: 'adminRateLimits', value: rateLimits });
-      homeDispatch({ field: 'honorPersonalRateLimit', value: honorPersonalRateLimit });
+      homeDispatch({
+        field: 'honorPersonalRateLimit',
+        value: honorPersonalRateLimit,
+      });
     });
     if (!storageSelection)
       act([AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE], () =>
-        homeDispatch({ field: 'storageSelection', value: defaultConversationStorage }));
+        homeDispatch({
+          field: 'storageSelection',
+          value: defaultConversationStorage,
+        }),
+      );
   };
 
   const handleSave = async () => {
     if (isSaving) return;
-    if (unsavedConfigs.size === 0 && !accountNoticeUnsaved) { toast('No changes to save'); return; }
+    if (unsavedConfigs.size === 0 && !accountNoticeUnsaved) {
+      toast('No changes to save');
+      return;
+    }
     if (unsavedConfigs.has(AdminConfigTypes.SYSTEM_PROMPTS)) {
-      const promptValues = stableFeatureFlags.amplifyHelper === true
-        ? systemPrompts.prompts
-        : Object.fromEntries(Object.entries(systemPrompts.prompts).filter(([key]) => key !== 'amplifyHelper.base'));
+      const promptValues =
+        stableFeatureFlags.amplifyHelper === true
+          ? systemPrompts.prompts
+          : Object.fromEntries(
+              Object.entries(systemPrompts.prompts).filter(
+                ([key]) => key !== 'amplifyHelper.base',
+              ),
+            );
       const oversized = findOversizedSystemPrompts(promptValues);
       if (oversized.length > 0) {
         const first = oversized[0];
-        const message = `System prompt "${first.key}" is ${first.bytes.toLocaleString()} UTF-8 bytes; each prompt must be no more than 16,384 bytes.`;
+        const message = `System prompt "${
+          first.key
+        }" is ${first.bytes.toLocaleString()} UTF-8 bytes; each prompt must be no more than 16,384 bytes.`;
         setPromptSaveError(message);
         alert(message);
         return;
       }
     }
     setPromptSaveError(null);
-    const payload: any[] = Array.from(unsavedConfigs).map((t) => ({ type: t, data: getConfigTypeData(t) }));
+    const payload: any[] = Array.from(unsavedConfigs).map((t) => ({
+      type: t,
+      data: getConfigTypeData(t),
+    }));
     if (accountNoticeUnsaved) {
-      payload.push({ type: ACCOUNT_NOTICE_CONFIG_KEY, data: accountNoticeMessage });
+      payload.push({
+        type: ACCOUNT_NOTICE_CONFIG_KEY,
+        data: accountNoticeMessage,
+      });
     }
     if (!validateSavedData()) return;
 
@@ -699,18 +968,30 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       const result = await updateAdminConfigs(payload);
       if (result.success) {
         if (result.data?.[AdminConfigTypes.ADMINS]?.error) {
-          toast(`Admin config warning: ${result.data[AdminConfigTypes.ADMINS].error}`, { icon: '⚠️', duration: 5000 });
+          toast(
+            `Admin config warning: ${
+              result.data[AdminConfigTypes.ADMINS].error
+            }`,
+            { icon: '⚠️', duration: 5000 },
+          );
         }
         updateOnSave();
         toast('Configurations saved');
         setUnsavedConfigs(new Set());
         setAccountNoticeUnsaved(false);
       } else {
-        if (result.data && Object.keys(result.data).length !== unsavedConfigs.size) {
-          const failed = Array.from(unsavedConfigs).filter((k) => !(k in result.data) || !result.data[k].success);
+        if (
+          result.data &&
+          Object.keys(result.data).length !== unsavedConfigs.size
+        ) {
+          const failed = Array.from(unsavedConfigs).filter(
+            (k) => !(k in result.data) || !result.data[k].success,
+          );
           if (failed.length > 0) alert(`Failed to save: ${failed.join(', ')}`);
         } else {
-          alert('Unable to save configurations at this time. Please try again.');
+          alert(
+            'Unable to save configurations at this time. Please try again.',
+          );
         }
       }
     } catch {
@@ -722,14 +1003,15 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
 
   // ── Tab label helper ──────────────────────────────────────────────────────
   const tabHasChanges = (tab: AdminTab | 'User Costs') =>
-    tab !== 'User Costs' && (
-      adminTabHasChanges(Array.from(unsavedConfigs), tab as AdminTab) ||
-      (tab === 'Configurations' && accountNoticeUnsaved)
-    );
+    tab !== 'User Costs' &&
+    (adminTabHasChanges(Array.from(unsavedConfigs), tab as AdminTab) ||
+      (tab === 'Configurations' && accountNoticeUnsaved));
 
   // ── Filtered tabs ─────────────────────────────────────────────────────────
   const filteredTabs = searchQuery.trim()
-    ? tabs.filter((t) => t.label.toLowerCase().includes(searchQuery.toLowerCase()))
+    ? tabs.filter((t) =>
+        t.label.toLowerCase().includes(searchQuery.toLowerCase()),
+      )
     : tabs;
 
   // ── Tab content ───────────────────────────────────────────────────────────
@@ -739,7 +1021,11 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         <NewUILoadingStatus
           open
           variant="inline"
-          message={isSaving ? 'Saving admin configuration…' : 'Loading admin configuration…'}
+          message={
+            isSaving
+              ? 'Saving admin configuration…'
+              : 'Loading admin configuration…'
+          }
         />
       );
     }
@@ -777,7 +1063,9 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
               emailSupport={emailSupport}
               setEmailSupport={setEmailSupport}
               aiEmailDomain={aiEmailDomain}
-              setAiEmailDomain={featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined}
+              setAiEmailDomain={
+                featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined
+              }
               defaultTimezone={defaultTimezone}
               setDefaultTimezone={setDefaultTimezone}
               smartMessagesEnabled={smartMessagesEnabled}
@@ -790,19 +1078,35 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
             />
 
             {/* ── Account Notice Message ── */}
-            <div style={{
-              background: 'var(--bg-raised)',
-              border: '1px solid var(--border-subtle)',
-              borderRadius: '12px',
-              padding: '20px',
-              marginTop: '16px',
-            }}>
-              <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '4px' }}>
+            <div
+              style={{
+                background: 'var(--bg-raised)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '12px',
+                padding: '20px',
+                marginTop: '16px',
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  marginBottom: '4px',
+                }}
+              >
                 Account Notice Message
               </h3>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-                This message is shown to all users in the Account settings section. Use it to communicate
-                billing and COA policies. Leave blank to display the default message.
+              <p
+                style={{
+                  fontSize: '13px',
+                  color: 'var(--text-secondary)',
+                  marginBottom: '12px',
+                }}
+              >
+                This message is shown to all users in the Account settings
+                section. Use it to communicate billing and COA policies. Leave
+                blank to display the default message.
               </p>
               <textarea
                 rows={5}
@@ -826,14 +1130,26 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
                   lineHeight: 1.5,
                 }}
               />
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                Default: <em>All API usage is billed regardless of whether your provided COA string is valid or recognized.</em>
+              <p
+                style={{
+                  fontSize: '12px',
+                  color: 'var(--text-muted)',
+                  marginTop: '6px',
+                }}
+              >
+                Default:{' '}
+                <em>
+                  All API usage is billed regardless of whether your provided
+                  COA string is valid or recognized.
+                </em>
               </p>
             </div>
           </>
         );
       case 'Supported Models':
-        return stillLoadingData ? loadingState : (
+        return stillLoadingData ? (
+          loadingState
+        ) : (
           <SupportedModelsTab
             availableModels={availableModels}
             setAvailableModels={setAvailableModels}
@@ -846,13 +1162,17 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           />
         );
       case 'Application Variables':
-        return stillLoadingData ? loadingState : (
+        return stillLoadingData ? (
+          loadingState
+        ) : (
           <div className="flex flex-col gap-6">
             {/* App Secrets */}
             <div className="admin-style-settings-card">
               <div className="admin-style-settings-card-header">
                 <div className="flex flex-row items-center gap-3 mb-2">
-                  <h3 className="admin-style-settings-card-title">Application Secrets</h3>
+                  <h3 className="admin-style-settings-card-title">
+                    Application Secrets
+                  </h3>
                 </div>
                 <p className="admin-style-settings-card-description">
                   Manage sensitive application configuration secrets
@@ -862,7 +1182,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
                 <div className="mx-4">
                   <InputsMap
                     id={AdminConfigTypes.APP_SECRETS}
-                    inputs={Object.keys(appSecrets).sort((a, b) => b.length - a.length)
+                    inputs={Object.keys(appSecrets)
+                      .sort((a, b) => b.length - a.length)
                       .map((s) => ({ label: s, key: s }))}
                     state={appSecrets}
                     inputChanged={(key: string, value: string) => {
@@ -872,14 +1193,26 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
                     obscure
                   />
                 </div>
-              ) : <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '8px 16px' }}>No application secrets retrieved</div>}
+              ) : (
+                <div
+                  style={{
+                    color: 'var(--text-muted)',
+                    fontSize: '13px',
+                    padding: '8px 16px',
+                  }}
+                >
+                  No application secrets retrieved
+                </div>
+              )}
             </div>
 
             {/* App Vars */}
             <div className="admin-style-settings-card">
               <div className="admin-style-settings-card-header">
                 <div className="flex flex-row items-center gap-3 mb-2">
-                  <h3 className="admin-style-settings-card-title">Application Environment Variables</h3>
+                  <h3 className="admin-style-settings-card-title">
+                    Application Environment Variables
+                  </h3>
                 </div>
                 <p className="admin-style-settings-card-description">
                   Configure application environment variables and settings
@@ -889,7 +1222,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
                 <div className="mx-4 truncate">
                   <InputsMap
                     id={AdminConfigTypes.APP_VARS}
-                    inputs={Object.keys(appVars).sort((a, b) => b.length - a.length)
+                    inputs={Object.keys(appVars)
+                      .sort((a, b) => b.length - a.length)
                       .map((s) => ({ label: s, key: s }))}
                     state={appVars}
                     inputChanged={(key: string, value: string) => {
@@ -899,14 +1233,26 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
                     obscure
                   />
                 </div>
-              ) : <div style={{ color: 'var(--text-muted)', fontSize: '13px', padding: '8px 16px' }}>No application variables retrieved</div>}
+              ) : (
+                <div
+                  style={{
+                    color: 'var(--text-muted)',
+                    fontSize: '13px',
+                    padding: '8px 16px',
+                  }}
+                >
+                  No application variables retrieved
+                </div>
+              )}
             </div>
 
             {/* User Documentation URL */}
             <div className="admin-style-settings-card">
               <div className="admin-style-settings-card-header">
                 <div className="flex flex-row items-center gap-3 mb-2">
-                  <h3 className="admin-style-settings-card-title">User Documentation URL</h3>
+                  <h3 className="admin-style-settings-card-title">
+                    User Documentation URL
+                  </h3>
                 </div>
                 <p className="admin-style-settings-card-description">
                   Configure the URL for user documentation
@@ -919,7 +1265,9 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
                   value={userDocumentationUrl}
                   onChange={(e) => {
                     setUserDocumentationUrl(e.target.value);
-                    updateUnsavedConfigs(AdminConfigTypes.USER_DOCUMENTATION_URL);
+                    updateUnsavedConfigs(
+                      AdminConfigTypes.USER_DOCUMENTATION_URL,
+                    );
                   }}
                   className="w-full rounded border border-neutral-500 px-4 py-2 dark:bg-[#40414F] dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50"
                 />
@@ -971,13 +1319,18 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
           />
         );
       case 'Integrations':
-        return stillLoadingData ? loadingState : (
+        return stillLoadingData ? (
+          loadingState
+        ) : (
           <IntegrationsTab
             integrations={integrations}
             setIntegrations={setIntegrations}
             integrationSecrets={integrationSecrets}
             setIntegrationSecrets={setIntegrationSecrets}
-            azureAdminConsentProvided={providerSettings[integrationProviders.Microsoft]?.azure_admin_consent_provided || false}
+            azureAdminConsentProvided={
+              providerSettings[integrationProviders.Microsoft]
+                ?.azure_admin_consent_provided || false
+            }
             setAzureAdminConsentProvided={(value: boolean) => {
               setProviderSettings({
                 ...providerSettings,
@@ -1000,7 +1353,14 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         return (
           <>
             {promptSaveError && (
-              <p role="alert" style={{ color: 'var(--text-error)', fontSize: '13px', marginBottom: '12px' }}>
+              <p
+                role="alert"
+                style={{
+                  color: 'var(--text-error)',
+                  fontSize: '13px',
+                  marginBottom: '12px',
+                }}
+              >
                 {promptSaveError}
               </p>
             )}
@@ -1021,7 +1381,13 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         );
       default:
         return (
-          <div style={{ color: 'var(--text-muted)', fontSize: '14px', padding: '20px' }}>
+          <div
+            style={{
+              color: 'var(--text-muted)',
+              fontSize: '14px',
+              padding: '20px',
+            }}
+          >
             Select a section from the left rail.
           </div>
         );
@@ -1031,330 +1397,433 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   const activeTabItem = tabs.find((t) => t.id === activeTab);
   const totalChanges = unsavedConfigs.size;
 
+  const confirmPendingAction = () => {
+    const action = pendingConfirm;
+    setPendingConfirm(null);
+    if (action === 'close') {
+      onClose();
+      return;
+    }
+    setStillLoadingData(true);
+    setLoadData(true);
+    setUnsavedConfigs(new Set());
+  };
+
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div
-      className="new-ui-admin-modal-overlay"
-      onClick={handleOverlayClick}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10000,
-        backgroundColor: 'rgba(0,0,0,0.65)',
-        backdropFilter: 'blur(3px)',
-        WebkitBackdropFilter: 'blur(3px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '8px',
-        boxSizing: 'border-box',
-      }}
-    >
-      {/* Modal panel */}
+    <>
+      <ConfirmDialog
+        isOpen={pendingConfirm !== null}
+        title={
+          pendingConfirm === 'reload'
+            ? 'Reload admin data?'
+            : 'Close admin panel?'
+        }
+        message={
+          pendingConfirm === 'reload'
+            ? 'Reload will discard unsaved changes. Continue?'
+            : 'You have unsaved changes! Close anyway?'
+        }
+        confirmLabel={pendingConfirm === 'reload' ? 'Continue' : 'Close anyway'}
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={confirmPendingAction}
+        onCancel={() => setPendingConfirm(null)}
+      />
       <div
-        className="new-ui-admin-modal-panel"
+        className="new-ui-admin-modal-overlay"
+        onClick={handleOverlayClick}
         style={{
-          width: 'calc(100vw - 16px)',
-          maxWidth: 'none',
-          height: 'calc(100dvh - 16px)',
-          background: 'var(--bg-app)',
-          border: '1px solid var(--border-subtle)',
-          borderRadius: '16px',
-          overflow: 'hidden',
-          display: 'grid',
-          gridTemplateColumns: '220px 1fr',
-          gridTemplateRows: '100%',
-          boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
-          outline: 'none',
+          position: 'fixed',
+          inset: 0,
+          zIndex: 10000,
+          backgroundColor: 'rgba(0,0,0,0.65)',
+          backdropFilter: 'blur(3px)',
+          WebkitBackdropFilter: 'blur(3px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '8px',
           boxSizing: 'border-box',
         }}
-        ref={panelRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="admin-modal-heading"
-        onClick={(e) => e.stopPropagation()}
       >
-        {/* ── Left Rail ───────────────────────────────────────────────────── */}
+        {/* Modal panel */}
         <div
-          className="new-ui-admin-modal-rail"
+          className="new-ui-admin-modal-panel"
           style={{
-            background: 'var(--bg-sidebar)',
-            borderRight: '1px solid var(--border-subtle)',
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            boxSizing: 'border-box',
+            width: 'calc(100vw - 16px)',
+            maxWidth: 'none',
+            height: 'calc(100dvh - 16px)',
+            background: 'var(--bg-app)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '16px',
             overflow: 'hidden',
+            display: 'grid',
+            gridTemplateColumns: '220px 1fr',
+            gridTemplateRows: '100%',
+            boxShadow: '0 24px 64px rgba(0,0,0,0.45)',
+            outline: 'none',
+            boxSizing: 'border-box',
           }}
+          ref={panelRef}
+          tabIndex={-1}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="admin-modal-heading"
+          onClick={(e) => e.stopPropagation()}
         >
-          {/* Header area */}
-          <div style={{ padding: '14px 10px 8px', flexShrink: 0 }}>
-            {/* Title row */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', padding: '0 4px' }}>
-              <span
-                id="admin-modal-heading"
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  color: 'var(--text-primary)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.06em',
-                  flex: 1,
-                }}
-              >
-                Admin Panel
-              </span>
-              {totalChanges > 0 && (
-                <span
-                  style={{
-                    fontSize: '10px',
-                    padding: '2px 6px',
-                    borderRadius: '10px',
-                    backgroundColor: 'rgba(217,119,87,0.15)',
-                    color: 'var(--accent)',
-                    fontWeight: 600,
-                  }}
-                >
-                  {totalChanges} unsaved
-                </span>
-              )}
-            </div>
-
-            {/* Search */}
-            <div style={{ position: 'relative', marginBottom: '4px' }}>
-              <IconSearch
-                size={13}
-                style={{
-                  position: 'absolute', left: '9px', top: '50%',
-                  transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none',
-                }}
-              />
-              <input
-                type="text"
-                placeholder="Search"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '100%', height: '32px',
-                  background: 'var(--bg-raised)',
-                  border: '1px solid var(--border-subtle)',
-                  borderRadius: '8px',
-                  padding: '0 10px 0 26px',
-                  fontSize: '12px',
-                  color: 'var(--text-primary)',
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Nav items — scrollable */}
-          <div style={{ flex: 1, overflowY: 'auto', padding: '0 10px', overscrollBehavior: 'contain' }}>
-            {filteredTabs.map((tab) => (
-              <NavRow
-                key={tab.id}
-                item={tab}
-                isSelected={tab.id === 'User Costs' ? showUserCosts : activeTab === tab.id}
-                hasChanges={tabHasChanges(tab.id)}
-                onClick={() => {
-                  if (tab.id === 'User Costs') {
-                    setShowUserCosts(true);
-                  } else {
-                    setActiveTab(tab.id as AdminTab);
-                  }
-                }}
-              />
-            ))}
-          </div>
-
-          {/* Footer: reload + save */}
+          {/* ── Left Rail ───────────────────────────────────────────────────── */}
           <div
+            className="new-ui-admin-modal-rail"
             style={{
-              flexShrink: 0,
-              padding: '10px',
-              borderTop: '1px solid var(--border-subtle)',
+              background: 'var(--bg-sidebar)',
+              borderRight: '1px solid var(--border-subtle)',
               display: 'flex',
               flexDirection: 'column',
-              gap: '6px',
+              height: '100%',
+              boxSizing: 'border-box',
+              overflow: 'hidden',
             }}
           >
-            {/* Reload */}
-            <button
-              onClick={() => {
-                if (!stillLoadingData && !isSaving && (unsavedConfigs.size === 0 ||
-                  confirm('Reload will discard unsaved changes. Continue?'))) {
-                  setStillLoadingData(true);
-                  setLoadData(true);
-                  setUnsavedConfigs(new Set());
-                }
-              }}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                width: '100%', height: '32px',
-                background: 'transparent',
-                border: '1px solid var(--border-subtle)',
-                borderRadius: '8px',
-                fontSize: '12px',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-                transition: 'background 0.1s, color 0.1s',
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
-                (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.background = 'transparent';
-                (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
-              }}
-              title={unsavedConfigs.size > 0 ? 'Reload — unsaved changes will be lost' : 'Reload admin data'}
-            >
-              <IconRefresh size={13} />
-              Reload
-            </button>
-
-            {/* Save */}
-            <button
-              onClick={handleSave}
-              disabled={totalChanges === 0 || stillLoadingData || isSaving}
-              style={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                width: '100%', height: '34px',
-                background: totalChanges > 0 && !stillLoadingData && !isSaving
-                  ? 'var(--accent)' : 'var(--bg-raised)',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '13px',
-                fontWeight: 500,
-                color: totalChanges > 0 && !stillLoadingData && !isSaving ? '#fff' : 'var(--text-muted)',
-                cursor: totalChanges > 0 && !stillLoadingData && !isSaving ? 'pointer' : 'default',
-                transition: 'background 0.15s, color 0.15s, opacity 0.15s',
-                opacity: totalChanges === 0 ? 0.5 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (totalChanges > 0 && !stillLoadingData && !isSaving)
-                  (e.currentTarget as HTMLElement).style.opacity = '0.88';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLElement).style.opacity = totalChanges === 0 ? '0.5' : '1';
-              }}
-              title={stillLoadingData ? 'Still loading data…' : undefined}
-            >
-              <IconDeviceFloppy size={14} />
-              {isSaving
-                ? 'Saving…'
-                : stillLoadingData
-                  ? 'Still loading…'
-                  : totalChanges > 0
-                    ? `Save ${totalChanges} change${totalChanges > 1 ? 's' : ''}`
-                    : 'Save changes'}
-            </button>
-          </div>
-        </div>
-
-        {/* ── Right Content Pane ───────────────────────────────────────────── */}
-        {/* text-neutral-900 dark:text-white establishes the default inherited text color for all
-            admin tab components — matching the old AdminUI wrapper so they all render correctly. */}
-        <div
-          className="new-ui-admin-modal-content text-neutral-900 dark:text-white"
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            minHeight: 0,
-            overflow: 'hidden',
-            boxSizing: 'border-box',
-          }}
-        >
-          {/* Header row — [Section Title .............. ×]
-              flexShrink:0 keeps it fixed while the content below scrolls. */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '20px 24px 16px 24px',
-              flexShrink: 0,
-            }}
-          >
-            {/* Section heading */}
-            <h2
-              style={{
-                fontSize: '18px', fontWeight: 700,
-                color: 'var(--text-primary)',
-                margin: 0,
-              }}
-            >
-              {activeTabItem?.label ?? activeTab}
-              {tabHasChanges(activeTab) && (
-                <span style={{ fontSize: '13px', color: 'var(--accent)', marginLeft: '8px', fontWeight: 500 }}>
-                  ● unsaved
+            {/* Header area */}
+            <div style={{ padding: '14px 10px 8px', flexShrink: 0 }}>
+              {/* Title row */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '10px',
+                  padding: '0 4px',
+                }}
+              >
+                <span
+                  id="admin-modal-heading"
+                  style={{
+                    fontSize: '13px',
+                    fontWeight: 700,
+                    color: 'var(--text-primary)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    flex: 1,
+                  }}
+                >
+                  Admin Panel
                 </span>
-              )}
-            </h2>
+                {totalChanges > 0 && (
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      padding: '2px 6px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(217,119,87,0.15)',
+                      color: 'var(--accent)',
+                      fontWeight: 600,
+                    }}
+                  >
+                    {totalChanges} unsaved
+                  </span>
+                )}
+              </div>
 
-            <button
-              onClick={() => {
-                if (unsavedConfigs.size === 0 ||
-                  confirm('You have unsaved changes!\n\nClose anyway?')) {
-                  onClose();
-                }
+              {/* Search */}
+              <div style={{ position: 'relative', marginBottom: '4px' }}>
+                <IconSearch
+                  size={13}
+                  style={{
+                    position: 'absolute',
+                    left: '9px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: 'var(--text-muted)',
+                    pointerEvents: 'none',
+                  }}
+                />
+                <input
+                  type="text"
+                  placeholder="Search"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: '32px',
+                    background: 'var(--bg-raised)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: '8px',
+                    padding: '0 10px 0 26px',
+                    fontSize: '12px',
+                    color: 'var(--text-primary)',
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Nav items — scrollable */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '0 10px',
+                overscrollBehavior: 'contain',
               }}
-              aria-label="Close"
+            >
+              {filteredTabs.map((tab) => (
+                <NavRow
+                  key={tab.id}
+                  item={tab}
+                  isSelected={
+                    tab.id === 'User Costs'
+                      ? showUserCosts
+                      : activeTab === tab.id
+                  }
+                  hasChanges={tabHasChanges(tab.id)}
+                  onClick={() => {
+                    if (tab.id === 'User Costs') {
+                      setShowUserCosts(true);
+                    } else {
+                      setActiveTab(tab.id as AdminTab);
+                    }
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Footer: reload + save */}
+            <div
               style={{
                 flexShrink: 0,
-                width: '32px', height: '32px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                borderRadius: '8px',
-                border: 'none',
-                background: 'transparent',
-                color: 'var(--text-secondary)',
-                cursor: 'pointer',
-                transition: 'background 0.1s, color 0.1s',
-              }}
-              onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)';
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-primary)';
-              }}
-              onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
-                (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-secondary)';
+                padding: '10px',
+                borderTop: '1px solid var(--border-subtle)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
               }}
             >
-              <IconX size={20} stroke={2} />
-            </button>
+              {/* Reload */}
+              <button
+                onClick={() => {
+                  if (!stillLoadingData && !isSaving) {
+                    if (unsavedConfigs.size === 0) {
+                      setStillLoadingData(true);
+                      setLoadData(true);
+                      setUnsavedConfigs(new Set());
+                    } else {
+                      setPendingConfirm('reload');
+                    }
+                  }
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  width: '100%',
+                  height: '32px',
+                  background: 'transparent',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'background 0.1s, color 0.1s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    'var(--bg-hover)';
+                  (e.currentTarget as HTMLElement).style.color =
+                    'var(--text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.background =
+                    'transparent';
+                  (e.currentTarget as HTMLElement).style.color =
+                    'var(--text-secondary)';
+                }}
+                title={
+                  unsavedConfigs.size > 0
+                    ? 'Reload — unsaved changes will be lost'
+                    : 'Reload admin data'
+                }
+              >
+                <IconRefresh size={13} />
+                Reload
+              </button>
+
+              {/* Save */}
+              <button
+                onClick={handleSave}
+                disabled={totalChanges === 0 || stillLoadingData || isSaving}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  width: '100%',
+                  height: '34px',
+                  background:
+                    totalChanges > 0 && !stillLoadingData && !isSaving
+                      ? 'var(--accent)'
+                      : 'var(--bg-raised)',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontWeight: 500,
+                  color:
+                    totalChanges > 0 && !stillLoadingData && !isSaving
+                      ? '#fff'
+                      : 'var(--text-muted)',
+                  cursor:
+                    totalChanges > 0 && !stillLoadingData && !isSaving
+                      ? 'pointer'
+                      : 'default',
+                  transition: 'background 0.15s, color 0.15s, opacity 0.15s',
+                  opacity: totalChanges === 0 ? 0.5 : 1,
+                }}
+                onMouseEnter={(e) => {
+                  if (totalChanges > 0 && !stillLoadingData && !isSaving)
+                    (e.currentTarget as HTMLElement).style.opacity = '0.88';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.opacity =
+                    totalChanges === 0 ? '0.5' : '1';
+                }}
+                title={stillLoadingData ? 'Still loading data…' : undefined}
+              >
+                <IconDeviceFloppy size={14} />
+                {isSaving
+                  ? 'Saving…'
+                  : stillLoadingData
+                  ? 'Still loading…'
+                  : totalChanges > 0
+                  ? `Save ${totalChanges} change${totalChanges > 1 ? 's' : ''}`
+                  : 'Save changes'}
+              </button>
+            </div>
           </div>
 
-          {/* Scrollable content area — sits below the fixed header row */}
+          {/* ── Right Content Pane ───────────────────────────────────────────── */}
+          {/* text-neutral-900 dark:text-white establishes the default inherited text color for all
+            admin tab components — matching the old AdminUI wrapper so they all render correctly. */}
           <div
-            ref={contentRef}
-            data-new-ui-admin-content="true"
+            className="new-ui-admin-modal-content text-neutral-900 dark:text-white"
             style={{
-              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              height: '100%',
               minHeight: 0,
-              padding: '0 24px 40px',
-              overflowY: 'auto',
-              overscrollBehavior: 'contain',
-              position: 'relative',
+              overflow: 'hidden',
               boxSizing: 'border-box',
             }}
           >
-            {/* Tab content */}
-            <React.Suspense fallback={<div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Loading…</div>}>
-              {renderContent()}
-            </React.Suspense>
+            {/* Header row — [Section Title .............. ×]
+              flexShrink:0 keeps it fixed while the content below scrolls. */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '20px 24px 16px 24px',
+                flexShrink: 0,
+              }}
+            >
+              {/* Section heading */}
+              <h2
+                style={{
+                  fontSize: '18px',
+                  fontWeight: 700,
+                  color: 'var(--text-primary)',
+                  margin: 0,
+                }}
+              >
+                {activeTabItem?.label ?? activeTab}
+                {tabHasChanges(activeTab) && (
+                  <span
+                    style={{
+                      fontSize: '13px',
+                      color: 'var(--accent)',
+                      marginLeft: '8px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    ● unsaved
+                  </span>
+                )}
+              </h2>
+
+              <button
+                onClick={() => {
+                  if (unsavedConfigs.size === 0) onClose();
+                  else setPendingConfirm('close');
+                }}
+                aria-label="Close"
+                style={{
+                  flexShrink: 0,
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '8px',
+                  border: 'none',
+                  background: 'transparent',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  transition: 'background 0.1s, color 0.1s',
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    'var(--bg-hover)';
+                  (e.currentTarget as HTMLButtonElement).style.color =
+                    'var(--text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLButtonElement).style.background =
+                    'transparent';
+                  (e.currentTarget as HTMLButtonElement).style.color =
+                    'var(--text-secondary)';
+                }}
+              >
+                <IconX size={20} stroke={2} />
+              </button>
+            </div>
+
+            {/* Scrollable content area — sits below the fixed header row */}
+            <div
+              ref={contentRef}
+              data-new-ui-admin-content="true"
+              style={{
+                flex: 1,
+                minHeight: 0,
+                padding: '0 24px 40px',
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
+                position: 'relative',
+                boxSizing: 'border-box',
+              }}
+            >
+              {/* Tab content */}
+              <React.Suspense
+                fallback={
+                  <div style={{ color: 'var(--text-muted)', fontSize: '14px' }}>
+                    Loading…
+                  </div>
+                }
+              >
+                {renderContent()}
+              </React.Suspense>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* User Costs — full-screen overlay on top of the admin panel */}
-      <UserCostsModal
-        open={showUserCosts}
-        onClose={() => setShowUserCosts(false)}
-      />
-    </div>
+        {/* User Costs — full-screen overlay on top of the admin panel */}
+        <UserCostsModal
+          open={showUserCosts}
+          onClose={() => setShowUserCosts(false)}
+        />
+      </div>
+    </>
   );
 };
 
