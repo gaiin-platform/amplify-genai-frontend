@@ -12,7 +12,7 @@ import { ReservedTags } from "@/types/tags";
 import { deepMerge } from "@/utils/app/state";
 import toast from "react-hot-toast";
 import { OutOfOrderResults } from "@/utils/app/outOfOrder";
-import { conversationWithCompressedMessages, remoteForConversationHistory, saveConversations } from "@/utils/app/conversation";
+import { condenseForConversationHistory, conversationWithCompressedMessages, isRemoteConversation, remoteForConversationHistory, saveConversations } from "@/utils/app/conversation";
 import { getHook } from "@/utils/app/chathooks";
 import { AttachedDocument } from "@/types/attacheddocument";
 import { Prompt } from "@/types/prompt";
@@ -99,7 +99,7 @@ export function useSendService() {
         state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount, promptCostAlert },
         getDefaultModel, handleUpdateSelectedConversation,
         postProcessingCallbacks,
-        dispatch: homeDispatch,
+        dispatch: rawHomeDispatch,
     } = useContext(HomeContext);
     const stableFeatureFlags = useStableFeatureFlags();
     const deploymentAvailability = getDeploymentFeatureAvailability(stableFeatureFlags as any);
@@ -113,6 +113,25 @@ export function useSendService() {
     // instead of the snapshot captured when the poll started.
     const selectedConversationRef = useRef(selectedConversation);
     selectedConversationRef.current = selectedConversation;
+
+    // A send keeps streaming into `selectedConversation` for as long as the response lasts
+    // (and writes it once more when it finishes). If the user has since opened another chat
+    // or started a new one, those writes would yank the view back to the conversation that
+    // is generating. Drop any selection write for a conversation that is no longer the
+    // selected one; the finished conversation still lands in `conversations` by id, so
+    // nothing is lost.
+    const homeDispatch = useCallback((action: any) => {
+        if (
+            action &&
+            !action.type &&
+            action.field === 'selectedConversation' &&
+            action.value &&
+            action.value.id !== selectedConversationRef.current?.id
+        ) {
+            return;
+        }
+        rawHomeDispatch(action);
+    }, [rawHomeDispatch]);
 
     useEffect(() => {
         conversationsRef.current = conversations;
@@ -367,10 +386,84 @@ export function useSendService() {
                         updatedConversation.model = defaultModel;
                     }
 
+                    // First exchange of a fresh chat: give it a real name straight away so it
+                    // shows up in Recents the moment the prompt is sent. The sidebar hides
+                    // "New Conversation" placeholders, and cloud history rows carry no messages,
+                    // so without this the chat is invisible until the response completes.
+                    // An AI-generated title replaces this provisional one as soon as it is ready.
+                    const isFirstExchange =
+                        updatedConversation.name === 'New Conversation' &&
+                        updatedConversation.messages.length === 1;
+                    if (isFirstExchange) {
+                        const firstPrompt = (updatedConversation.messages[0].content ?? '').replace(/\s+/g, ' ').trim();
+                        updatedConversation = {
+                            ...updatedConversation,
+                            name: firstPrompt
+                                ? (firstPrompt.length > 30 ? firstPrompt.substring(0, 30) + '...' : firstPrompt)
+                                : updatedConversation.name,
+                        };
+                    }
+
                     homeDispatch({
                         field: 'selectedConversation',
                         value: updatedConversation,
                     });
+
+                    {
+                        // Make sure the history list (what the sidebar renders) has this chat now,
+                        // not only after the stream ends.
+                        const listed = conversationsRef.current.some(c => c.id === updatedConversation.id);
+                        if (isFirstExchange || !listed) {
+                            const entry = condenseForConversationHistory(updatedConversation);
+                            const withEntry: Conversation[] = listed
+                                ? conversationsRef.current.map(c => c.id === entry.id ? entry : c)
+                                : [...conversationsRef.current, entry];
+                            conversationsRef.current = withEntry;
+                            homeDispatch({ field: 'conversations', value: withEntry });
+                            saveConversations(withEntry);
+                        }
+                    }
+
+                    if (isFirstExchange) {
+                        // Generate the title in parallel with the response instead of after it.
+                        // `updatedConversation` is shared with the streaming loop below, so assigning
+                        // the new name here is carried into every later write of the conversation.
+                        (async () => {
+                            try {
+                                const promptMessages = updatedConversation.messages
+                                    .slice(0, 1)
+                                    .map(m => ({ ...m, data: {}, configuredTools: [] }));
+                                promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`;
+                                const customName = await promptForData(
+                                    chatEndpoint || '',
+                                    promptMessages,
+                                    getDefaultModel(DefaultModels.CHEAPEST),
+                                    'Respond with only the title name and nothing else.',
+                                    defaultAccount,
+                                    statsService,
+                                    10
+                                );
+                                const title = customName?.trim();
+                                if (!title) return; // keep the provisional name
+                                updatedConversation = { ...updatedConversation, name: title };
+                                // Patch the name only; the stream owns the rest of the entry. Map-only so a
+                                // chat the user deleted mid-stream is not resurrected.
+                                const renamed: Conversation[] = conversationsRef.current.map(
+                                    c => c.id === updatedConversation.id ? { ...c, name: title } : c
+                                );
+                                conversationsRef.current = renamed;
+                                homeDispatch({ field: 'conversations', value: renamed });
+                                saveConversations(renamed);
+                                // Ignored by the guarded dispatch if the user has moved to another chat.
+                                homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+                                if (isRemoteConversation(updatedConversation)) {
+                                    uploadConversation(updatedConversation, foldersRef.current);
+                                }
+                            } catch (e) {
+                                console.warn('Auto-rename failed:', e);
+                            }
+                        })();
+                    }
 
                     homeDispatch({ field: 'loading', value: true });
                     homeDispatch({ field: 'messageIsStreaming', value: true });
@@ -1588,45 +1681,6 @@ export function useSendService() {
                         }
 
                         if (!isWaitingForAgentResponse(updatedConversation)) homeDispatch({ field: 'messageIsStreaming', value: false });
-
-                        // Auto-rename "New Conversation" after the first exchange.
-                        // Chat.tsx does this too, but its useEffect([selectedConversation]) fires while
-                        // messageIsStreaming is still true (stale closure), so it never renames in the
-                        // new-UI path. We do it here where we know streaming has just ended.
-                        if (
-                            updatedConversation.name === 'New Conversation' &&
-                            updatedConversation.messages.length > 1 &&
-                            !isWaitingForAgentResponse(updatedConversation)
-                        ) {
-                            (async () => {
-                                try {
-                                    const promptMessages = updatedConversation.messages
-                                        .slice(0, 1)
-                                        .map(m => ({ ...m, data: {}, configuredTools: [] }));
-                                    promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`;
-                                    const customName = await promptForData(
-                                        chatEndpoint || '',
-                                        promptMessages,
-                                        getDefaultModel(DefaultModels.CHEAPEST),
-                                        'Respond with only the title name and nothing else.',
-                                        defaultAccount,
-                                        statsService,
-                                        10
-                                    );
-                                    const firstMsg = updatedConversation.messages[0].content;
-                                    const fallbackName = firstMsg && firstMsg.length > 30
-                                        ? firstMsg.substring(0, 30) + '...'
-                                        : firstMsg ?? updatedConversation.name;
-                                    const renamedConversation = {
-                                        ...updatedConversation,
-                                        name: customName?.trim() || fallbackName,
-                                    };
-                                    handleUpdateSelectedConversation(renamedConversation);
-                                } catch (e) {
-                                    console.warn('Auto-rename failed:', e);
-                                }
-                            })();
-                        }
 
                         // Run memory extraction after main response is processed
                         if (isMemoryOn && memoryExtractionEnabled) {
