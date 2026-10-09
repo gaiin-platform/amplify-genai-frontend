@@ -74,6 +74,7 @@ import {
 } from '@/components/NewUI/shared/sidebarVisibility';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import { useStreamingConversationIds, isConversationStreaming } from '@/hooks/useChatSendService';
 
 // sessionStorage key used to hand off an initial ScheduledTask (from ScheduledTaskButton
 // elsewhere in the old UI) into the freshly-mounted NewScheduledTasksView — mirrors the
@@ -237,6 +238,12 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     handleUpdateFolder,
     getDefaultModel,
   } = useContext(HomeContext);
+
+  // Which chat is actually generating (the global flag alone would mark the OPEN chat).
+  const streamingIds = useStreamingConversationIds();
+  const isGeneratingConv = (id: string) =>
+    !!messageIsStreaming &&
+    (streamingIds.length === 0 ? selectedConversation?.id === id : streamingIds.includes(id));
 
   // Feature flags via the cached wrapper, not state.featureFlags directly: the raw
   // state is `{}` until the /feature_flags fetch resolves (and stays `{}` if it fails),
@@ -758,7 +765,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
               key={c.id}
               conversation={c}
               isSelected={selectedConversation?.id === c.id}
-              isGenerating={messageIsStreaming && selectedConversation?.id === c.id}
+              isGenerating={isGeneratingConv(c.id)}
               onSelect={() => handleSelectConversation(c)}
               onDelete={() => handleDeleteConversation(c)}
             />
@@ -922,7 +929,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
                     key={c.id}
                     conversation={c}
                     isSelected={selectedConversation?.id === c.id}
-                    isGenerating={messageIsStreaming && selectedConversation?.id === c.id}
+                    isGenerating={isGeneratingConv(c.id)}
                     onSelect={() => handleSelectConversation(c)}
                     onDelete={() => handleDeleteConversation(c)}
                   />
@@ -947,7 +954,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
                     isOpen={openFolderIds[f.id] ?? true}
                     onToggle={() => toggleFolderOpen(f.id)}
                     selectedConversationId={selectedConversation?.id}
-                    generatingConversationId={messageIsStreaming ? selectedConversation?.id : undefined}
+                    isGenerating={isGeneratingConv}
                     onSelectConversation={handleSelectConversation}
                     onDeleteConversation={handleDeleteConversation}
                     onRenameFolder={handleRenameFolderRow}

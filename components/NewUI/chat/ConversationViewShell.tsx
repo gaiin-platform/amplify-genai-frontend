@@ -46,7 +46,7 @@ import { getChatFont } from '@/components/NewUI/shared/userDisplayPrefs';
 import HomeContext from '@/pages/api/home/home.context';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
 // Imports for the direct-send path (pending docs with S3 keys)
-import { useSendService, type ChatRequest } from '@/hooks/useChatSendService';
+import { useSendService, useStreamingConversationIds, isConversationStreaming, type ChatRequest } from '@/hooks/useChatSendService';
 import { newMessage, MessageType } from '@/types/chat';
 import { getActivePlugins } from '@/utils/app/plugin';
 import { getSettings } from '@/utils/app/settings';
@@ -149,7 +149,7 @@ function countUserMessages(container: HTMLElement) {
   return container.querySelectorAll('.enhanced-chat-message.user-message').length;
 }
 
-export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
+const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
   stopConversationRef,
 }) => {
   const {
@@ -1745,6 +1745,32 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
           to ArtifactsBlock completed cards for CSS restyling. */}
       <ArtifactInlineCardLayer />
     </div>
+  );
+};
+
+/**
+ * `messageIsStreaming` / `loading` in home state are global: while chat A generates, they are
+ * true for whatever chat is open. Everything under this shell (Chat, ChatMessage, the composer,
+ * the message-actions layer) reads them from context and would hide its action buttons / show a
+ * stop button on an idle chat B. Re-provide the context with the flags scoped to the conversation
+ * actually generating, so each chat only looks busy when it is.
+ */
+export const ConversationViewShell: React.FC<ConversationViewShellProps> = (props) => {
+  const ctx = useContext(HomeContext);
+  const ids = useStreamingConversationIds();
+  const rawStreaming = ctx.state.messageIsStreaming;
+  const streamingHere = isConversationStreaming(rawStreaming, ids, ctx.state.selectedConversation?.id);
+  const value = useMemo(
+    () =>
+      streamingHere === !!rawStreaming
+        ? ctx
+        : { ...ctx, state: { ...ctx.state, messageIsStreaming: streamingHere, loading: false } },
+    [ctx, streamingHere, rawStreaming],
+  );
+  return (
+    <HomeContext.Provider value={value}>
+      <ConversationViewShellInner {...props} />
+    </HomeContext.Provider>
   );
 };
 

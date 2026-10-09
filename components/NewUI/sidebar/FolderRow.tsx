@@ -40,10 +40,10 @@ interface FolderRowProps {
   /** Opens straight into rename mode — used right after creating a new folder. */
   startInRename?: boolean;
   /**
-   * ID of the conversation that is currently generating a response, if any.
+   * Whether a given conversation is currently generating a response.
    * Passed through to ConversationRow so the spinner appears on the right row.
    */
-  generatingConversationId?: string;
+  isGenerating?: (conversationId: string) => boolean;
 }
 
 export const FolderRow: React.FC<FolderRowProps> = ({
@@ -58,7 +58,7 @@ export const FolderRow: React.FC<FolderRowProps> = ({
   onDeleteFolder,
   onPinFolder,
   startInRename,
-  generatingConversationId,
+  isGenerating,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
   const [isRenaming, setIsRenaming] = useState(!!startInRename);
@@ -175,7 +175,7 @@ export const FolderRow: React.FC<FolderRowProps> = ({
               key={c.id}
               conversation={c}
               isSelected={selectedConversationId === c.id}
-              isGenerating={generatingConversationId === c.id}
+              isGenerating={!!isGenerating?.(c.id)}
               onSelect={() => onSelectConversation(c)}
               onDelete={() => onDeleteConversation(c)}
             />

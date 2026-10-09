@@ -1,5 +1,5 @@
 // src/hooks/useChatService.js
-import { useCallback, useContext, useEffect, useRef } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import HomeContext from '@/pages/api/home/home.context';
 import { killRequest as killReq, MetaHandler } from '../services/chatService';
 import { ChatBody, Conversation, CustomFunction, JsonSchema, Message, MessageType, newMessage } from "@/types/chat";
@@ -94,6 +94,55 @@ const _exhaustedAgentSessions = new Set<string>();
  */
 const STALE_AGENT_RUN_MS = 10 * 60 * 1000;
 
+// A send outlives the component that started it: the chat view is keyed by conversation id, so
+// clicking another chat or "new chat" unmounts the view (and this hook's host) while the response
+// keeps streaming. A ref refreshed only on render then goes stale and still reports the old chat
+// as "selected". This module-level mirror is kept current by a component that stays mounted for
+// the life of the page (see useLiveHomeStateMirror) so in-flight sends can read the real state.
+const liveHome: { mounted: boolean; selectedId?: string; conversations?: Conversation[] } = { mounted: false };
+
+// `messageIsStreaming` is one global boolean, so with a response generating in chat A every other
+// view (sidebar spinner, hidden message actions, stop button) behaves as if *it* were generating.
+// This records which conversation(s) the in-flight send belongs to so views can tell the difference.
+// Empty means "unknown" (e.g. a path that doesn't record it): callers then fall back to the global flag.
+const NO_IDS: readonly string[] = [];
+let streamingIds: readonly string[] = NO_IDS;
+const streamingListeners = new Set<() => void>();
+const publishStreamingIds = (next: readonly string[]) => {
+    if (next === streamingIds || (next.length === streamingIds.length && next.every((id, i) => id === streamingIds[i]))) return;
+    streamingIds = next;
+    streamingListeners.forEach(l => l());
+};
+export const markConversationStreaming = (id?: string) => {
+    if (id && !streamingIds.includes(id)) publishStreamingIds([...streamingIds, id]);
+};
+export const clearStreamingConversations = () => publishStreamingIds(NO_IDS);
+export const getStreamingConversationIds = () => streamingIds;
+export function useStreamingConversationIds(): readonly string[] {
+    return useSyncExternalStore(
+        (cb) => { streamingListeners.add(cb); return () => { streamingListeners.delete(cb); }; },
+        () => streamingIds,
+        () => NO_IDS,
+    );
+}
+/** Is `conversationId` the one generating? Falls back to the global flag when the owner is unknown. */
+export const isConversationStreaming = (
+    messageIsStreaming: boolean | undefined,
+    ids: readonly string[],
+    conversationId?: string,
+): boolean => !!messageIsStreaming && (ids.length === 0 || (!!conversationId && ids.includes(conversationId)));
+
+/** Mount once, high in the tree, to keep in-flight sends aware of the user's current selection. */
+export function useLiveHomeStateMirror() {
+    const { state: { selectedConversation, conversations, messageIsStreaming } } = useContext(HomeContext);
+    liveHome.mounted = true;
+    liveHome.selectedId = selectedConversation?.id;
+    liveHome.conversations = conversations;
+    useEffect(() => () => { liveHome.mounted = false; liveHome.conversations = undefined; }, []);
+    // Whoever turned the global flag off (stop button, error path, …) ends every recorded send.
+    useEffect(() => { if (!messageIsStreaming) clearStreamingConversations(); }, [messageIsStreaming]);
+}
+
 export function useSendService() {
     const {
         state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount, promptCostAlert },
@@ -105,7 +154,19 @@ export function useSendService() {
     const deploymentAvailability = getDeploymentFeatureAvailability(stableFeatureFlags as any);
 
 
-    const conversationsRef = useRef(conversations);
+    // Reads/writes go to the live mirror when it is mounted, so a send whose host component has
+    // unmounted still builds its history updates on the current list (not a stale snapshot that
+    // would drop chats created or edited since).
+    const localConversationsRef = useRef(conversations);
+    const conversationsRef = useMemo(() => ({
+        get current(): Conversation[] {
+            return liveHome.mounted && liveHome.conversations ? liveHome.conversations : localConversationsRef.current;
+        },
+        set current(value: Conversation[]) {
+            localConversationsRef.current = value;
+            if (liveHome.mounted) liveHome.conversations = value;
+        },
+    }), []);
     const messageTimestampRef = useRef<string | undefined>(undefined);
 
     // Always-fresh handle on the selected conversation so the agent poller (which
@@ -126,10 +187,11 @@ export function useSendService() {
             !action.type &&
             action.field === 'selectedConversation' &&
             action.value &&
-            action.value.id !== selectedConversationRef.current?.id
+            action.value.id !== (liveHome.mounted ? liveHome.selectedId : selectedConversationRef.current?.id)
         ) {
             return;
         }
+        if (action && !action.type && action.field === 'messageIsStreaming' && !action.value) clearStreamingConversations();
         rawHomeDispatch(action);
     }, [rawHomeDispatch]);
 
@@ -180,6 +242,7 @@ export function useSendService() {
             _activeAgentPolls.add(runKey);
 
             try {
+                markConversationStreaming(liveHome.mounted ? liveHome.selectedId : selectedConversationRef.current?.id);
                 homeDispatch({ field: 'messageIsStreaming', value: true });
                 const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }));
                 // Re-read the conversation: the poll may have run for minutes.
@@ -466,6 +529,7 @@ export function useSendService() {
                     }
 
                     homeDispatch({ field: 'loading', value: true });
+                    markConversationStreaming(updatedConversation.id);
                     homeDispatch({ field: 'messageIsStreaming', value: true });
 
                     let isArtifactsOn = deploymentAvailability.artifacts &&

@@ -120,6 +120,8 @@ import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus
 import { BlankConversationCleanup } from '@/components/NewUI/shared/BlankConversationCleanup';
 import { UserPrefsSync } from '@/components/NewUI/shared/UserPrefsSync';
 import { LastChatRestore } from '@/components/NewUI/shared/LastChatRestore';
+import { LiveHomeStateMirror } from '@/components/NewUI/shared/LiveHomeStateMirror';
+import { isConversationStreaming, getStreamingConversationIds } from '@/hooks/useChatSendService';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
   color: lightgray;
@@ -1723,6 +1725,7 @@ const Home = ({
                                     inside a chat no longer drops the user on the
                                     new-chat view. */}
                                 <LastChatRestore />
+                                <LiveHomeStateMirror />
 
                                 {/* Unified new sidebar — stays visible on every page, Notebook included,
                                     so Notebook behaves like Library/Assistants/Workflows (a page inside
@@ -1756,7 +1759,7 @@ const Home = ({
                                         it blind is an unhandled TypeError that blanks the whole app;
                                         treating unknown as "no messages" shows the landing page and
                                         lets the repair effect (~line 748) re-fetch. */}
-                                    {page === 'chat' && (!selectedConversation || ((selectedConversation.messages?.length ?? 0) === 0 && !messageIsStreaming && !pendingNewConversationSend)) && (
+                                    {page === 'chat' && (!selectedConversation || ((selectedConversation.messages?.length ?? 0) === 0 && !isConversationStreaming(messageIsStreaming, getStreamingConversationIds(), selectedConversation?.id) && !pendingNewConversationSend)) && (
                                         <NewHome />
                                     )}
                                     {/* ConversationViewShell is always mounted while page=chat AND a
@@ -1771,7 +1774,7 @@ const Home = ({
                                     {page === 'chat' && selectedConversation && (
                                         <div
                                             key={selectedConversation.id}
-                                            style={((selectedConversation.messages?.length ?? 0) === 0 && !messageIsStreaming && !pendingNewConversationSend) ? {
+                                            style={((selectedConversation.messages?.length ?? 0) === 0 && !isConversationStreaming(messageIsStreaming, getStreamingConversationIds(), selectedConversation?.id) && !pendingNewConversationSend) ? {
                                                 position: 'fixed',
                                                 top: 0,
                                                 left: '-100vw',
