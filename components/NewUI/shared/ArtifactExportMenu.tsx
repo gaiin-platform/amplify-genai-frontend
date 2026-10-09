@@ -10,6 +10,11 @@ import { downloadArtifacts } from '@/utils/app/artifacts';
 import { extractCodeBlocksAndText } from '@/utils/app/codeblock';
 import { generateXLSXBlob } from '@/utils/app/xlsxGenerator';
 import type { Conversation } from '@/types/chat';
+import { getAgentLog } from '@/utils/app/agent';
+import {
+  formatProvenanceMarkdown,
+  getMessageProvenance,
+} from '@/components/NewUI/shared/messageProvenance';
 
 import Papa from 'papaparse';
 
@@ -81,11 +86,24 @@ const roleLabel = (role: string): string =>
 /** Format a complete conversation without changing its Markdown content. */
 export function formatConversationAsMarkdown(conversation: Conversation): string {
   const title = conversation.name?.trim() || 'Conversation';
-  const turns = (conversation.messages ?? [])
-    .map((message) => {
+  const messages = conversation.messages ?? [];
+  const turns = messages
+    .map((message, index) => {
       const content = typeof message.content === 'string' ? message.content.trim() : '';
       if (!content) return null;
-      return `## ${roleLabel(message.role)}\n\n${content}`;
+      // Replies carry a one-line "what produced this" note (same facts as the
+      // chat's ⋯ details); other roles and replies with nothing to say get none.
+      let details = '';
+      if (message.role === 'assistant') {
+        const userMessage = messages
+          .slice(0, index)
+          .reverse()
+          .find((m) => m.role === 'user');
+        details = formatProvenanceMarkdown(
+          getMessageProvenance({ message, userMessage, readAgentLog: getAgentLog }),
+        );
+      }
+      return `## ${roleLabel(message.role)}\n\n${details ? `${details}\n\n` : ''}${content}`;
     })
     .filter((turn): turn is string => turn !== null);
 

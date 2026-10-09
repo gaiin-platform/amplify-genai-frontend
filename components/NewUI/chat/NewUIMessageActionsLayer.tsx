@@ -82,6 +82,15 @@ import {
   formatAbsoluteTime,
   useRelativeTime,
 } from '@/components/NewUI/shared/relativeTimestamp';
+import {
+  buildMessageMetaStamp,
+  getMessageProvenance,
+  MESSAGE_META_KEY,
+  MessageMetaStamp,
+  MessageProvenance,
+} from '@/components/NewUI/shared/messageProvenance';
+import { NewUIMessageInfoButton } from '@/components/NewUI/chat/NewUIMessageInfoButton';
+import { getAgentLog } from '@/utils/app/agent';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -266,6 +275,8 @@ interface ActionRowProps {
   onReadAloud: (slot: Slot) => void;
   isSpeaking: boolean;
   onRate: (slot: Slot, rating: 'good' | 'bad' | null) => void;
+  /** Builds the "response details" popover content for an assistant slot (called only while open). */
+  getProvenance: (slot: Slot) => MessageProvenance;
 }
 
 const ActionRow: React.FC<ActionRowProps> = ({
@@ -280,15 +291,17 @@ const ActionRow: React.FC<ActionRowProps> = ({
   onReadAloud,
   isSpeaking,
   onRate,
+  getProvenance,
 }) => {
   const [copied, setCopied] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
   const relTime = useRelativeTime(slot.message.timestamp);
   const absTime = slot.message.timestamp ? formatAbsoluteTime(slot.message.timestamp) : '';
 
   // The last received assistant message is always visible; all others require
   // hover or keyboard focus to reveal their action row.
-  const visible = hovered || focused || alwaysVisible;
+  const visible = hovered || focused || alwaysVisible || infoOpen;
 
   const handleCopyClick = async () => {
     const ok = await onCopy(slot);
@@ -442,6 +455,10 @@ const ActionRow: React.FC<ActionRowProps> = ({
             >
               <IconRefresh size={16} />
             </button>
+            <NewUIMessageInfoButton
+              getProvenance={() => getProvenance(slot)}
+              onOpenChange={setInfoOpen}
+            />
           </div>
           {timestampNode}
         </>
@@ -494,6 +511,15 @@ export const NewUIMessageActionsLayer: React.FC = () => {
   /** msgId → the ISO timestamp we want the message to display after streaming. */
   const pendingStampRef = useRef<Map<string, string>>(new Map());
   const prevStreamingRef = useRef(false);
+  /**
+   * msgId → model/effort captured when a reply began streaming. The backend never
+   * streams the model back and the conversation's model can change between turns,
+   * so this is the only moment it is knowable. Stamped onto `message.data` once
+   * streaming ends (same streaming-overwrite reasoning as pendingStampRef).
+   */
+  const pendingMetaRef = useRef<Map<string, MessageMetaStamp>>(new Map());
+  const messageIsStreamingRef = useRef(messageIsStreaming);
+  messageIsStreamingRef.current = messageIsStreaming;
 
   useEffect(() => {
     const conversation = selectedConversation;
@@ -530,6 +556,19 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     handleUpdateRef.current({ ...conversation, messages: updatedMessages });
   }, [selectedConversation?.messages]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Capture which model is answering as soon as a live reply starts streaming.
+  // Gated on `messageIsStreaming` so replies loaded from history are never stamped
+  // with whatever model the picker happens to show now.
+  useEffect(() => {
+    if (!messageIsStreamingRef.current) return;
+    const conversation = conversationRef.current;
+    const last = conversation?.messages?.[conversation.messages.length - 1];
+    if (!conversation || !last || last.role !== 'assistant' || !last.id) return;
+    if (last.data?.[MESSAGE_META_KEY] || pendingMetaRef.current.has(last.id)) return;
+    const stamp = buildMessageMetaStamp(conversation);
+    if (stamp) pendingMetaRef.current.set(last.id, stamp);
+  }, [selectedConversation?.messages, messageIsStreaming]);
+
   // Re-apply edit timestamps after streaming ends.
   // useChatSendService dispatches its local `updatedConversation` on every chunk,
   // which overwrites any timestamp we stamped above.  We keep track of the desired
@@ -538,7 +577,13 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     const wasStreaming = prevStreamingRef.current;
     prevStreamingRef.current = !!messageIsStreaming;
 
-    if (!wasStreaming || messageIsStreaming || pendingStampRef.current.size === 0) return;
+    if (
+      !wasStreaming ||
+      messageIsStreaming ||
+      (pendingStampRef.current.size === 0 && pendingMetaRef.current.size === 0)
+    ) {
+      return;
+    }
 
     // Streaming just ended — re-apply any pending edit timestamps.
     const conversation = conversationRef.current;
@@ -548,15 +593,22 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     let needsUpdate = false;
     const updatedMessages = messages.map((msg) => {
       if (!msg.id) return msg;
+      let next = msg;
       const pendingTimestamp = pendingStampRef.current.get(msg.id);
       if (pendingTimestamp && pendingTimestamp > (msg.timestamp ?? '')) {
         needsUpdate = true;
-        return { ...msg, timestamp: pendingTimestamp };
+        next = { ...next, timestamp: pendingTimestamp };
       }
-      return msg;
+      const pendingMeta = pendingMetaRef.current.get(msg.id);
+      if (pendingMeta && !msg.data?.[MESSAGE_META_KEY]) {
+        needsUpdate = true;
+        next = { ...next, data: { ...(next.data ?? {}), [MESSAGE_META_KEY]: pendingMeta } };
+      }
+      return next;
     });
 
     pendingStampRef.current.clear();
+    pendingMetaRef.current.clear();
     if (needsUpdate) {
       handleUpdateRef.current({ ...conversation, messages: updatedMessages });
     }
@@ -905,6 +957,21 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     [handleUpdateSelectedConversation],
   );
 
+  // Read from the live conversation (slot.message is a stale scan snapshot), and
+  // pair the reply with the user message that prompted it.
+  const getProvenance = useCallback((slot: Slot): MessageProvenance => {
+    const messages = conversationRef.current?.messages ?? [];
+    const message = messages[slot.rawIndex] ?? slot.message;
+    let userMessage: Message | undefined;
+    for (let i = slot.rawIndex - 1; i >= 0; i--) {
+      if (messages[i]?.role === 'user') {
+        userMessage = messages[i];
+        break;
+      }
+    }
+    return getMessageProvenance({ message, userMessage, readAgentLog: getAgentLog });
+  }, []);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!overlayEl || !slots.length) return null;
@@ -947,6 +1014,7 @@ export const NewUIMessageActionsLayer: React.FC = () => {
             onReadAloud={handleReadAloud}
             isSpeaking={isSpeaking && speakingKeyRef.current === slot.key}
             onRate={handleRate}
+            getProvenance={getProvenance}
           />
         );
       })}

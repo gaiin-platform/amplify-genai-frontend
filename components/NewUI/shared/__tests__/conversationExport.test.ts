@@ -68,4 +68,22 @@ describe('formatConversationAsMarkdown', () => {
 
     expect(result).toBe('# Export me\n\n## Assistant\n\n# Nested heading\n\n- one\n- two');
   });
+
+  it('adds a single details line under assistant replies only, when there is something to report', () => {
+    const reply = {
+      ...message('assistant', 'Answer'),
+      timestamp: '2026-01-02T03:04:05.000Z',
+      data: { newUiMeta: { model: { id: 'm', name: 'Model One' } }, state: { sources: { webSearch: { sources: [{}] } } } },
+    } as Message;
+    const result = formatConversationAsMarkdown(
+      conversation({ messages: [message('user', 'Question'), reply] }),
+    );
+
+    expect(result).toContain('## User\n\nQuestion');
+    const details = result.split('\n').filter((l) => l.startsWith('> '));
+    expect(details).toHaveLength(1);
+    expect(details[0]).toContain('Model One');
+    expect(details[0]).toContain('Used: Web search');
+    expect(result).toMatch(/## Assistant\n\n> .*\n\nAnswer$/);
+  });
 });
