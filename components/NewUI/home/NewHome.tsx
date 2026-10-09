@@ -60,6 +60,7 @@ import {
   getConversationSkillSelection,
   withConversationSkillSelection,
 } from '@/components/NewUI/shared/conversationSkillSelection';
+import { consumeAmplifyHelperPrefill } from '@/components/NewUI/shared/amplifyHelperPrefill';
 
 export const NewHome: React.FC = () => {
   const {
@@ -83,6 +84,11 @@ export const NewHome: React.FC = () => {
 
   const composerRef = useRef<RichComposerHandle>(null);
   const [hasContent, setHasContent] = useState(false);
+
+  useEffect(() => {
+    const question = consumeAmplifyHelperPrefill();
+    if (question) composerRef.current?.appendText(question);
+  }, []);
   const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>(() => getConversationSkillSelection(selectedConversation).skillIds);
   const selectedSkillIdsRef = useRef(selectedSkillIds);
   selectedSkillIdsRef.current = selectedSkillIds;

@@ -36,6 +36,8 @@ import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { isAssistant, getAssistants, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { deleteAssistant, deleteLayeredAssistant, saveLayeredAssistant } from '@/services/assistantService';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
+import { NEW_UI_SETTINGS_EVENT } from '@/components/NewUI/shared/newUISettingsEvents';
+import { writeAmplifyHelperPrefill } from '@/components/NewUI/shared/amplifyHelperPrefill';
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
 import { useSession } from 'next-auth/react';
@@ -1922,6 +1924,41 @@ export const NewAssistantsView: React.FC = () => {
 
     const shouldShowGroupTab = true; // Show the empty state so every user can create a group.
     const shouldShowLayeredTab = true; // Always show so first-time users can discover and create layered assistants
+    const helperDestinations = useMemo(() => {
+        const destinations = new Set<string>([
+            'settings:connectors',
+            'settings:promptTemplates',
+            'settings:customInstructions',
+            'settings:mcp',
+            'page:assistantGallery',
+            'page:chats',
+            'page:library',
+        ]);
+        if (stableFeatureFlags.createAssistantWorkflows) destinations.add('page:workflows');
+        if (stableFeatureFlags.scheduledTasks) destinations.add('page:scheduledTasks');
+        if (stableFeatureFlags.notebook) destinations.add('page:notebook');
+        return destinations;
+    }, [stableFeatureFlags.createAssistantWorkflows, stableFeatureFlags.scheduledTasks, stableFeatureFlags.notebook]);
+
+    const handleAmplifyHelperNavigation = useCallback((destination: { kind: 'settings' | 'page'; value: string }) => {
+        if (destination.kind === 'settings') {
+            window.dispatchEvent(new CustomEvent(NEW_UI_SETTINGS_EVENT, { detail: { section: destination.value } }));
+            return;
+        }
+        homeDispatch({ field: 'page', value: destination.value as any });
+    }, [homeDispatch]);
+
+    const handleAmplifyHelperStartChat = useCallback((topicQuestion?: string) => {
+        writeAmplifyHelperPrefill(topicQuestion);
+        const helper = createAmplifyHelperAssistant();
+        homeDispatch({ field: 'selectedAssistant', value: helper });
+        handleNewConversation({
+            prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
+            assistant: helper,
+            data: { [AMPLIFY_HELPER_MARKER]: true },
+        });
+        homeDispatch({ field: 'page', value: 'chat' });
+    }, [handleNewConversation, homeDispatch]);
 
     const changeTab = (tab: MainTab) => {
         setActiveTab(tab);
@@ -2052,16 +2089,9 @@ export const NewAssistantsView: React.FC = () => {
                 {activeTab === 'layered' && shouldShowLayeredTab && <LayeredAssistantsTab />}
                 {activeTab === 'amplifyHelper' && helperEnabled && (
                     <AmplifyHelperAssistant
-                        onStartChat={() => {
-                            const helper = createAmplifyHelperAssistant();
-                            homeDispatch({ field: 'selectedAssistant', value: helper });
-                            handleNewConversation({
-                                prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
-                                assistant: helper,
-                                data: { [AMPLIFY_HELPER_MARKER]: true },
-                            });
-                            homeDispatch({ field: 'page', value: 'chat' });
-                        }}
+                        onStartChat={handleAmplifyHelperStartChat}
+                        enabledDestinations={helperDestinations}
+                        onNavigate={handleAmplifyHelperNavigation}
                         documentationUrl={userDocumentationUrl}
                         supportEmail={supportEmail}
                     />
