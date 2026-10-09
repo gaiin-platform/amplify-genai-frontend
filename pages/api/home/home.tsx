@@ -122,6 +122,7 @@ import { UserPrefsSync } from '@/components/NewUI/shared/UserPrefsSync';
 import { LastChatRestore } from '@/components/NewUI/shared/LastChatRestore';
 import { LiveHomeStateMirror } from '@/components/NewUI/shared/LiveHomeStateMirror';
 import { ChatBusyNoticeHost } from '@/components/NewUI/shared/ChatBusyNoticeHost';
+import { AnnouncementBanner } from '@/components/NewUI/shared/AnnouncementBanner';
 import { isConversationStreaming, getStreamingConversationIds } from '@/hooks/useChatSendService';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
@@ -1713,7 +1714,10 @@ const Home = ({
                             flag is confirmed enabled (see NewUiRolloutGate); 'pending' renders nothing. */}
                         <NewUiRolloutGate uiPreference={uiPreference}>
                         {(effectiveUi) => effectiveUi === 'pending' ? null : effectiveUi === 'new' ? (
-                            <div className="flex h-full w-full overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }} data-new-ui-shell="true">
+                            <div className="flex h-full w-full flex-col overflow-hidden">
+                            {/* Admin announcement banner — in flow above the sidebar/content row. */}
+                            <AnnouncementBanner />
+                            <div className="flex min-h-0 w-full flex-1 overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }} data-new-ui-shell="true">
                                 {/* Renders nothing — prunes leftover empty placeholder chats
                                     once after load so refreshing never grows Recents. */}
                                 <BlankConversationCleanup />
@@ -1840,6 +1844,7 @@ const Home = ({
                                     rendered in this branch. This host provides the equivalent for
                                     the new UI. */}
                                 <AssistantAdminUIHost />
+                            </div>
                             </div>
                         ) : (
                             /* ── CLASSIC UI LAYOUT (unchanged) ── */

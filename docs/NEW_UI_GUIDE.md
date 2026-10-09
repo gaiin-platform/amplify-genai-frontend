@@ -122,6 +122,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `admin/ConfigurationsTab.tsx` | Admin → Configurations tab content |
 | `admin/SystemPromptsTab.tsx` | Admin → System Prompts tab — editors for ordinary-chat base, web-search, artifact, code-interpreter, and feature-gated Amplify-helper prompts |
 | `admin/DeploymentFeaturesTab.tsx` | Admin → Deployment tab — toggles for deployment-wide feature availability (highlighter, artifacts, web search, code interpreter, memory) and classic-UI switch control |
+| `admin/AnnouncementCard.tsx` | Admin → Deployment → Announcement Banner: on/off, message (500 chars), and expiry (until turned off / for N hours-days / until a date). Edits `deploymentFeatures.announcement` through the tab's normal `setConfig` + Save; includes a live preview |
 
 ### `shared/`
 | File | Purpose |
@@ -186,6 +187,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `LiveHomeStateMirror.tsx` | Mounts once at the new-UI root; renders nothing. Feeds `useSendService`'s module-level mirror of the selected conversation id + conversation list. Needed because the chat view is keyed by conversation id: clicking away unmounts the component that owns an in-flight send, so the hook's render-refreshed refs go stale and its `selectedConversation` guard would let the stream yank the user back. The hook also records WHICH conversation is generating (`useStreamingConversationIds` / `isConversationStreaming`) because `messageIsStreaming` is one global boolean: the sidebar spinner and `ConversationViewShell` (which re-provides `HomeContext` with the flag scoped to the open chat, so old-UI `Chat`/`ChatMessage` show their action buttons on an idle chat) both use it. Empty ids = unknown owner, fall back to the global flag |
 | `ChatBusyNoticeHost.tsx` | Mounts once at the new-UI root. Shows a `NoticeDialog` ("another chat is still responding") when `blockIfOtherChatGenerating()` (hooks/useChatSendService) fires its window event. Called by `ConversationComposer.handleSend` and `NewHome.handleSend` (before the draft is cleared, so text is kept) and as a safety net at the top of `useSendService.handleSend` (retry/edit). Sends are blocked because the generating flags are global — a concurrent send would corrupt the first one's state |
 | `NewUILoadingStatus.tsx` | Quiet accessible loading treatment — viewport overlay by default, or compact inline status with `variant="inline"`. `NewUILegacyLoadingAdapter` detects a specific initial-load row inside a New UI wrapper and replaces it without changing legacy behavior. Used for startup, in-view work, and Settings initial loads. `role="status"`, `aria-live="polite"`, respects `prefers-reduced-motion`. |
+| `announcement.ts` | React-free vocabulary for the admin banner — `readAnnouncement`, `isAnnouncementActive`/`isAnnouncementExpired`, `msUntilExpiry`, `computeExpiresAt`, `patchAnnouncement` (new `id` on new text or re-enable), and the per-tab-session dismissal helpers. Lives in `deploymentFeatures.announcement`; expiry is one absolute `expiresAt`. No React imports |
+| `AnnouncementBanner.tsx` | Mounted in `home.tsx`'s New UI layout above the sidebar/content row. Shows the admin announcement until the user closes it (close lasts the tab session, cleared on sign-out, so it returns next login). Also exports `AnnouncementBar` (the presentational bar, used for the admin preview) |
 
 ### `sidebar/`
 | File | Purpose |
@@ -585,6 +588,13 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     user's cached verdict, then to Classic (fail closed); a late response re-resolves. An open tab re-checks on refocus (≥30 s apart), when
     the admin saves flags (`REVALIDATE_ROLLOUT_EVENT`) and when another tab of the same user
     publishes a verdict; a failed re-check never changes the verdict.
+
+
+37. **Anything that must reflect an admin *take-down* reads `state.featureFlags`, not
+    `useStableFeatureFlags`.** The stable hook deliberately serves the localStorage cache while
+    `/feature_flags` is in flight so gated UI doesn't blink out; that is exactly wrong for an
+    announcement the admin has just removed, which would flash back on every load. The banner
+    accepts appearing a beat late instead (`shared/AnnouncementBanner.tsx`).
 
 ---
 

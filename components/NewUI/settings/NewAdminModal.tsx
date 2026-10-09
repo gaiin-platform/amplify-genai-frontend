@@ -46,8 +46,9 @@ import {
 import {
   AdminConfigTypes, FeatureFlagConfig,
   SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig,
-  SystemPromptsConfig, DeploymentFeaturesConfig,
+  SystemPromptsConfig,
 } from '@/types/admin';
+import type { DeploymentConfigWithAnnouncement } from '@/components/NewUI/shared/announcement';
 import { adminTabHasChanges } from '@/utils/app/admin';
 import { findOversizedSystemPrompts } from '@/components/NewUI/settings/admin/systemPromptBytes';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
@@ -230,7 +231,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
       'amplifyHelper.base': { version: 1, text: '' },
     },
   });
-  const [deploymentFeatures, setDeploymentFeatures] = useState<DeploymentFeaturesConfig>({
+  const [deploymentFeatures, setDeploymentFeatures] = useState<DeploymentConfigWithAnnouncement>({
     schemaVersion: 1,
     availability: {
       promptHighlighter: false,
@@ -417,10 +418,14 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
   }, [loadData]);
 
   // ── Keyboard / overlay close + focus trap ────────────────────────────────
+  // Move focus into the modal on open only. This must not live in the handler effect below:
+  // that effect re-runs on every edit (`unsavedConfigs` is a new Set each time) and would
+  // pull focus out of the field being typed in after each keystroke.
   useEffect(() => {
-    // Move focus into the modal on open
     panelRef.current?.focus();
+  }, []);
 
+  useEffect(() => {
     const FOCUSABLE = [
       'a[href]',
       'button:not([disabled])',
@@ -597,6 +602,11 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
     }
     if (emailSupport.isActive && !emailSupport.email) {
       alert('Support Email requires an email address. Please add one or disable the feature.');
+      return false;
+    }
+    const banner = deploymentFeatures.announcement;
+    if (unsavedConfigs.has(AdminConfigTypes.DEPLOYMENT_FEATURES) && banner?.enabled && !banner.message.trim()) {
+      alert('The announcement banner is on but has no message. Add a message or turn the banner off.');
       return false;
     }
     if (criticalErrorsConfig.isActive && !criticalErrorsConfig.email) {

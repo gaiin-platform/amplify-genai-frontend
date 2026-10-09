@@ -803,7 +803,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
     return (
       <>
-        <div className="flex flex-col items-center w-[52px] py-3 border-r border-[--border-subtle] bg-[--bg-sidebar] flex-shrink-0 h-screen">
+        <div className="flex flex-col items-center w-[52px] py-3 border-r border-[--border-subtle] bg-[--bg-sidebar] flex-shrink-0 self-stretch">
           {/* Expand sidebar */}
           {iconBtn(handleToggle, 'Expand sidebar', <IconLayoutSidebarLeftExpand size={18} />)}
 
@@ -859,7 +859,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     <>
       <div
         ref={sidebarRef}
-        className="relative flex flex-col flex-shrink-0 bg-[--bg-sidebar] border-r border-[--border-subtle] h-screen transition-colors duration-200"
+        className="relative flex flex-col flex-shrink-0 bg-[--bg-sidebar] border-r border-[--border-subtle] self-stretch transition-colors duration-200"
         style={{ fontFamily: 'Inter, sans-serif', width: displayWidthRef.current + 'px' }}
       >
         {/* 1. Header */}

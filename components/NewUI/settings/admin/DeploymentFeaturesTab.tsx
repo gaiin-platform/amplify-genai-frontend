@@ -1,6 +1,8 @@
 import React, { FC } from 'react';
 import { AdminConfigTypes, DeploymentFeaturesConfig } from '@/types/admin';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { DeploymentConfigWithAnnouncement } from '@/components/NewUI/shared/announcement';
+import { AnnouncementCard } from './AnnouncementCard';
 
 interface ToggleRowProps {
   id: string;
@@ -78,8 +80,8 @@ const SectionCard: FC<SectionCardProps> = ({ title, subtitle, children }) => (
 );
 
 interface DeploymentFeaturesTabProps {
-  config: DeploymentFeaturesConfig;
-  setConfig: (c: DeploymentFeaturesConfig) => void;
+  config: DeploymentConfigWithAnnouncement;
+  setConfig: (c: DeploymentConfigWithAnnouncement) => void;
   updateUnsavedConfigs: (type: AdminConfigTypes) => void;
 }
 
@@ -108,6 +110,9 @@ export const DeploymentFeaturesTab: FC<DeploymentFeaturesTabProps> = ({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Site-wide announcement banner */}
+      <AnnouncementCard config={config} setConfig={setConfig} updateUnsavedConfigs={updateUnsavedConfigs} />
+
       {/* Feature Availability */}
       <SectionCard
         title="Feature Availability"
