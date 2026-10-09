@@ -161,7 +161,6 @@ export const ScheduledTaskScheduleBuilder: React.FC<ScheduledTaskScheduleBuilder
   }, [value]);
 
   useEffect(() => {
-    setRangeEnabled(Boolean(dateRange?.startDate || dateRange?.endDate));
     setStartDate(dateRange?.startDate ?? '');
     setEndDate(dateRange?.endDate ?? '');
   }, [dateRange]);
