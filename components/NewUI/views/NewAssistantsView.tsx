@@ -1908,19 +1908,15 @@ const LayeredAssistantsTab: React.FC = () => {
 
 export const NewAssistantsView: React.FC = () => {
     const {
-        state: { groups, syncingPrompts, syncingLayeredAssistants, layeredAssistants, activeAssistantGalleryTab, userDocumentationUrl, supportEmail },
+        state: { groups, syncingPrompts, syncingLayeredAssistants, layeredAssistants, userDocumentationUrl, supportEmail },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
     const stableFeatureFlags = useStableFeatureFlags();
     const helperEnabled = stableFeatureFlags.amplifyHelper === true;
 
-    // Mirror the existing persisted tab preference
-    const [activeTab, setActiveTab] = useState<MainTab>(() => {
-        const saved = localStorage.getItem('activeAssistantGalleryTab') as MainTab | null;
-        const valid: MainTab[] = ['individual', 'shared', 'group', 'layered', 'amplifyHelper'];
-        return saved && valid.includes(saved) ? saved : 'individual';
-    });
+    // Assistants always opens on My Assistants; tab changes only persist while this view is open.
+    const [activeTab, setActiveTab] = useState<MainTab>('individual');
 
     const shouldShowGroupTab = true; // Show the empty state so every user can create a group.
     const shouldShowLayeredTab = true; // Always show so first-time users can discover and create layered assistants
