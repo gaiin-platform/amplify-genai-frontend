@@ -6,6 +6,7 @@ import ActionButton from "@/components/ReusableComponents/ActionButton";
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
 import Search from "@/components/Search";
 import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
+import { normalizeFeatureFlagName } from "@/components/NewUI/shared/featureFlagName";
 
 interface Props {
     features: FeatureFlagConfig;
@@ -70,7 +71,11 @@ export const FeatureFlagsTab: FC<Props> = ({features, setFeatures, ampGroups, am
                         onConfirm={() => {
                             setFeatureSearchTerm('');
                             if (isAddingFeature.name) {
-                                const updatedName = isAddingFeature.name.replace(/\s(.)/g, (_, c) => c.toUpperCase()).replace(/^\w/, c => c.toLowerCase());
+                                const updatedName = normalizeFeatureFlagName(isAddingFeature.name);
+                                if (!updatedName) {
+                                    alert("Feature name is required. Please enter a name and try again. ");
+                                    return;
+                                }
                                 if (Object.keys(features).includes(updatedName)) {
                                     alert("Feature flag names must be unique. Please try another name.");
                                     return;

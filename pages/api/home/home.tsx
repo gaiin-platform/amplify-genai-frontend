@@ -111,6 +111,7 @@ import { LayeredBuilderHost } from '@/components/NewUI/shared/LayeredBuilderHost
 import { AssistantAdminUIHost } from '@/components/NewUI/shared/AssistantAdminUIHost';
 import { UIPreferenceBanner, getUIPreference, setUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { NewUiRolloutGate } from '@/components/NewUI/shared/NewUiRolloutGate';
 import { isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
@@ -1705,8 +1706,10 @@ const Home = ({
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                     >
-                        {/* ── NEW UI LAYOUT ── */}
-                        {uiPreference === 'new' ? (
+                        {/* ── NEW UI LAYOUT ── gated: New UI renders only while the New UI rollout
+                            flag is confirmed enabled (see NewUiRolloutGate); 'pending' renders nothing. */}
+                        <NewUiRolloutGate uiPreference={uiPreference}>
+                        {(effectiveUi) => effectiveUi === 'pending' ? null : effectiveUi === 'new' ? (
                             <div className="flex h-full w-full overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }} data-new-ui-shell="true">
                                 {/* Renders nothing — prunes leftover empty placeholder chats
                                     once after load so refreshing never grows Recents. */}
@@ -1868,6 +1871,7 @@ const Home = ({
                                 </div>
                             </div>
                         )}
+                        </NewUiRolloutGate>
 
                         {/* Transient operational loading messages (Loading Conversation…, Forking…) */}
                         {uiPreference === 'classic' ? (

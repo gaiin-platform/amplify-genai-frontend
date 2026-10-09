@@ -152,7 +152,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `chatFilters.ts` | Shared conversation filter/sort vocabulary (pinned, storage, assistant + comparators). Used by ChatsListView and the sidebar Recents section. No React imports |
 | `sidebarVisibility.ts` | Shared type + key for sidebar item visibility state |
 | `useConversationAssistant.ts` | Resolves the assistant attached to the selected conversation (explicit pick → `promptTemplate` → transcript stamps), re-attaches it to `selectedAssistant` once per conversation so follow-up sends stay routed, and exposes `detach()`. Use this instead of reading `selectedAssistant` directly — that field is global and gets reset by `handleNewConversation`/`handleSelectConversation`. Test "is there an assistant?" with its `isRealAssistant`, never `id === DEFAULT_ASSISTANT.id` |
-| `useStableFeatureFlags.ts` | Read feature flags through this, never `state.featureFlags` directly. Falls back to a localStorage cache while `/feature_flags` is in flight or failed, and merges (rather than applies) the single-key `smartMessages` startup patch. No React-free exports: `resolveFeatureFlags`, `isFullFlagSet`, `PATCH_ONLY_FLAG_KEYS` |
+| `useStableFeatureFlags.ts` | Read feature flags through this, never `state.featureFlags` directly. Falls back to a localStorage cache (scoped to the signed-in user via `amplify_feature_flags_cache_owner`) while `/feature_flags` is in flight or failed, and merges (rather than applies) the single-key `smartMessages` startup patch. No React-free exports: `resolveFeatureFlags`, `isFullFlagSet`, `PATCH_ONLY_FLAG_KEYS` |
 | `integrationIcon.tsx` | `integrationIcon(id, size?)` — the `public/logos/integrations/*.svg` logo for an integration id (underscores → hyphens). Used by Settings → Connectors and the assistant editor's drive panel |
 | `GeneratingSpinner.tsx` | Minimal 12px SVG arc spinner (270° dash, no track ring). Place inside a `text-[--text-muted]` container; the SVG uses `currentColor`. CSS animation defined in `globals.css` (`.nui-generating-spinner`). Accepts optional `size` prop. |
 | `SearchInput.tsx` | The 34px toolbar search field (`IconSearch` + input), with `fullWidth` for use inside a card and an optional `onClear`. Extracted from three verbatim copies. Does **not** cover the divergent fields in `ChatsListView`, `NewLibraryView`, `DataSourceLibraryPicker`, `DriveFileBrowser`, `AttachMenu` |
@@ -160,7 +160,13 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `emailSuggestions.ts` | React-free vocabulary behind it — `normalizeEmailPool`/`buildEmailPool` (drop raw-UUID values, dedupe case-insensitively, sort), `rankEmailSuggestions` (prefix matches before substring), `resolveUsernameForEmail` (case-insensitive email→username for the share/group APIs), `splitEmailList`, `looksLikeEmail`. No React imports |
 | `useIntegrationConnections.ts` | Supported + connected integrations, OAuth popup connect, disconnect, for an optional `filter`. The one copy of that flow; `useDriveIntegrations` is a thin wrapper. Also exports `isConfigurationMessage` — an unconfigured backend answers with a *message*, not a failure worth alerting on |
 | `openAtLatest.ts` | The "open a conversation at its newest message" rule — `nextOpenAtLatestTop` plus its tolerance/frame budgets. Returns the scroll maximum to pin to, or `null` once the user scrolls up. Used by `ConversationViewShell`'s open-at-latest pin loop. No React, no DOM imports |
-| `uiPreferenceResolution.ts` | The stored new-vs-classic choice: `UI_PREF_KEY`, `getUIPreference`, `writeLocalUIPreference`, `resolveStoredUIPreference` (server beats localStorage; only `'ask'` may show the popup), and the `?uiPreference=reset` helpers. No React imports |
+| `uiPreferenceResolution.ts` | The stored new-vs-classic choice: `UI_PREF_KEY`, `getUIPreference`, `writeLocalUIPreference`, `clearUIRoutingCookie`, `resolveStoredUIPreference` (server beats localStorage), `resolveUIPreferenceWithPolicy` (rollout disabled → classic; no choice → new; never `'ask'`), and the `?uiPreference=reset` helpers. No React imports |
+| `deploymentFeaturePolicy.ts` | Deployment flag vocabulary. `isNewUiEnabled` (pure: only an explicit `newUi: true` enables), `resolveNewUiRollout` (verdict from a raw payload, `null` if untrusted), `isClassicUiSwitchAllowed` (independent of the rollout), the per-user rollout cache (`cacheNewUiRollout`/`readCachedNewUiRollout`) and the classic-switch cache. No React imports |
+| `uiRolloutStore.ts` | Module-level store: may this user see the New UI? Written only by `UIPreferenceBanner`. `computeEffectiveUi` and `canApplyUiPreference` hold the rules. No React imports |
+| `featureFlagName.ts` | `normalizeFeatureFlagName` — admin "Add Feature" label → camelCase key ("New UI" → `newUi`, acronyms lower-cased, reserved names canonicalised). Used by `Admin/AdminComponents/FeatureFlags.tsx`. No React imports |
+| `uiPreferenceResolver.ts` | The startup New-vs-Classic decision as a state machine (both responses, timeout, late responses; fails closed). No React imports |
+| `NewUiRolloutGate.tsx` | Render-prop gate around home.tsx's New-vs-Classic ternary; renders New only while the rollout is confirmed enabled. Also `useUiRolloutSnapshot` |
+| `useUiSwitchPolicy.ts` | `canSwitchToNew` / `canSwitchToClassic` — the one rule both account menus use |
 | `userDefaultModel.ts` | User's personal default model preference — `USER_DEFAULT_MODEL_KEY`, `getUserDefaultModelId`, `setUserDefaultModelId`. localStorage-backed, no React imports. Takes precedence over admin's `defaultModelId` in `NewHome` + `ModelPicker` slate. **Roams**: `shared/userDisplayPrefs` mirrors this key to/from the server — write it through `saveDisplayPrefsToServer` too, or the choice stays on one device. |
 | `userDefaultEffort.ts` | User's personal default reasoning effort — `USER_DEFAULT_EFFORT_KEY`, `getUserDefaultEffort`, `setUserDefaultEffort`. localStorage-backed, no React imports. Seeds `NewHome` + `ConversationComposer` initial effort state. **Roams** via `shared/userDisplayPrefs` — same caveat as `userDefaultModel.ts`. |
 | `sharedItemClassifier.ts` | Classifies incoming share bundles by content type (`conversation` / `assistant` / `prompt-template`). Module-level promise cache + localStorage persistence so the O(n) load is paid once per session. Exports `getClassifiedSharedItems`, `invalidateSharedItemsCache`, `ClassifiedShareItem`, `ClassifiedShareItems`. No React imports |
@@ -227,7 +233,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 ### Root
 | File | Purpose |
 |------|---------|
-| `UIPreferenceBanner.tsx` | New vs classic UI switch banner |
+| `UIPreferenceBanner.tsx` | Startup resolver + opaque cover for the New-vs-Classic choice; publishes the rollout verdict; exports `setUIPreference` (policy-guarded, returns `{applied, persisted}`) |
 
 ---
 
@@ -564,6 +570,17 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     note `conversationStateId` is not a milestone you can wait for: `useHomeReducer`
     replaces `'post-init'` with a fresh uuid on every later `selectedConversation` or
     `conversations` dispatch, so gate on `!== 'init'`.
+
+23. **The `newUi` feature flag is the only authority on whether the New UI may appear.**
+    Never decide New-vs-Classic from `uiPreference`, localStorage, a cookie or a cached
+    flag directly. `home.tsx` renders the New layout only through `NewUiRolloutGate`;
+    menus read `useUiSwitchPolicy()`; persistence goes through `setUIPreference`, which
+    refuses a change the policy forbids. The flag name is exactly `newUi`; it is **off by
+    default** (absent = disabled, everyone stays on Classic) until an admin enables it. User/group exceptions *invert* the flag server-side, so the client only ever
+    sees an effective boolean. A failed or untrusted `/feature_flags` falls back to this
+    user's cached verdict, then to Classic (fail closed); a late response re-resolves. An open tab re-checks on refocus (≥30 s apart), when
+    the admin saves flags (`REVALIDATE_ROLLOUT_EVENT`) and when another tab of the same user
+    publishes a verdict; a failed re-check never changes the verdict.
 
 ---
 

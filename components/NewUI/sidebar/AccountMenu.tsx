@@ -25,8 +25,8 @@ import { signOut } from 'next-auth/react';
 import HomeContext from '@/pages/api/home/home.context';
 import { setUIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
-import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
-import { isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
+import { useUiSwitchPolicy } from '@/components/NewUI/shared/useUiSwitchPolicy';
+import toast from 'react-hot-toast';
 
 const DOCS_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
 
@@ -47,8 +47,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   collapsed = false,
 }) => {
   const { state: { lightMode, featureFlags }, dispatch } = useContext(HomeContext);
-  const stableFeatureFlags = useStableFeatureFlags();
-  const classicAllowed = isClassicUiSwitchAllowed(stableFeatureFlags as any);
+  const { canSwitchToClassic: classicAllowed } = useUiSwitchPolicy();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -103,11 +102,15 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   const handleSwitchToClassic = () => {
     if (!classicAllowed) return;
     setOpen(false);
-    // The shared preference gate owns the immediate loading treatment. Persistence
-    // can finish before the reload without leaving the user staring at the menu.
+    // The shared preference gate owns the immediate loading treatment. Reload only once
+    // the server holds the choice: it wins on the next load, so reloading earlier would
+    // just bounce the user back to the New UI.
     setUIPreference('classic')
-      .catch(() => {})
-      .finally(() => window.location.reload());
+      .then(({ applied, persisted }) => {
+        if (applied && persisted) window.location.reload();
+        else toast.error('Failed to switch UI. Please try again.');
+      })
+      .catch(() => toast.error('Failed to switch UI. Please try again.'));
   };
 
   // Shared menu item style

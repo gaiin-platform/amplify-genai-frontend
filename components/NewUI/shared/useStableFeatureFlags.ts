@@ -40,10 +40,13 @@
  */
 
 import { useContext, useEffect, useMemo, useRef } from 'react';
+import { useSession } from 'next-auth/react';
 import HomeContext from '@/pages/api/home/home.context';
 import { Features } from '@/types/features';
 
 export const FEATURE_FLAG_CACHE_KEY = 'amplify_feature_flags_cache';
+/** Whose flags the cache holds. A cache with a different (or no) owner is never used. */
+export const FEATURE_FLAG_CACHE_OWNER_KEY = 'amplify_feature_flags_cache_owner';
 
 /**
  * Flags that the app dispatches on their own as a patch, outside the `/feature_flags`
@@ -71,10 +74,19 @@ export function isFullFlagSet(flags: Features | undefined | null): boolean {
   return Object.keys(flags).some((key) => !PATCH_ONLY_FLAG_KEYS.includes(key));
 }
 
-/** Last known-good flags written by a previous session. `{}` when absent/corrupt. */
-export function readCachedFeatureFlags(): Features {
+/**
+ * Last known-good flags written by a previous session. `{}` when absent/corrupt.
+ *
+ * `userKey` scopes the cache to one account: `undefined` skips the check (pure tests),
+ * `null` (identity not known yet) and any other owner return `{}`, so one user's flags
+ * — including the New UI rollout verdict — are never shown to the next user on the browser.
+ */
+export function readCachedFeatureFlags(userKey?: string | null): Features {
   if (typeof window === 'undefined') return EMPTY_FLAGS;
   try {
+    if (userKey !== undefined) {
+      if (!userKey || localStorage.getItem(FEATURE_FLAG_CACHE_OWNER_KEY) !== userKey) return EMPTY_FLAGS;
+    }
     const stored = localStorage.getItem(FEATURE_FLAG_CACHE_KEY);
     if (!stored) return EMPTY_FLAGS;
     const parsed = JSON.parse(stored);
@@ -111,24 +123,32 @@ export function useStableFeatureFlags(): Features {
 
   const hasFullFlags = isFullFlagSet(featureFlags);
 
+  const { data: session } = useSession();
+  const userKey: string | null =
+    session?.user?.email ?? (session?.user as { username?: string } | undefined)?.username ?? null;
+
   // Read the cache once per mount — a later write must not change what this render
-  // tree is using, otherwise rows could still shift around mid-session.
-  const cachedRef = useRef<Features | null>(null);
-  if (cachedRef.current === null) cachedRef.current = readCachedFeatureFlags();
+  // tree is using, otherwise rows could still shift around mid-session. The only
+  // re-read is when the account becomes known after mount (session still loading).
+  const cachedRef = useRef<{ key: string | null; flags: Features } | null>(null);
+  if (cachedRef.current === null || (cachedRef.current.key === null && userKey !== null)) {
+    cachedRef.current = { key: userKey, flags: readCachedFeatureFlags(userKey) };
+  }
 
   useEffect(() => {
     // Only a full set is worth persisting. Caching the startup patch would make the
     // next load start from a baseline with no sidebar flags in it.
-    if (!hasFullFlags) return;
+    if (!hasFullFlags || !userKey) return;
     try {
       localStorage.setItem(FEATURE_FLAG_CACHE_KEY, JSON.stringify(featureFlags));
+      localStorage.setItem(FEATURE_FLAG_CACHE_OWNER_KEY, userKey);
     } catch {
       // Private browsing / quota — the in-memory flags still work for this session.
     }
-  }, [featureFlags, hasFullFlags]);
+  }, [featureFlags, hasFullFlags, userKey]);
 
   return useMemo(
-    () => resolveFeatureFlags(featureFlags, cachedRef.current as Features),
-    [featureFlags, hasFullFlags], // eslint-disable-line react-hooks/exhaustive-deps
+    () => resolveFeatureFlags(featureFlags, (cachedRef.current as { flags: Features }).flags),
+    [featureFlags, hasFullFlags, userKey], // eslint-disable-line react-hooks/exhaustive-deps
   );
 }

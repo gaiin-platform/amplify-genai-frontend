@@ -51,6 +51,7 @@ import {
 import { adminTabHasChanges } from '@/utils/app/admin';
 import { findOversizedSystemPrompts } from '@/components/NewUI/settings/admin/systemPromptBytes';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
+import { REVALIDATE_ROLLOUT_EVENT } from '@/components/NewUI/UIPreferenceBanner';
 import toast from 'react-hot-toast';
 import InputsMap from '@/components/ReusableComponents/InputMap';
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
@@ -609,6 +610,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         homeDispatch({ field: 'featureFlags', value: r.data });
         localStorage.setItem('mixPanelOn', JSON.stringify(r.data.mixPanel ?? false));
         window.dispatchEvent(new Event('updateFeatureSettings'));
+        // The New UI rollout may have just changed: re-resolve it for this tab now.
+        window.dispatchEvent(new Event(REVALIDATE_ROLLOUT_EVENT));
       }
     });
     act([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], async () => {

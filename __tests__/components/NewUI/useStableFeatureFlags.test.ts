@@ -18,6 +18,7 @@ import {
     isFullFlagSet,
     readCachedFeatureFlags,
     FEATURE_FLAG_CACHE_KEY,
+    FEATURE_FLAG_CACHE_OWNER_KEY,
 } from '@/components/NewUI/shared/useStableFeatureFlags';
 
 const cached = { createAssistantWorkflows: true, scheduledTasks: true, notebook: true };
@@ -119,6 +120,19 @@ describe('readCachedFeatureFlags', () => {
     it('returns a genuine cached set', () => {
         localStorage.setItem(FEATURE_FLAG_CACHE_KEY, JSON.stringify(cached));
         expect(readCachedFeatureFlags()).toEqual(cached);
+    });
+
+    it('scopes the cache to its owner when an identity is supplied', () => {
+        localStorage.setItem(FEATURE_FLAG_CACHE_KEY, JSON.stringify(cached));
+        localStorage.setItem(FEATURE_FLAG_CACHE_OWNER_KEY, 'a@x.com');
+        expect(readCachedFeatureFlags('a@x.com')).toEqual(cached);
+        expect(readCachedFeatureFlags('b@x.com')).toEqual({});
+        expect(readCachedFeatureFlags(null)).toEqual({});
+    });
+
+    it('never uses an unowned (legacy) cache once identity is checked', () => {
+        localStorage.setItem(FEATURE_FLAG_CACHE_KEY, JSON.stringify(cached));
+        expect(readCachedFeatureFlags('a@x.com')).toEqual({});
     });
 
     it('survives absent and corrupt entries', () => {

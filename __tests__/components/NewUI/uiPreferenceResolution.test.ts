@@ -12,6 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     resolveStoredUIPreference,
+    resolveUIPreferenceWithPolicy,
     readUIPreferenceOverride,
     urlWithoutUIPreferenceParam,
 } from '@/components/NewUI/shared/uiPreferenceResolution';
@@ -49,6 +50,11 @@ describe('resolveStoredUIPreference', () => {
 
     it('falls back to a valid local choice when the server value is junk', () => {
         expect(resolveStoredUIPreference('classic', 'bogus')).toBe('classic');
+    });
+    it('forces classic while rollout is disabled, defaults to new when enabled, and preserves classic choices', () => {
+        expect(resolveUIPreferenceWithPolicy('new', 'new', true, false)).toBe('classic');
+        expect(resolveUIPreferenceWithPolicy(null, null, true, true)).toBe('new');
+        expect(resolveUIPreferenceWithPolicy('classic', null, true, true)).toBe('classic');
     });
 });
 

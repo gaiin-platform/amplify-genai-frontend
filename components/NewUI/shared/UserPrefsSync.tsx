@@ -174,8 +174,9 @@ export const UserPrefsSync: FC = () => {
         };
 
         // Mount pass: the authoritative fetchSettings firing may already have
-        // happened before this component rendered — uiPreference starts null, so
-        // the new-UI branch only mounts once the server answers (§22).
+        // happened before this component rendered — the new-UI branch mounts only
+        // once NewUiRolloutGate confirms the rollout, which is after startup requests
+        // have begun (§22).
         syncServerValue();
 
         const seedTimer = window.setTimeout(() => {

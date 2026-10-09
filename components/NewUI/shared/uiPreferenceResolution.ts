@@ -37,19 +37,27 @@ export function resolveStoredUIPreference(
   return 'ask';
 }
 
-/** Deployment policy always overrides a classic preference; otherwise retain the usual resolution. */
+/**
+ * Final UI for a user once the rollout and classic-switch policies are known.
+ *
+ *   rollout disabled  → classic, whatever is stored (the stored choice is left alone
+ *                       so re-enabling the rollout restores it)
+ *   explicit choice   → honoured
+ *   no choice         → new once the rollout is enabled, or new because classic is forbidden
+ *
+ * Never returns 'ask': the first-run popup is retired now that New UI is the default.
+ */
 export function resolveUIPreferenceWithPolicy(
   local: UIPreference,
   server: unknown,
   allowClassicUiSwitch: boolean,
-): 'new' | 'classic' | 'ask' {
+  newUiEnabled = true,
+): 'new' | 'classic' {
+  if (!newUiEnabled) return 'classic';
+
   const resolved = resolveStoredUIPreference(local, server);
-  if (resolved === 'new') return 'new';
-  if (!allowClassicUiSwitch) return 'new';
-  // If the server is unavailable and local storage contains an explicit choice,
-  // retain that offline fallback instead of reverting to a first-run prompt.
-  if (server !== 'new' && server !== 'classic' && local === 'classic') return 'classic';
-  return resolved;
+  if (resolved === 'classic') return allowClassicUiSwitch ? 'classic' : 'new';
+  return 'new';
 }
 
 /**
@@ -65,6 +73,12 @@ export function writeLocalUIPreference(pref: 'new' | 'classic'): void {
   } else {
     document.cookie = 'X-Amplify-UI=; path=/; SameSite=Lax; max-age=0';
   }
+}
+
+/** Remove only the load-balancer routing cookie (the stored choice is untouched). */
+export function clearUIRoutingCookie(): void {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'X-Amplify-UI=; path=/; SameSite=Lax; max-age=0';
 }
 
 /** Drop the same-device stores, so only the server value remains. */

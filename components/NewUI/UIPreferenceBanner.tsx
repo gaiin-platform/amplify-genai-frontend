@@ -1,59 +1,61 @@
 /**
- * UIPreferenceBanner — shown once when the user hasn't yet chosen
- * between the Classic UI and the New UI.
+ * UIPreferenceBanner — resolves, once per load, which UI this user gets, and holds an
+ * opaque cover until it knows. It is the only writer of the rollout store
+ * (`shared/uiRolloutStore`), which `NewUiRolloutGate` and the account menus read.
  *
  * Behavior:
- *   - Resolves the stored preference first: localStorage `amplify_new_ui_preference`,
- *     then the server-side user settings (cross-device roaming)
- *   - Holds an opaque cover while that resolution is in flight, so neither the popup
- *     nor the wrong UI flashes (see below)
- *   - Only if *neither* store has a choice does it ask
- *   - "Try New UI" → sets preference to 'new', sets cookie X-Amplify-UI=new, calls onSelectNew()
- *   - "Stay Classic" → sets preference to 'classic', calls onSelectClassic()
- *   - User can always switch later via Settings → Appearance
- *   - `?uiPreference=reset` erases both stores and reloads, to re-test the first run
+ *   - Fetches user settings and `/feature_flags` concurrently; `uiPreferenceResolver`
+ *     turns the results (or the startup timeout) into one verdict.
+ *   - Rollout disabled → Classic for everyone. The stored choice is left alone, so
+ *     re-enabling restores it.
+ *   - Rollout enabled (`newUi: true`; absent = off) → stored choice (server beats
+ *     localStorage); no choice → New UI.
+ *   - Fallbacks when `/feature_flags` is slow or fails: this user's last server verdict,
+ *     else fail closed (Classic). A late response re-resolves, so a late "disabled" wins.
+ *   - `?uiPreference=reset` erases both stores and reloads, to re-test a first run.
  *
- * Why the resolve-before-ask step exists: `home.tsx` renders this banner whenever
- * `uiPreference === null`, and that state starts null on every load. Its own
- * `fetchSettings()` fills it in asynchronously, so on a returning user's session the
- * popup used to paint immediately and then get torn down mid-read the moment the
- * server answered — looking like it "closed and launched the new UI by itself".
- * Waiting for the same answer here means the popup only ever appears for a user who
- * genuinely has no stored choice. `home.tsx` state is off-limits (NEW_UI_GUIDE §2),
- * so the gate lives in this component.
+ * Why it covers the screen: `home.tsx` renders the Classic layout while its own
+ * `uiPreference` is null, so the unresolved window must be hidden. The layout effect
+ * mounts the cover before first paint. The New UI itself is kept unmounted by
+ * `NewUiRolloutGate` until the rollout is confirmed.
  *
- * Why it covers the screen instead of rendering nothing: `uiPreference === null` is
- * also what makes `home.tsx` render the *classic* layout, so the unresolved window is
- * exactly a window in which the old UI is on screen — "old loading animation → old UI
- * → new UI" on every load with an empty localStorage. This component is the only thing
- * mounted for precisely that window, so it owns hiding it. The localStorage branch
- * resolves in a **layout** effect (pre-paint) so that path costs no visible frame at
- * all; only a genuine server round trip shows the cover.
- *
- * The authenticated home mounts this gate before the conversation is initialized, and it
- * keeps the opaque cover in place until the server/local preference has been resolved.
- *
- * The cookie is for future load-balancer routing:
- *   LB listener rule #3 on port 443 matches X-Amplify-UI=new
- *   and forwards to the new-UI target group.
+ * The cookie is for load-balancer routing: rule #3 on port 443 matches
+ * X-Amplify-UI=new and forwards to the new-UI target group. It is cleared whenever the
+ * rollout is disabled.
  */
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import Image from 'next/image';
+import { useSession } from 'next-auth/react';
 import { saveUserSettings, fetchUserSettings } from '@/services/settingsService';
 import { getFeatureFlags } from '@/services/adminService';
 import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
 import {
   UI_PREF_KEY,
   clearLocalUIPreference,
+  clearUIRoutingCookie,
   getUIPreference,
   readUIPreferenceOverride,
   resolveStoredUIPreference,
-  resolveUIPreferenceWithPolicy,
   urlWithoutUIPreferenceParam,
   writeLocalUIPreference,
   type UIPreference,
 } from '@/components/NewUI/shared/uiPreferenceResolution';
-import { cacheClassicUiSwitchPolicy, isCachedClassicUiSwitchDisallowed, isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
+import {
+  NEW_UI_ROLLOUT_CACHE_KEY,
+  cacheClassicUiSwitchPolicy,
+  cacheNewUiRollout,
+  claimClassicUiSwitchCache,
+  isCachedClassicUiSwitchDisallowed,
+  isClassicUiSwitchAllowed,
+  readCachedNewUiRollout,
+  resolveNewUiRollout,
+} from '@/components/NewUI/shared/deploymentFeaturePolicy';
+import { createUiPreferenceResolver } from '@/components/NewUI/shared/uiPreferenceResolver';
+import {
+  canApplyUiPreference,
+  getUiRolloutSnapshot,
+  resetUiRollout,
+  setUiRollout,
+} from '@/components/NewUI/shared/uiRolloutStore';
 import { getSettings } from '@/utils/app/settings';
 
 // Re-exported so existing importers (home.tsx, AccountMenu) keep their import path.
@@ -61,40 +63,68 @@ export { UI_PREF_KEY, getUIPreference, resolveStoredUIPreference };
 export type { UIPreference };
 
 /**
- * How long we wait for the server's stored choice before asking anyway.
- * A hung settings request must not leave the user stuck with no popup at all.
+ * How long we wait for the server before deciding from the fallbacks. A hung request
+ * must not leave the user behind the cover; a response arriving later still re-resolves.
  */
 export const PREF_RESOLVE_TIMEOUT_MS = 6000;
+
+/** A refocused tab re-checks the rollout at most this often. */
+const REVALIDATE_MIN_INTERVAL_MS = 30000;
+
+/** Window event: something changed the feature flags (e.g. the admin saved), re-check now. */
+export const REVALIDATE_ROLLOUT_EVENT = 'amplifyRevalidateNewUiRollout';
+
+/** The loader shown after a switch is requested; the callers reload well before this. */
+const SWITCH_LOADER_MAX_MS = 10000;
+
+export interface SetUIPreferenceResult {
+  /** The policy allowed the change and it was applied on this device. */
+  applied: boolean;
+  /** The server accepted it. Without this a reload resolves to the old server value. */
+  persisted: boolean;
+}
 
 /**
  * Persist the UI preference to:
  *   1. localStorage  (immediate, same-device)
- *   2. A cookie      (for future load-balancer routing)
- *   3. Server-side user settings (cross-device / cross-browser)
+ *   2. A cookie      (for load-balancer routing)
+ *   3. Server-side user settings (cross-device; wins on the next load)
  *
- * The server save is fire-and-forget — a failure silently falls back to
- * localStorage so the user's session isn't interrupted.
+ * Refuses a change the current rollout policy forbids, so a stale menu, tab or caller
+ * cannot activate New UI while the rollout is disabled. When the server write fails the
+ * local change is rolled back: the server value wins on reload, so keeping it would just
+ * bounce the user back.
  */
-export async function setUIPreference(pref: 'new' | 'classic'): Promise<void> {
-  // Persist locally first: offline users still get the selected UI immediately.
+export async function setUIPreference(pref: 'new' | 'classic'): Promise<SetUIPreferenceResult> {
+  if (!canApplyUiPreference(getUiRolloutSnapshot(), pref)) {
+    return { applied: false, persisted: false };
+  }
+
+  const previous = getUIPreference();
   writeLocalUIPreference(pref);
   // Notify the mounted gate immediately so callers that must await server
-  // persistence (including the classic UserMenu) still get instant feedback.
+  // persistence still get instant feedback.
   window.dispatchEvent(new CustomEvent('amplifyUIPreferenceSwitch', {
     detail: { preference: pref },
   }));
 
-  // A failed read means we cannot safely replace the server's full settings object.
-  // Keep the local choice and retry on a later explicit switch/startup instead.
+  let persisted = false;
   try {
     const result = await fetchUserSettings();
     const current = result?.success && result.data
       ? result.data
       : getSettings({});
-    await saveUserSettings({ ...current, uiPreference: pref });
+    persisted = (await saveUserSettings({ ...current, uiPreference: pref })) === true;
   } catch {
-    // Non-fatal — localStorage already holds the value.
+    persisted = false;
   }
+
+  if (!persisted) {
+    if (previous) writeLocalUIPreference(previous);
+    else clearLocalUIPreference();
+    window.dispatchEvent(new CustomEvent('amplifyUIPreferenceSwitchFailed'));
+  }
+  return { applied: true, persisted };
 }
 
 /**
@@ -123,67 +153,32 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
   onSelectNew,
   onSelectClassic,
 }) => {
-  // 'resolving' → checking the stores; 'ask' → popup visible; 'done' → user answered
-  const [phase, setPhase] = useState<'resolving' | 'ask' | 'done'>('resolving');
-  const [switchingToNew, setSwitchingToNew] = useState(false);
-  const [switchingToClassic, setSwitchingToClassic] = useState(false);
-  // Start restrictive from a prior policy observation to prevent stale server
-  // settings from flashing classic before the current policy request resolves.
-  const [classicAllowed, setClassicAllowed] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('amplify_classic_ui_switch_allowed') !== 'false';
-    } catch {
-      return true;
-    }
-  });
+  // 'resolving' → opaque cover; 'done' → home.tsx owns the layout
+  const [phase, setPhase] = useState<'resolving' | 'done'>('resolving');
+  const [switchingTo, setSwitchingTo] = useState<'new' | 'classic' | null>(null);
+
+  const { data: session } = useSession();
+  const userKeyRef = useRef<string | null>(null);
+  userKeyRef.current = session?.user?.email ?? (session?.user as any)?.username ?? null;
 
   // home.tsx passes fresh inline arrows on every render, so these are read through a
-  // ref. Listing them in the effect deps would restart the settings fetch each render.
+  // ref. Listing them in the effect deps would restart the fetches each render.
   const callbacksRef = useRef({ onSelectNew, onSelectClassic });
   callbacksRef.current = { onSelectNew, onSelectClassic };
 
-  const dialogRef = useRef<HTMLDivElement>(null);
-  const newCardRef = useRef<HTMLButtonElement>(null);
-
-  // A *layout* effect starts the server/local resolution before the browser paints,
-  // so the opaque resolving cover is committed before any classic fallback can be
-  // visible (NEW_UI_GUIDE §21 uses the same pre-paint reasoning for scroll restore).
+  // A *layout* effect starts the resolution before the browser paints, so the opaque
+  // cover is committed before any fallback layout can be visible.
   useLayoutEffect(() => {
     // Per-effect flags, declared in the effect body so a StrictMode remount re-arms
     // them rather than latching the unmounted value forever (NEW_UI_GUIDE §16).
     let cancelled = false;
-    let settled = false;
     let timer = 0;
-    let forcedByCachedPolicy = false;
-    // Older deployments and failed policy reads retain the documented allow default.
-    let allowClassic = true;
 
-    const decide = (resolution: 'new' | 'classic' | 'ask') => {
-      if (cancelled || settled || forcedByCachedPolicy) return;
-      settled = true;
-      window.clearTimeout(timer);
-
-      // If the deployment config disables classic switching, force 'new' regardless of
-      // stored preference and skip the 'ask' state so the banner never shows the dialog.
-      const effective = !allowClassic && resolution !== 'new' ? 'new' : resolution;
-
-      if (effective === 'ask') {
-        setPhase('ask');
-        return;
-      }
-      // A stored choice exists — honour it silently instead of asking again.
-      // Mark the gate done before notifying home.tsx so an unconditional mount
-      // cannot leave the opaque resolving cover over the selected layout.
-      writeLocalUIPreference(effective);
-      setPhase('done');
-      if (effective === 'new') callbacksRef.current.onSelectNew();
-      else callbacksRef.current.onSelectClassic();
-    };
+    // A verdict from an earlier mount or user must never be visible to this one.
+    resetUiRollout();
 
     // `?uiPreference=reset` — erase both stores, then reload without the param so the
-    // next load is indistinguishable from a first-ever visit. Reloading is what makes
-    // this reliable: home.tsx's own settings fetch starts before we could clear the
-    // server value, so only a fresh load is guaranteed to see an empty server field.
+    // next load is indistinguishable from a first-ever visit.
     if (readUIPreferenceOverride(window.location.search)) {
       clearUIPreference().finally(() => {
         window.location.replace(urlWithoutUIPreferenceParam(window.location.href));
@@ -191,125 +186,149 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
       return;
     }
 
-    const local = getUIPreference();
-    const cachedPolicyDisallowsClassic = isCachedClassicUiSwitchDisallowed();
-    if (cachedPolicyDisallowsClassic && local !== 'new') {
-      forcedByCachedPolicy = true;
-      settled = true;
-      writeLocalUIPreference('new');
-      callbacksRef.current.onSelectNew();
-      setPhase('done');
-      void setUIPreference('new');
-      return () => {
-        cancelled = true;
-        window.clearTimeout(timer);
-      };
-    }
+    const userKey = userKeyRef.current;
+    // Drop a classic-switch value left by another account before anything reads it
+    // (home.tsx reads that key directly in fetchSettings).
+    claimClassicUiSwitchCache(userKey);
 
-    // Always wait for the server when possible: it is the cross-device source
-    // of truth. The local value remains the timeout/offline fallback, but must
-    // not tear down the opaque gate before a server value can win.
-    timer = window.setTimeout(
-      () => decide(local ?? 'ask'),
-      PREF_RESOLVE_TIMEOUT_MS,
+    const resolver = createUiPreferenceResolver({
+      local: getUIPreference(),
+      cachedRollout: readCachedNewUiRollout(userKey),
+      cachedClassicDisallowed: isCachedClassicUiSwitchDisallowed(userKey),
+      onResolved: ({ rollout, allowClassic, effective }) => {
+        if (cancelled) return;
+        // Publish before notifying home.tsx so the gate already knows the verdict
+        // when the preference state changes.
+        setUiRollout(rollout ? 'enabled' : 'disabled', allowClassic);
+        if (rollout) writeLocalUIPreference(effective);
+        else clearUIRoutingCookie(); // keep the stored choice; only stop LB routing
+        setPhase('done');
+        if (effective === 'new') callbacksRef.current.onSelectNew();
+        else callbacksRef.current.onSelectClassic();
+      },
+    });
+
+    const settleTimer = () => {
+      if (resolver.isFinalized()) window.clearTimeout(timer);
+    };
+
+    // The server is the cross-device source of truth; the local value is only the
+    // fallback and must not tear down the cover before a server value can win.
+    timer = window.setTimeout(() => resolver.timeout(), PREF_RESOLVE_TIMEOUT_MS);
+
+    fetchUserSettings().then(
+      (result) => {
+        const data = result?.success ? (result.data as { uiPreference?: unknown } | null) : null;
+        resolver.receiveSettings(data?.uiPreference);
+        settleTimer();
+      },
+      () => {
+        resolver.receiveSettings(undefined);
+        settleTimer();
+      },
     );
 
-    (async () => {
-      // Fetch user settings and deployment feature flags in parallel.
-      const [settingsResult, flagsResult] = await Promise.allSettled([
-        fetchUserSettings(),
-        getFeatureFlags(),
-      ]);
+    getFeatureFlags().then(
+      (result) => {
+        const data = result?.success ? result.data : null;
+        // Cache only a trusted payload, even after unmount: it is correct data for this user.
+        const verdict = resolveNewUiRollout(data);
+        if (verdict !== null) {
+          cacheNewUiRollout(userKey, verdict);
+          cacheClassicUiSwitchPolicy(isClassicUiSwitchAllowed(data as any), userKey);
+        }
+        resolver.receiveFlags(data);
+        settleTimer();
+      },
+      () => {
+        resolver.receiveFlags(null);
+        settleTimer();
+      },
+    );
 
-      let server: unknown = null;
-      if (settingsResult.status === 'fulfilled' && settingsResult.value?.success) {
-        server = (settingsResult.value.data as { uiPreference?: unknown }).uiPreference;
+    // ── Staying current after startup ────────────────────────────────────────
+    // An open tab must not keep showing the New UI after the rollout is switched off
+    // (or miss it being switched back on). Three triggers re-check: the tab regaining
+    // focus, an admin save in this tab, and another tab of the same user publishing a
+    // verdict. A failed re-check is ignored, so it can never knock the session over.
+    let lastChecked = Date.now();
+    let checking = false;
+    const revalidate = async () => {
+      if (cancelled || checking || !resolver.isFinalized()) return;
+      checking = true;
+      lastChecked = Date.now();
+      try {
+        const result = await getFeatureFlags();
+        const data = result?.success ? result.data : null;
+        const verdict = resolveNewUiRollout(data);
+        if (verdict !== null) {
+          cacheNewUiRollout(userKey, verdict);
+          cacheClassicUiSwitchPolicy(isClassicUiSwitchAllowed(data as any), userKey);
+          if (!cancelled) resolver.revalidate(data);
+        }
+      } catch {
+        // Keep the current verdict.
+      } finally {
+        checking = false;
       }
+    };
 
-      // Extract the deployment switch policy (missing legacy value means allowed).
-      if (flagsResult.status === 'fulfilled' && flagsResult.value?.success) {
-        allowClassic = isClassicUiSwitchAllowed(flagsResult.value.data as any);
-        cacheClassicUiSwitchPolicy(allowClassic);
-        setClassicAllowed(allowClassic);
-      } else if (isCachedClassicUiSwitchDisallowed()) {
-        allowClassic = false;
-        setClassicAllowed(false);
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - lastChecked < REVALIDATE_MIN_INTERVAL_MS) return;
+      void revalidate();
+    };
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== NEW_UI_ROLLOUT_CACHE_KEY || !event.newValue || !userKey) return;
+      try {
+        const peer = JSON.parse(event.newValue);
+        if (peer?.u === userKey && typeof peer.enabled === 'boolean') {
+          resolver.adoptPeerVerdict(peer.enabled);
+        }
+      } catch {
+        // Malformed peer value — ignore.
       }
+    };
+    const onRevalidateRequest = () => void revalidate();
 
-      const resolved = resolveStoredUIPreference(local, server);
-      const effective = resolveUIPreferenceWithPolicy(local, server, allowClassic);
-      if (!allowClassic && resolved !== 'new') {
-        writeLocalUIPreference('new');
-        void setUIPreference('new');
-      }
-      decide(effective);
-    })();
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('storage', onStorage);
+    window.addEventListener(REVALIDATE_ROLLOUT_EVENT, onRevalidateRequest);
 
     return () => {
       cancelled = true;
       window.clearTimeout(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener(REVALIDATE_ROLLOUT_EVENT, onRevalidateRequest);
     };
   }, []);
 
+  // Immediate feedback while a switch is persisting. Callers reload on success; the
+  // failure event (or the cap below) clears the loader if they cannot.
   useEffect(() => {
-    const handlePreferenceSwitch = (event: Event) => {
+    let loaderTimer = 0;
+    const onSwitch = (event: Event) => {
       const preference = (event as CustomEvent<{ preference?: unknown }>).detail?.preference;
-      if (preference === 'new') setSwitchingToNew(true);
-      if (preference === 'classic') setSwitchingToClassic(true);
+      if (preference !== 'new' && preference !== 'classic') return;
+      setSwitchingTo(preference);
+      window.clearTimeout(loaderTimer);
+      loaderTimer = window.setTimeout(() => setSwitchingTo(null), SWITCH_LOADER_MAX_MS);
     };
-    window.addEventListener('amplifyUIPreferenceSwitch', handlePreferenceSwitch);
-    return () => window.removeEventListener('amplifyUIPreferenceSwitch', handlePreferenceSwitch);
+    const onFailed = () => {
+      window.clearTimeout(loaderTimer);
+      setSwitchingTo(null);
+    };
+    window.addEventListener('amplifyUIPreferenceSwitch', onSwitch);
+    window.addEventListener('amplifyUIPreferenceSwitchFailed', onFailed);
+    return () => {
+      window.clearTimeout(loaderTimer);
+      window.removeEventListener('amplifyUIPreferenceSwitch', onSwitch);
+      window.removeEventListener('amplifyUIPreferenceSwitchFailed', onFailed);
+    };
   }, []);
 
-  // Focus the recommended card on open and keep Tab inside the dialog.
-  // There is deliberately no Escape handler — a choice is required, and dismissing
-  // without one would just re-open on the next load.
-  useEffect(() => {
-    if (phase !== 'ask') return;
-    newCardRef.current?.focus();
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key !== 'Tab') return;
-      const dialog = dialogRef.current;
-      if (!dialog) return;
-      const focusables = Array.from(
-        dialog.querySelectorAll<HTMLElement>('button:not([disabled])'),
-      );
-      if (focusables.length === 0) return;
-
-      const first = focusables[0];
-      const last = focusables[focusables.length - 1];
-      const active = document.activeElement;
-      const outside = !(active instanceof Node) || !dialog.contains(active);
-
-      if (e.shiftKey && (outside || active === first)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (outside || active === last)) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-
-    document.addEventListener('keydown', onKeyDown, true);
-    return () => document.removeEventListener('keydown', onKeyDown, true);
-  }, [phase]);
-
-  const choose = (pref: 'new' | 'classic') => {
-    if (phase === 'done') return;
-    // Honour the deployment policy: classic is unavailable when disallowed.
-    const effective: 'new' | 'classic' = !classicAllowed && pref === 'classic' ? 'new' : pref;
-    if (effective === 'new') setSwitchingToNew(true);
-    setPhase('done');
-    if (effective === 'new') onSelectNew();
-    else onSelectClassic();
-    // Fire-and-forget — don't await so the UI switches immediately
-    setUIPreference(effective).catch(() => {});
-  };
-
-  // Still resolving: cover the app. The home render uses a safe New UI loader for
-  // unresolved preference values, and this opaque wrapper prevents any fallback UI
-  // from painting while the server/local choice is still in flight. Bounded by
+  // Still resolving: cover the app so no fallback layout paints. Bounded by
   // PREF_RESOLVE_TIMEOUT_MS.
   if (phase === 'resolving') {
     return (
@@ -322,111 +341,13 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
     );
   }
 
-  // The user answered — home.tsx owns the layout from here. Keep the shared
-  // loader mounted for the new-UI transition so the click has immediate feedback.
-  if (phase !== 'ask') {
-    return (switchingToNew || switchingToClassic) ? (
-      <NewUILoadingStatus
-        open
-        message={switchingToNew ? 'Switching to New UI…' : 'Switching to Classic UI…'}
-      />
-    ) : null;
-  }
-
-  const handleNew = () => choose('new');
-  const handleClassic = () => choose('classic');
-
-  return (
-    <div
-      className="fixed inset-0 z-[200] flex items-center justify-center"
-      style={{
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        backdropFilter: 'blur(4px)',
-      }}
-    >
-      <div
-        ref={dialogRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ui-preference-title"
-        className={`
-          relative w-full max-w-[520px] mx-4
-          bg-[--bg-raised] border border-[--border-subtle]
-          rounded-[--radius-panel]
-          shadow-[0_24px_60px_rgba(0,0,0,0.5)]
-          p-8
-          animate-fade-in
-        `}
-        style={{ transformOrigin: 'center' }}
-      >
-        {/* Wordmark — `priority` so the logo is preloaded at high fetch priority and
-            paints with the rest of the card. next/image lazy-loads by default, which
-            made it arrive visibly after the text on a cold load. */}
-        <div className="flex items-center gap-2 mb-6">
-          <Image
-            src="/amplify-logo.png"
-            alt="Amplify"
-            width={28}
-            height={28}
-            priority
-            style={{ borderRadius: 4 }}
-          />
-          <span
-            className="text-[22px] text-[--text-primary] tracking-[-0.01em]"
-            style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
-          >
-            Amplify
-          </span>
-        </div>
-
-        <h2
-          id="ui-preference-title"
-          className="text-[22px] font-medium text-[--text-primary] mb-3 leading-tight"
-        >
-          We have a new look
-        </h2>
-        <p className="text-[15px] text-[--text-secondary] mb-8 leading-relaxed">
-          We&apos;ve redesigned Amplify with a cleaner, more focused interface. You
-          can switch back to the classic view at any time from Settings →
-          Appearance.
-        </p>
-
-        {/* Comparison row — clicking a card directly selects the UI */}
-        <div className={`grid gap-3 ${classicAllowed ? 'grid-cols-2' : 'grid-cols-1 max-w-[260px]'}`}>
-          {/* New UI preview card */}
-          <button
-            ref={newCardRef}
-            type="button"
-            className="text-left rounded-[10px] border-2 border-[--accent] bg-[--bg-app] p-4 cursor-pointer hover:bg-[--bg-hover] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
-            onClick={handleNew}
-          >
-            <div className="text-[13px] font-medium text-[--text-primary] mb-1">New UI</div>
-            <div className="text-[12px] text-[--text-muted] leading-relaxed">
-              Clean sidebar, unified navigation, modern composer
-            </div>
-            <div className="mt-3 text-[11px] font-medium text-[--accent] uppercase tracking-wide">
-              {classicAllowed ? 'Recommended' : 'Required by your organization'}
-            </div>
-          </button>
-
-          {/* Classic preview card — hidden when the deployment policy disallows switching */}
-          {classicAllowed && (
-            <button
-              type="button"
-              className="text-left rounded-[10px] border border-[--border-subtle] bg-[--bg-app] p-4 cursor-pointer hover:bg-[--bg-hover] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
-              onClick={handleClassic}
-            >
-              <div className="text-[13px] font-medium text-[--text-primary] mb-1">Classic UI</div>
-              <div className="text-[12px] text-[--text-muted] leading-relaxed">
-                Original interface with three-tab sidebar
-              </div>
-            </button>
-          )}
-        </div>
-
-      </div>
-    </div>
-  );
+  // Resolved — home.tsx owns the layout from here.
+  return switchingTo ? (
+    <NewUILoadingStatus
+      open
+      message={switchingTo === 'new' ? 'Switching to New UI…' : 'Switching to Classic UI…'}
+    />
+  ) : null;
 };
 
 export default UIPreferenceBanner;
