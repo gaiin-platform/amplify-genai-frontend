@@ -121,6 +121,7 @@ import { BlankConversationCleanup } from '@/components/NewUI/shared/BlankConvers
 import { UserPrefsSync } from '@/components/NewUI/shared/UserPrefsSync';
 import { LastChatRestore } from '@/components/NewUI/shared/LastChatRestore';
 import { LiveHomeStateMirror } from '@/components/NewUI/shared/LiveHomeStateMirror';
+import { ChatBusyNoticeHost } from '@/components/NewUI/shared/ChatBusyNoticeHost';
 import { isConversationStreaming, getStreamingConversationIds } from '@/hooks/useChatSendService';
 
 const LoadingIcon = styled(Icon3dCubeSphere)`
@@ -1726,6 +1727,7 @@ const Home = ({
                                     new-chat view. */}
                                 <LastChatRestore />
                                 <LiveHomeStateMirror />
+                                <ChatBusyNoticeHost />
 
                                 {/* Unified new sidebar — stays visible on every page, Notebook included,
                                     so Notebook behaves like Library/Assistants/Workflows (a page inside

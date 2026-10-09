@@ -26,6 +26,7 @@ import {
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 import HomeContext from '@/pages/api/home/home.context';
+import { blockIfOtherChatGenerating } from '@/hooks/useChatSendService';
 import { RichComposer, type RichComposerHandle } from '@/components/NewUI/shared/RichComposer';
 import { handleFile } from '@/components/Chat/AttachFile';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
@@ -428,6 +429,8 @@ export const NewHome: React.FC = () => {
     const trimmed = markdown.trim();
     const readyAttachments = uiAttachments.filter((a) => a.status !== 'failed');
     if (!trimmed && readyAttachments.length === 0) return;
+    // Another chat is still answering: keep the draft and ask the user to wait.
+    if (blockIfOtherChatGenerating(selectedConversation?.id)) return false; // RichComposer keeps the draft only on an explicit false
     const pastedAttachments = readyAttachments.filter((a) => a.kind === 'paste');
     const pastedMessage = buildPastedTextMessage(trimmed, pastedAttachments);
     // Docs whose S3 upload finished (doc.key set by handleFile's onSetKey).

@@ -132,6 +132,18 @@ export const isConversationStreaming = (
     conversationId?: string,
 ): boolean => !!messageIsStreaming && (ids.length === 0 || (!!conversationId && ids.includes(conversationId)));
 
+export const CHAT_BUSY_EVENT = 'amplifyChatBusyNotice';
+/**
+ * True (and a "please wait" notice is raised) when a response is still being generated in a
+ * DIFFERENT chat than `conversationId`. Sends are blocked then: the generating flags are global,
+ * so a second concurrent send would corrupt the first one's state.
+ */
+export const blockIfOtherChatGenerating = (conversationId?: string): boolean => {
+    if (streamingIds.length === 0 || (conversationId && streamingIds.includes(conversationId))) return false;
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(CHAT_BUSY_EVENT));
+    return true;
+};
+
 /** Mount once, high in the tree, to keep in-flight sends aware of the user's current selection. */
 export function useLiveHomeStateMirror() {
     const { state: { selectedConversation, conversations, messageIsStreaming } } = useContext(HomeContext);
@@ -310,6 +322,8 @@ export function useSendService() {
     const handleSend = useCallback(
         async (request: ChatRequest, shouldAbort: () => boolean) => {
             return new Promise(async (resolve, reject) => {
+                // Safety net for sends that don't pre-check (retry, edit, …).
+                if (blockIfOtherChatGenerating(selectedConversation?.id)) { resolve(null); return; }
                 if (selectedConversation) {
 
                     let {

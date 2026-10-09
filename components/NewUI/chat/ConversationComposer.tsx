@@ -43,7 +43,7 @@ import React, {
 } from 'react';
 import toast from 'react-hot-toast';
 
-import { type ChatRequest, useSendService } from '@/hooks/useChatSendService';
+import { type ChatRequest, useSendService, blockIfOtherChatGenerating } from '@/hooks/useChatSendService';
 
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
@@ -577,6 +577,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
 
     if (!hasContentToSend && notReadyAttachments.length === 0) return true;
     if (messageIsStreaming) return false;
+    // Another chat is still answering: keep the draft and ask the user to wait.
+    if (blockIfOtherChatGenerating(selectedConversation?.id)) return false;
     if (notReadyAttachments.length > 0) {
       setShowAttachmentProcessingNotice(true);
       return false;
