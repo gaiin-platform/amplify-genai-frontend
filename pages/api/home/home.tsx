@@ -69,7 +69,6 @@ import Loader from "@/components/Loader/Loader";
 import { ConversationAction, useHomeReducer } from "@/hooks/useHomeReducer";
 import { MyHome } from "@/components/My/MyHome";
 import { AssistantGallery } from "@/components/AssistantGallery/AssistantGallery";
-import { NotebookApp } from "@/components/Notebook/NotebookApp";
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants, listLayeredAssistants } from '@/services/assistantService';
 import { LayeredAssistant } from '@/types/layeredAssistant';
@@ -111,6 +110,7 @@ import { LayeredBuilderHost } from '@/components/NewUI/shared/LayeredBuilderHost
 import { AssistantAdminUIHost } from '@/components/NewUI/shared/AssistantAdminUIHost';
 import { UIPreferenceBanner, getUIPreference, setUIPreference, type UIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { NotebookFeatureGate } from '@/components/NewUI/shared/NotebookFeatureGate';
 import { NewUiRolloutGate } from '@/components/NewUI/shared/NewUiRolloutGate';
 import { isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
@@ -1815,8 +1815,8 @@ const Home = ({
                                     {(page as any) === 'workflows' && (
                                         <NewWorkflowsView />
                                     )}
-                                    {page === 'notebook' && featureFlags.notebook && (
-                                        <NotebookApp />
+                                    {page === 'notebook' && (
+                                        <NotebookFeatureGate />
                                     )}
                                 </div>
 
@@ -1875,8 +1875,8 @@ const Home = ({
                                     {page === 'assistantGallery' && (
                                         <AssistantGallery />
                                     )}
-                                    {page === 'notebook' && featureFlags.notebook && (
-                                        <NotebookApp />
+                                    {page === 'notebook' && (
+                                        <NotebookFeatureGate />
                                     )}
                                 </div>
                             </div>

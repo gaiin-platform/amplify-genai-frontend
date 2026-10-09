@@ -66,6 +66,7 @@ import {
   isBlankPlaceholderConversation,
 } from '@/components/NewUI/shared/chatFilters';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { useNotebookFeatureFlag } from '@/components/NewUI/shared/notebookFeatureFlag';
 import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import {
   SidebarVisibility,
@@ -249,6 +250,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // state is `{}` until the /feature_flags fetch resolves (and stays `{}` if it fails),
   // which used to make the gated nav rows appear and disappear across refreshes.
   const featureFlags = useStableFeatureFlags();
+  const notebookEnabled = useNotebookFeatureFlag();
 
   const [isOpen, setIsOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -723,7 +725,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       visible: sidebarVisibility.workflows,
       action: () => dispatch({ field: 'page', value: 'workflows' as any }),
     }] : []),
-    ...(featureFlags.notebook ? [{
+    ...(notebookEnabled ? [{
       icon: <IconLayoutGridAdd size={18} />,
       label: 'Notebook',
       title: 'Notebook',

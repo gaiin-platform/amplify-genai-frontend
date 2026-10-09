@@ -71,6 +71,7 @@ import {
     createAmplifyHelperAssistant,
 } from '@/components/NewUI/shared/amplifyHelperGuide';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { useNotebookFeatureFlag } from '@/components/NewUI/shared/notebookFeatureFlag';
 import {
     canDeleteAssistantPrompt,
     getDeletableAssistantId,
@@ -1913,6 +1914,7 @@ export const NewAssistantsView: React.FC = () => {
         handleNewConversation,
     } = useContext(HomeContext);
     const stableFeatureFlags = useStableFeatureFlags();
+    const notebookEnabled = useNotebookFeatureFlag();
     const helperEnabled = stableFeatureFlags.amplifyHelper === true;
 
     // Assistants always opens on My Assistants; tab changes only persist while this view is open.
@@ -1932,9 +1934,9 @@ export const NewAssistantsView: React.FC = () => {
         ]);
         if (stableFeatureFlags.createAssistantWorkflows) destinations.add('page:workflows');
         if (stableFeatureFlags.scheduledTasks) destinations.add('page:scheduledTasks');
-        if (stableFeatureFlags.notebook) destinations.add('page:notebook');
+        if (notebookEnabled) destinations.add('page:notebook');
         return destinations;
-    }, [stableFeatureFlags.createAssistantWorkflows, stableFeatureFlags.scheduledTasks, stableFeatureFlags.notebook]);
+    }, [stableFeatureFlags.createAssistantWorkflows, stableFeatureFlags.scheduledTasks, notebookEnabled]);
 
     const handleAmplifyHelperNavigation = useCallback((destination: { kind: 'settings' | 'page'; value: string }) => {
         if (destination.kind === 'settings') {

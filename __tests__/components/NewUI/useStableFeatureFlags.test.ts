@@ -20,6 +20,7 @@ import {
     FEATURE_FLAG_CACHE_KEY,
     FEATURE_FLAG_CACHE_OWNER_KEY,
 } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { isNotebookFeatureEnabled } from '@/components/NewUI/shared/notebookFeatureFlag';
 
 const cached = { createAssistantWorkflows: true, scheduledTasks: true, notebook: true };
 
@@ -75,6 +76,32 @@ describe('resolveFeatureFlags', () => {
     it('preserves the artifacts flag when the startup patch arrives first', () => {
         const full = { ...cached, artifacts: true };
         expect(resolveFeatureFlags({ smartMessages: false }, full)).toEqual({ ...full, smartMessages: false });
+    });
+});
+
+describe('Notebook feature gate', () => {
+    it('defaults to off when the flag is absent', () => {
+        expect(isNotebookFeatureEnabled({})).toBe(false);
+        expect(isNotebookFeatureEnabled(undefined)).toBe(false);
+        expect(isNotebookFeatureEnabled(null)).toBe(false);
+    });
+
+    it('requires the flag to be the boolean true', () => {
+        expect(isNotebookFeatureEnabled({ notebook: true })).toBe(true);
+        expect(isNotebookFeatureEnabled({ notebook: false })).toBe(false);
+        expect(isNotebookFeatureEnabled({ notebook: 1 as unknown as boolean })).toBe(false);
+        expect(isNotebookFeatureEnabled({ notebook: 'true' as unknown as boolean })).toBe(false);
+    });
+
+    it('does not resurrect Notebook from a cache when a complete payload omits it', () => {
+        const resolved = resolveFeatureFlags({ scheduledTasks: true }, cached);
+        expect(isNotebookFeatureEnabled(resolved)).toBe(false);
+    });
+
+    it('stays off while the current flag payload is empty, even if the cache enabled it', () => {
+        const resolved = resolveFeatureFlags({}, cached);
+        expect(resolved.notebook).toBe(true);
+        expect(isNotebookFeatureEnabled({})).toBe(false);
     });
 });
 

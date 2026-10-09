@@ -26,6 +26,7 @@ import {
 } from '@/components/NewUI/shared/sidebarVisibility';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { useNotebookFeatureFlag } from '@/components/NewUI/shared/notebookFeatureFlag';
 
 // ── Toggle row component ──────────────────────────────────────────────────────
 
@@ -113,6 +114,7 @@ const SidebarItemsSection: React.FC = () => {
   // the Workflows / Scheduled Tasks / Notebook rows missing here — so a user who had
   // just hidden one of them had no control left to turn it back on.
   const featureFlags = useStableFeatureFlags();
+  const notebookEnabled = useNotebookFeatureFlag();
 
   const uid = useId();
 
@@ -182,7 +184,7 @@ const SidebarItemsSection: React.FC = () => {
           },
         ]
       : []),
-    ...(featureFlags.notebook
+    ...(notebookEnabled
       ? [
           {
             key: 'notebook' as keyof SidebarVisibility,
