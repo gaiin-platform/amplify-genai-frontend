@@ -12,6 +12,7 @@ import React, { useContext, useState, useMemo, useRef, useEffect, useCallback } 
 import {
     IconX,
     IconRobot,
+    IconSparkles,
     IconUsers,
     IconGitBranch,
     IconLoader2,
@@ -62,6 +63,12 @@ import {
 import toast from 'react-hot-toast';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 import { NewGroupManagementModal } from './assistant/NewGroupManagementModal';
+import AmplifyHelperAssistant from './AmplifyHelperAssistant';
+import {
+    AMPLIFY_HELPER_MARKER,
+    createAmplifyHelperAssistant,
+} from '@/components/NewUI/shared/amplifyHelperGuide';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import {
     canDeleteAssistantPrompt,
     getDeletableAssistantId,
@@ -71,7 +78,7 @@ import {
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type MainTab = 'individual' | 'shared' | 'group' | 'layered';
+type MainTab = 'individual' | 'shared' | 'group' | 'layered' | 'amplifyHelper';
 
 type ShareProvenance = SharedAssistantProvenance;
 
@@ -512,7 +519,15 @@ const SearchInput: React.FC<{ value: string; onChange: (v: string) => void; plac
 
 const MyAssistantsTab: React.FC = () => {
     const {
-        state: { prompts, statsService, availableModels, selectedAssistant, featureFlags, groups, amplifyUsers },
+        state: {
+            prompts,
+            statsService,
+            availableModels,
+            selectedAssistant,
+            featureFlags,
+            groups,
+            amplifyUsers,
+        },
         dispatch: homeDispatch,
         handleNewConversation,
     } = useContext(HomeContext);
@@ -1891,25 +1906,22 @@ const LayeredAssistantsTab: React.FC = () => {
 
 export const NewAssistantsView: React.FC = () => {
     const {
-        state: { groups, syncingPrompts, syncingLayeredAssistants, layeredAssistants, activeAssistantGalleryTab },
+        state: { groups, syncingPrompts, syncingLayeredAssistants, layeredAssistants, activeAssistantGalleryTab, userDocumentationUrl, supportEmail },
         dispatch: homeDispatch,
+        handleNewConversation,
     } = useContext(HomeContext);
+    const stableFeatureFlags = useStableFeatureFlags();
+    const helperEnabled = stableFeatureFlags.amplifyHelper === true;
 
     // Mirror the existing persisted tab preference
     const [activeTab, setActiveTab] = useState<MainTab>(() => {
         const saved = localStorage.getItem('activeAssistantGalleryTab') as MainTab | null;
-        const valid: MainTab[] = ['individual', 'shared', 'group', 'layered'];
-        // 'templates' was removed — users with that stored value fall back to 'individual'
+        const valid: MainTab[] = ['individual', 'shared', 'group', 'layered', 'amplifyHelper'];
         return saved && valid.includes(saved) ? saved : 'individual';
     });
 
     const shouldShowGroupTab = true; // Show the empty state so every user can create a group.
     const shouldShowLayeredTab = true; // Always show so first-time users can discover and create layered assistants
-
-    // If the current tab becomes hidden, fall back to individual
-    useEffect(() => {
-        if (activeTab === 'layered' && !shouldShowLayeredTab) setActiveTab('individual');
-    }, [shouldShowLayeredTab, activeTab]);
 
     const changeTab = (tab: MainTab) => {
         setActiveTab(tab);
@@ -1917,6 +1929,12 @@ export const NewAssistantsView: React.FC = () => {
         localStorage.setItem('activeAssistantGalleryTab', tab);
         homeDispatch({ field: 'activeAssistantGalleryTab', value: tab });
     };
+
+    // A disabled helper must never remain selected or restore from localStorage.
+    useEffect(() => {
+        if (activeTab === 'amplifyHelper' && !helperEnabled) changeTab('individual');
+        else if (activeTab === 'layered' && !shouldShowLayeredTab) changeTab('individual');
+    }, [shouldShowLayeredTab, activeTab, helperEnabled]);
 
     const tabs: { id: MainTab; label: string; icon: React.ReactNode; visible: boolean }[] = [
         {
@@ -1946,6 +1964,12 @@ export const NewAssistantsView: React.FC = () => {
                 ? <IconLoader2 size={15} className="motion-safe:animate-spin motion-reduce:animate-none" />
                 : <IconGitBranch size={15} />,
             visible: shouldShowLayeredTab,
+        },
+        {
+            id: 'amplifyHelper',
+            label: 'Amplify Helper',
+            icon: <IconSparkles size={15} />,
+            visible: helperEnabled,
         },
         // 'templates' tab removed — Prompt Templates moved to Settings → Customize
     ];
@@ -2026,6 +2050,22 @@ export const NewAssistantsView: React.FC = () => {
                 {activeTab === 'shared' && <SharedWithMeTab onImported={() => changeTab('individual')} />}
                 {activeTab === 'group' && shouldShowGroupTab && <GroupAssistantsTab />}
                 {activeTab === 'layered' && shouldShowLayeredTab && <LayeredAssistantsTab />}
+                {activeTab === 'amplifyHelper' && helperEnabled && (
+                    <AmplifyHelperAssistant
+                        onStartChat={() => {
+                            const helper = createAmplifyHelperAssistant();
+                            homeDispatch({ field: 'selectedAssistant', value: helper });
+                            handleNewConversation({
+                                prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
+                                assistant: helper,
+                                data: { [AMPLIFY_HELPER_MARKER]: true },
+                            });
+                            homeDispatch({ field: 'page', value: 'chat' });
+                        }}
+                        documentationUrl={userDocumentationUrl}
+                        supportEmail={supportEmail}
+                    />
+                )}
             </div>
         </div>
     );

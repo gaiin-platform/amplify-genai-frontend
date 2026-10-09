@@ -9,7 +9,7 @@ describe('New UI admin defaults', () => {
     expect(BUILTIN_SYSTEM_PROMPTS['webSearch.use']).toContain('cite source URLs');
     expect(BUILTIN_SYSTEM_PROMPTS['artifacts.generate']).toContain('autoArtifacts');
     expect(BUILTIN_SYSTEM_PROMPTS['codeInterpreter.use']).toContain('secure Python sandbox');
-    expect(BUILTIN_SYSTEM_PROMPTS['amplifyHelper.base']).toBe('');
+    expect(BUILTIN_SYSTEM_PROMPTS['amplifyHelper.base']).toContain('Amplify Helper');
   });
 
   it('defaults highlighter and memory off while preserving other availability defaults', () => {

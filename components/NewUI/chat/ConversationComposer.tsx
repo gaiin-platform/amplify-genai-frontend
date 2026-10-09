@@ -697,6 +697,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           assistantId: activeAssistant.definition?.assistantId,
           groupId: activeAssistant.definition?.groupId,
           groupType: selectedConversation.groupType,
+          ...(activeAssistant.definition?.data?.amplifyHelper === true
+            ? { amplifyHelper: true }
+            : {}),
         };
       }
 

@@ -741,6 +741,9 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = ({
             assistantId: sendAssistant.definition?.assistantId,
             groupId: sendAssistant.definition?.groupId,
             groupType: conversation.groupType,
+            ...(sendAssistant.definition?.data?.amplifyHelper === true
+              ? { amplifyHelper: true }
+              : {}),
           };
         }
 

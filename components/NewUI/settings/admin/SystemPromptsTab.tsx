@@ -2,6 +2,7 @@ import React, { FC } from 'react';
 import { AdminConfigTypes, SystemPromptsConfig, SystemPromptRecord } from '@/types/admin';
 import { BUILTIN_SYSTEM_PROMPTS } from './systemPromptDefaults';
 import { MAX_SYSTEM_PROMPT_BYTES, utf8ByteLength } from './systemPromptBytes';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 
 const PROMPT_LABELS: Record<string, { label: string; description: string; isPrimary?: boolean }> = {
   'ordinaryChat.base': {
@@ -27,10 +28,10 @@ const PROMPT_LABELS: Record<string, { label: string; description: string; isPrim
       'Added when the code interpreter is selected. Explains the sandboxed execution environment to the model.',
   },
   'amplifyHelper.base': {
-    label: 'Amplify Helper — Base Prompt (reserved)',
+    label: 'Amplify Helper — All-Users Prompt',
     description:
-      'Reserved prompt slot for the future Amplify assistant. Editing this prompt now has no effect on chat behavior ' +
-      'until the Amplify helper feature is enabled.',
+      'Administrator-managed instructions used by Amplify Helper conversations for all users. ' +
+      'Changes take effect on the next helper request; ordinary chats and user assistants are unchanged.',
   },
 };
 
@@ -45,6 +46,7 @@ export const SystemPromptsTab: FC<SystemPromptsTabProps> = ({
   setConfig,
   updateUnsavedConfigs,
 }) => {
+  const featureFlags = useStableFeatureFlags();
   const handleChange = (key: string, text: string) => {
     setConfig({
       ...config,
@@ -56,7 +58,9 @@ export const SystemPromptsTab: FC<SystemPromptsTabProps> = ({
     updateUnsavedConfigs(AdminConfigTypes.SYSTEM_PROMPTS);
   };
 
-  const promptKeys = Object.keys(PROMPT_LABELS);
+  const promptKeys = Object.keys(PROMPT_LABELS).filter(
+    (key) => key !== 'amplifyHelper.base' || featureFlags.amplifyHelper === true,
+  );
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

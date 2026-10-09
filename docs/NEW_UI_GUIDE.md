@@ -120,7 +120,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `SidebarItemsSection.tsx` | Settings → Customize → Sidebar Items visibility toggles |
 | `admin/AdminsCard.tsx` | Admin section wrapper card |
 | `admin/ConfigurationsTab.tsx` | Admin → Configurations tab content |
-| `admin/SystemPromptsTab.tsx` | Admin → System Prompts tab — editors for ordinary-chat base, web-search, artifact, code-interpreter, and Amplify-helper prompts |
+| `admin/SystemPromptsTab.tsx` | Admin → System Prompts tab — editors for ordinary-chat base, web-search, artifact, code-interpreter, and feature-gated Amplify-helper prompts |
 | `admin/DeploymentFeaturesTab.tsx` | Admin → Deployment tab — toggles for deployment-wide feature availability (highlighter, artifacts, web search, code interpreter, memory) and classic-UI switch control |
 
 ### `shared/`
@@ -143,6 +143,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `FileDropZone.tsx` | Drag-and-drop file intake: `useFileDropTarget` (handlers + active flag for an existing root element), `FileDropOverlay`, and the `FileDropZone` wrapper. Only reacts to `Files` drags; depth-counted dragenter/leave |
 | `libraryQuery.ts` | Shared library query vocabulary — `sanitizePageKey` (DynamoDB cursor rules; unsanitized page keys 502), `buildLibraryQuery`, `isAssistantRecord`, `libraryTypeLabel`. Used by NewLibraryView + the picker. No React imports |
 | `assistantIdentity.ts` | Shared "is this really an assistant?" vocabulary — `PLACEHOLDER_ASSISTANT_NAMES`, `isPlaceholderAssistantName`. Rejects the backend's `"default"` fallback, its internal per-request assistants (`"Amplify Automation"` for connectors, `"Code Interpreter Assistant"`, `"Artifacts Assistant"`) and the old-UI `"Standard Conversation"` look-alike, all of which mean *no* assistant. No React imports |
+| `amplifyHelperGuide.ts` | React-free identity, reserved marker, policy/resource links, built-in prompt, and comprehensive New UI guide sections for the all-users Amplify Helper |
 | `customInstructions.ts` | React-free store for custom instructions — `loadStore`, `saveStore`, `getActiveInstructionContent`, `buildPromptWithInstruction`, `createInstruction`, `updateInstruction`, `deleteInstruction`, `setActiveInstruction`. Migrates old single-string key on first read. Used at every new-conversation call site in the new UI |
 | `AttachmentPreview.tsx` | Full-screen attachment preview with nav and focus trap |
 | `RichComposer.tsx` | Textarea with paste/image capture handlers |
@@ -220,13 +221,14 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 ### `views/`
 | File | Purpose |
 |------|---------|
-| `NewAssistantsView.tsx` | Assistants gallery: My / Shared with Me / Teams / Layered tabs |
+| `NewAssistantsView.tsx` | Assistants gallery: My / Shared with Me / Teams / Layered / feature-gated Amplify Helper tabs |
 | `NewAssistantTypeSelector.tsx` | Step-0 type picker (Private/Managed/Team) before AssistantModal |
 | `NewUIAssistantCreationModal.tsx` | Unified assistant creation form (access type + fields inline) |
 | `NewUIPromptCreationModal.tsx` | Prompt template creation modal |
 | `ChatsListView.tsx` | Chats & Tasks full-pane list with search |
 | `NewLibraryView.tsx` | Data sources library: list rows, upload, batch delete |
 | `LibraryView.tsx` | Thin wrapper for NewLibraryView |
+| `AmplifyHelperAssistant.tsx` | Feature-gated Amplify Helper tab guide and locked start-chat surface; never persisted as a user assistant |
 | `NewScheduledTasksView.tsx` | Scheduled tasks: list + editor/logs pane |
 | `NewWorkflowsView.tsx` | Workflow templates: list + detail pane |
 

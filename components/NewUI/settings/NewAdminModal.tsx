@@ -77,6 +77,7 @@ import {
 } from '@/components/Admin/AdminUI';
 import { ConversationStorage } from '@/types/conversationStorage';
 import { normalizeAdminConversationStorage } from '@/components/NewUI/settings/admin/adminDefaults';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 
 // ── helpers re-exported from AdminUI ─────────────────────────────────────────
 
@@ -179,6 +180,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
     state: { statsService, storageSelection, amplifyUsers, featureFlags },
     dispatch: homeDispatch,
   } = useContext(HomeContext);
+  const stableFeatureFlags = useStableFeatureFlags();
 
   // ── Loading / data state ──────────────────────────────────────────────────
   const [loadData, setLoadData] = useState(true);
@@ -573,8 +575,12 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
         return defaultTimezone;
       case AdminConfigTypes.DEFAULT_SMART_MESSAGES:
         return smartMessagesEnabled;
-      case AdminConfigTypes.SYSTEM_PROMPTS:
-        return systemPrompts;
+      case AdminConfigTypes.SYSTEM_PROMPTS: {
+        if (stableFeatureFlags.amplifyHelper === true) return systemPrompts;
+        const prompts: Record<string, any> = { ...systemPrompts.prompts };
+        delete prompts['amplifyHelper.base'];
+        return { ...systemPrompts, prompts };
+      }
       case AdminConfigTypes.DEPLOYMENT_FEATURES:
         return deploymentFeatures;
     }
@@ -659,7 +665,10 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({ onClose, openToTab }) =>
     if (isSaving) return;
     if (unsavedConfigs.size === 0 && !accountNoticeUnsaved) { toast('No changes to save'); return; }
     if (unsavedConfigs.has(AdminConfigTypes.SYSTEM_PROMPTS)) {
-      const oversized = findOversizedSystemPrompts(systemPrompts.prompts);
+      const promptValues = stableFeatureFlags.amplifyHelper === true
+        ? systemPrompts.prompts
+        : Object.fromEntries(Object.entries(systemPrompts.prompts).filter(([key]) => key !== 'amplifyHelper.base'));
+      const oversized = findOversizedSystemPrompts(promptValues);
       if (oversized.length > 0) {
         const first = oversized[0];
         const message = `System prompt "${first.key}" is ${first.bytes.toLocaleString()} UTF-8 bytes; each prompt must be no more than 16,384 bytes.`;
