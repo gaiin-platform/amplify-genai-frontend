@@ -28,8 +28,10 @@ import {
   IconChevronDown,
 } from '@tabler/icons-react';
 
+import { useSession } from 'next-auth/react';
 import HomeContext from '@/pages/api/home/home.context';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { UserCostBreakdownContent } from '@/components/Layout/UserCostBreakdownModal';
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
@@ -1224,6 +1226,16 @@ const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
 const AdminSection: FC = () => null;
 
 // ---------------------------------------------------------------------------
+// Usage Section — inline MTD cost breakdown, gated by featureFlags.mtdCost
+// ---------------------------------------------------------------------------
+
+const UsageSection: FC = () => {
+  const { data: session } = useSession();
+  const email = session?.user?.email ?? '';
+  return <UserCostBreakdownContent email={email} />;
+};
+
+// ---------------------------------------------------------------------------
 // Placeholder Section
 // ---------------------------------------------------------------------------
 
@@ -1263,7 +1275,7 @@ const SectionContent: FC<{
     case 'account':
       return <AccountSection active={true} onUnsavedChange={onAccountUnsavedChange} />;
     case 'usage':
-      return <PlaceholderSection title="Usage" />;
+      return <UsageSection />;
     case 'apikeys':
       return <ApiKeysSection active={true} />;
     case 'promptTemplates':
@@ -1392,9 +1404,12 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
   }, [accountHasUnsavedChanges]);
 
-  // Build nav groups dynamically — admin group only shown to admins
+  // Build nav groups dynamically — usage hidden when mtdCost flag is off, admin only shown to admins
   const navGroups: NavGroup[] = [
-    ...BASE_NAV_GROUPS,
+    ...BASE_NAV_GROUPS.map(group => ({
+      ...group,
+      items: group.items.filter(item => item.id !== 'usage' || !!featureFlags.mtdCost),
+    })),
     ...(featureFlags.adminInterface
       ? [
           {

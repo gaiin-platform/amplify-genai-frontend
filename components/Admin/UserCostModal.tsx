@@ -83,10 +83,14 @@ interface BillingGroupsResponse {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** When true, renders content inline without the full-screen Modal overlay.
+   *  Used by the new admin panel to embed this in the right-hand content pane.
+   *  Old UI consumers that pass open/onClose are unaffected. */
+  inline?: boolean;
 }
 
 
-export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
+export const UserCostsModal: FC<Props> = ({ open, onClose, inline = false }) => {
   const { state: {amplifyUsers, adminRateLimits}, dispatch: homeDispatch } = useContext(HomeContext);
   const [activeTab, setActiveTab] = useState(0);
   
@@ -2414,6 +2418,20 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       content: renderRateLimitsTab()
     }
   ];
+
+  // Inline mode — content sits inside the admin panel's right pane, no Modal overlay.
+  if (inline) {
+    return (
+      <div className="flex flex-col h-full">
+        <ActiveTabs
+          id="cost-management-tabs"
+          tabs={tabs}
+          initialActiveTab={activeTab}
+          onTabChange={(index) => setActiveTab(index)}
+        />
+      </div>
+    );
+  }
 
   return (
     <Modal

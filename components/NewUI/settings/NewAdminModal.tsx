@@ -237,7 +237,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
   const [loadData, setLoadData] = useState(true);
   const [stillLoadingData, setStillLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<AdminTab>(
+  const [activeTab, setActiveTab] = useState<AdminTab | 'User Costs'>(
     openToTab ?? 'Configurations',
   );
   const [searchQuery, setSearchQuery] = useState('');
@@ -333,7 +333,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
   const [webSearchConfig, setWebSearchConfig] =
     useState<AdminWebSearchConfig | null>(null);
   const [hasChildModalOpen, setHasChildModalOpen] = useState<boolean>(false);
-  const [showUserCosts, setShowUserCosts] = useState<boolean>(false);
   const [pendingConfirm, setPendingConfirm] = useState<
     'reload' | 'close' | null
   >(null);
@@ -1031,6 +1030,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
     }
     switch (activeTab) {
       case 'Configurations':
+        if (stillLoadingData) return loadingState;
         return (
           /* AdminsCard renders the new-UI admins section above ConfigurationsTab.
              The original admins card inside ConfigurationsTab is hidden via CSS:
@@ -1391,6 +1391,14 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
             Select a section from the left rail.
           </div>
         );
+      case 'User Costs':
+        return (
+          <UserCostsModal
+            open={true}
+            onClose={() => setActiveTab('Configurations')}
+            inline={true}
+          />
+        );
     }
   };
 
@@ -1573,18 +1581,10 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
                 <NavRow
                   key={tab.id}
                   item={tab}
-                  isSelected={
-                    tab.id === 'User Costs'
-                      ? showUserCosts
-                      : activeTab === tab.id
-                  }
+                  isSelected={activeTab === tab.id}
                   hasChanges={tabHasChanges(tab.id)}
                   onClick={() => {
-                    if (tab.id === 'User Costs') {
-                      setShowUserCosts(true);
-                    } else {
-                      setActiveTab(tab.id as AdminTab);
-                    }
+                    setActiveTab(tab.id);
                   }}
                 />
               ))}
@@ -1817,11 +1817,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
           </div>
         </div>
 
-        {/* User Costs — full-screen overlay on top of the admin panel */}
-        <UserCostsModal
-          open={showUserCosts}
-          onClose={() => setShowUserCosts(false)}
-        />
       </div>
     </>
   );

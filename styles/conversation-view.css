@@ -4578,6 +4578,42 @@
 /* ── New UI admin configurations ─────────────────────────────────────────── */
 [data-new-ui-configurations="true"] {
   color: var(--text-primary);
+  --nui-section-gap: 20px;
+}
+
+.nui-admin-loading {
+  display: grid;
+  min-height: 320px;
+  place-items: center;
+  padding: 32px;
+}
+
+.nui-admin-loading-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 300px;
+  padding: 18px 20px;
+  color: var(--text-primary);
+  background: var(--bg-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.12);
+}
+
+.nui-admin-loading-title { font-size: 14px; font-weight: 600; }
+.nui-admin-loading-copy { margin-top: 3px; font-size: 12px; color: var(--text-muted); }
+
+[data-new-ui-configurations="true"] .nui-config-card {
+  margin: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--bg-raised);
+  box-shadow: none;
+}
+
+[data-new-ui-configurations="true"] .nui-config-hero {
+  border-color: color-mix(in srgb, var(--accent) 25%, var(--border-subtle));
 }
 
 [data-new-ui-configurations="true"] .nui-config-card {

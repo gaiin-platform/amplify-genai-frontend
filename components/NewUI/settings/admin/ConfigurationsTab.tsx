@@ -277,8 +277,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     }
 
 
-    return <div data-new-ui-configurations="true" className="nui-configurations flex flex-col gap-4">
-    <div className="admin-style-settings-card nui-config-card overflow-x-hidden">
+    return <div data-new-ui-configurations="true" className="nui-configurations flex flex-col gap-5">
+    <div className="admin-style-settings-card nui-config-card nui-config-hero overflow-x-hidden">
         <div className="admin-style-settings-card-header nui-config-card-header">
                 <div className="flex items-center justify-between">
                     <div>
