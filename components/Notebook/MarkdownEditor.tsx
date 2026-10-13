@@ -1,7 +1,7 @@
 import { useContext, useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { codeEdit, codeLive, codePreview } from '@uiw/react-md-editor/commands';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 // The default entry point's code-block preview pulls in rehype-prism-plus,
 // which needs refractor@5 — but this repo pins refractor to 3.6.0 (root

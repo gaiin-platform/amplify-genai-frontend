@@ -29,7 +29,7 @@ import {
 } from '@tabler/icons-react';
 
 import { useSession } from 'next-auth/react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { UserCostBreakdownContent } from '@/components/Layout/UserCostBreakdownModal';
 import { getSettings, saveSettings } from '@/utils/app/settings';

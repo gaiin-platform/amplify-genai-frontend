@@ -1,5 +1,5 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { LucideAlertCircle, LucideChevronDown, LucideLoader2 } from './LucideIcons';
 import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import {

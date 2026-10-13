@@ -60,7 +60,7 @@ import type { AttachedDocument } from '@/types/attacheddocument';
 import { MessageType, newMessage } from '@/types/chat';
 import { Plugin } from '@/types/plugin';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 // For the direct-send path (pasted images with S3 keys)
 import { handleFile } from '@/components/Chat/AttachFile';

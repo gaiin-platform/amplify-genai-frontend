@@ -12,7 +12,7 @@ import { embeddingDocumentStatus } from '@/services/adminService';
 import { extractKey, getDocumentStatusConfig, shouldShowReprocessButton, isRecentlyReprocessed, startFileReprocessingWithPolling, disableSupportReprocess } from '@/utils/app/files';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { IMAGE_FILE_TYPES, VIDEO_FILE_TYPES } from '@/utils/app/const';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { animate } from '../Loader/LoadingIcon';
 import { SitemapExclusionManager, SitemapExclusions } from '@/components/DataSources/SitemapUrlSelectionModal';
 import { getSiteMapUrls } from '@/services/assistantService';

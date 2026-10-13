@@ -53,7 +53,7 @@ import { createPortal } from 'react-dom';
 import { Prompt } from '@/types/prompt';
 import { PromptTemplateDialog } from '@/components/NewUI/shared/PromptTemplateDialog';
 import { NewUIPromptCreationModal } from '@/components/NewUI/views/NewUIPromptCreationModal';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { savePrompts } from '@/utils/app/prompts';
 
 /** Event name launchers use to open the popup. */

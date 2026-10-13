@@ -59,7 +59,7 @@ import {
   IconPhoto,
   IconWorld,
 } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Message } from '@/types/chat';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 import DOMPurify from 'dompurify';

@@ -4,7 +4,7 @@ import { IconLogout, IconCreditCard, IconRocket, IconShare, IconTools, IconUsers
 import { getUserMtdCosts } from '@/services/mtdCostService';
 import { UserCostBreakdownModal } from './UserCostBreakdownModal';
 import ColorPaletteSelector, { COLOR_PALETTES } from './ColorPaletteSelector';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
 import { AdminUI } from '../Admin/AdminUI';
 import { UserCostsModal } from '../Admin/UserCostModal';

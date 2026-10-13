@@ -39,7 +39,7 @@
  */
 
 import React, { useContext, useEffect, useState } from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import {
   LAST_CHAT_KEY,
   findRestorableConversation,

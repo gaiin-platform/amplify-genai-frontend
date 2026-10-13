@@ -2,7 +2,7 @@ import { useContext, useEffect, useRef, useState } from 'react';
 
 import { FolderInterface, SortType } from '@/types/folder';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 import Folder from '@/components/Folder';
 

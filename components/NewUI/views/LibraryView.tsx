@@ -5,7 +5,7 @@
  */
 import React, { useContext } from 'react';
 import { IconX } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import DataSourcesTable from '@/components/DataSources/DataSourcesTable';
 
 export const LibraryView: React.FC = () => {

@@ -24,7 +24,7 @@ import {
   IconAlertTriangle,
   IconInfoCircle,
 } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { getAccounts, saveAccounts } from '@/services/accountService';
 import { getAdminConfigs } from '@/services/adminService';
 import { Account, noCoaAccount } from '@/types/accounts';

@@ -1,7 +1,7 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot, IconLoader2, IconExclamationCircle, IconCaretDown, IconCaretRight, IconSearch } from "@tabler/icons-react";
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
 import { Account, noCoaAccount } from '@/types/accounts';

@@ -19,7 +19,8 @@ describe('libraryPreview', () => {
     const downloadPromise = new Promise<Response>((resolve) => { resolveDownload = resolve; });
     getFileDownloadUrl.mockResolvedValue({ success: true, downloadUrl: 'https://signed/image' });
     vi.stubGlobal('fetch', vi.fn(() => downloadPromise));
-    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:image'), revokeObjectURL: vi.fn() });
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(vi.fn(() => 'blob:image'));
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(vi.fn());
     vi.stubGlobal('window', { atob: (value: string) => value });
 
     const { loadLibraryPreview } = await import('@/components/NewUI/shared/libraryPreview');
@@ -36,7 +37,8 @@ describe('libraryPreview', () => {
   it('loads a PDF as a revocable object URL', async () => {
     getFileDownloadUrl.mockResolvedValue({ success: true, downloadUrl: 'https://signed/report.pdf' });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('%PDF-1.7', { headers: { 'content-type': 'application/pdf' } })));
-    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:pdf'), revokeObjectURL: vi.fn() });
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(vi.fn(() => 'blob:pdf'));
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(vi.fn());
 
     const { loadLibraryPreview } = await import('@/components/NewUI/shared/libraryPreview');
     await expect(loadLibraryPreview({ key: 'report.pdf', kind: 'pdf', mime: 'application/pdf' })).resolves.toMatchObject({
@@ -74,7 +76,8 @@ describe('libraryPreview', () => {
     getFileDownloadUrl.mockResolvedValue({ success: true, downloadUrl: 'https://signed/image' });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('aGVsbG8=', { headers: { 'content-type': 'image/png' } })));
     const revokeObjectURL = vi.fn();
-    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:image'), revokeObjectURL });
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(() => 'blob:image');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(revokeObjectURL);
     vi.stubGlobal('window', { atob: (value: string) => value });
 
     const { loadLibraryPreview, releaseLibraryPreview } = await import('@/components/NewUI/shared/libraryPreview');

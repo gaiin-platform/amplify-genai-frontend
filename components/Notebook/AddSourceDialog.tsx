@@ -1,6 +1,6 @@
 import { ReactNode, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import {

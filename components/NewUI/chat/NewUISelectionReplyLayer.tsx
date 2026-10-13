@@ -11,7 +11,7 @@ import React, {
 
 import { Message } from '@/types/chat';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 const SELECTION_GAP = 8;
 const EDGE_GAP = 8;

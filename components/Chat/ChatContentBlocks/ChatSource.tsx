@@ -1,4 +1,4 @@
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { DataSource } from '@/types/chat';
 import { downloadDataSourceFile } from '@/utils/app/files';
 import { isBedrockKbDatasource, downloadBedrockKbFile, extractFileNameFromS3Uri, extractKbId } from '@/utils/app/bedrockKb';

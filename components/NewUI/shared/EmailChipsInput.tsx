@@ -41,7 +41,7 @@ import React, {
 } from 'react';
 import ReactDOM from 'react-dom';
 import { IconX } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import {
     buildEmailPool,
     looksLikeEmail,

@@ -46,7 +46,7 @@ import {
     IconAdjustments,
 } from '@tabler/icons-react';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { SearchInput } from '@/components/NewUI/shared/SearchInput';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';

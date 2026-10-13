@@ -10,7 +10,7 @@ import {deleteYouSharedItem, getSharedItems, getYouSharedItems} from "@/services
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {ImportAnythingModal} from "@/components/Share/ImportAnythingModal";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import {useSession} from "next-auth/react";
 import ActionButton from '../ReusableComponents/ActionButton';
 import { getUserIdentifier } from '@/utils/app/data';

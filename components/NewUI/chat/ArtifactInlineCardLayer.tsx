@@ -29,7 +29,7 @@ import React, {
 import { createPortal } from 'react-dom';
 import { IconFileText, IconTable, IconCode, IconChartBar } from '@tabler/icons-react';
 import { IconEye, IconEyeOff } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { resolveNUIType } from '@/types/artifacts';
 
 /* ─── Module-level panel open state so new cards start with the right value ── */

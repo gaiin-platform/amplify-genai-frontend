@@ -1,6 +1,6 @@
 import { FC, useContext, useEffect, useRef, useState } from "react";
 import { Modal } from "../ReusableComponents/Modal";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
 import {  getAdminConfigs, getAvailableModels, getFeatureFlags, getPowerPoints, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
 import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig } from "@/types/admin";

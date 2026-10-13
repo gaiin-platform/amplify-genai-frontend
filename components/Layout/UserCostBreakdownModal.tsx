@@ -16,7 +16,7 @@ import { getUserMtdCosts, getUserCostHistory, UserMtdCosts, UserCostHistory } fr
 import { fetchAllApiKeys } from '@/services/apiKeysService';
 import { ApiKey } from '@/types/apikeys';
 import { RateLimitUtilization } from './RateLimitUtilization';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 interface Props {
     email: string;

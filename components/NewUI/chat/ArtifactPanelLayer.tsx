@@ -56,7 +56,7 @@ import { lzwUncompress } from '@/utils/app/lzwCompression';
 
 import { resolveNUIType, sniffContentType } from '@/types/artifacts';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 import { ArtifactExportMenu } from '@/components/NewUI/shared/ArtifactExportMenu';
 import { renameArtifactInConversation } from '@/components/NewUI/shared/artifactLibraryModel';

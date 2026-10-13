@@ -1,6 +1,6 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { IconCheck, IconEye, IconFiles, IconGitBranch, IconPlus, IconSettings, IconX } from '@tabler/icons-react';
 import { AssistantModal } from '../Promptbar/components/AssistantModal';
 import { Prompt } from '@/types/prompt';

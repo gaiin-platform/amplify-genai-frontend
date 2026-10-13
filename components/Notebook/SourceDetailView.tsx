@@ -1,6 +1,6 @@
 import { ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import remarkGfm from 'remark-gfm';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import {
     LucideAlertCircle,
     LucideAlignLeft,

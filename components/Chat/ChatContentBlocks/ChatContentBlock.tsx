@@ -31,7 +31,7 @@ import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
 import {useContext, useEffect, useRef, useState, useCallback} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
 import { ApiDocBlock } from "./APIDocBlock";

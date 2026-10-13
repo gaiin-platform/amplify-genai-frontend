@@ -29,7 +29,7 @@
 
 import React, { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { IconX, IconLoader2, IconCheck, IconChevronDown, IconChevronUp } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { shareItems, getSentSharedItems } from '@/services/shareService';
 import { createExport } from '@/utils/app/importExport';
 import { useSession } from 'next-auth/react';

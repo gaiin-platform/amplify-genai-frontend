@@ -18,7 +18,7 @@ import React, { useContext, useEffect, useRef, useState } from 'react';
 import { IconPlus } from '@tabler/icons-react';
 import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
 import { useSession } from 'next-auth/react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import { listAstWorkflowTemplates } from '@/services/assistantWorkflowService';
 import { getUserIdentifier, snakeCaseToTitleCase } from '@/utils/app/data';

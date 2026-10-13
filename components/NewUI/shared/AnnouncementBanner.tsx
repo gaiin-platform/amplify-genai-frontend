@@ -14,7 +14,7 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { IconSpeakerphone, IconX } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import {
   clearDismissedAnnouncement,
   dismissAnnouncement,

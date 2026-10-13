@@ -49,7 +49,8 @@ describe('New UI PDF preview support', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response('%PDF-1.7', { headers: { 'content-type': 'application/pdf' } }),
     ));
-    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:pdf'), revokeObjectURL: vi.fn() });
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(vi.fn(() => 'blob:pdf'));
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(vi.fn());
 
     const { fetchLibraryPdfPreview } = await import('@/components/NewUI/shared/libraryPreview');
     await expect(fetchLibraryPdfPreview({
@@ -66,7 +67,8 @@ describe('New UI PDF preview support', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ data: pdfBase64 }), { headers: { 'content-type': 'application/json' } }),
     ));
-    vi.stubGlobal('URL', { createObjectURL: vi.fn(() => 'blob:encoded'), revokeObjectURL: vi.fn() });
+    vi.spyOn(URL, 'createObjectURL').mockImplementation(vi.fn(() => 'blob:encoded'));
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(vi.fn());
     vi.stubGlobal('window', { atob: (value: string) => value === pdfBase64 ? '%PDF-1.7' : value });
 
     const { fetchLibraryPdfPreview } = await import('@/components/NewUI/shared/libraryPreview');

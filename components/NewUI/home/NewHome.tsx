@@ -25,7 +25,7 @@ import {
   IconArrowUp,
 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { blockIfOtherChatGenerating } from '@/hooks/useChatSendService';
 import { RichComposer, type RichComposerHandle } from '@/components/NewUI/shared/RichComposer';
 import { handleFile } from '@/components/Chat/AttachFile';

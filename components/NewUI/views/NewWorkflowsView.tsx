@@ -46,7 +46,7 @@ import {
   IconChevronLeft,
 } from '@tabler/icons-react';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import {
   listAstWorkflowTemplates,

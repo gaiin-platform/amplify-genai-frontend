@@ -81,7 +81,7 @@ import {
   normalizeRateLimits,
 } from '@/types/rateLimit';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 import { CriticalErrorTrackingTab } from '@/components/Admin/AdminComponents/Critical_Error_Tracking';
 import {

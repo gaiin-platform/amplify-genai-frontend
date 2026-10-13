@@ -31,7 +31,7 @@ import {
     IconSearch,
     IconLoader2,
 } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
 import { Group, GroupAccessType, Members } from '@/types/groups';

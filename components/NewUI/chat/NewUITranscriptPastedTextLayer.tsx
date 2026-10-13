@@ -39,7 +39,7 @@ import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } 
 import { createPortal } from 'react-dom';
 
 import { Message } from '@/types/chat';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { AttachmentCard } from '@/components/NewUI/shared/AttachmentCard';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import {

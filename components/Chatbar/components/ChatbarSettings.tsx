@@ -4,7 +4,7 @@ import { useContext, useEffect, useRef, useState, useCallback } from 'react';
 
 import { useTranslation } from 'next-i18next';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 import { Import } from '../../Settings/Import';
 import { SidebarButton } from '../../Sidebar/SidebarButton';

@@ -40,7 +40,7 @@
  */
 import { useCallback, useContext, useEffect, useMemo, useRef } from 'react';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Assistant, AssistantProviderID, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { Conversation, Message } from '@/types/chat';
 import { Prompt } from '@/types/prompt';

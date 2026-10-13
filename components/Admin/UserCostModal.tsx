@@ -9,7 +9,7 @@ import { InfoBox } from "../ReusableComponents/InfoBox";
 import React from "react";
 import Search from "../Search/Search";
 import { formatCurrency } from "@/utils/app/data";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 
 interface AccountData {
   accountInfo: string;

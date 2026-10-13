@@ -27,7 +27,7 @@ import {
     IconEyeOff,
     IconCopy,
 } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType } from '@/types/groups';
 import { LayeredAssistant, createLayeredAssistant } from '@/types/layeredAssistant';

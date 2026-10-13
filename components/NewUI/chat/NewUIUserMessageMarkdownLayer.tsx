@@ -51,7 +51,7 @@ import React, {
 } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Message } from '@/types/chat';
 import { stripLargeTextPlaceholders } from '@/components/NewUI/shared/attachmentTypes';
 

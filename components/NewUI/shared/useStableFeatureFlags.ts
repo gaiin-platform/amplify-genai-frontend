@@ -41,7 +41,7 @@
 
 import { useContext, useEffect, useMemo, useRef } from 'react';
 import { useSession } from 'next-auth/react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Features } from '@/types/features';
 
 export const FEATURE_FLAG_CACHE_KEY = 'amplify_feature_flags_cache';
@@ -51,7 +51,7 @@ export const FEATURE_FLAG_CACHE_OWNER_KEY = 'amplify_feature_flags_cache_owner';
 /**
  * Flags that the app dispatches on their own as a patch, outside the `/feature_flags`
  * payload. Today that is only `smartMessages`, written by the DEFAULT_SMART_MESSAGES
- * branch of `fetchUserAppConfigs` in pages/api/home/home.tsx.
+ * branch of `fetchUserAppConfigs` in components/Home/home.tsx.
  *
  * `smartMessages` is also a genuine server flag, so a real payload will contain it —
  * what marks an object as a patch is containing *nothing but* these keys. A full set

@@ -1,7 +1,7 @@
 import { FC, useContext } from 'react';
 import { IconGitBranch } from '@tabler/icons-react';
 import { LayeredAssistant } from '@/types/layeredAssistant';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { saveLayeredAssistant } from '@/services/assistantService';
 
 export const LayeredAssistantButton: FC = () => {

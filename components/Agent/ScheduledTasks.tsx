@@ -9,7 +9,7 @@ import { ScheduleDateRange, ScheduledTask, ScheduledTaskType, TASK_TYPE_MAP, Tas
 import { CronScheduleBuilder } from './CronScheduleBuilder';
 import { InfoBox } from '../ReusableComponents/InfoBox';
 import ExpansionComponent from '../Chat/ExpansionComponent';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { createScheduledTask, deleteScheduledTask, executeTask, getScheduledTask, getTaskExecutionDetails, listScheduledTasks, updateScheduledTask } from '@/services/scheduledTasksService';
 import { camelCaseToTitle } from '@/utils/app/data';
 import { isAssistant } from '@/utils/app/assistants';

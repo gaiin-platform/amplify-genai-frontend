@@ -6,7 +6,7 @@ import { IconPlus, IconTrash, IconChevronDown, IconChevronUp, IconEdit, IconEdit
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { InputsMap } from '@/components/ReusableComponents/InputMap';
 import cloneDeep from 'lodash/cloneDeep';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { generateSingleStep, AIStepGenerationResult } from '@/utils/workflowAI';
 import { toast } from 'react-hot-toast';
 import { DefaultModels } from '@/types/model';

@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { useSession } from "next-auth/react";
 import { FC, useContext, useEffect, useState } from "react";
 import { deleteAstAdminGroup, updateGroupAmplifyGroups, updateGroupMembers, updateGroupMembersPermissions, updateGroupSystemUsers, updateGroupTypes } from '@/services/groupsService';

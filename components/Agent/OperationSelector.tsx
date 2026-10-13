@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
 import { getAgentTools } from '@/services/agentService';
 import { ApiItemSelector } from '../AssistantApi/ApiSelector';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { IconAsterisk, IconCheck, IconChevronDown, IconChevronRight, IconCirclePlus, IconCode, IconInfoCircle, IconLoader2, IconSettings, IconTags, IconTool, IconTools, IconX } from '@tabler/icons-react';
 import { getOperationIcon } from '@/utils/app/integrations';
 import { AgentTool } from '@/types/agentTools';

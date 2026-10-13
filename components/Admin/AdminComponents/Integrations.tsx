@@ -1,5 +1,5 @@
 import { FC, useState, useContext } from "react";
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import {  titleLabel } from "../AdminUI";
 import { AdminConfigTypes} from "@/types/admin";
 import { IntegrationsMap, Integration, integrationProviders, IntegrationSecretsMap, IntegrationProviders, IntegrationSecrets, ProviderSettingsMap, AdminWebSearchConfig} from "@/types/integrations";

@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { GetServerSideProps } from 'next';
 import { useTranslation } from 'next-i18next';
-import { serverSideTranslations } from 'next-i18next/serverSideTranslations';
 import Head from 'next/head';
 import { Tab, TabSidebar } from "@/components/TabSidebar/TabSidebar";
 import { SettingsBar } from "@/components/Settings/SettingsBar";
@@ -1923,34 +1921,3 @@ const Home = ({
     }
 };
 export default Home;
-
-export const getServerSideProps: GetServerSideProps = async ({ locale }) => {
-
-    const chatEndpoint = process.env.CHAT_ENDPOINT;
-    const mixPanelToken = process.env.MIXPANEL_TOKEN;
-    const cognitoClientId = process.env.COGNITO_CLIENT_ID;
-    const cognitoDomain = process.env.COGNITO_DOMAIN;
-    
-    // const googleApiKey = process.env.GOOGLE_API_KEY;
-    // const googleCSEId = process.env.GOOGLE_CSE_ID;
-    // if (googleApiKey && googleCSEId) {
-    //     serverSidePluginKeysSet = true;
-    // }
-
-    return {
-        props: {
-            chatEndpoint,
-            mixPanelToken,
-            cognitoClientId,
-            cognitoDomain,
-            ...(await serverSideTranslations(locale ?? 'en', [
-                'common',
-                'chat',
-                'sidebar',
-                'markdown',
-                'promptbar',
-                'settings',
-            ])),
-        },
-    };
-};

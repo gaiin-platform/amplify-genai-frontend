@@ -7,7 +7,7 @@ import { isDeploymentFeatureAvailable, type DeploymentFeatureKey } from '@/compo
 
 import { Settings, Theme } from '@/types/settings';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
 import React from 'react';
 import { ConversationsStorage } from './ConversationStorage';

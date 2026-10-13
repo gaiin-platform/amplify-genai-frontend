@@ -15,7 +15,7 @@ import {
   IconTrash,
   IconSparkles,
 } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';

@@ -1,6 +1,6 @@
 import mermaid from "mermaid";
 import { useContext, useEffect, useState, useCallback, useMemo } from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { IconZoomIn, IconDownload, IconRefresh, IconCode, IconFlipVertical } from "@tabler/icons-react";
 import { LoadingIcon } from "@/components/Loader/LoadingIcon";
 import { CodeBlock } from "@/components/Markdown/CodeBlock";

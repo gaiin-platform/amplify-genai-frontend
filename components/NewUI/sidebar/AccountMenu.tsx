@@ -22,7 +22,7 @@ import {
   IconShield,
 } from '@tabler/icons-react';
 import { signOut } from 'next-auth/react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { setUIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
 import { useUiSwitchPolicy } from '@/components/NewUI/shared/useUiSwitchPolicy';

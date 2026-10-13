@@ -13,7 +13,7 @@
 |------|----------------|
 | `styles/globals.css` | Adding CSS design tokens — never removing existing ones |
 | `styles/conversation-view.css` | Scoped CSS overrides for old-UI components wrapped by new-UI shells |
-| `pages/api/home/home.tsx` | The layout/render section only (~line 1617+, the `uiPreference === 'new'` block) |
+| `components/Home/home.tsx` | The layout/render section only (~line 1617+, the `uiPreference === 'new'` block) |
 
 If you need behaviour from an old-UI component: **import it**, don't modify it. If you need to
 restyle an old component wrapped inside a new-UI shell, add CSS overrides in
@@ -24,9 +24,9 @@ restyle an old component wrapped inside a new-UI shell, add CSS overrides in
 ## 2. Files You Must Never Touch
 
 ```
-pages/api/home/home.tsx          — state, reducers, handlers (layout section is OK, body is not)
-pages/api/home/home.context.tsx
-pages/api/home/home.state.tsx
+components/Home/home.tsx          — state, reducers, handlers (layout section is OK, body is not)
+components/Home/home.context.tsx
+components/Home/home.state.tsx
 components/Chat/                 — all files (Chat.tsx, ChatMessage.tsx, etc.)
 components/Chatbar/              — all files
 components/Promptbar/            — all files

@@ -24,7 +24,7 @@ import {
 
 import { FolderInterface } from '@/types/folder';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 import React from 'react';
 import { baseAssistantFolder, baseLayeredAssistantFolder, isBaseFolder } from '@/utils/app/basePrompts';

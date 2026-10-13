@@ -17,7 +17,7 @@ import {
 
 import { Message } from '@/types/chat';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 function renderedMessages(messages: Message[]): Message[] {
   return messages.filter(

@@ -1,6 +1,6 @@
 import { FC, useContext, useState, useRef, useEffect } from 'react';
 import { IconTemplate, IconFileText, IconSparkles, IconBolt, IconArrowUpRight, IconLayersLinked, IconEdit } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Prompt } from '@/types/prompt';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
 import { isAssistant } from '@/utils/app/assistants';

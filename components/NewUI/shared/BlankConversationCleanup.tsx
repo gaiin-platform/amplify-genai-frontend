@@ -24,7 +24,7 @@
  */
 
 import React, { useContext, useEffect, useRef } from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Conversation } from '@/types/chat';
 import {
   deleteConversationCleanUp,

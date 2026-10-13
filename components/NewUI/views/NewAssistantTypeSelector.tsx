@@ -32,7 +32,7 @@ import React, {
     useCallback,
 } from 'react';
 import { IconX, IconLock, IconShare, IconUsers, IconLoader2 } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Group, GroupAccessType } from '@/types/groups';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { createAstAdminGroup, updateGroupMembers } from '@/services/groupsService';

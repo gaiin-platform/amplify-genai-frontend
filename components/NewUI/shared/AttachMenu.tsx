@@ -43,7 +43,7 @@ import {
   useInteractions,
 } from '@floating-ui/react';
 import toast from 'react-hot-toast';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { resolveSharedAssistantAccess } from './sharedAssistantCard';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';

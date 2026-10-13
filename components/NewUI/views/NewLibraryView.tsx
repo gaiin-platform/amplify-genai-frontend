@@ -45,7 +45,7 @@ import {
     IconArrowUpRight,
     IconPencil,
 } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import {
     FileRecord, FileQuery, PageKey, queryUserFiles, setTags, renameFile
 } from '@/services/fileService';

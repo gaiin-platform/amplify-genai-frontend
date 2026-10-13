@@ -43,7 +43,7 @@ import { ArtifactPanelLayer } from './ArtifactPanelLayer';
 import { ArtifactSplitterLayer } from './ArtifactSplitterLayer';
 import { ArtifactInlineCardLayer } from './ArtifactInlineCardLayer';
 import { getChatFont } from '@/components/NewUI/shared/userDisplayPrefs';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
 // Imports for the direct-send path (pending docs with S3 keys)
 import { useSendService, useStreamingConversationIds, isConversationStreaming, type ChatRequest } from '@/hooks/useChatSendService';

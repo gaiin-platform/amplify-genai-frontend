@@ -36,7 +36,7 @@
  */
 
 import { FC, useContext, useEffect, useRef } from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
 import {

@@ -24,7 +24,7 @@ import {
   IconAlertCircle,
 } from '@tabler/icons-react';
 import { createPortal } from 'react-dom';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Prompt } from '@/types/prompt';
 import { ExportFormatV4 } from '@/types/export';
 import { FolderInterface } from '@/types/folder';

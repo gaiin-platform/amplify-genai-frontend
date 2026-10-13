@@ -27,7 +27,7 @@ import {throttle} from '@/utils/data/throttle';
 import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { normalizeRateLimits } from '@/types/rateLimit';
 import { RateLimitUtilization } from '@/components/Layout/RateLimitUtilization';
 

@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import {Conversation, Message} from "@/types/chat";
 import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {IconDownload} from '@tabler/icons-react';

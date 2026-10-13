@@ -9,7 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { AttachedDocument, AttachedDocumentMetadata } from '@/types/attacheddocument';
 import { addFile, checkContentReady, deleteFile } from "@/services/fileService";
 import { getMimeTypeFromExtension } from '@/utils/app/fileTypeTranslations';
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import React from 'react';
 import { resolveRagEnabled } from '@/types/features';
 import { processInputFiles } from '@/utils/fileHandler';

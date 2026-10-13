@@ -9,7 +9,7 @@ import {
 } from '@tabler/icons-react';
 import { MouseEventHandler, useContext, useEffect, useMemo, useState } from 'react';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { LayeredAssistant, isGroupLayeredAssistant } from '@/types/layeredAssistant';
 import { Group } from '@/types/groups';
 import { Assistant, AssistantProviderID } from '@/types/assistant';

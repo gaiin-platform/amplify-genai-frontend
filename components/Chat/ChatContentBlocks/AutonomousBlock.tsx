@@ -1,6 +1,6 @@
 
 import React, {useContext, useEffect, useRef} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import {useSendService} from "@/hooks/useChatSendService";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";

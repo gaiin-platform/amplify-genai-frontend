@@ -18,7 +18,7 @@ import {
     IconPencilBolt,
 } from '@tabler/icons-react';
 import { useSession } from 'next-auth/react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import {
     constructAstEventEmailAddress,

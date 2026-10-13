@@ -44,7 +44,7 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 import { Message } from '@/types/chat';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import {
   UIAttachment,

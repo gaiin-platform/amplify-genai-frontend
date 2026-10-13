@@ -53,7 +53,7 @@ import {
 } from '@tabler/icons-react';
 import { WorkflowTemplatePicker } from './assistant/WorkflowTemplatePicker';
 import { useSession } from 'next-auth/react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import { ModelPicker, EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';

@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { Conversation, Message, MessageType, newMessage } from "@/types/chat";
 import { IconArrowBackUp, IconMessage, IconPencilBolt, IconSend, IconTextPlus } from "@tabler/icons-react";
 import {setAssistant as setAssistantInMessage} from "@/utils/app/assistants";

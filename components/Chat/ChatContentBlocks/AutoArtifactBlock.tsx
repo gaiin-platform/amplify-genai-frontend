@@ -1,5 +1,5 @@
 import React, {useContext, useEffect, useRef, useState} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import {deepMerge} from "@/utils/app/state";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";

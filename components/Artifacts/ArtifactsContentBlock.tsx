@@ -34,7 +34,7 @@ import ArtifactLatexBlock from "@/components/Chat/ChatContentBlocks/ArtifactLate
 import {useArtifactPromptFinderService} from "@/hooks/usePromptFinderArtifactService";
 import {parsePartialJson} from "@/utils/app/data";
 import {useContext, useEffect, useRef, useState, useCallback} from "react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { Artifact } from "@/types/artifacts";
 import { lzwUncompress } from "@/utils/app/lzwCompression";
 import DOMPurify from "dompurify";

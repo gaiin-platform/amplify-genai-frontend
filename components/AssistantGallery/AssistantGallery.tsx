@@ -4,7 +4,7 @@ import { GroupAssistantsGallery } from '@/components/GroupAssistants/GroupAssist
 import { IndividualAssistantsGallery } from '@/components/AssistantGallery/IndividualAssistantsGallery';
 import { PromptTemplatesGallery } from '@/components/AssistantGallery/PromptTemplatesGallery';
 import { LayeredAssistantsGallery } from '@/components/AssistantGallery/LayeredAssistantsGallery';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 export interface AssistantGalleryProps {}
 

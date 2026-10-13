@@ -6,7 +6,7 @@ import {
     useState,
 } from 'react';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { getSettings } from '@/utils/app/settings';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { isDeploymentFeatureAvailable } from '@/components/NewUI/shared/deploymentFeaturePolicy';

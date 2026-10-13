@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { IconLoader2, IconRobot, IconX, IconTools, IconCheck } from '@tabler/icons-react';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
 import { promptForData } from '@/utils/app/llm';
 import { Message, newMessage } from '@/types/chat';

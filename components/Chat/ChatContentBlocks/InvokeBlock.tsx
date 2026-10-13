@@ -20,7 +20,7 @@ import { FolderInterface } from '@/types/folder';
 import { ApiCall, OpDef } from '@/types/op';
 import { Prompt } from '@/types/prompt';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 import ExpansionComponent from '@/components/Chat/ExpansionComponent';
 

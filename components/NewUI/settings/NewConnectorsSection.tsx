@@ -22,7 +22,7 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { IconLoader2, IconCheck, IconX } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import {
   deleteUserIntegration,
   getAvailableIntegrations,

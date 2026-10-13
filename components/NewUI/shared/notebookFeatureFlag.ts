@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Features } from '@/types/features';
 
 /**
