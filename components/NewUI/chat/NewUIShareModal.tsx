@@ -43,6 +43,7 @@ import {
 import {
     recordShare,
     getSharesForSource,
+    resolveShareNote,
     ShareHistoryRecord,
     ShareHistoryItemType,
 } from '@/components/NewUI/shared/shareHistory';
@@ -334,7 +335,12 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                 resolveUsernameForEmail(email, amplifyUsers),
             );
 
-            const result = await shareItems(sharedBy, sharedWith, message, sharedData);
+            const result = await shareItems(
+                sharedBy,
+                sharedWith,
+                resolveShareNote(message, itemType, sourceName),
+                sharedData,
+            );
 
             if (result.success) {
                 // Record the share in the local history so "Previously shared with"

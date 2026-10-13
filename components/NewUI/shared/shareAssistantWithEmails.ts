@@ -11,7 +11,7 @@ import { Prompt } from '@/types/prompt';
 import { createExport } from '@/utils/app/importExport';
 import { shareItems } from '@/services/shareService';
 import { resolveUsernameForEmail } from '@/components/NewUI/shared/emailSuggestions';
-import { recordShare } from '@/components/NewUI/shared/shareHistory';
+import { recordShare, resolveShareNote } from '@/components/NewUI/shared/shareHistory';
 import { invalidateSharedItemsCache } from '@/components/NewUI/shared/sharedItemClassifier';
 
 export async function shareAssistantWithEmails(opts: {
@@ -32,7 +32,12 @@ export async function shareAssistantWithEmails(opts: {
 
     const sharedData = await createExport([], [], [toExport], 'share', false);
     const sharedWith = emails.map((email) => resolveUsernameForEmail(email, amplifyUsers));
-    const result = await shareItems(sharedBy, sharedWith, '', sharedData);
+    const result = await shareItems(
+        sharedBy,
+        sharedWith,
+        resolveShareNote('', 'assistant', prompt.name),
+        sharedData,
+    );
     if (!result?.success) return false;
 
     recordShare(sharedBy, {

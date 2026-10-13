@@ -16,6 +16,24 @@
 
 export type ShareHistoryItemType = 'assistant' | 'conversation' | 'prompt-template';
 
+const SHARE_TYPE_LABEL: Record<ShareHistoryItemType, string> = {
+  assistant: 'Shared assistant',
+  conversation: 'Shared conversation',
+  'prompt-template': 'Shared prompt template',
+};
+
+/**
+ * The note to send with a share. The receiver's "Shared with me" rows use the note as their
+ * title, so a blank one shows as "Untitled share" — fall back to the item's name instead.
+ */
+export function resolveShareNote(
+  note: string,
+  type: ShareHistoryItemType,
+  itemName?: string,
+): string {
+  return note.trim() || itemName?.trim() || SHARE_TYPE_LABEL[type];
+}
+
 export interface ShareHistoryRecord {
   /** Unique identifier for this history entry. */
   id: string;
