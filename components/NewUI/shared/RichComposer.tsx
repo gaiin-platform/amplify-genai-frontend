@@ -614,7 +614,9 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
             color: var(--text-primary, #FAF9F5);
             min-height: 2em;
             white-space: pre-wrap;
-            word-break: break-all;
+            /* Wrap whole words; only split a word that can't fit on a line by itself */
+            word-break: normal;
+            overflow-wrap: break-word;
             cursor: text;
             position: relative;
           }
