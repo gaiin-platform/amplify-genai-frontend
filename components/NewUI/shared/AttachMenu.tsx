@@ -1672,10 +1672,11 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const showLibrary = featureFlags.dataSourceSelectorOnInput;
   // Assistant selector: always show when there are assistants available
   const showAssistant = availableAssistants.length > 0 || allLayeredAssistants.length > 0;
-  // Skills are a user-facing attachment capability, not a plugin toggle. Keep the
-  // entry visible whenever the composer has a chat endpoint; the skill picker
-  // handles an empty/error response without making the plus menu option vanish.
-  const showSkills = Boolean(chatEndpoint) && Boolean(onSkillIdsChange);
+  // Skills are a user-facing attachment capability, not a plugin toggle. Show the
+  // entry whenever the deployment's `skills` flag is on and the composer has a chat
+  // endpoint; the skill picker handles an empty/error response without making the
+  // plus menu option vanish.
+  const showSkills = !!featureFlags.skills && Boolean(chatEndpoint) && Boolean(onSkillIdsChange);
   // Backend routing owns optional chat tools; only explicit connectors remain here.
   const showConnectors = featureFlags.integrations;
   const hasGroup1 = showFiles || showLibrary || showAssistant || showSkills;

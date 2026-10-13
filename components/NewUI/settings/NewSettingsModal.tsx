@@ -1354,8 +1354,13 @@ const NavRow: FC<NavRowProps> = ({ item, isSelected, onClick }) => {
 // ---------------------------------------------------------------------------
 
 export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSection }) => {
-  const { state: { featureFlags } } = useContext(HomeContext);
-  const [activeSection, setActiveSection] = useState<string>(openToSection ?? 'general');
+  // Stable flags (NEW_UI_GUIDE §12): bare state.featureFlags is `{}` until /feature_flags
+  // lands, which would hide gated rows (Skills, Usage, Admin) and bounce the user off them.
+  const featureFlags = useStableFeatureFlags();
+  const [requestedSection, setActiveSection] = useState<string>(openToSection ?? 'general');
+  // A section can be requested (openToSection / openNewUISettingsSection) that the flags
+  // don't allow — e.g. Skills with `skills` off. Never render it; fall back to General.
+  const activeSection = requestedSection === 'skills' && !featureFlags.skills ? 'general' : requestedSection;
   const [searchQuery, setSearchQuery] = useState('');
   const [showAdminUI, setShowAdminUI] = useState(openToSection === 'admin');
   const [accountHasUnsavedChanges, setAccountHasUnsavedChanges] = useState(false);
@@ -1408,7 +1413,10 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   const navGroups: NavGroup[] = [
     ...BASE_NAV_GROUPS.map(group => ({
       ...group,
-      items: group.items.filter(item => item.id !== 'usage' || !!featureFlags.mtdCost),
+      items: group.items.filter(item =>
+        (item.id !== 'usage' || !!featureFlags.mtdCost) &&
+        (item.id !== 'skills' || !!featureFlags.skills),
+      ),
     })),
     ...(featureFlags.adminInterface
       ? [
