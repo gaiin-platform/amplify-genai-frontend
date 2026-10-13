@@ -75,6 +75,8 @@ import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { createAssistantPrompt, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { getUserIdentifier } from '@/utils/app/data';
 import { resolveUsernameForEmail } from '@/components/NewUI/shared/emailSuggestions';
+import { shareAssistantWithEmails } from '@/components/NewUI/shared/shareAssistantWithEmails';
+import toast from 'react-hot-toast';
 import { promptForData } from '@/utils/app/llm';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
 import { getSettings } from '@/utils/app/settings';
@@ -459,6 +461,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // Managed URL sub-state
     const [subOption, setSubOption] = useState<ManagedSubOption>('public');
     const [emailList, setEmailList] = useState<string[]>([]);
+    /** Emails already on the allow-list when editing — only newly added people get a share on save. */
+    const alreadyAllowedEmails = useRef<string[]>([]);
     const [slug, setSlug] = useState('');
     const generatedRestrictedPath = useRef(`a-${uuidv4().replace(/-/g, '')}`);
     const [slugError, setSlugError] = useState('');
@@ -691,17 +695,31 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         const astPath = isEditMode ? (def.astPath ?? ((def.data as any)?.astPath as string | undefined)) : undefined;
         if (astPath) {
             generatedRestrictedPath.current = astPath.toLowerCase();
-            const astPathData = (def.data as any)?.astPathData;
-            if (astPathData?.isPublic === false) {
-                setSubOption('specific');
-                const accessToUsers = astPathData?.accessTo?.users;
-                if (Array.isArray(accessToUsers)) setEmailList(accessToUsers);
+            const applyPathData = (astPathData?: { isPublic?: boolean; accessTo?: { users?: string[] } }) => {
+                if (astPathData?.isPublic === false) {
+                    setSubOption('specific');
+                    const accessToUsers = astPathData?.accessTo?.users;
+                    if (Array.isArray(accessToUsers)) {
+                        setEmailList(accessToUsers);
+                        alreadyAllowedEmails.current = accessToUsers;
+                    }
+                } else {
+                    setSubOption('public');
+                    setSlug(astPath);
+                    // Existing public path is already registered — skip re-checking.
+                    setSlugAvailable(true);
+                    setSlugCheckMessage('Current path');
+                }
+            };
+            const storedPathData = (def.data as any)?.astPathData;
+            if (storedPathData) {
+                applyPathData(storedPathData);
             } else {
-                setSubOption('public');
-                setSlug(astPath);
-                // Existing public path is already registered — skip re-checking.
-                setSlugAvailable(true);
-                setSlugCheckMessage('Current path');
+                // Assistants saved before astPathData was stored on the definition: the path registry
+                // is the source of truth. Without it a restricted assistant would open as "public".
+                lookupAssistant(astPath)
+                    .then((res) => applyPathData(res.success ? { isPublic: res.public, accessTo: res.data?.accessTo } : undefined))
+                    .catch(() => applyPathData(undefined));
             }
         }
 
@@ -1234,6 +1252,15 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 ? (editingAssistant!.data?.assistant?.definition as AssistantDefinition | undefined)
                 : undefined;
 
+            // Persisted on the definition too: the backend's add_path only stores `astPath`, so without
+            // this a restricted ("Specific people") assistant reloads as a public URL assistant.
+            const pathAccess: AstPathData | undefined =
+                accessType === 'managed'
+                    ? subOption === 'public'
+                        ? { isPublic: true, accessTo: { amplifyGroups: [], users: [] } }
+                        : { isPublic: false, accessTo: { amplifyGroups: [], users: emailList } }
+                    : undefined;
+
             const def: AssistantDefinition = {
                 name: name.trim(),
                 description: description.trim(),
@@ -1273,6 +1300,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     ...(enforceModel && enforcedModelId ? { model: enforcedModelId } : {}),
                     // groupId for team assistants
                     ...(groupId ? { groupId } : {}),
+                    ...(pathAccess ? { astPathData: pathAccess } : {}),
                 } as any,
                 // The restricted path is an internal lookup key; only public access exposes a user-chosen URL.
                 ...(accessType === 'managed'
@@ -1318,16 +1346,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 if (subOption === 'public') {
                     setLoadingMessage(`Publishing assistant to /assistants/${formattedPath}…`);
                 }
-                const astPathData: AstPathData =
-                    subOption === 'public'
-                        ? { isPublic: true, accessTo: { amplifyGroups: [], users: [] } }
-                        : {
-                              isPublic: false,
-                              accessTo: {
-                                  amplifyGroups: [],
-                                  users: emailList,
-                              },
-                          };
+                const astPathData = pathAccess!;
 
                 try {
                     const pathResult = await addAssistantPath(
@@ -1369,6 +1388,29 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             }
 
             await handleUpdateAssistantPrompt(aPrompt, prompts, homeDispatch, selectedAssistant);
+
+            // 7b. "Specific people" must reach each person's Shared-with-me, not just the path allow-list.
+            if (accessType === 'managed' && subOption === 'specific') {
+                const known = new Set(alreadyAllowedEmails.current.map((e) => e.toLowerCase()));
+                const newRecipients = emailList.filter((e) => !known.has(e.toLowerCase()));
+                if (newRecipients.length > 0) {
+                    setLoadingMessage('Sharing assistant…');
+                    let shared = false;
+                    try {
+                        shared = await shareAssistantWithEmails({
+                            prompt: aPrompt,
+                            emails: newRecipients,
+                            sharedBy: userIdentifier ?? 'Unknown',
+                            amplifyUsers: amplifyUsers as Record<string, string>,
+                        });
+                    } catch (shareErr) {
+                        console.error('Error sharing assistant:', shareErr);
+                    }
+                    if (!shared) {
+                        toast.error('The assistant was saved, but sharing failed. Use Share on the assistant to try again.');
+                    }
+                }
+            }
 
             if (groupId) {
                 const groupExists = groups.some((g: Group) => g.id === groupId);
