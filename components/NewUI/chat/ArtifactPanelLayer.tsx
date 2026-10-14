@@ -57,6 +57,7 @@ import { lzwUncompress } from '@/utils/app/lzwCompression';
 import { resolveNUIType, sniffContentType } from '@/types/artifacts';
 
 import HomeContext from '@/components/Home/home.context';
+import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 
 import { ArtifactExportMenu } from '@/components/NewUI/shared/ArtifactExportMenu';
 import { renameArtifactInConversation } from '@/components/NewUI/shared/artifactLibraryModel';
@@ -92,6 +93,7 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
     handleUpdateSelectedConversation,
   } = useContext(HomeContext);
 
+  const track = useTrack();
   const [isOpen, setIsOpen] = useState(false);
   const [artifactIndex, setArtifactIndex] = useState(0);
   const [headerRoot, setHeaderRoot] = useState<HTMLElement | null>(null);
@@ -118,6 +120,7 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
         setShowCodeView(false);
       } else if (detail?.isOpen === true) {
         setIsOpen(true);
+        track('Artifact Panel Opened');
         if (typeof detail.artifactIndex === 'number') {
           setArtifactIndex(detail.artifactIndex);
           setShowCodeView(false); // reset toggle when switching artifact
@@ -126,7 +129,7 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
     };
     window.addEventListener('openArtifactsTrigger', handler);
     return () => window.removeEventListener('openArtifactsTrigger', handler);
-  }, []);
+  }, [track]);
 
   // Keep artifactIndex in range when new versions are added
   useEffect(() => {

@@ -46,7 +46,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   onOpenSettings,
   collapsed = false,
 }) => {
-  const { state: { lightMode, featureFlags }, dispatch } = useContext(HomeContext);
+  const { state: { lightMode, featureFlags, statsService }, dispatch } = useContext(HomeContext);
   const { canSwitchToClassic: classicAllowed } = useUiSwitchPolicy();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -88,6 +88,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   const displayName = name || email?.split('@')[0] || 'User';
 
   const setTheme = (mode: 'light' | 'dark') => {
+    statsService.setThemeEvent(mode);
     dispatch({ field: 'lightMode', value: mode });
     localStorage.setItem('lightMode', mode);
     // Clear any 'system' mode so the explicit choice takes precedence on refresh
@@ -101,6 +102,7 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
 
   const handleSwitchToClassic = () => {
     if (!classicAllowed) return;
+    statsService.trackEvent('UI Switch Clicked', { 'From': 'new', 'To': 'classic' });
     setOpen(false);
     // The shared preference gate owns the immediate loading treatment. Reload only once
     // the server holds the choice: it wins on the next load, so reloading earlier would

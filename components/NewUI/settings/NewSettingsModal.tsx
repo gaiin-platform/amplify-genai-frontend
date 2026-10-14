@@ -57,10 +57,11 @@ import { getUserDefaultModelId, setUserDefaultModelId } from '@/components/NewUI
 import { getUserDefaultEffort, setUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
 import { EFFORT_OPTIONS } from '@/components/NewUI/shared/ModelPicker';
 import type { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
-import { getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
+import { DEFAULT_STORAGE_SELECTION, getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
 import { getUserWebSearchEnabled, setUserWebSearchEnabled, WEB_SEARCH_LEVEL3_INFO } from '@/components/NewUI/shared/userWebSearch';
 import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 import {
   NewUILoadingStatus,
   NewUILegacyLoadingAdapter,
@@ -157,7 +158,7 @@ const STORAGE_CONFIRM: Record<ConversationStorage, string> = {
 const GeneralSection: FC = () => {
   const {
     dispatch: homeDispatch,
-    state: { storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService, availableModels, defaultModelId, advancedModelId },
+    state: { lightMode, storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService, availableModels, defaultModelId, advancedModelId },
   } = useContext(HomeContext);
   const featureFlags = useStableFeatureFlags();
   const settings = getSettings(featureFlags);
@@ -173,6 +174,7 @@ const GeneralSection: FC = () => {
     setUserDefaultModelIdState(id);
     setUserDefaultModelId(id || null);
     setModelDropdownOpen(false);
+    statsService.trackEvent('Default Model Changed', { 'Model Id': id || 'system-default' });
     // Persist server-side so the choice roams. `null` is an explicit clear
     // ("System default"), which must propagate to other devices too.
     void saveDisplayPrefsToServer({ userDefaultModelId: id || null });
@@ -190,6 +192,7 @@ const GeneralSection: FC = () => {
     setUserDefaultEffortIdState(id);
     setUserDefaultEffort(id || null);
     setEffortDropdownOpen(false);
+    statsService.trackEvent('Default Effort Changed', { 'Effort': id || 'system-default' });
     // Persist server-side so the choice roams. `null` is an explicit clear
     // ("Medium (default)"), which must propagate to other devices too.
     void saveDisplayPrefsToServer({ userDefaultEffort: id || null });
@@ -204,19 +207,25 @@ const GeneralSection: FC = () => {
   const handleWebSearchChange = (enabled: boolean) => {
     setWebSearchEnabledState(enabled);
     setUserWebSearchEnabled(enabled);
+    statsService.trackEvent('Web Search Setting Changed', { 'Enabled': enabled });
     // Always publish the explicit boolean (including `true`) so turning it back
     // on clears an "off" held by other devices.
     void saveDisplayPrefsToServer({ webSearchEnabled: enabled });
   };
 
   // ── Appearance (system / light / dark) ───────────────────────────────
-  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
-    if (typeof window === 'undefined') return 'dark';
-    const stored = localStorage.getItem('amplify_appearance_mode') as AppearanceMode | null;
-    if (stored === 'system' || stored === 'light' || stored === 'dark') return stored;
-    const lm = localStorage.getItem('lightMode');
-    return lm === 'light' ? 'light' : 'dark';
-  });
+  // The theme actually applied (`lightMode`, kept current by every writer incl. the
+  // account menu, classic UI and UserPrefsSync) is the source of truth for the
+  // highlighted option. `amplify_appearance_mode` is only a *preference* and goes
+  // stale (never written by classic UI; absent for new users, where a 'dark'
+  // fallback contradicted the real theme), so it is honoured only for 'system',
+  // and only while the applied theme still matches the OS.
+  const [systemSelected, setSystemSelected] = useState<boolean>(() =>
+    typeof window !== 'undefined' && localStorage.getItem('amplify_appearance_mode') === 'system',
+  );
+  const osPrefersDark = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const appearanceMode: AppearanceMode =
+    systemSelected && (osPrefersDark ? 'dark' : 'light') === lightMode ? 'system' : lightMode;
 
   const applyTheme = (resolved: 'light' | 'dark') => {
     homeDispatch({ field: 'lightMode', value: resolved });
@@ -230,7 +239,8 @@ const GeneralSection: FC = () => {
   };
 
   const handleAppearanceChange = (value: AppearanceMode) => {
-    setAppearanceMode(value);
+    statsService.setThemeEvent(value);
+    setSystemSelected(value === 'system');
     localStorage.setItem('amplify_appearance_mode', value);
     if (value === 'system') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -846,7 +856,7 @@ const GeneralSection: FC = () => {
               <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
                 {storageSaving
                   ? 'Saving…'
-                  : STORAGE_OPTIONS.find((o) => o.id === storageSelection)?.label ?? 'Select…'}
+                  : STORAGE_OPTIONS.find((o) => o.id === (storageSelection || DEFAULT_STORAGE_SELECTION))?.label ?? 'Select…'}
               </span>
               <IconChevronDown size={12} stroke={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             </button>
@@ -872,7 +882,7 @@ const GeneralSection: FC = () => {
                   }}
                 >
                   {STORAGE_OPTIONS.map((opt) => {
-                    const isActive = storageSelection === opt.id;
+                    const isActive = (storageSelection || DEFAULT_STORAGE_SELECTION) === opt.id;
                     return (
                       <button
                         key={opt.id}
@@ -1363,6 +1373,16 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   const activeSection = requestedSection === 'skills' && !featureFlags.skills ? 'general' : requestedSection;
   const [searchQuery, setSearchQuery] = useState('');
   const [showAdminUI, setShowAdminUI] = useState(openToSection === 'admin');
+  const track = useTrack();
+  // Opened once per mount (the modal only mounts while open).
+  useEffect(() => {
+    track('Settings Opened', { 'Section': openToSection ?? 'general' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Every section the user lands on, including the one it opened to.
+  useEffect(() => {
+    track('Settings Section Viewed', { 'Section': showAdminUI ? 'admin' : activeSection });
+  }, [activeSection, showAdminUI, track]);
   const [accountHasUnsavedChanges, setAccountHasUnsavedChanges] = useState(false);
   const [pendingLeaveAction, setPendingLeaveAction] = useState<(() => void) | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);

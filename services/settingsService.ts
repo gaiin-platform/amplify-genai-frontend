@@ -1,9 +1,11 @@
 import { doRequestOp } from "./doRequestOp";
+import { dedupeInFlight } from "./inFlight";
 
 const URL_PATH = "/state/settings";
 const SERVICE_NAME = "settings";
 
-export const fetchUserSettings = async () => {
+// Several startup components (home, UI preference banner, prefs sync) read settings at once.
+export const fetchUserSettings = dedupeInFlight(async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
@@ -11,7 +13,7 @@ export const fetchUserSettings = async () => {
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
-}
+});
 
 export const saveUserSettings = async (settings: any) => {
     const op = {

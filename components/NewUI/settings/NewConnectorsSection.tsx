@@ -57,7 +57,7 @@ interface FlatIntegration extends Integration {
 
 export const NewConnectorsSection: FC = () => {
   const {
-    state: { featureFlags, canAddWebSearchApiKey },
+    state: { featureFlags, canAddWebSearchApiKey, statsService },
   } = useContext(HomeContext);
   const toolApiKeysWrapperRef = useRef<HTMLDivElement>(null);
 
@@ -150,6 +150,7 @@ export const NewConnectorsSection: FC = () => {
       setLoadingStates((prev) => ({ ...prev, [id]: true }));
       const result = await deleteUserIntegration(id);
       if (result) {
+        statsService.trackEvent('Connector Disconnected', { 'Integration': id });
         setConnectedIntegrations((prev) => prev.filter((i) => i !== id));
       }
     } catch {
@@ -161,6 +162,7 @@ export const NewConnectorsSection: FC = () => {
 
   // ── Connect (ported verbatim from IntegrationsTab.tsx handleConnect)
   const handleConnect = async (id: string) => {
+    statsService.trackEvent('Connector Connect Started', { 'Integration': id });
     setConnectingStates((prev) => ({ ...prev, [id]: true }));
 
     const provider = id.split('_')[0];

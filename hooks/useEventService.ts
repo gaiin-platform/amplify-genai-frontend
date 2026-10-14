@@ -13,6 +13,17 @@ import { capitalize, getUserIdentifier } from "@/utils/app/data";
 
 let eventServiceReady = false;
 
+// Which UI the user is currently on. Registered with Mixpanel as a super property so
+// EVERY event (old events included) carries it, which is what lets us compare new vs
+// classic usage by simply breaking any event down by "UI Version".
+export type AnalyticsUiVersion = 'new' | 'classic';
+const UI_VERSION_PROPERTY = 'UI Version';
+let currentUiVersion: AnalyticsUiVersion | null = null;
+
+export const setAnalyticsUiVersion = (version: AnalyticsUiVersion) => {
+    currentUiVersion = version;
+};
+
 const useEventService = (mixPanelToken:string) => {
 
     const {data: session} = useSession();
@@ -95,12 +106,49 @@ const useEventService = (mixPanelToken:string) => {
         return async (...args: any[]) => {
             // console.log("is mix panel on?", localStorage.getItem('mixPanelOn'));
             if (eventServiceReady && JSON.parse(localStorage.getItem('mixPanelOn') ?? 'false')) {
+                try {
+                    if (currentUiVersion) mixpanel.register({[UI_VERSION_PROPERTY]: currentUiVersion});
+                } catch (e) {
+                    console.error("Error registering UI Version", e);
+                }
                 fn(...args);
             }
         }
     }
 
     return {
+
+        // Fired once per page load for whichever UI is showing. Also stamps the user
+        // profile so people can be cohorted by the UI they are currently on.
+        uiLoadedEvent: ifReady( (version: AnalyticsUiVersion, uiPreference?: string) => {
+            try {
+                mixpanel.people.set({'Current UI': version});
+                mixpanel.track('UI Loaded', {
+                    ...(uiPreference ? {'UI Preference': uiPreference} : {}),
+                });
+            } catch (e) {
+                console.error("Error tracking UI Loaded", e);
+            }
+        }),
+
+        // Top-level page/view navigation (same state field drives both UIs).
+        pageViewedEvent: ifReady( (page: string) => {
+            try {
+                mixpanel.track('Page Viewed', {'Page': page});
+            } catch (e) {
+                console.error("Error tracking Page Viewed", e);
+            }
+        }),
+
+        // Generic tracker for UI-specific actions. Callers must pass metadata only
+        // (ids, counts, enum-like labels) -- never message text or file contents.
+        trackEvent: ifReady( (name: string, properties?: Record<string, any>) => {
+            try {
+                mixpanel.track(name, properties ?? {});
+            } catch (e) {
+                console.error("Error tracking " + name, e);
+            }
+        }),
 
         marketItemPublishEvent: ifReady( (publishingName: string,
                                        publishedDescription: string,

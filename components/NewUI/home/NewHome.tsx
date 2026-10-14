@@ -54,8 +54,8 @@ import { newMessage, MessageType, type Message } from '@/types/chat';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
-import { getUserDefaultModelId } from '@/components/NewUI/shared/userDefaultModel';
-import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
+import { getUserDefaultModelId, USER_DEFAULT_MODEL_CHANGED_EVENT } from '@/components/NewUI/shared/userDefaultModel';
+import { getUserDefaultEffort, USER_DEFAULT_EFFORT_CHANGED_EVENT } from '@/components/NewUI/shared/userDefaultEffort';
 import { CONVERSATION_CONNECTOR_ACTIONS_KEY } from '@/components/NewUI/shared/conversationConnectorActions';
 import {
   getConversationSkillSelection,
@@ -149,6 +149,27 @@ export const NewHome: React.FC = () => {
       else if (defaultModelId) setSelectedModelId(defaultModelId);
     }
   }, [defaultModelId, enforcedModelId]);
+
+  // The pickers above are seeded once on mount, but NewHome stays mounted behind
+  // Settings (and server prefs can land after mount). Follow the personal default
+  // when it changes so the user needn't refresh. An enforcing assistant still wins.
+  const defaultModelIdRef = useRef(defaultModelId);
+  defaultModelIdRef.current = defaultModelId;
+  const enforcedModelIdRef = useRef(enforcedModelId);
+  enforcedModelIdRef.current = enforcedModelId;
+  useEffect(() => {
+    const onModel = () => {
+      if (enforcedModelIdRef.current) return;
+      setSelectedModelId(getUserDefaultModelId() || defaultModelIdRef.current || undefined);
+    };
+    const onEffort = () => setSelectedEffort(getUserDefaultEffort() ?? 'medium');
+    window.addEventListener(USER_DEFAULT_MODEL_CHANGED_EVENT, onModel);
+    window.addEventListener(USER_DEFAULT_EFFORT_CHANGED_EVENT, onEffort);
+    return () => {
+      window.removeEventListener(USER_DEFAULT_MODEL_CHANGED_EVENT, onModel);
+      window.removeEventListener(USER_DEFAULT_EFFORT_CHANGED_EVENT, onEffort);
+    };
+  }, []);
 
   // New UI attaches explicit connectors separately; ordinary-chat optional tools
   // are selected by the backend router, not by user-facing plugins.
@@ -437,6 +458,17 @@ export const NewHome: React.FC = () => {
     // Same filter ConversationViewShell's PATH A applies, so both sides agree
     // on whether this send travels with documents.
     const docsWithKeys = attachedDocs.filter((d) => !!d.key);
+    statsService.trackEvent('Message Sent', {
+      'Source': 'landing',
+      'Is New Conversation': true,
+      'Model Id': selectedModelId || 'default',
+      'Effort': selectedEffort,
+      'Message Characters': trimmed.length,
+      'Attachment Count': readyAttachments.length,
+      'Has Pasted Text': pastedAttachments.length > 0,
+      'Connector Action Count': selectedActions.length,
+      'Has Assistant': !!activeAssistant,
+    });
     if (typeof window !== 'undefined') {
       if (trimmed) sessionStorage.setItem('amplify_pending_message', trimmed);
       if (attachedDocs.length > 0)
@@ -788,8 +820,14 @@ export const NewHome: React.FC = () => {
               <ModelPicker
                 selectedModelId={selectedModelId}
                 selectedEffort={selectedEffort}
-                onModelChange={setSelectedModelId}
-                onEffortChange={setSelectedEffort}
+                onModelChange={(id) => {
+                  statsService.trackEvent('Model Changed', { 'Source': 'landing', 'Model Id': id });
+                  setSelectedModelId(id);
+                }}
+                onEffortChange={(effort) => {
+                  statsService.trackEvent('Effort Changed', { 'Source': 'landing', 'Effort': effort });
+                  setSelectedEffort(effort);
+                }}
                 isNewChat
                 composerRef={composerRef}
                 enforcedByAssistant={!!enforcedModelId}

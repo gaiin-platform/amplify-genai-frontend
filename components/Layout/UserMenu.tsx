@@ -37,7 +37,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   cognitoDomain,
   cognitoClientId,
 }) => {
-  const { dispatch, state: { lightMode, showUserMenu, featureFlags, supportEmail, defaultAccount, adminRateLimits, groupRateLimits, honorPersonalRateLimit }, dispatch: homeDispatch } = useContext(HomeContext);
+  const { dispatch, state: { lightMode, showUserMenu, featureFlags, statsService, supportEmail, defaultAccount, adminRateLimits, groupRateLimits, honorPersonalRateLimit }, dispatch: homeDispatch } = useContext(HomeContext);
   const { canSwitchToNew } = useUiSwitchPolicy();
   const [mtdCost, setMtdCost] = useState<string>('0');
   const [mtdCostNumeric, setMtdCostNumeric] = useState<number>(0);
@@ -287,6 +287,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   const handleSwitchToNewUI = async () => {
     // The visual gate is not the only gate: a stale menu must not switch either.
     if (!canSwitchToNew) return;
+    statsService.trackEvent('UI Switch Clicked', { 'From': 'classic', 'To': 'new' });
     handleClose();
     // Show loading toast while switching
     const loadingToast = toast.loading('Switching to New UI...');

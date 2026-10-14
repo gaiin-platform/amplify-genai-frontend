@@ -86,7 +86,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
   const newFolderInputRef = useRef<HTMLInputElement>(null);
 
   // Position for the portalled fixed menu — captured from the dots button on open
-  const [menuPos, setMenuPos] = useState<{ top: number; right: number } | null>(null);
+  const [menuPos, setMenuPos] = useState<{ top?: number; bottom?: number; right: number } | null>(null);
   const [menuMaxHeight, setMenuMaxHeight] = useState<number | null>(null);
 
   // Estimated menu height:
@@ -177,10 +177,9 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
       const spaceAbove = rect.top - GAP;
       const opensBelow = spaceBelow >= spaceAbove;
       const availableHeight = Math.max(120, (opensBelow ? spaceBelow : spaceAbove) - SCREEN_PADDING);
-      const menuHeight = Math.min(MENU_ESTIMATED_HEIGHT, availableHeight);
-      const top = opensBelow
-        ? rect.bottom + GAP
-        : Math.max(SCREEN_PADDING, rect.top - menuHeight - GAP);
+      // When flipping above, anchor by `bottom` so the menu sits flush against the
+      // row whatever its real height is (collapsed vs. Download expanded) — a
+      // top computed from an estimated height leaves a gap.
       setMenuMaxHeight(availableHeight);
 
       // ── Horizontal: keep the right edge within the viewport ────────────────
@@ -189,7 +188,11 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
       const rawRight = window.innerWidth - rect.right;
       const right = Math.min(rawRight, window.innerWidth - MENU_MIN_WIDTH - SCREEN_PADDING);
 
-      setMenuPos({ top, right: Math.max(0, right) });
+      setMenuPos(
+        opensBelow
+          ? { top: rect.bottom + GAP, right: Math.max(0, right) }
+          : { bottom: window.innerHeight - rect.top + GAP, right: Math.max(0, right) },
+      );
     }
     setIsMenuOpen(true);
   };
@@ -302,6 +305,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
         style={{
           position: 'fixed',
           top: menuPos.top,
+          bottom: menuPos.bottom,
           right: menuPos.right,
           zIndex: 9999,
           minWidth: MENU_MIN_WIDTH,
