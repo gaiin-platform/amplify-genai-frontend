@@ -57,7 +57,7 @@ import { getUserDefaultModelId, setUserDefaultModelId } from '@/components/NewUI
 import { getUserDefaultEffort, setUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
 import { EFFORT_OPTIONS } from '@/components/NewUI/shared/ModelPicker';
 import type { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
-import { getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
+import { DEFAULT_STORAGE_SELECTION, getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
 import { getUserWebSearchEnabled, setUserWebSearchEnabled, WEB_SEARCH_LEVEL3_INFO } from '@/components/NewUI/shared/userWebSearch';
 import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
@@ -851,7 +851,7 @@ const GeneralSection: FC = () => {
               <span style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
                 {storageSaving
                   ? 'Saving…'
-                  : STORAGE_OPTIONS.find((o) => o.id === storageSelection)?.label ?? 'Select…'}
+                  : STORAGE_OPTIONS.find((o) => o.id === (storageSelection || DEFAULT_STORAGE_SELECTION))?.label ?? 'Select…'}
               </span>
               <IconChevronDown size={12} stroke={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
             </button>
@@ -877,7 +877,7 @@ const GeneralSection: FC = () => {
                   }}
                 >
                   {STORAGE_OPTIONS.map((opt) => {
-                    const isActive = storageSelection === opt.id;
+                    const isActive = (storageSelection || DEFAULT_STORAGE_SELECTION) === opt.id;
                     return (
                       <button
                         key={opt.id}
