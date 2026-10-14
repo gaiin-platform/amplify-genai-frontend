@@ -171,7 +171,7 @@ export const MarkdownExportMenuItems: React.FC<MarkdownExportMenuItemsProps> = (
   const exportOptionCls = `${menuItemCls} pl-6`;
 
   return (
-    <div onMouseEnter={() => setExpanded(true)}>
+    <div>
       <button
         type="button"
         role="menuitem"
