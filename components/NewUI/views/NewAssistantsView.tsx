@@ -33,7 +33,7 @@ import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType } from '@/types/groups';
 import { LayeredAssistant, createLayeredAssistant } from '@/types/layeredAssistant';
 import { Assistant, AssistantDefinition, AssistantProviderID, DEFAULT_ASSISTANT } from '@/types/assistant';
-import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
+import { startConversationWithTemplate } from '@/components/NewUI/shared/promptConversation';
 import { isAssistant, getAssistants, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { deleteAssistant, deleteLayeredAssistant, saveLayeredAssistant } from '@/services/assistantService';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
@@ -649,11 +649,12 @@ const MyAssistantsTab: React.FC = () => {
             homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
         }
         statsService.startConversationEvent(p);
-        handleStartConversationWithPrompt(
-            (params: Record<string, any>) => handleNewConversation({
-                ...params,
-                prompt: buildPromptWithInstruction(params.prompt ?? DEFAULT_SYSTEM_PROMPT),
-            }),
+        // New-UI variant: names the chat 'New Conversation' so it stays out of the
+        // sidebar / Chats list until the first message is sent (the classic util
+        // names it "Chat with <name> <timestamp>"). Applies the custom instruction itself.
+        startConversationWithTemplate(
+            handleNewConversation,
+            homeDispatch,
             promptsRef.current,
             p,
             availableModels,
@@ -1139,11 +1140,12 @@ const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) 
             homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
         }
         statsService.startConversationEvent(p);
-        handleStartConversationWithPrompt(
-            (params: Record<string, any>) => handleNewConversation({
-                ...params,
-                prompt: buildPromptWithInstruction(params.prompt ?? DEFAULT_SYSTEM_PROMPT),
-            }),
+        // New-UI variant: names the chat 'New Conversation' so it stays out of the
+        // sidebar / Chats list until the first message is sent (the classic util
+        // names it "Chat with <name> <timestamp>"). Applies the custom instruction itself.
+        startConversationWithTemplate(
+            handleNewConversation,
+            homeDispatch,
             promptsRef.current,
             p,
             availableModels,
@@ -1463,11 +1465,12 @@ const GroupAssistantsTab: React.FC = () => {
             homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
         }
         statsService.startConversationEvent(p);
-        handleStartConversationWithPrompt(
-            (params: Record<string, any>) => handleNewConversation({
-                ...params,
-                prompt: buildPromptWithInstruction(params.prompt ?? DEFAULT_SYSTEM_PROMPT),
-            }),
+        // New-UI variant: names the chat 'New Conversation' so it stays out of the
+        // sidebar / Chats list until the first message is sent (the classic util
+        // names it "Chat with <name> <timestamp>"). Applies the custom instruction itself.
+        startConversationWithTemplate(
+            handleNewConversation,
+            homeDispatch,
             promptsRef.current,
             p,
             availableModels,
