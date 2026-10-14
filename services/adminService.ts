@@ -1,4 +1,5 @@
 import { doRequestOp } from "./doRequestOp";
+import { dedupeInFlight } from "./inFlight";
 import { storageGet, storageSet, storageRemove } from '@/utils/app/storage';
 
 const URL_PATH = "/amplifymin";
@@ -29,7 +30,8 @@ export const getAdminConfigs = async (lazyLoad: boolean = false) => {
     return await doRequestOp(op);
 }
 
-export const getFeatureFlags = async () => {
+// The UI preference banner and home both load flags at startup; overlapping calls share one request.
+export const getFeatureFlags = dedupeInFlight(async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
@@ -37,7 +39,7 @@ export const getFeatureFlags = async () => {
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
-}
+});
 
 export const getUserAppConfigs = async () => {
     const op = {

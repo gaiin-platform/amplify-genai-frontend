@@ -296,6 +296,9 @@ export const ChatInput = ({
 
     // Workflow selector state
     const [showWorkflowSelector, setShowWorkflowSelector] = useState(false);
+    // The workflow viewer fetches templates on mount, so only mount it once it has first been opened
+    const [workflowViewerOpened, setWorkflowViewerOpened] = useState(false);
+    useEffect(() => { if (showWorkflowSelector) setWorkflowViewerOpened(true); }, [showWorkflowSelector]);
     const [selectedWorkflow, setSelectedWorkflow] = useState<AstWorkflow | null>(null);
     const workflowSelectorRef = useRef<HTMLDivElement | null>(null);
 
@@ -1596,13 +1599,15 @@ export const ChatInput = ({
                         <div ref={workflowSelectorRef}
                              className="w-full"
                              style={{ display: showWorkflowSelector ? undefined : 'none', transform: 'translateY(24px)' }}>
-                            <ChatWorkflowViewer
-                                selectedWorkflowId={selectedWorkflow?.templateId ?? null}
-                                onSelect={(workflow) => {
-                                    setSelectedWorkflow(workflow);
-                                }}
-                                onClose={() => setShowWorkflowSelector(false)}
-                            />
+                            {(showWorkflowSelector || workflowViewerOpened) && (
+                                <ChatWorkflowViewer
+                                    selectedWorkflowId={selectedWorkflow?.templateId ?? null}
+                                    onSelect={(workflow) => {
+                                        setSelectedWorkflow(workflow);
+                                    }}
+                                    onClose={() => setShowWorkflowSelector(false)}
+                                />
+                            )}
                         </div>
                     )}
 

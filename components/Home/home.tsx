@@ -1102,7 +1102,7 @@ const Home = ({
             try {
                 const days = getArchiveNumOfDays();
                 const allRemoteConvs = await fetchAllRemoteConversations(days === 0 ? undefined : days);
-                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch, getDefaultModel(DefaultModels.DEFAULT));
+                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch);
             } catch (e) {
                 console.log("Failed to sync cloud conversations: ", e);
             }
