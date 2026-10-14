@@ -62,7 +62,9 @@ import { DefaultModels } from '@/types/model';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
-import { saveFolders } from '@/utils/app/folders';
+import { getArchiveNumOfDays, saveFolders } from '@/utils/app/folders';
+import { fetchAllRemoteConversations } from '@/services/remoteConversationService';
+import { updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import { savePrompts } from '@/utils/app/prompts';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
@@ -135,7 +137,7 @@ const SkeletonRow: React.FC = () => (
 
 export const ChatsListView: React.FC = () => {
     const {
-        state: { conversations, prompts, folders, amplifyUsers, selectedConversation, statsService },
+        state: { conversations, prompts, folders, amplifyUsers, selectedConversation, statsService, featureFlags },
         dispatch,
         handleSelectConversation,
         handleUpdateConversation,
@@ -148,6 +150,44 @@ export const ChatsListView: React.FC = () => {
     useEffect(() => { conversationsRef.current = conversations; }, [conversations]);
     const selectedConversationRef = useRef(selectedConversation);
     useEffect(() => { selectedConversationRef.current = selectedConversation; }, [selectedConversation]);
+
+    const foldersRef = useRef(folders);
+    useEffect(() => { foldersRef.current = folders; }, [folders]);
+
+    // ── Older cloud chats ─────────────────────────────────────────────────
+    // Startup only syncs cloud chats from the last N days (the archive window), so older
+    // chats never reach this browser on their own. This pulls the full history on demand
+    // without changing the archive setting, so Recents in the sidebar stays unchanged.
+    const [loadingOlder, setLoadingOlder] = useState(false);
+    const [loadedOlder, setLoadedOlder] = useState(false);
+    const archiveDays = typeof window !== 'undefined' ? getArchiveNumOfDays() : 0;
+    const canLoadOlder = !!featureFlags?.storeCloudConversations && archiveDays > 0 && !loadedOlder;
+
+    const handleLoadOlderChats = useCallback(async () => {
+        setLoadingOlder(true);
+        try {
+            const allRemote = await fetchAllRemoteConversations(undefined);
+            if (!allRemote) throw new Error('fetch failed');
+            const result = await updateWithRemoteConversations(
+                allRemote,
+                conversationsRef.current,
+                foldersRef.current,
+                dispatch,
+            );
+            if (result.newfolders.length > 0) {
+                const updatedFolders = [...foldersRef.current, ...result.newfolders];
+                dispatch({ field: 'folders', value: updatedFolders });
+                saveFolders(updatedFolders);
+            }
+            setLoadedOlder(true);
+            toast.success('Older chats loaded');
+        } catch (e) {
+            console.log('Failed to load older chats: ', e);
+            toast.error('Could not load older chats. Please try again.');
+        } finally {
+            setLoadingOlder(false);
+        }
+    }, [dispatch]);
 
     const { data: session } = useSession();
     const user = getUserIdentifier(session?.user) ?? '';
@@ -442,6 +482,28 @@ export const ChatsListView: React.FC = () => {
                     aria-label="Chat view filter"
                 />
             </div>
+
+            {/* ── Older chats notice (outside the scroll area so it is always visible) ── */}
+            {activeTab === 'mine' && canLoadOlder && (
+                <div className="px-8 pb-3 flex-shrink-0">
+                    <div
+                        className="flex items-center justify-between gap-3 px-3 py-2 rounded-[8px] border text-[13px]"
+                        style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-raised)' }}
+                    >
+                        <span className="text-[--text-secondary]">
+                            {`Showing chats from the last ${archiveDays} days. Can't find an older chat?`}
+                        </span>
+                        <button
+                            onClick={handleLoadOlderChats}
+                            disabled={loadingOlder}
+                            className="inline-flex items-center gap-2 font-medium text-[--accent] hover:opacity-80 transition-opacity disabled:opacity-60 flex-shrink-0"
+                        >
+                            {loadingOlder && <IconLoader2 size={14} className="animate-spin" />}
+                            {loadingOlder ? 'Loading older chats…' : 'Load older chats'}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* ── My Chats: sortable column headers ─────────────────────────── */}
             {activeTab === 'mine' && conversations.length > 0 && (
