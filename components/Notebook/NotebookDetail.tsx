@@ -39,6 +39,7 @@ import {
 } from '@/services/notebookService';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { secondaryBadgeClass } from './notebookUI';
+import { getSourceFailureCode, getSourceFailureMessage } from './sourceStatus';
 import { AddSourceDialog } from './AddSourceDialog';
 import { AddExistingSourceDialog } from './AddExistingSourceDialog';
 import { ContextToggle } from './ContextToggle';
@@ -799,7 +800,13 @@ const SourcesPanel = ({
                         const isProcessing =
                             status === 'new' || status === 'queued' || status === 'running';
                         const statusCfg = SOURCE_STATUS_CONFIG[status];
-                        const processingError = (s.processing_info as { error?: string } | null)?.error;
+                        // Prefer the specific, actionable reason (error_code from the
+                        // API, e.g. "site blocks automated access"); fall back to the
+                        // generic server text if the backend hasn't been updated.
+                        const failureCode = getSourceFailureCode(s);
+                        const processingError = failureCode
+                            ? getSourceFailureMessage(failureCode)
+                            : (s.processing_info as { error?: string } | null)?.error;
                         const isRetrying = retryingIds.has(s.id);
                         const topics = s.topics ?? [];
 

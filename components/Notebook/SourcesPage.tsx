@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    LucideAlertTriangle,
     LucideAlignLeft,
     LucideFileText,
     LucideLink,
@@ -17,6 +18,12 @@ import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
 import { formatDistanceToNow } from './relativeTime';
 import { secondaryBadgeClass } from './notebookUI';
+import {
+    getSourceActivity,
+    getSourceFailureCode,
+    getSourceFailureMessage,
+    isSourceInFlight,
+} from './sourceStatus';
 
 const PAGE_SIZE = 30;
 
@@ -118,6 +125,33 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
         el.addEventListener('scroll', onScroll);
         return () => el.removeEventListener('scroll', onScroll);
     }, [fetchPage]);
+
+    // While any source is still being processed, quietly re-fetch the loaded
+    // window and merge updated rows in by id. Without this the table never
+    // reflects a source finishing or *failing* (e.g. a site that blocks automated
+    // access) and sits on "Processing..." until the user reloads. Merging by id
+    // (rather than replacing the list) keeps pagination offsets and scroll intact.
+    const hasInFlightSources = sources.some(isSourceInFlight);
+    useEffect(() => {
+        if (!hasInFlightSources) return;
+        const interval = setInterval(async () => {
+            if (document.visibilityState !== 'visible') return;
+            try {
+                const fresh = await listSources({
+                    // The API caps a page at 100.
+                    limit: Math.min(Math.max(offsetRef.current, PAGE_SIZE), 100),
+                    offset: 0,
+                    sortBy,
+                    sortOrder,
+                });
+                const byId = new Map(fresh.map((s) => [s.id, s]));
+                setSources((prev) => prev.map((s) => byId.get(s.id) ?? s));
+            } catch {
+                // Transient; the next tick retries.
+            }
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [hasInFlightSources, sortBy, sortOrder]);
 
     const scrollToSelectedRow = (index: number) => {
         const container = scrollRef.current;
@@ -328,6 +362,11 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
                         {sources.map((s, index) => {
                             const kind = sourceKind(s);
                             const isOpening = openingId === s.id;
+                            const activity = getSourceActivity(s);
+                            const failureMessage =
+                                activity === 'failed'
+                                    ? getSourceFailureMessage(getSourceFailureCode(s))
+                                    : '';
                             return (
                                 <tr
                                     key={s.id}
@@ -352,12 +391,43 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
                                     <td className="h-12 px-4">
                                         <div className="flex items-center gap-2 overflow-hidden">
                                             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                                                <span className="truncate font-medium">
-                                                    {s.title || 'Untitled Source'}
-                                                </span>
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    <span className="truncate font-medium">
+                                                        {/* "Processing..." is the backend's placeholder
+                                                            title; once failed it will never be replaced. */}
+                                                        {activity === 'failed' && s.title === 'Processing...'
+                                                            ? 'Untitled Source'
+                                                            : s.title || 'Untitled Source'}
+                                                    </span>
+                                                    {activity === 'processing' && (
+                                                        <span
+                                                            className={`flex-none gap-1 ${secondaryBadgeClass}`}
+                                                        >
+                                                            <LucideLoader2
+                                                                size={12}
+                                                                className="animate-spin"
+                                                            />
+                                                            Processing
+                                                        </span>
+                                                    )}
+                                                    {activity === 'failed' && (
+                                                        <span className="inline-flex flex-none items-center gap-1 rounded-md bg-[--bg-active] px-2 py-0.5 text-xs font-medium text-[--text-error]">
+                                                            <LucideAlertTriangle size={12} />
+                                                            Failed
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {s.asset?.url && (
                                                     <span className="truncate text-xs text-[--text-muted]">
                                                         {s.asset.url}
+                                                    </span>
+                                                )}
+                                                {activity === 'failed' && (
+                                                    <span
+                                                        className="truncate text-xs text-[--text-error]"
+                                                        title={failureMessage}
+                                                    >
+                                                        {failureMessage}
                                                     </span>
                                                 )}
                                             </div>
