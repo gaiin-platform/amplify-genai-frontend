@@ -29,6 +29,13 @@ const LoadingIcon = styled(FiCommand)`
   animation: ${animate} 2s infinite;
 `;
 
+// Converter errors can contain pandoc internals and temp paths; show a short, readable line.
+const friendlyConversionError = (raw: string): string => {
+    const firstLine = (raw || "").trim().split("\n")[0] || "";
+    const cleaned = firstLine.replace(/(\/[\w.\-]+){2,}/g, "").replace(/\s+/g, " ").trim();
+    return cleaned.length > 200 ? cleaned.slice(0, 200) + "…" : cleaned;
+};
+
 export const DownloadModal: FC<DownloadModalProps> = (
     {
         onDownloadReady,
@@ -46,6 +53,11 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
     // Individual states for selected prompts, conversations, and folders
     const [isDownloading, setIsDownloading] = useState(false);
+    const stopPollingRef = useRef(false);
+    useEffect(() => {
+        stopPollingRef.current = false;
+        return () => { stopPollingRef.current = true; };
+    }, []);
     const [includeConversationName, setIncludeConversationName] = useState(false);
     const [selectedMessagesState, setSelectedMessagesState] = useState<Message[]>([...selectedMessages]);
     const [selectedConversationsState, setSelectedConversations] = useState([...selectedConversations]);
@@ -143,7 +155,10 @@ export const DownloadModal: FC<DownloadModalProps> = (
             }
             
 
-            const downloadData = { version: 4, history: exportedConversations, 
+            // The backend schema requires folderId on every conversation, and JSON.stringify drops
+            // undefined values, so normalize it (some cloud/imported conversations omit it).
+            const normalizedConversations = exportedConversations.map(c => ({...c, folderId: c.folderId ?? null}));
+            const downloadData = { version: 4, history: normalizedConversations, 
                                  folders: [], prompts: [],
                                 } as LatestExportFormat;
             
@@ -169,10 +184,12 @@ export const DownloadModal: FC<DownloadModalProps> = (
 
             statsService.downloadItemEvent(conversionOptions, downloadData);
 
+            stopPollingRef.current = false;
             let resultArrived = false;
-            let triesLeft = 60;
+            let triesLeft = 90;
 
-            const checkReady = async (url:string) => {
+            const checkReady = async (url:string, errorUrl?:string) => {
+                if (stopPollingRef.current) return; // modal was closed
                 try {
                     triesLeft = triesLeft - 1;
                     const result = await fetch(url);
@@ -180,12 +197,30 @@ export const DownloadModal: FC<DownloadModalProps> = (
                         resultArrived = true;
                         setDownloadUrl(url);
                         setIsDownloading(false);
+                        return;
                     }
-                    else if(triesLeft > 0){
-                        setTimeout(()=>checkReady(url), 1000);
+
+                    // The converter writes a small marker when it fails so we can show the
+                    // real reason instead of waiting for the timeout.
+                    if (errorUrl) {
+                        try {
+                            const errorResult = await fetch(errorUrl);
+                            if (errorResult.ok) {
+                                const reason = friendlyConversionError(await errorResult.text());
+                                alert(`Unable to create the ${format === 'pptx' ? 'PowerPoint' : 'Word'} file. ${reason}`);
+                                setIsDownloading(false);
+                                return;
+                            }
+                        } catch (e) {
+                            // marker not readable yet - keep polling for the output
+                        }
+                    }
+
+                    if(triesLeft > 0){
+                        setTimeout(()=>checkReady(url, errorUrl), 1000);
                     }
                     else {
-                        alert("Unable to download. Please check your Internet connection and try again.");
+                        alert("The file is taking too long to prepare. Please try again, or try a different template or fewer slides.");
                         setIsDownloading(false);
                     }
                 } catch (e) {
@@ -196,7 +231,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
             if (result.success) {
                 
                 const downloadUrl = result.data.url;
-                checkReady(downloadUrl);
+                checkReady(downloadUrl, result.data.errorUrl);
             } else {
                 alert("Failed to reach the download service. Please check your Internet connection and try again.");
                 setIsDownloading(false);
@@ -218,6 +253,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
     }
 
     const onClose = () => {
+        stopPollingRef.current = true;
         onCancel();
         setDownloadUrl(null);
     }
@@ -271,7 +307,10 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                                 setTemplateSelection(defaultTemplate);
                                             }
                                             else {
+                                                // Word, or PowerPoint with no templates available (pandoc's default deck is used).
+                                                // Always reset: a leftover .pptx template must never be sent with a Word export.
                                                 setTemplateOptions(wordTemplateOptions);
+                                                setTemplateSelection(wordTemplateOptions[0]);
                                             }
 
                                             setFormat(e.target.value);
@@ -279,7 +318,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         value={format}
                                     >
                                         <option value="docx">Word</option>
-                                        { powerPointTemplateOptions.length > 0 && <option value="pptx">PowerPoint</option>}
+                                        <option value="pptx">PowerPoint</option>
                                     </select>
                                     </div>
 
@@ -293,7 +332,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                             value={templateSelection}
                                         >
                                             {templateOptions.map((template,index)=>(
-                                                <option key="index" value={template}>{template}</option>
+                                                <option key={template} value={template}>{template}</option>
                                             ))}
                                         </select>
                                     </div>
