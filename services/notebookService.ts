@@ -1511,6 +1511,9 @@ export interface PodcastEpisode {
     created?: string | null;
     job_status?: EpisodeStatus | null;
     error_message?: string | null;
+    // Fixed-vocabulary failure category from Open Notebook (e.g.
+    // "content_too_long"); error_message is deliberately generic server-side.
+    error_code?: string | null;
 }
 
 export interface PodcastGenerationRequest {
@@ -1550,19 +1553,30 @@ export const deleteEpisode = async (id: string): Promise<boolean> => {
     return result !== null;
 };
 
+// Throws with the backend's message on failure (rather than returning null) so
+// the UI can say *why* — e.g. "The selected content is too long for podcast
+// generation (about 180,338 tokens; the limit is about 110,000)…".
 export const retryEpisode = async (
     id: string,
 ): Promise<{ job_id: string; message: string } | null> => {
-    return notebookCall<{ job_id: string; message: string }>(
-        'POST',
-        `/podcasts/episodes/${encodeURIComponent(id)}/retry`,
-    );
+    const { success, data, message } = await notebookCallResult<{
+        job_id: string;
+        message: string;
+    }>('POST', `/podcasts/episodes/${encodeURIComponent(id)}/retry`);
+    if (!success) throw new Error(message || 'Retry failed.');
+    return data;
 };
 
 export const generatePodcast = async (
     payload: PodcastGenerationRequest,
 ): Promise<PodcastGenerationResponse | null> => {
-    return notebookCall<PodcastGenerationResponse>('POST', '/podcasts/generate', payload);
+    const { success, data, message } = await notebookCallResult<PodcastGenerationResponse>(
+        'POST',
+        '/podcasts/generate',
+        payload,
+    );
+    if (!success) throw new Error(message || 'Podcast generation failed.');
+    return data;
 };
 
 export const getJobStatus = async (jobId: string): Promise<any | null> => {

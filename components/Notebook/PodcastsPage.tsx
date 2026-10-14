@@ -59,6 +59,7 @@ import {
 } from './defaultPodcastProfiles';
 import { GeneratePodcastDialog } from './GeneratePodcastDialog';
 import { formatDistanceToNow } from './relativeTime';
+import { getPodcastFailureMessage } from './podcastFailure';
 
 type Tab = 'episodes' | 'templates';
 type StatusGroup = 'running' | 'completed' | 'failed' | 'pending';
@@ -505,13 +506,16 @@ const EpisodeCard = ({
 
                 {isCompleted && <EpisodeAudio episodeId={episode.id} />}
 
-                {isFailed && episode.error_message && (
+                {isFailed && (episode.error_code || episode.error_message) && (
                     <div className="rounded-md border border-[--border-subtle] bg-[--bg-raised] p-3">
                         <p className="text-xs font-medium text-[--text-error]">
                             Error Details
                         </p>
                         <p className="mt-1 whitespace-pre-wrap text-xs text-[--text-secondary]">
-                            {episode.error_message}
+                            {getPodcastFailureMessage(
+                                episode.error_code,
+                                episode.error_message,
+                            )}
                         </p>
                     </div>
                 )}
@@ -1651,11 +1655,17 @@ export const PodcastsPage = ({ isAdmin = false }: { isAdmin?: boolean }) => {
         setEpisodes((prev) =>
             prev.map((ep) =>
                 ep.id === e.id
-                    ? { ...ep, job_status: 'submitted', error_message: null }
+                    ? { ...ep, job_status: 'submitted', error_message: null, error_code: null }
                     : ep,
             ),
         );
-        await retryEpisodeApi(e.id);
+        try {
+            await retryEpisodeApi(e.id);
+        } catch (err: any) {
+            // The backend rejected the retry (e.g. content still too long). The
+            // failed episode is intentionally left in place server-side; show why.
+            setError(err?.message || `Couldn't retry "${e.name}".`);
+        }
         setRetryingId(null);
         armPolling();
         await fetchEpisodes({ silent: true });

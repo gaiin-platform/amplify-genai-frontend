@@ -358,13 +358,23 @@ export const GeneratePodcastDialog = ({ onClose, onSubmitted, isAdmin = false }:
             parts.push(`Notebook: ${name}\n${JSON.stringify(response.context, null, 2)}`);
         }
 
-        const result = await generatePodcast({
-            episode_profile: selectedProfile.name,
-            speaker_profile: selectedProfile.speaker_config,
-            episode_name: episodeName.trim(),
-            content: parts.join('\n\n'),
-            briefing_suffix: instructions.trim() ? instructions.trim() : undefined,
-        });
+        let result: Awaited<ReturnType<typeof generatePodcast>>;
+        try {
+            result = await generatePodcast({
+                episode_profile: selectedProfile.name,
+                speaker_profile: selectedProfile.speaker_config,
+                episode_name: episodeName.trim(),
+                content: parts.join('\n\n'),
+                briefing_suffix: instructions.trim() ? instructions.trim() : undefined,
+            });
+        } catch (e: any) {
+            // generatePodcast throws the backend's real message (e.g. "The
+            // selected content is too long…") — show it instead of a flat
+            // "Podcast generation failed."
+            setSubmitting(false);
+            setError(e?.message || 'Podcast generation failed.');
+            return;
+        }
 
         setSubmitting(false);
         if (!result) {
