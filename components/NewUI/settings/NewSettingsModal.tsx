@@ -158,7 +158,7 @@ const STORAGE_CONFIRM: Record<ConversationStorage, string> = {
 const GeneralSection: FC = () => {
   const {
     dispatch: homeDispatch,
-    state: { storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService, availableModels, defaultModelId, advancedModelId },
+    state: { lightMode, storageSelection, storageProcessing, conversations, selectedConversation, folders, statsService, availableModels, defaultModelId, advancedModelId },
   } = useContext(HomeContext);
   const featureFlags = useStableFeatureFlags();
   const settings = getSettings(featureFlags);
@@ -214,13 +214,18 @@ const GeneralSection: FC = () => {
   };
 
   // ── Appearance (system / light / dark) ───────────────────────────────
-  const [appearanceMode, setAppearanceMode] = useState<AppearanceMode>(() => {
-    if (typeof window === 'undefined') return 'dark';
-    const stored = localStorage.getItem('amplify_appearance_mode') as AppearanceMode | null;
-    if (stored === 'system' || stored === 'light' || stored === 'dark') return stored;
-    const lm = localStorage.getItem('lightMode');
-    return lm === 'light' ? 'light' : 'dark';
-  });
+  // The theme actually applied (`lightMode`, kept current by every writer incl. the
+  // account menu, classic UI and UserPrefsSync) is the source of truth for the
+  // highlighted option. `amplify_appearance_mode` is only a *preference* and goes
+  // stale (never written by classic UI; absent for new users, where a 'dark'
+  // fallback contradicted the real theme), so it is honoured only for 'system',
+  // and only while the applied theme still matches the OS.
+  const [systemSelected, setSystemSelected] = useState<boolean>(() =>
+    typeof window !== 'undefined' && localStorage.getItem('amplify_appearance_mode') === 'system',
+  );
+  const osPrefersDark = typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const appearanceMode: AppearanceMode =
+    systemSelected && (osPrefersDark ? 'dark' : 'light') === lightMode ? 'system' : lightMode;
 
   const applyTheme = (resolved: 'light' | 'dark') => {
     homeDispatch({ field: 'lightMode', value: resolved });
@@ -235,7 +240,7 @@ const GeneralSection: FC = () => {
 
   const handleAppearanceChange = (value: AppearanceMode) => {
     statsService.setThemeEvent(value);
-    setAppearanceMode(value);
+    setSystemSelected(value === 'system');
     localStorage.setItem('amplify_appearance_mode', value);
     if (value === 'system') {
       const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
