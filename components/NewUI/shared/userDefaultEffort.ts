@@ -12,6 +12,9 @@ import type { EffortLevel } from './ModelPicker';
 
 export const USER_DEFAULT_EFFORT_KEY = 'amplify_user_default_effort';
 
+/** Fired on `window` after the stored personal default effort actually changes. */
+export const USER_DEFAULT_EFFORT_CHANGED_EVENT = 'amplifyUserDefaultEffortChanged';
+
 const VALID_EFFORTS: EffortLevel[] = ['low', 'medium', 'high', 'off'];
 
 /** Returns the user's personally chosen default effort level, or null if not set. */
@@ -29,6 +32,7 @@ export function getUserDefaultEffort(): EffortLevel | null {
  * Pass `null` to clear it and fall back to 'medium'.
  */
 export function setUserDefaultEffort(effort: EffortLevel | null): void {
+  const before = getUserDefaultEffort();
   try {
     if (effort && VALID_EFFORTS.includes(effort)) {
       localStorage.setItem(USER_DEFAULT_EFFORT_KEY, effort);
@@ -37,5 +41,9 @@ export function setUserDefaultEffort(effort: EffortLevel | null): void {
     }
   } catch {
     // storage unavailable — silently ignore
+  }
+  // Mounted surfaces (NewHome) seed their picker once, so tell them it moved.
+  if (typeof window !== 'undefined' && getUserDefaultEffort() !== before) {
+    window.dispatchEvent(new Event(USER_DEFAULT_EFFORT_CHANGED_EVENT));
   }
 }

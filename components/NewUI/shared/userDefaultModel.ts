@@ -14,6 +14,9 @@
 
 export const USER_DEFAULT_MODEL_KEY = 'amplify_user_default_model_id';
 
+/** Fired on `window` after the stored personal default model actually changes. */
+export const USER_DEFAULT_MODEL_CHANGED_EVENT = 'amplifyUserDefaultModelChanged';
+
 /** Returns the user's personally chosen default model id, or null if not set. */
 export function getUserDefaultModelId(): string | null {
   try {
@@ -28,6 +31,7 @@ export function getUserDefaultModelId(): string | null {
  * Pass `null` (or empty string) to clear it and fall back to the admin default.
  */
 export function setUserDefaultModelId(id: string | null): void {
+  const before = getUserDefaultModelId();
   try {
     if (id && id.trim()) {
       localStorage.setItem(USER_DEFAULT_MODEL_KEY, id.trim());
@@ -36,5 +40,9 @@ export function setUserDefaultModelId(id: string | null): void {
     }
   } catch {
     // storage unavailable — silently ignore
+  }
+  // Mounted surfaces (NewHome) seed their picker once, so tell them it moved.
+  if (typeof window !== 'undefined' && getUserDefaultModelId() !== before) {
+    window.dispatchEvent(new Event(USER_DEFAULT_MODEL_CHANGED_EVENT));
   }
 }
