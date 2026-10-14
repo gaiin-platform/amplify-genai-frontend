@@ -110,7 +110,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
     const isAssistantShare = !!assistantId;
     const isPromptShare = !!promptId;
     const {
-        state: { conversations, prompts, amplifyUsers },
+        state: { conversations, prompts, amplifyUsers, statsService },
     } = useContext(HomeContext);
 
     const { data: session } = useSession();
@@ -355,6 +355,12 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                 // Invalidate the classifier cache so the Shared-with-Me sections
                 // in all three views re-classify on the next open.
                 invalidateSharedItemsCache();
+
+                statsService.trackEvent('Item Shared', {
+                    'Item Type': itemType,
+                    'Recipient Count': sharedWith.length,
+                    'Has Note': message.trim().length > 0,
+                });
 
                 setIsSharing(false);
                 setShareSuccess(true);

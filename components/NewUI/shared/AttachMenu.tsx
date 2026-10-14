@@ -44,6 +44,7 @@ import {
 } from '@floating-ui/react';
 import toast from 'react-hot-toast';
 import HomeContext from '@/components/Home/home.context';
+import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 import { resolveSharedAssistantAccess } from './sharedAssistantCard';
 import { Assistant, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
@@ -1560,6 +1561,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     dispatch,
     handleUpdateConversation,
   } = useContext(HomeContext);
+  const track = useTrack();
   const featureFlags = useStableFeatureFlags();
 
   const [primaryOpen, setPrimaryOpen] = useState(false);
@@ -1897,7 +1899,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     icon={<IconPaperclip size={18} />}
                     label="Add files or photos"
                     shortcut="⌘U"
-                    onClick={() => { onAddFiles(); closeAll(); }}
+                    onClick={() => { track('Attach Menu Used', { 'Option': 'upload', 'Is New Chat': isNewChat }); onAddFiles(); closeAll(); }}
                   />
                 )}
                 {showLibrary && (
@@ -1976,6 +1978,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                   listHeight={LIBRARY_LIST_HEIGHT}
                   attachedIds={attachedLibraryIds}
                   onSelect={(picked) => {
+                    track('Attach Menu Used', { 'Option': 'library', 'Is New Chat': isNewChat, 'File Count': picked.length });
                     onAddFromLibrary(picked);
                     closeAll();
                   }}

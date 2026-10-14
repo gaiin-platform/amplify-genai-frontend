@@ -1318,6 +1318,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 return;
             }
 
+            statsService.trackEvent('Assistant Saved', {
+                'Is Edit': !!editingAssistant,
+                'Access Type': accessType,
+                'Is Team Assistant': !!groupId,
+            });
+
             def.id = id;
             def.provider = provider;
             def.assistantId = assistantId;

@@ -17,6 +17,7 @@ import {
 } from '@/components/NewUI/shared/messageProvenance';
 
 import Papa from 'papaparse';
+import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 
 export type ArtifactExportType =
   | 'document'
@@ -140,7 +141,10 @@ export const MarkdownExportMenuItems: React.FC<MarkdownExportMenuItemsProps> = (
   const [busy, setBusy] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
+  const track = useTrack();
+
   const run = async (
+    format: 'copy_markdown' | 'markdown' | 'word',
     action: (payload: ConversationExportPayload) => void | Promise<void>,
     settleMs = 0,
   ) => {
@@ -150,6 +154,7 @@ export const MarkdownExportMenuItems: React.FC<MarkdownExportMenuItemsProps> = (
     try {
       const payload = await resolvePayload();
       if (!payload?.content) return;
+      track('Conversation Exported', { 'Format': format });
       await action(payload);
     } catch {
     } finally {
@@ -197,7 +202,7 @@ export const MarkdownExportMenuItems: React.FC<MarkdownExportMenuItemsProps> = (
             className={exportOptionCls}
             onClick={(event) => {
               event.stopPropagation();
-              void run(async ({ content }) => navigator.clipboard?.writeText(content));
+              void run('copy_markdown', async ({ content }) => navigator.clipboard?.writeText(content));
             }}
           >
             <IconCopy size={15} />
@@ -213,7 +218,7 @@ export const MarkdownExportMenuItems: React.FC<MarkdownExportMenuItemsProps> = (
             className={exportOptionCls}
             onClick={(event) => {
               event.stopPropagation();
-              void run(({ name, content }) => downloadMarkdown(name, content), 300);
+              void run('markdown', ({ name, content }) => downloadMarkdown(name, content), 300);
             }}
           >
             <IconDownload size={15} />
@@ -229,7 +234,7 @@ export const MarkdownExportMenuItems: React.FC<MarkdownExportMenuItemsProps> = (
             className={exportOptionCls}
             onClick={(event) => {
               event.stopPropagation();
-              void run(({ name, content }) =>
+              void run('word', ({ name, content }) =>
                 downloadArtifacts(slugify(name), content, extractCodeBlocksAndText(content)),
                 300,
               );
@@ -256,6 +261,7 @@ export const ArtifactExportMenu: React.FC<Props> = ({
   className,
   style,
 }) => {
+  const track = useTrack();
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -471,7 +477,10 @@ export const ArtifactExportMenu: React.FC<Props> = ({
             <button
               key={item.label}
               type="button"
-              onClick={() => void item.action()}
+              onClick={() => {
+                track('Artifact Exported', { 'Artifact Type': type, 'Action': item.label });
+                void item.action();
+              }}
               className="flex items-center gap-2 w-full px-3.5 py-1.5 text-left"
               style={{ color: 'var(--text-primary)' }}
               onMouseEnter={(event) => {

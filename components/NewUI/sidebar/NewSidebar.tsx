@@ -32,6 +32,7 @@ import {
 } from '@tabler/icons-react';
 
 import HomeContext from '@/components/Home/home.context';
+import { useDebouncedSearchTracking } from '@/components/NewUI/shared/UiAnalytics';
 import { Conversation } from '@/types/chat';
 import { FolderInterface } from '@/types/folder';
 import {
@@ -260,6 +261,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // settingsSection: null = closed, 'general' = open to General, 'skills' = open to Customize
   const [settingsSection, setSettingsSection] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  useDebouncedSearchTracking(searchTerm, 'Conversations Searched', { 'Source': 'sidebar' });
   const [showInaccessibleConversationNotice, setShowInaccessibleConversationNotice] = useState(false);
 
   // The legacy conversation loader is not allowed to change, so intercept only

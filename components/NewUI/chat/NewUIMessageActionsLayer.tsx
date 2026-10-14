@@ -77,6 +77,7 @@ import {
   IconVolume,
 } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
+import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 import { Conversation, Message } from '@/types/chat';
 import {
   formatAbsoluteTime,
@@ -475,6 +476,7 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     state: { messageIsStreaming, selectedConversation },
     handleUpdateSelectedConversation,
   } = useContext(HomeContext);
+  const track = useTrack();
 
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
@@ -901,22 +903,25 @@ export const NewUIMessageActionsLayer: React.FC = () => {
 
     try {
       await navigator.clipboard.writeText(text);
+      track('Message Copied', { 'Role': slot.role });
       return true;
     } catch {
       return false;
     }
-  }, []);
+  }, [track]);
 
   const handleEdit = useCallback((slot: Slot) => {
     if (slot.role !== 'user') return;
     const editBtn = slot.el.querySelector<HTMLButtonElement>('#editPrompt');
     editBtn?.click();
-  }, []);
+    track('Message Edit Started');
+  }, [track]);
 
   const handleRetry = useCallback((slot: Slot) => {
     const targetUserEl = slot.role === 'user' ? slot.el : findPrecedingUserMessage(slot.el);
     if (targetUserEl) retryFromUserMessageEl(targetUserEl);
-  }, []);
+    track('Message Retried', { 'Role': slot.role });
+  }, [track]);
 
   const handleReadAloud = useCallback((slot: Slot) => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
@@ -935,7 +940,8 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     speakingKeyRef.current = slot.key;
     setIsSpeaking(true);
     window.speechSynthesis.speak(utterance);
-  }, []);
+    track('Message Read Aloud');
+  }, [track]);
 
   const handleRate = useCallback(
     (slot: Slot, rating: 'good' | 'bad' | null) => {
@@ -953,8 +959,9 @@ export const NewUIMessageActionsLayer: React.FC = () => {
         },
       };
       handleUpdateSelectedConversation({ ...conversation, messages: updatedMessages });
+      track('Message Rated', { 'Rating': rating ?? 'cleared' });
     },
-    [handleUpdateSelectedConversation],
+    [handleUpdateSelectedConversation, track],
   );
 
   // Read from the live conversation (slot.message is a stale scan snapshot), and

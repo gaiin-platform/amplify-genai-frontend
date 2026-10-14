@@ -42,6 +42,7 @@ import {
     IconPinFilled,
 } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
+import { useDebouncedSearchTracking } from '@/components/NewUI/shared/UiAnalytics';
 import { Conversation } from '@/types/chat';
 import {
     isLocalConversation,
@@ -152,6 +153,7 @@ export const ChatsListView: React.FC = () => {
     const user = getUserIdentifier(session?.user) ?? '';
 
     const [search, setSearch] = useState('');
+    useDebouncedSearchTracking(search, 'Conversations Searched', { 'Source': 'chats_page' });
     const searchRef = useRef<HTMLInputElement>(null);
 
     // ── Sort + filter state (in-memory only, same as the Library view) ─────

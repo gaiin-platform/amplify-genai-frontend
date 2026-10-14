@@ -437,6 +437,17 @@ export const NewHome: React.FC = () => {
     // Same filter ConversationViewShell's PATH A applies, so both sides agree
     // on whether this send travels with documents.
     const docsWithKeys = attachedDocs.filter((d) => !!d.key);
+    statsService.trackEvent('Message Sent', {
+      'Source': 'landing',
+      'Is New Conversation': true,
+      'Model Id': selectedModelId || 'default',
+      'Effort': selectedEffort,
+      'Message Characters': trimmed.length,
+      'Attachment Count': readyAttachments.length,
+      'Has Pasted Text': pastedAttachments.length > 0,
+      'Connector Action Count': selectedActions.length,
+      'Has Assistant': !!activeAssistant,
+    });
     if (typeof window !== 'undefined') {
       if (trimmed) sessionStorage.setItem('amplify_pending_message', trimmed);
       if (attachedDocs.length > 0)
@@ -788,8 +799,14 @@ export const NewHome: React.FC = () => {
               <ModelPicker
                 selectedModelId={selectedModelId}
                 selectedEffort={selectedEffort}
-                onModelChange={setSelectedModelId}
-                onEffortChange={setSelectedEffort}
+                onModelChange={(id) => {
+                  statsService.trackEvent('Model Changed', { 'Source': 'landing', 'Model Id': id });
+                  setSelectedModelId(id);
+                }}
+                onEffortChange={(effort) => {
+                  statsService.trackEvent('Effort Changed', { 'Source': 'landing', 'Effort': effort });
+                  setSelectedEffort(effort);
+                }}
                 isNewChat
                 composerRef={composerRef}
                 enforcedByAssistant={!!enforcedModelId}

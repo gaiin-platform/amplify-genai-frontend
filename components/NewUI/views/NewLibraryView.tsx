@@ -46,6 +46,7 @@ import {
     IconPencil,
 } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
+import { useDebouncedSearchTracking } from '@/components/NewUI/shared/UiAnalytics';
 import {
     FileRecord, FileQuery, PageKey, queryUserFiles, setTags, renameFile
 } from '@/services/fileService';
@@ -634,6 +635,7 @@ export const NewLibraryView: React.FC = () => {
     // Search
     const [search, setSearch] = useState('');
     const [committedSearch, setCommittedSearch] = useState('');
+    useDebouncedSearchTracking(committedSearch, 'Library Searched', undefined, 0);
     const searchRef = useRef<HTMLInputElement>(null);
     const [sort, setSort] = useState<{ key: LibrarySortKey; direction: 'asc' | 'desc' }>({
         key: 'createdAt',

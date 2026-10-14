@@ -28,6 +28,7 @@ import {
     IconCopy,
 } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
+import { useDebouncedSearchTracking, useTrack } from '@/components/NewUI/shared/UiAnalytics';
 import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType } from '@/types/groups';
 import { LayeredAssistant, createLayeredAssistant } from '@/types/layeredAssistant';
@@ -542,6 +543,7 @@ const MyAssistantsTab: React.FC = () => {
     useEffect(() => { groupsRef.current = groups; }, [groups]);
 
     const [search, setSearch] = useState('');
+    useDebouncedSearchTracking(search, 'Assistants Searched');
     // Unified creation modal (replaces two-step NewAssistantTypeSelector + AssistantModal flow)
     const [showCreationModal, setShowCreationModal] = useState(false);
     // Edit mode: open creation modal pre-populated with the selected assistant
@@ -1957,6 +1959,11 @@ export const NewAssistantsView: React.FC = () => {
         });
         homeDispatch({ field: 'page', value: 'chat' });
     }, [handleNewConversation, homeDispatch]);
+
+    const track = useTrack();
+    useEffect(() => {
+        track('Assistants Tab Viewed', { 'Tab': activeTab });
+    }, [activeTab, track]);
 
     const changeTab = (tab: MainTab) => {
         setActiveTab(tab);

@@ -250,7 +250,7 @@ const TaskRow: React.FC<{
 export const NewScheduledTasksView: React.FC = () => {
     useLegacySettingsEventBridge();
 
-    const { state: { featureFlags, prompts }, dispatch: homeDispatch } = useContext(HomeContext);
+    const { state: { featureFlags, prompts, statsService }, dispatch: homeDispatch } = useContext(HomeContext);
     const paneContainerRef = useRef<HTMLDivElement>(null);
     const splitterRef = useRef<HTMLDivElement>(null);
     const [taskListWidth, setTaskListWidth] = useState(() => {
@@ -506,13 +506,17 @@ export const NewScheduledTasksView: React.FC = () => {
 
             if (selectedTask.taskId) {
                 const result = await updateScheduledTask(selectedTask.taskId, selectedTask);
-                if (result.success) toast.success('Successfully updated task');
+                if (result.success) {
+                    statsService.trackEvent('Scheduled Task Saved', { 'Is Edit': true });
+                    toast.success('Successfully updated task');
+                }
                 else toast.error('Failed to update task');
             } else {
                 const task = cloneDeep(selectedTask);
                 const { taskId, ...taskData } = task;
                 const result = await createScheduledTask(taskData);
                 if (result.success && result.data?.taskId) {
+                    statsService.trackEvent('Scheduled Task Saved', { 'Is Edit': false });
                     setSelectedTask({ ...selectedTask, taskId: result.data.taskId });
                     toast.success('Successfully created task');
                 } else {
@@ -555,6 +559,7 @@ export const NewScheduledTasksView: React.FC = () => {
                 setIsTestingTask(false);
                 return;
             }
+            statsService.trackEvent('Scheduled Task Run');
             toast.success('Task execution started.');
 
             let attempts = 0;

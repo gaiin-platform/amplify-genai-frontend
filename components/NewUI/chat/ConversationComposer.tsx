@@ -106,6 +106,7 @@ import {
 } from '@/components/NewUI/shared/libraryAttachment';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
+import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 
 import {
   canonicalDataSourceKey,
@@ -163,6 +164,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     handleUpdateConversation,
     handleUpdateSelectedConversation,
   } = useContext(HomeContext);
+  const track = useTrack();
 
   // ── Direct-send service (for pasted images with S3 keys) ─────────────────
   const { handleSend: sendViaService } = useSendService();
@@ -607,6 +609,18 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     }
 
     const pastedAttachments = uiAttachments.filter((a) => a.kind === 'paste');
+    track('Message Sent', {
+      'Source': 'conversation',
+      'Is New Conversation': false,
+      'Model Id': selectedModelId || convBase?.model?.id || 'default',
+      'Effort': selectedEffort,
+      'Message Characters': msgText.length,
+      'Attachment Count': docsWithKeys.length + pastedAttachments.length,
+      'Has Pasted Text': pastedAttachments.length > 0,
+      'Connector Action Count': selectedActions.length,
+      'Skill Count': selectedSkillIdsRef.current.length,
+      'Has Assistant': !!activeAssistant,
+    });
     const pastedMessage = buildPastedTextMessage(msgText, pastedAttachments);
     // Clear only after all attachments are ready and the send can proceed.
     richComposerRef.current?.clear();
@@ -765,6 +779,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     featureFlags,
     handleUpdateConversation,
     priorDataSources,
+    selectedEffort,
+    track,
   ]);
 
   // ── Stop generation ───────────────────────────────────────────────────────
@@ -777,6 +793,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
 
   // ── Model change ──────────────────────────────────────────────────────────
   const handleModelChange = (modelId: string) => {
+    track('Model Changed', { 'Source': 'conversation', 'Model Id': modelId });
     setSelectedModelId(modelId);
     if (selectedConversation && availableModels[modelId]) {
       handleUpdateConversation(selectedConversation, {
@@ -792,6 +809,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   // `selectedConversation.data?.reasoningLevel`. Without this write the effort
   // control is decorative and the backend applies its own default.
   const handleEffortChange = (effort: EffortLevel) => {
+    track('Effort Changed', { 'Source': 'conversation', 'Effort': effort });
     setSelectedEffort(effort);
     if (selectedConversation) {
       handleUpdateConversation(selectedConversation, {

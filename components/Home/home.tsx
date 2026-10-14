@@ -110,6 +110,7 @@ import { UIPreferenceBanner, getUIPreference, setUIPreference, type UIPreference
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { NotebookFeatureGate } from '@/components/NewUI/shared/NotebookFeatureGate';
 import { NewUiRolloutGate } from '@/components/NewUI/shared/NewUiRolloutGate';
+import { UiAnalytics } from '@/components/NewUI/shared/UiAnalytics';
 import { isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
 import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTasksView';
@@ -1719,6 +1720,9 @@ const Home = ({
                                 {/* Renders nothing — prunes leftover empty placeholder chats
                                     once after load so refreshing never grows Recents. */}
                                 <BlankConversationCleanup />
+                                {/* Renders nothing — tags all Mixpanel events with UI Version=new
+                                    and emits UI Loaded / Page Viewed. */}
+                                <UiAnalytics variant="new" />
                                 {/* Renders nothing — applies server-synced display prefs
                                     (chat font, storage selection) after fetchSettings completes,
                                     and seeds 'future-cloud' default for brand-new users. */}
@@ -1847,6 +1851,8 @@ const Home = ({
                         ) : (
                             /* ── CLASSIC UI LAYOUT (unchanged) ── */
                             <div className="flex h-full w-full">
+                                {/* Renders nothing — UI Version=classic counterpart of the above. */}
+                                <UiAnalytics variant="classic" />
                                 <UserMenu
                                     email={user?.email}
                                     name={session?.user?.name}

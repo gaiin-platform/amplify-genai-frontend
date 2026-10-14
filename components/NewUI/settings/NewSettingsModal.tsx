@@ -61,6 +61,7 @@ import { getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared
 import { getUserWebSearchEnabled, setUserWebSearchEnabled, WEB_SEARCH_LEVEL3_INFO } from '@/components/NewUI/shared/userWebSearch';
 import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 import {
   NewUILoadingStatus,
   NewUILegacyLoadingAdapter,
@@ -173,6 +174,7 @@ const GeneralSection: FC = () => {
     setUserDefaultModelIdState(id);
     setUserDefaultModelId(id || null);
     setModelDropdownOpen(false);
+    statsService.trackEvent('Default Model Changed', { 'Model Id': id || 'system-default' });
     // Persist server-side so the choice roams. `null` is an explicit clear
     // ("System default"), which must propagate to other devices too.
     void saveDisplayPrefsToServer({ userDefaultModelId: id || null });
@@ -190,6 +192,7 @@ const GeneralSection: FC = () => {
     setUserDefaultEffortIdState(id);
     setUserDefaultEffort(id || null);
     setEffortDropdownOpen(false);
+    statsService.trackEvent('Default Effort Changed', { 'Effort': id || 'system-default' });
     // Persist server-side so the choice roams. `null` is an explicit clear
     // ("Medium (default)"), which must propagate to other devices too.
     void saveDisplayPrefsToServer({ userDefaultEffort: id || null });
@@ -204,6 +207,7 @@ const GeneralSection: FC = () => {
   const handleWebSearchChange = (enabled: boolean) => {
     setWebSearchEnabledState(enabled);
     setUserWebSearchEnabled(enabled);
+    statsService.trackEvent('Web Search Setting Changed', { 'Enabled': enabled });
     // Always publish the explicit boolean (including `true`) so turning it back
     // on clears an "off" held by other devices.
     void saveDisplayPrefsToServer({ webSearchEnabled: enabled });
@@ -230,6 +234,7 @@ const GeneralSection: FC = () => {
   };
 
   const handleAppearanceChange = (value: AppearanceMode) => {
+    statsService.setThemeEvent(value);
     setAppearanceMode(value);
     localStorage.setItem('amplify_appearance_mode', value);
     if (value === 'system') {
@@ -1363,6 +1368,16 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   const activeSection = requestedSection === 'skills' && !featureFlags.skills ? 'general' : requestedSection;
   const [searchQuery, setSearchQuery] = useState('');
   const [showAdminUI, setShowAdminUI] = useState(openToSection === 'admin');
+  const track = useTrack();
+  // Opened once per mount (the modal only mounts while open).
+  useEffect(() => {
+    track('Settings Opened', { 'Section': openToSection ?? 'general' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Every section the user lands on, including the one it opened to.
+  useEffect(() => {
+    track('Settings Section Viewed', { 'Section': showAdminUI ? 'admin' : activeSection });
+  }, [activeSection, showAdminUI, track]);
   const [accountHasUnsavedChanges, setAccountHasUnsavedChanges] = useState(false);
   const [pendingLeaveAction, setPendingLeaveAction] = useState<(() => void) | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
