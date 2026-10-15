@@ -64,7 +64,7 @@ function markerPrefixLength(value: string, marker: string): number {
 export function mergeAutoArtifactMessage(
   conversation: Conversation,
   messageId: string,
-  update: { content?: string; state?: Record<string, unknown>; artifactStatus?: string; artifactDetails?: unknown[] },
+  update: { content?: string; state?: Record<string, unknown>; artifactStatus?: string; artifactDetails?: unknown[]; artifactResume?: { prompt: string; type: string } },
 ): Conversation {
   const messageIndex = conversation.messages?.findIndex((message) => message.id === messageId) ?? -1;
   if (messageIndex < 0) return conversation;
@@ -81,6 +81,7 @@ export function mergeAutoArtifactMessage(
       ...(update.state ? { state: { ...(previousData.state ?? {}), ...update.state } } : {}),
       ...(update.artifactStatus ? { artifactStatus: update.artifactStatus } : {}),
       ...(update.artifactDetails ? { artifacts: [...previousArtifacts, ...update.artifactDetails] } : {}),
+      ...(update.artifactResume ? { artifactResume: update.artifactResume } : {}),
     },
   } as Message;
 
