@@ -181,10 +181,11 @@ describe('MessageToolSteps', () => {
     expect(waiting).toContain('Thinking…');
     expect(waiting).toContain('data-active="true"');
     expect(waiting.indexOf('nui-step-line')).toBeLessThan(waiting.indexOf('nui-thinking'));
+    expect(waiting).toContain('data-awaiting="true"'); // the container's spacing switches on this
     expect(html(<MessageToolSteps steps={[step()]} />)).not.toContain('Thinking…');
   });
 
   it('renders nothing but the root for no steps and no thinking', () => {
-    expect(html(<MessageToolSteps steps={[]} />)).toBe('<div class="nui-ts-root"></div>');
+    expect(html(<MessageToolSteps steps={[]} />)).toBe('<div class="nui-ts-root" data-awaiting="false"></div>');
   });
 });

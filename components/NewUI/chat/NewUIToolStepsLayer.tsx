@@ -177,6 +177,15 @@ const SlotView: React.FC<SlotViewProps> = ({ slot, message, live, analysis, isLi
     };
   }, [slot.host, takeOver]);
 
+  // While the answer hasn't started, the CSS collapses the (empty) reply block so
+  // the "Thinking…" row sits an even distance from the "Reasoning / Actions" block.
+  useLayoutEffect(() => {
+    slot.host.setAttribute('data-awaiting', awaitingAnswer ? 'true' : 'false');
+    return () => {
+      slot.host.setAttribute('data-awaiting', 'false');
+    };
+  }, [slot.host, awaitingAnswer]);
+
   if (!takeOver) return null;
 
   return (

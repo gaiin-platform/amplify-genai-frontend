@@ -404,7 +404,7 @@ export const MessageToolSteps: React.FC<MessageToolStepsProps> = ({
   now,
   onOpenConnectors,
 }) => (
-  <div className="nui-ts-root">
+  <div className="nui-ts-root" data-awaiting={awaitingAnswer ? 'true' : 'false'}>
     {thinking && <ThinkingRow active={thinking.active}>{thinking.body}</ThinkingRow>}
     {steps.length === 1 && <ToolStepRow step={steps[0]} now={now} onOpenConnectors={onOpenConnectors} />}
     {steps.length > 1 && <ToolStepGroup steps={steps} now={now} onOpenConnectors={onOpenConnectors} />}
