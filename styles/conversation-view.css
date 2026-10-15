@@ -5372,3 +5372,385 @@
 
 /* Rule 9 (fullscreen) already resets margin: 0 and height: 100dvh,
    so the new header-alignment margins are correctly overridden there. */
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Tool-call steps — NewUIToolStepsLayer / chat/ToolStepViews.tsx
+   ═══════════════════════════════════════════════════════════════════════════
+
+   Replaces the classic "Calling: X with: …" status box with one compact row per
+   tool call, grouped under a header, plus a distinct "Thinking…" row for model
+   reasoning. The layer portals into `[data-nui-tools-host]` (first child of the
+   assistant message's #chatHover) and sets data-takeover="true" on it while it
+   has something to show.
+
+   Hiding the classic wrapper: PromptingStatusDisplay's root is
+   `<div class="flex flex-col mb-2">` whose children are the PromptStatus cards
+   (`.rounded-xl.hover:opacity-50.shadow-lg`, a combination only PromptStatus
+   uses — see Phase 43 Fix 1). The `:has()` pair below matches that wrapper only
+   inside a message whose host has taken over, so a message with nothing to show
+   keeps the classic "● Thinking…" row.
+
+   Class names are globally unique (nui-step / nui-thinking / nui-ts prefixes) and
+   sit outside [data-new-ui] like the nui-src-* block above; only the hide rule
+   needs the scope. Colours are theme tokens only (light + dark).
+   prefers-reduced-motion: no spinner rotation, no dot/label pulse, no chevron
+   transition — the running state becomes a static dot.
+═══════════════════════════════════════════════════════════════════════════ */
+
+[data-new-ui="true"] [data-nui-tools-host]:empty {
+  display: none;
+}
+
+[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-takeover="true"])
+  .flex.flex-col.mb-2:has(> .rounded-xl.hover\:opacity-50.shadow-lg) {
+  display: none !important;
+}
+
+.nui-ts-root {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 2px 0 12px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 13.5px;
+  line-height: 1.4;
+  color: var(--text-secondary);
+}
+
+.nui-step,
+.nui-steps,
+.nui-thinking {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Rows take the whole column. Their width is then definite, so a label truncates
+   ONLY when it is wider than the column — not because a shrink-to-fit flex
+   container mis-sized an overflow:hidden child. No max-width or length cap. */
+.nui-step,
+.nui-steps {
+  width: 100%;
+}
+
+/* ── The one-line toggle: icon · label · status · chevron ── */
+.nui-step-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: calc(100% + 6px); /* the column plus the 6px of hover padding pulled out on the left */
+  max-width: calc(100% + 6px);
+  margin: 0 0 0 -6px; /* line the icon up with the message's left edge */
+  padding: 3px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.nui-step-line:hover {
+  background: var(--bg-hover);
+}
+
+.nui-step-line:focus-visible,
+.nui-thinking-line:is(button):focus-visible,
+.nui-step-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.nui-step-icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+.nui-step-text {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nui-step-label {
+  color: var(--text-secondary);
+}
+
+.nui-step-summary {
+  color: var(--text-muted);
+}
+
+.nui-step[data-status="error"] .nui-step-label {
+  color: var(--text-secondary);
+}
+
+/* ── Status indicator ── */
+.nui-step-status {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
+}
+
+.nui-step-status[data-status="error"] {
+  color: var(--text-error);
+}
+
+.nui-step-spinner {
+  animation: nui-step-spin 0.9s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes nui-step-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* Reduced-motion stand-in for the spinner: a still dot. */
+.nui-step-static-dot {
+  display: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+/* ── Shared disclosure chevron (shared/DisclosureChevron.tsx) ── */
+.nui-disclosure-chevron {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  color: var(--text-muted);
+  transform: rotate(0deg);
+  transition: transform 0.15s ease;
+}
+
+.nui-disclosure-chevron[data-open="true"] {
+  transform: rotate(90deg);
+}
+
+/* ── Plain-language failure line ── */
+.nui-step-error {
+  margin: 2px 0 0 24px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-error);
+}
+
+.nui-step-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+/* ── Details on demand: raw parameters in a two-column grid ──
+   Left edge = the label text (icon 16 + gap 8 = 24px), not the icon.
+   Resets use !important: Tailwind Typography styles dl/dt/dd inside #chatHover
+   (.prose) and its margins otherwise add a gap above the first row. */
+.nui-step-details {
+  position: relative;
+  max-height: 260px;
+  margin: 4px 0 2px 24px;
+  padding: 12px;
+  overflow: auto;
+  border: 0;
+  border-radius: 8px;
+  background: var(--bg-sidebar);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text-primary);
+}
+
+.nui-step-details .nui-step-params {
+  display: grid;
+  grid-template-columns: fit-content(40%) minmax(0, 1fr);
+  column-gap: 14px;
+  row-gap: 4px;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.nui-step-details .nui-step-params dt,
+.nui-step-details .nui-step-params dd {
+  margin: 0 !important;
+  padding: 0 !important;
+  font-weight: 400 !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+}
+
+.nui-step-details .nui-step-params dt {
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.nui-step-details .nui-step-params dd {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}
+
+/* The copy button floats in the top-right corner; keep the first row clear of it. */
+.nui-step-details .nui-step-params dd:first-of-type {
+  padding-right: 24px !important;
+}
+
+.nui-step-copy {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color 0.12s ease, color 0.12s ease;
+}
+
+.nui-step-copy:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nui-step-copy:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.nui-step-params-empty {
+  color: var(--text-muted);
+}
+
+.nui-step-raw-error {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.nui-step-raw-error-title {
+  margin-bottom: 2px;
+  color: var(--text-muted);
+}
+
+.nui-step-raw-error-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: var(--text-error);
+}
+
+/* ── Group body: rows indented under the header, no box, no left border ── */
+.nui-group-body {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 6px 0 0 24px;
+}
+
+/* ── "Thinking…" (model reasoning) — italic, dot, no icon: not a tool step ── */
+.nui-thinking-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  margin: 0 0 0 -6px;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-style: italic;
+  font-size: 13px;
+  text-align: left;
+}
+
+.nui-thinking-line:is(button) {
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.nui-thinking-line:is(button):hover {
+  background: var(--bg-hover);
+}
+
+.nui-thinking-dot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  opacity: 0.6;
+}
+
+.nui-thinking-body {
+  max-height: 260px;
+  margin: 6px 0 2px 2px;
+  padding: 8px 12px;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  background: var(--bg-sidebar);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+.nui-thinking-body .prose {
+  max-width: none;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-muted);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nui-thinking[data-active="true"] .nui-thinking-dot {
+    animation: new-ui-thinking-pulse 1.8s ease-in-out infinite;
+  }
+  .nui-thinking[data-active="true"] .nui-thinking-label {
+    animation: new-ui-loading-pulse 2s ease-in-out infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nui-step-spinner {
+    display: none;
+    animation: none;
+  }
+  .nui-step-static-dot {
+    display: block;
+  }
+  .nui-disclosure-chevron,
+  .nui-step-line,
+  .nui-step-copy,
+  .nui-thinking-line:is(button) {
+    transition: none;
+  }
+}

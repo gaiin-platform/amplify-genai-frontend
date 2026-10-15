@@ -38,6 +38,7 @@ import { NewUITranscriptPastedTextLayer } from './NewUITranscriptPastedTextLayer
 import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import { NewUISelectionReplyLayer } from './NewUISelectionReplyLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
+import { NewUIToolStepsLayer } from './NewUIToolStepsLayer';
 import { NewUITokenCostInfoLayer } from './NewUITokenCostInfoLayer';
 import { ArtifactPanelLayer } from './ArtifactPanelLayer';
 import { ArtifactSplitterLayer } from './ArtifactSplitterLayer';
@@ -1727,6 +1728,11 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
           with a compact, accessible pill + flat source-card panel. */}
       <NewUISourcesLayer />
       <NewUITokenCostInfoLayer />
+
+      {/* Tool-call status — replaces the classic "Calling: X with: …" box with
+          compact, human-readable step rows (live from `status`, saved from
+          `data.state.agentLog`) and a single aria-live announcer. */}
+      <NewUIToolStepsLayer />
 
       {/* Artifact panel header overlay — injects a sticky header into #artifactsTab
           with title/version dropdown, download button, expand, and close.
