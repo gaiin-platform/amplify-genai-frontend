@@ -381,6 +381,14 @@
   padding-bottom: 28px !important;
 }
 
+/* A message that ends with "Reasoning / Actions" puts the action row --nui-agentlog-gap
+   below that block (NewUIMessageActionsLayer reads the block's computed margin-top)
+   rather than the usual 4px below the text, so reserve gap + the 24px row instead of
+   the 28px above (4 + 24). Keeps the next turn's clearance unchanged. */
+[data-new-ui="true"] .enhanced-chat-message.assistant-message:has(.mt-3.pointer-events-none > .pointer-events-auto.max-w-full.overflow-hidden) {
+  padding-bottom: calc(var(--nui-agentlog-gap, 0.75rem) + 24px) !important;
+}
+
 [data-new-ui="true"] .enhanced-chat-message::before {
   display: none !important;
 }
@@ -958,6 +966,20 @@
    actual text height, and GAP=4 provides the desired 4px visual gap. */
 [data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .prose > *:last-child,
 [data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .assistantContentBlock > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* …and down the trailing edge. That rule only reaches the top-level last block, but a
+   margin on the LAST thing INSIDE it collapses straight through and shows up as space
+   after the whole answer: a list's last <li> (10px), the <p> inside a quote or a loose
+   list item (16px), a code block's .codeblock card (18px). Measured in a browser, a
+   response ending in a paragraph left 48px between its last line and the "Reasoning /
+   Actions" pill, a list 58px, a code block 62px+. Zeroing the last-child chain (four
+   levels covers nested lists) makes the space after the answer the same for every
+   ending. Only margins on the trailing chain are touched; spacing between items is not. */
+[data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .prose > *:last-child > *:last-child,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .prose > *:last-child > *:last-child > *:last-child,
+[data-new-ui="true"] .enhanced-chat-message.assistant-message #chatHover .prose > *:last-child > *:last-child > *:last-child > *:last-child {
   margin-bottom: 0 !important;
 }
 
@@ -4721,6 +4743,15 @@
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0;
+  /* Was Tailwind's mt-3 (0.75rem); now the shared variable the Thinking row also uses. */
+  margin-top: var(--nui-agentlog-gap, 0.75rem);
+}
+
+/* AgentFileList renders <ul class="space-y-2"> even with no files. Inside .prose that
+   empty list carries a 20px top margin, which sat between this wrapper and the pill. */
+[data-new-ui="true"] .mt-3.pointer-events-none:has(> .pointer-events-auto.max-w-full.overflow-hidden)
+  > .pointer-events-auto > ul.space-y-2:empty {
+  display: none;
 }
 
 /* overflow-hidden would clip the pill's -8px hover bleed; the cards below bound themselves. */
@@ -4729,6 +4760,9 @@
 }
 [data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent {
   display: inline-flex !important;
+  /* The pill is inline-level, so it sat on a line box whose strut inherited the message
+     body's 27px line-height and was pushed ~6px down inside it. Top-align it. */
+  vertical-align: top;
   align-items: center !important;
   gap: 4px !important;
   padding: 4px 8px !important;
@@ -5409,13 +5443,16 @@
 
 /* Spacing is owned by this one container:
      --nui-ts-gap       between step rows (and the group)
-     --nui-ts-wait-gap  around the "Thinking…" row while the answer is pending —
-                        equal to the 0.75rem top margin (mt-3) the Reasoning /
-                        Actions block below carries, so the space above and below
-                        the row is the same however many steps there are. */
+     --nui-ts-wait-gap  around the "Thinking…" row while the answer is pending.
+   It IS --nui-agentlog-gap (defined next), the same variable that sets the top margin
+   of the Reasoning / Actions block, so the space above and below the row stays equal
+   because they share one source — not because two numbers happen to match. */
+[data-new-ui="true"] {
+  --nui-agentlog-gap: 0.75rem;
+}
 .nui-ts-root {
   --nui-ts-gap: 6px;
-  --nui-ts-wait-gap: 0.75rem;
+  --nui-ts-wait-gap: var(--nui-agentlog-gap, 0.75rem);
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -5435,27 +5472,13 @@
   margin-bottom: 0;
 }
 
-/* While the answer is pending, three old-UI leftovers sit between "Thinking…" and
-   the "Reasoning / Actions" pill and would otherwise make the gap below it larger
-   than the gap above. Measured in a browser (gap below was 46px vs 20px above):
-
-   1. the reply block, empty but for the streaming cursor — hidden (0px).
-   2. AgentFileList's empty <ul class="space-y-2">. It has no items but is still
-      inside .prose, so Typography gives it a 20px margin that the "Reasoning /
-      Actions" wrapper then carries — about 20px of the difference.
-   3. the pill's own wrapper inherits the message body's 27px line-height (1.7 ×
-      16px) as a line-box strut and sits ~6px down inside it — the last 6px.
-
-   All three are scoped to the awaiting state, so a finished message's "Reasoning /
-   Actions" block keeps its normal spacing. */
-[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-awaiting="true"]) .chatContentBlock,
-[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-awaiting="true"]) ul.space-y-2:empty {
+/* While the answer is pending, the reply block is empty but for the streaming cursor;
+   hide it so it adds no space between "Thinking…" and the "Reasoning / Actions" pill.
+   It reappears the moment the first answer token arrives. (The other leftovers that
+   used to be handled here — the empty file list and the pill's line-box offset — are
+   fixed for every state in the AgentLogBlock rules further down.) */
+[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-awaiting="true"]) .chatContentBlock {
   display: none;
-}
-
-[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-awaiting="true"])
-  .mt-3.pointer-events-none > .pointer-events-auto.max-w-full.overflow-hidden {
-  line-height: 0; /* the pill's text sets its own line-height (1.4) */
 }
 
 .nui-step,

@@ -178,6 +178,33 @@ function offsetWithin(
 }
 
 /**
+ * The "Reasoning / Actions" wrapper (AgentLogBlock's root) inside a message, or null.
+ * `.mt-3.pointer-events-none` plus a `.pointer-events-auto.max-w-full.overflow-hidden`
+ * child is unique to that block (same combination conversation-view.css targets).
+ */
+function findAgentLogRoot(chatHover: HTMLElement): HTMLElement | null {
+  const roots = chatHover.querySelectorAll<HTMLElement>('.mt-3.pointer-events-none');
+  for (const root of Array.from(roots)) {
+    if (root.offsetHeight > 0 && root.querySelector(':scope > .pointer-events-auto.max-w-full.overflow-hidden')) {
+      return root;
+    }
+  }
+  return null;
+}
+
+/** Is anything with height rendered after `el`, anywhere up to (not including) `stop`? */
+function hasContentAfter(el: HTMLElement, stop: HTMLElement): boolean {
+  let node: HTMLElement | null = el;
+  while (node && node !== stop) {
+    for (let sib = node.nextElementSibling as HTMLElement | null; sib; sib = sib.nextElementSibling as HTMLElement | null) {
+      if (sib.offsetHeight > 0) return true;
+    }
+    node = node.parentElement;
+  }
+  return false;
+}
+
+/**
  * Compute the row's absolute position within `.chatcontainer` scroll coordinates.
  *
  * Anchors to `#chatHover` (the visible bubble/content), not the outer
@@ -206,7 +233,21 @@ function computePosition(
       ? chatHover
       : (el.querySelector<HTMLElement>('.new-ui-transcript-attachments') ?? el);
   const { top: anchorTop, left: anchorLeft } = offsetWithin(anchor, container);
-  const top = anchorTop + anchor.offsetHeight + GAP;
+  let top = anchorTop + anchor.offsetHeight + GAP;
+
+  // A message that ends with "Reasoning / Actions": sit the row the same distance below
+  // that block as the block sits below the answer. Both distances are the block's own
+  // computed margin-top (conversation-view.css sets it from --nui-agentlog-gap), so they
+  // are one value, not two that happen to match — and anchoring to the block's bottom
+  // edge, not #chatHover's, means nothing between the pill and the end of the message
+  // can widen it. With no such block, or content after it, the GAP above still applies.
+  if (role === 'assistant' && anchor === chatHover) {
+    const log = findAgentLogRoot(anchor);
+    if (log && !hasContentAfter(log, anchor)) {
+      const gap = parseFloat(getComputedStyle(log).marginTop) || 0;
+      top = offsetWithin(log, container).top + log.offsetHeight + gap;
+    }
+  }
 
   if (role === 'user') {
     // Right edge of the bubble = right edge of the column. Set CSS `right`
