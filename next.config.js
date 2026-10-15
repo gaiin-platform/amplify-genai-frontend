@@ -7,6 +7,12 @@ const nextConfig = {
   output: "standalone",
   transpilePackages: ['react-syntax-highlighter', 'refractor'],
 
+  // Strip console.log/info/debug from production bundles; keep error/warn so real
+  // problems stay visible. Dev builds are unchanged.
+  compiler: {
+    removeConsole: process.env.NODE_ENV === 'production' ? { exclude: ['error', 'warn'] } : false,
+  },
+
   webpack(config, { isServer, dev }) {
     config.experiments = {
       asyncWebAssembly: true,
