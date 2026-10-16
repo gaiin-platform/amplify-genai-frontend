@@ -172,7 +172,7 @@ useEffect(() => {
 }, [ready]);
 
 const isInEndState = (status: ArtifactMessageStatus) => {
-    return [ArtifactMessageStatus.STOPPED, ArtifactMessageStatus.CANCELLED, ArtifactMessageStatus.COMPLETE].includes(status);
+    return [ArtifactMessageStatus.STOPPED, ArtifactMessageStatus.CANCELLED, ArtifactMessageStatus.COMPLETE, ArtifactMessageStatus.INCOMPLETE].includes(status);
 }
 
 useEffect(() => {
@@ -182,6 +182,36 @@ useEffect(() => {
     
 }, [message.data]);
 
+
+// Continue a cut-off artifact from the text that was already saved, instead of regenerating it.
+const resumeArtifactRef = useRef<() => void>(() => {});
+resumeArtifactRef.current = () => {
+    const resume = (message.data as any)?.artifactResume as {prompt: string; type: string} | undefined;
+    const detail: ArtifactBlockDetail | undefined = message.data?.artifacts?.[0];
+    if (!resume || !detail || artifactIsStreaming || messageIsStreaming) return;
+
+    const messageKey = `processing-msg-${message.id}`;
+    const cooldownKey = `cooldown-msg-${message.id}`;
+    if ((window as any)[messageKey]) return;
+
+    const versions = selectedConversation?.artifacts?.[detail.artifactId];
+    const latest = versions && versions.length > 0 ? versions[versions.length - 1] : undefined;
+    const partialText = latest ? lzwUncompress(latest.contents as any) : '';
+
+    (window as any)[messageKey] = true;
+    message.data.artifactStatus = ArtifactMessageStatus.RUNNING;
+    homeDispatch({field: 'messageIsStreaming', value: true});
+    homeDispatch({field: 'artifactIsStreaming', value: true});
+    getArtifactMessages(resume.prompt, {...detail}, resume.type, messageKey, cooldownKey, partialText);
+};
+
+useEffect(() => {
+    const handler = (e: Event) => {
+        if ((e as CustomEvent).detail?.messageId === message.id) resumeArtifactRef.current();
+    };
+    window.addEventListener('continueArtifactRequest', handler);
+    return () => window.removeEventListener('continueArtifactRequest', handler);
+}, [message.id]);
 
 const prepareArtifacts = (jsonContent: string, retry: boolean) => {
         // Create a unique key for this specific message content
@@ -369,7 +399,7 @@ const collectRecentWebSearchResults = (): string => {
 
 
 
-const getArtifactMessages = async (llmInstructions: string, artifactDetail: ArtifactBlockDetail, type: string = '', messageKey?: string, cooldownKey?: string) => {
+const getArtifactMessages = async (llmInstructions: string, artifactDetail: ArtifactBlockDetail, type: string = '', messageKey?: string, cooldownKey?: string, resumeText?: string) => {
     statsService.createArtifactEvent(type);
     const requestId = Math.random().toString(36).substring(7);
     console.log("Artifact Request id: ", requestId);
@@ -403,7 +433,11 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
         try {
             // setup selectedArtifacts
             let selectArtifacts = selectedConversation.artifacts ? (selectedConversation.artifacts[artifactDetail.artifactId] ?? []) : [];
-            const artifactVersion = selectArtifacts.length === 0 ? 1 : selectArtifacts.slice(-1)[0].version + 1;
+            // Resuming a cut-off artifact extends its latest version instead of adding a new one.
+            const resuming = !!resumeText && selectArtifacts.length > 0;
+            const artifactVersion = resuming
+                ? selectArtifacts.slice(-1)[0].version
+                : (selectArtifacts.length === 0 ? 1 : selectArtifacts.slice(-1)[0].version + 1);
             artifactDetail.version = artifactVersion;
 
             // Normalise the declared type: 'csv' → 'spreadsheet', raw language names → 'code', etc.
@@ -423,7 +457,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 // Store language hint for code artifacts in metadata
                 metadata: codeLang ? { language: codeLang } : undefined,
             }
-            selectArtifacts.push(artifact);
+            if (!resuming) selectArtifacts.push(artifact);
             homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
             const model: Model = selectedConversation.model ?? getDefaultModel(DefaultModels.ADVANCED);
             const chatBody = {
@@ -435,6 +469,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             skipRag: true,
             skipCodeInterpreter: true,
             artifactsMode: true,
+            ...(resuming ? {continueFrom: resumeText} : {}),
             requestId: requestId,
             accountId: defaultAccount?.id,
             rateLimit: defaultAccount?.rateLimit
@@ -455,7 +490,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             const reader = responseData?.getReader();
             const decoder = new TextDecoder();
             let text = selectedConversation.messages[messageLen].content + '\n\n';
-            let artifactText = '';
+            let artifactText = resuming ? (resumeText as string) : '';
 
             const placeholderRegex = /\~A(\d+)/g;
             let isAssistantMsg = false;
@@ -527,6 +562,11 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 homeDispatch({field: 'messageIsStreaming', value: false});
                 homeDispatch({field: 'artifactIsStreaming', value: false});
 
+                // The backend reports artifactCompletion: true only when the artifact finished.
+                // A stream that ends without it (timeout, dropped connection, round limit) was cut off.
+                const streamState = currentState as {artifactMode?: boolean; artifactCompletion?: boolean};
+                const cutOff = streamState.artifactMode === true && streamState.artifactCompletion !== true;
+
                 const rawContent = lzwUncompress(selectArtifacts[selectArtifacts.length - 1].contents as any);
                 const unusableFallback = /no artifact was requested|please provide the (content|task|instructions)/i.test(rawContent.trim());
                 if (!controller.signal.aborted && unusableFallback) {
@@ -586,8 +626,11 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     updatedConversation = mergeAutoArtifactMessage(updatedConversation, messageId, { content: text });
                 }
                 updatedConversation = mergeAutoArtifactMessage(updatedConversation, messageId, {
-                    artifactStatus: controller.signal.aborted ? ArtifactMessageStatus.STOPPED : ArtifactMessageStatus.COMPLETE,
-                    artifactDetails: [artifactDetail],
+                    artifactStatus: controller.signal.aborted
+                        ? ArtifactMessageStatus.STOPPED
+                        : (cutOff ? ArtifactMessageStatus.INCOMPLETE : ArtifactMessageStatus.COMPLETE),
+                    ...(resuming ? {} : { artifactDetails: [artifactDetail] }),
+                    ...(cutOff ? { artifactResume: { prompt: llmInstructions, type } } : {}),
                 });
 
                 handleUpdateSelectedConversation(updatedConversation);
@@ -595,7 +638,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 // ── Auto-save to server (fire-and-forget) so the artifact is
                 //    immediately available in the library even without the user
                 //    clicking "Save Artifact" manually.
-                if (!controller.signal.aborted) {
+                if (!controller.signal.aborted && !cutOff) {
                     const artifactToSave = selectArtifacts[selectArtifacts.length - 1];
                     const savePayload = buildArtifactSavePayload(artifactToSave);
                     const saveRequest = savePayload && selectedConversation?.id
@@ -730,6 +773,8 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
     const artifact = data?.artifact ?? null;
     const stopped = message.data?.artifactStatus === ArtifactMessageStatus.STOPPED;
     const cancelled = message.data?.artifactStatus === ArtifactMessageStatus.CANCELLED;
+    const incomplete = message.data?.artifactStatus === ArtifactMessageStatus.INCOMPLETE;
+    const canContinue = incomplete && !!message.data?.artifactResume && !artifactIsStreaming;
     const isGeneratingNow = !stopped && !cancelled && (generating || (artifactIsStreaming && !artifact));
 
     const handleTogglePanel = () => {
@@ -766,7 +811,7 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
     }
 
     const displayTitle  = artifact?.name || (isGeneratingNow ? 'Creating artifact…' : 'Artifact');
-    const displayType   = isGeneratingNow ? 'Writing…' : typeLabel(artifact?.type, artifact?.metadata?.language as string);
+    const displayType   = isGeneratingNow ? 'Writing…' : incomplete ? 'Cut off before finishing' : typeLabel(artifact?.type, artifact?.metadata?.language as string);
     const version       = artifact?.version;
     const showVersion   = !isGeneratingNow && typeof version === 'number' && version > 1;
 
@@ -828,6 +873,24 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
                     )}
                 </div>
             </div>
+            {/* Continue a cut-off artifact */}
+            {canContinue && (
+                <button
+                    type="button"
+                    aria-label="Continue generating the cut-off artifact"
+                    onClick={() => window.dispatchEvent(new CustomEvent('continueArtifactRequest', { detail: { messageId: message.id } }))}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        padding: '0 10px', height: 28, borderRadius: 7,
+                        border: '1px solid var(--accent)',
+                        background: 'transparent', color: 'var(--accent)',
+                        fontSize: 12, fontWeight: 500, cursor: 'pointer', flexShrink: 0,
+                        fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+                    }}
+                >
+                    Continue
+                </button>
+            )}
             {/* Open / Hide */}
             {!isGeneratingNow && (
                 <button

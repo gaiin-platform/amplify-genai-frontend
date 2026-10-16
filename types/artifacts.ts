@@ -121,6 +121,7 @@ export enum ArtifactMessageStatus {
     CANCELLED = 'cancelled',
     STOPPED = 'stopped',
     COMPLETE = 'complete',
+    INCOMPLETE = 'incomplete',
   }
 
 // Pending artifact attached to input (before sending)
