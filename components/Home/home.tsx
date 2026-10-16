@@ -119,6 +119,7 @@ import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus
 import { BlankConversationCleanup } from '@/components/NewUI/shared/BlankConversationCleanup';
 import { UserPrefsSync } from '@/components/NewUI/shared/UserPrefsSync';
 import { LastChatRestore } from '@/components/NewUI/shared/LastChatRestore';
+import { FeatureFlagsSelfHeal } from '@/components/NewUI/shared/FeatureFlagsSelfHeal';
 import { LiveHomeStateMirror } from '@/components/NewUI/shared/LiveHomeStateMirror';
 import { ChatBusyNoticeHost } from '@/components/NewUI/shared/ChatBusyNoticeHost';
 import { AnnouncementBanner } from '@/components/NewUI/shared/AnnouncementBanner';
@@ -1062,20 +1063,28 @@ const Home = ({
 
         const fetchFeatureFlags = async () => {
             console.log("Fetching Feature Flags...");
-            try {
-                // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
-                const result = await getFeatureFlags();
-                if (result.success && result.data) {
-                    const flags: { [key:string] : boolean } = result.data;
-                    console.log("feature flags:", flags)
-                    if (Object.keys(flags).length > 0) dispatch({ field: 'featureFlags', value: flags});
-                    localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
-                    return flags;
-                } else {
+            // The flags gate everything loaded afterwards (models, artifacts, assistant
+            // filtering) and this runs once per load, so a transient failure gets a couple
+            // of retries before we continue with {}.
+            const retryDelaysMs = [1000, 3000];
+            for (let attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
+                try {
+                    // returns the groups you are inquiring about in a object with the group as the key and is they are on the group as the value
+                    const result = await getFeatureFlags();
+                    if (result.success && result.data && Object.keys(result.data).length > 0) {
+                        const flags: { [key:string] : boolean } = result.data;
+                        console.log("feature flags:", flags)
+                        dispatch({ field: 'featureFlags', value: flags});
+                        localStorage.setItem('mixPanelOn', JSON.stringify(flags.mixPanel ?? false));
+                        return flags;
+                    }
                     console.log("Failed to get feature flags: ", result);
+                } catch (e) {
+                    console.log("Failed to get feature flagss: ", e);
                 }
-            } catch (e) {
-                console.log("Failed to get feature flagss: ", e);
+                if (attempt < retryDelaysMs.length) {
+                    await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
+                }
             }
             return {};
         }
@@ -1727,6 +1736,10 @@ const Home = ({
                                     (chat font, storage selection) after fetchSettings completes,
                                     and seeds 'future-cloud' default for brand-new users. */}
                                 <UserPrefsSync />
+                                {/* Renders nothing — re-fetches /feature_flags (backoff) when the
+                                    one startup request failed, so flag-gated controls come back
+                                    without a refresh. */}
+                                <FeatureFlagsSelfHeal />
                                 {/* Renders nothing — remembers the conversation being
                                     viewed and re-opens it after a refresh, so reloading
                                     inside a chat no longer drops the user on the
