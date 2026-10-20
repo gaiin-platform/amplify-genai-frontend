@@ -20,6 +20,8 @@ import { Prompt } from '@/types/prompt';
 import { parsePromptVariables, fillInTemplate } from '@/utils/app/prompts';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import type { Model } from '@/types/model';
+import { maxTokensForRequest } from '@/components/NewUI/shared/outputTokenBudget';
 
 /**
  * The one home-state field this module writes.  Typed structurally so the module
@@ -119,6 +121,15 @@ export const startConversationWithTemplate = (
 
     const resolvedModel = enforcedModel ?? userModel;
 
+    // Output-token ceiling for the first send (see shared/outputTokenBudget). The
+    // template's own assistant can enforce a thinking level; honour it here too.
+    const firstTurnMaxTokens = maxTokensForRequest({
+        model: resolvedModel as Model | undefined,
+        conversationEffort: userSelectedEffort,
+        assistantData: prompt.data?.assistant?.definition?.data,
+        availableModels: availableModels as Record<string, Model> | undefined,
+    });
+
     // ── Suppress Chat.tsx's own fill dialog ──────────────────────────────────
     //
     // Chat.tsx renders the old `VariableModal` for ANY conversation that has a
@@ -161,6 +172,7 @@ export const startConversationWithTemplate = (
         tags,
         prompt: buildPromptWithInstruction(rootPromptContent ?? DEFAULT_SYSTEM_PROMPT),
         ...(resolvedModel != null && { model: resolvedModel }),
+        ...(firstTurnMaxTokens !== undefined && { maxTokens: firstTurnMaxTokens }),
         // `data.reasoningLevel` is the only channel for reasoning effort:
         // useChatSendService reads `selectedConversation.data?.reasoningLevel`
         // and turns it into `options.reasoningLevel` (or `disableReasoning` for

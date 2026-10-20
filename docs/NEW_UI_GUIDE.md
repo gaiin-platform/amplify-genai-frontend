@@ -104,6 +104,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `ArtifactInlineCardLayer.tsx` | MutationObserver layer that replaces the static "Creating Your Artifact…" box from `AutoArtifactsBlock.tsx` with a polished inline card (generating spinner → completed card with Open/Hide toggle). Also injects `data-nui-artifact-btn` on `#artifactsButtonBlock` elements for CSS restyling without touching forbidden files. |
 | `NewUIToolStepsLayer.tsx` | Replaces the classic "Calling: X with: …" status box with compact tool-step rows. Portals into a `[data-nui-tools-host]` placed first in each assistant message's `#chatHover`, and sets `data-takeover="true"` so a `:has()` rule in `conversation-view.css` hides the classic status wrapper (with nothing to show, the classic "● Thinking…" row stays). Steps come LIVE from HomeContext `status` (parsed + accumulated — `status` only ever holds the latest call) and, once present, SAVED from `data.state.agentLog` (authoritative: errors + result counts; what a reloaded chat shows). Owns the one persistent `aria-live="polite"` announcer. Leaves `AgentLogBlock` ("Reasoning / Actions") alone |
 | `ToolStepViews.tsx` | Presentational `ToolStepRow` (icon · label · status · chevron; expands to monospace parameters), `ToolStepGroup` (open while a step runs, collapses to "Used Outlook · 2 steps"), `ThinkingRow` (model reasoning, deliberately not styled as a step) and `MessageToolSteps`. Props only — renders to static markup in tests |
+| `NewUITruncationNoticeLayer.tsx` | Notice under an assistant reply that stopped at the output-token limit ("Response was cut off…" + Continue) or produced no answer text. Portals into a `[data-nui-truncation-host]` appended to the message's `#chatHover`. Continue types a plain follow-up into ChatInput's hidden textarea and clicks the hidden send. Detection is `shared/responseTruncation` |
 
 ### `home/`
 | File | Purpose |
@@ -177,6 +178,9 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `useUiSwitchPolicy.ts` | `canSwitchToNew` / `canSwitchToClassic` — the one rule both account menus use |
 | `userDefaultModel.ts` | User's personal default model preference — `USER_DEFAULT_MODEL_KEY`, `getUserDefaultModelId`, `setUserDefaultModelId`. localStorage-backed, no React imports. Takes precedence over admin's `defaultModelId` in `NewHome` + `ModelPicker` slate. The setter fires `USER_DEFAULT_MODEL_CHANGED_EVENT` on a real change (Settings or server sync) so the already-mounted `NewHome` follows without a refresh. **Roams**: `shared/userDisplayPrefs` mirrors this key to/from the server — write it through `saveDisplayPrefsToServer` too, or the choice stays on one device. |
 | `userDefaultEffort.ts` | User's personal default reasoning effort — `USER_DEFAULT_EFFORT_KEY`, `getUserDefaultEffort`, `setUserDefaultEffort`. localStorage-backed, no React imports. Seeds `NewHome` + `ConversationComposer` initial effort state; the setter fires `USER_DEFAULT_EFFORT_CHANGED_EVENT` on a real change so `NewHome` follows live. **Roams** via `shared/userDisplayPrefs` — same caveat as `userDefaultModel.ts`. |
+| `outputTokenBudget.ts` | The one place `max_tokens` is decided: `computeMaxOutputTokens(model, effort)` = `min(limit, max(limit/2, reasoningReserve[effort] + responseAllowance))`, with the answer's share protected on small-limit models. Tunables are `DEFAULT_PROFILE` + `MODEL_PROFILE_OVERRIDES`; the cap is `model.outputTokenLimit`. `maxTokensForRequest` also honours an assistant's enforced model and `enforceThinkingLevel`. No React imports |
+| `useOutputTokenBudget.ts` | Mounted by `ConversationComposer`; keeps `conversation.maxTokens` equal to the budget above (idempotent, skipped while streaming). `NewHome` and `promptConversation` also stamp it at creation so the first send is sized too |
+| `responseTruncation.ts` | `getTruncation` / `truncationCopy` / `CONTINUE_PROMPT`. Reads a reported length stop from `message.data.state` (`stopReason`, `finishReason`, `truncated`, …) and infers the reasoning-only/no-text case. No React imports |
 | `sharedItemClassifier.ts` | Classifies incoming share bundles by content type (`conversation` / `assistant` / `prompt-template`). Module-level promise cache + localStorage persistence so the O(n) load is paid once per session. Exports `getClassifiedSharedItems`, `invalidateSharedItemsCache`, `ClassifiedShareItem`, `ClassifiedShareItems`. No React imports |
 | `shareHistory.ts` | localStorage-backed, user-scoped record of outgoing shares. Exports `loadShareHistory`, `recordShare`, `getSharesForSource`. Also `resolveShareNote` (blank note → item name, so receivers never see "Untitled share"; pass its result to `shareItems`). Call `recordShare` only after a successful `shareItems()` resolve. No React imports |
 | `shareAssistantWithEmails.ts` | Runs the Share-modal share (strip → `createExport` → `shareItems` → `recordShare` → cache invalidation) for an assistant `Prompt` + emails. Used by the assistant creation modal's "Specific people" access, which on its own only registers a path allow-list and never reaches Shared with me. No React imports |
@@ -605,6 +609,17 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     `/feature_flags` is in flight so gated UI doesn't blink out; that is exactly wrong for an
     announcement the admin has just removed, which would flash back on every load. The banner
     accepts appearing a beat late instead (`shared/AnnouncementBanner.tsx`).
+
+38. **`max_tokens` is shared by reasoning and the answer, and the client cannot see why a reply
+    stopped.** `useChatSendService` sends `conversation.maxTokens || outputTokenLimit / 2` and
+    nothing per request, so size it on the conversation (`shared/outputTokenBudget`,
+    `useOutputTokenBudget`) from the model **and the effective effort** — an assistant's
+    `enforceThinkingLevel` / `model` override the conversation's. `Chat.tsx` still mounts and
+    rewrites `maxTokens` from its hidden response-length slider on a model change; the hook
+    corrects it. Separately, `services/chatService` drops `finish_reason` and the backend does
+    not forward `max_tokens`/`length` stops, so truncation is only knowable when the backend
+    adds one to `data.state` (`shared/responseTruncation`). Do not infer "cut off" from text that
+    merely ends abruptly.
 
 ---
 

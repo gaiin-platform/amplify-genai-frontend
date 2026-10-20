@@ -40,6 +40,7 @@ import { NewUISelectionReplyLayer } from './NewUISelectionReplyLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
 import { NewUIToolStepsLayer } from './NewUIToolStepsLayer';
 import { NewUITokenCostInfoLayer } from './NewUITokenCostInfoLayer';
+import { NewUITruncationNoticeLayer } from './NewUITruncationNoticeLayer';
 import { ArtifactPanelLayer } from './ArtifactPanelLayer';
 import { ArtifactSplitterLayer } from './ArtifactSplitterLayer';
 import { ArtifactInlineCardLayer } from './ArtifactInlineCardLayer';
@@ -1728,6 +1729,9 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
           with a compact, accessible pill + flat source-card panel. */}
       <NewUISourcesLayer />
       <NewUITokenCostInfoLayer />
+
+      {/* "Cut off at the length limit" / "no answer" notice + Continue under the reply */}
+      <NewUITruncationNoticeLayer />
 
       {/* Tool-call status — replaces the classic "Calling: X with: …" box with
           compact, human-readable step rows (live from `status`, saved from

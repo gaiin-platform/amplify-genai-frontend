@@ -56,6 +56,7 @@ import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { getUserDefaultModelId, USER_DEFAULT_MODEL_CHANGED_EVENT } from '@/components/NewUI/shared/userDefaultModel';
 import { getUserDefaultEffort, USER_DEFAULT_EFFORT_CHANGED_EVENT } from '@/components/NewUI/shared/userDefaultEffort';
+import { maxTokensForRequest } from '@/components/NewUI/shared/outputTokenBudget';
 import { CONVERSATION_CONNECTOR_ACTIONS_KEY } from '@/components/NewUI/shared/conversationConnectorActions';
 import {
   getConversationSkillSelection,
@@ -617,6 +618,19 @@ export const NewHome: React.FC = () => {
         },
       };
 
+      // Output-token ceiling for the first send: useChatSendService falls back to
+      // half the model limit when the conversation has none, and the composer's
+      // sync (useOutputTokenBudget) can land after that first send starts.
+      const firstTurnMaxTokens = maxTokensForRequest({
+        model: convBase.model,
+        conversationEffort: selectedEffort,
+        assistantData: activeAssistant?.definition?.data,
+        availableModels,
+      });
+      if (firstTurnMaxTokens !== undefined) {
+        convBase = { ...convBase, maxTokens: firstTurnMaxTokens };
+      }
+
       // System prompt: apply any active custom instruction.
       const customPrompt = buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT);
       if (convBase.prompt !== customPrompt) {
@@ -660,6 +674,16 @@ export const NewHome: React.FC = () => {
         [CONVERSATION_CONNECTOR_ACTIONS_KEY]: selectedActions,
       },
       ...(optimisticMessage ? { messages: [optimisticMessage] } : {}),
+      // First-send output-token ceiling (see the same note on the branch above).
+      ...(() => {
+        const maxTokens = maxTokensForRequest({
+          model: selectedModelId ? availableModels[selectedModelId] : undefined,
+          conversationEffort: selectedEffort,
+          assistantData: activeAssistant?.definition?.data,
+          availableModels,
+        });
+        return maxTokens !== undefined ? { maxTokens } : {};
+      })(),
       // MUST be passed: handleNewConversation unconditionally dispatches
       // `selectedAssistant = paramAssistant ?? DEFAULT_ASSISTANT`, so omitting it
       // silently detaches the assistant the user tagged on this composer — the

@@ -106,6 +106,7 @@ import {
 } from '@/components/NewUI/shared/libraryAttachment';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
 import { getUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
+import { useOutputTokenBudget } from '@/components/NewUI/shared/useOutputTokenBudget';
 import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 
 import {
@@ -298,6 +299,10 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     assistantName: activeAssistantName,
     detach: detachAssistant,
   } = useConversationAssistant();
+
+  // Output-token ceiling follows model + effective effort (incl. an assistant's
+  // enforced thinking level), so high effort cannot starve the answer.
+  useOutputTokenBudget(activeAssistant);
 
   // ── Enforced-model from assistant ─────────────────────────────────────────
   // When the active assistant declares `definition.data.model`, that model is
