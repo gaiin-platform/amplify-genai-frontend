@@ -75,7 +75,7 @@ import {
   SIDEBAR_VISIBILITY_KEY,
 } from '@/components/NewUI/shared/sidebarVisibility';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
-import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import { useStreamingConversationIds, isConversationStreaming } from '@/hooks/useChatSendService';
 
 // sessionStorage key used to hand off an initial ScheduledTask (from ScheduledTaskButton
@@ -520,7 +520,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
         messages: [],
         model: defaultModel,
         prompt: '',
-        temperature: 0.5,
+        temperature: DEFAULT_TEMPERATURE,
         folderId: null,
       } as any;
       updated.push(newConversation);

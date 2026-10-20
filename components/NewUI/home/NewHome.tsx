@@ -31,7 +31,7 @@ import { RichComposer, type RichComposerHandle } from '@/components/NewUI/shared
 import { handleFile } from '@/components/Chat/AttachFile';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
 import { getFileExtension, processDragDropFiles, validateFile } from '@/utils/fileHandler';
-import { COMMON_DISALLOWED_FILE_EXTENSIONS, DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import { COMMON_DISALLOWED_FILE_EXTENSIONS, DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
@@ -630,6 +630,8 @@ export const NewHome: React.FC = () => {
       if (firstTurnMaxTokens !== undefined) {
         convBase = { ...convBase, maxTokens: firstTurnMaxTokens };
       }
+      // No temperature control exists in the new UI: start from the default, not the last chat's.
+      convBase = { ...convBase, temperature: DEFAULT_TEMPERATURE };
 
       // System prompt: apply any active custom instruction.
       const customPrompt = buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT);
@@ -674,6 +676,7 @@ export const NewHome: React.FC = () => {
         [CONVERSATION_CONNECTOR_ACTIONS_KEY]: selectedActions,
       },
       ...(optimisticMessage ? { messages: [optimisticMessage] } : {}),
+      temperature: DEFAULT_TEMPERATURE,
       // First-send output-token ceiling (see the same note on the branch above).
       ...(() => {
         const maxTokens = maxTokensForRequest({

@@ -19,7 +19,7 @@ import { MessageType } from '@/types/chat';
 import { Prompt } from '@/types/prompt';
 import { parsePromptVariables, fillInTemplate } from '@/utils/app/prompts';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
-import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import type { Model } from '@/types/model';
 import { maxTokensForRequest } from '@/components/NewUI/shared/outputTokenBudget';
 
@@ -173,6 +173,7 @@ export const startConversationWithTemplate = (
         prompt: buildPromptWithInstruction(rootPromptContent ?? DEFAULT_SYSTEM_PROMPT),
         ...(resolvedModel != null && { model: resolvedModel }),
         ...(firstTurnMaxTokens !== undefined && { maxTokens: firstTurnMaxTokens }),
+        temperature: DEFAULT_TEMPERATURE,
         // `data.reasoningLevel` is the only channel for reasoning effort:
         // useChatSendService reads `selectedConversation.data?.reasoningLevel`
         // and turns it into `options.reasoningLevel` (or `disableReasoning` for
