@@ -41,7 +41,8 @@ import { saveConversations } from '@/utils/app/conversation';
 import toast from 'react-hot-toast';
 import { SkillsLibrary } from '@/components/Skills/SkillsLibrary';
 import { MCPServersTab } from '@/components/Settings/MCPServersTab';
-import { ApiKeys } from '@/components/Settings/AccountComponents/ApiKeys';
+import { NewApiKeysSection } from '@/components/NewUI/settings/NewApiKeysSection';
+import type { LeaveGuard } from '@/components/NewUI/settings/leaveGuard';
 import { getAccounts } from '@/services/accountService';
 import { noCoaAccount } from '@/types/accounts';
 import { Account } from '@/types/accounts';
@@ -65,7 +66,6 @@ import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 import {
   NewUILoadingStatus,
   NewUILegacyLoadingAdapter,
-  NewUILegacyPortalLoadingAdapter,
 } from '@/components/NewUI/shared/NewUILoadingStatus';
 
 // ---------------------------------------------------------------------------
@@ -1032,109 +1032,16 @@ const StorageSection: FC<{ active: boolean }> = ({ active }) => {
 // API Keys Section
 // ---------------------------------------------------------------------------
 
-const API_RESOURCES_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
-
-const API_ACCESS_TEXT_REPLACEMENTS = new Map([
-  ['🔑 New API Key Created', 'New API Key Created'],
-  ['🔐', ''],
-  ['⚠️ NEW API KEY GENERATED - COPY NOW', 'New API Key Generated — Copy Now'],
-  ['⚠️ This key will only be shown once!', 'This key will only be shown once.'],
-  ['Key Management', 'API Key Access'],
-  [
-    'Replace with a new key if compromised or lost',
-    'View and copy this key. Rotate it only if it is compromised or lost.',
-  ],
-  ['Rotate Key', 'Rotate API Key'],
-]);
-
-const normalizeApiAccessText = (text: string | null | undefined) =>
-  text?.replace(/\s+/g, ' ').trim() ?? '';
-
-const patchApiAccessText = (root: ParentNode) => {
-  root.querySelectorAll<HTMLElement>('*').forEach((element) => {
-    if (element.children.length > 0) return;
-    const replacement = API_ACCESS_TEXT_REPLACEMENTS.get(
-      normalizeApiAccessText(element.textContent),
-    );
-    if (replacement && element.textContent !== replacement) element.textContent = replacement;
-  });
-
-  root.querySelectorAll<HTMLElement>('.accounts-info-title').forEach((element) => {
-    element.querySelector('.accounts-info-icon')?.remove();
-  });
-};
-
-const patchApiAccessPortalText = () => {
-  Array.from(document.body.children)
-    .filter(
-      (element) =>
-        element.classList.contains('fixed') &&
-        element.classList.contains('inset-0') &&
-        element.classList.contains('z-[9999]'),
-    )
-    .forEach((element) => {
-      const text = normalizeApiAccessText(element.textContent);
-      if (Array.from(API_ACCESS_TEXT_REPLACEMENTS.keys()).some((legacy) => text.includes(legacy))) {
-        patchApiAccessText(element);
-      }
-    });
-};
-
-const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
-  const apiKeysWrapperRef = useRef<HTMLDivElement>(null);
-  const [unsaved, setUnsaved] = useState(false);
-  const [showRotateConfirmation, setShowRotateConfirmation] = useState(false);
-  const rotateConfirmationResolver = useRef<((confirmed: boolean) => void) | null>(null);
-
-  const requestRotateConfirmation = () => new Promise<boolean>((resolve) => {
-    rotateConfirmationResolver.current = resolve;
-    setShowRotateConfirmation(true);
-  });
-
-  const resolveRotateConfirmation = (confirmed: boolean) => {
-    setShowRotateConfirmation(false);
-    const resolve = rotateConfirmationResolver.current;
-    rotateConfirmationResolver.current = null;
-    resolve?.(confirmed);
-  };
-
+const ApiKeysSection: FC<{
+  active: boolean;
+  onLeaveGuardChange: (guard: LeaveGuard | null) => void;
+}> = ({ active, onLeaveGuardChange }) => {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
   const [isLoadingAccounts, setIsLoadingAccounts] = useState(true);
   const [accountsError, setAccountsError] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const requestId = useRef(0);
-
-  useEffect(() => {
-    const wrapper = apiKeysWrapperRef.current;
-    if (!active || !wrapper) return;
-
-    const reconcile = () => {
-      patchApiAccessText(wrapper);
-      if (document.body) patchApiAccessPortalText();
-    };
-    reconcile();
-
-    const observer = new MutationObserver(reconcile);
-    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
-
-    const handleApiDocsClick = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const button = target.closest('#amplifyDocumentationButton');
-      if (!button || !wrapper.contains(button)) return;
-
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      window.open(API_RESOURCES_URL, '_blank', 'noopener,noreferrer');
-    };
-
-    document.addEventListener('click', handleApiDocsClick, true);
-    return () => {
-      observer.disconnect();
-      document.removeEventListener('click', handleApiDocsClick, true);
-    };
-  }, [active, isLoadingAccounts]);
 
   useEffect(() => {
     if (!active) return;
@@ -1186,47 +1093,17 @@ const ApiKeysSection: FC<{ active: boolean }> = ({ active }) => {
     );
   }
 
+  // The legacy `ApiKeys` list queued edits for a `settingsSave` event this modal never fires,
+  // so edits were silently dropped. NewApiKeysSection saves per card.
   return (
-    <>
-      <ConfirmDialog
-        isOpen={showRotateConfirmation}
-        title="Rotate API key?"
-        message="Rotating this API key will generate a new key and immediately invalidate the current one."
-        confirmLabel="Rotate key"
-        cancelLabel="Cancel"
-        variant="warning"
-        onConfirm={() => resolveRotateConfirmation(true)}
-        onCancel={() => resolveRotateConfirmation(false)}
+    <div className="text-neutral-900 dark:text-white relative">
+      <NewApiKeysSection
+        key={loadAttempt}
+        accounts={accounts}
+        defaultAccount={defaultAccount}
+        onLeaveGuardChange={onLeaveGuardChange}
       />
-      <div
-        ref={apiKeysWrapperRef}
-        data-new-ui-api-access="true"
-        className="text-neutral-900 dark:text-white relative"
-      >
-        <ApiKeys
-          key={loadAttempt}
-          open={active}
-          setUnsavedChanges={setUnsaved}
-          accounts={accounts}
-          defaultAccount={defaultAccount}
-          onClose={() => {}}
-          requestRotateConfirmation={requestRotateConfirmation}
-        />
-        <NewUILegacyLoadingAdapter
-          wrapperRef={apiKeysWrapperRef}
-          selector=".settings-card-content > .flex.items-center.justify-center.py-8"
-          matchText="Loading API Keys..."
-          message="Loading API keys…"
-          inlineClassName="nui-inline-loading-api-keys"
-        />
-        <NewUILegacyPortalLoadingAdapter
-          matchText="Creating API Key..."
-          message="Creating API key…"
-          markerName="data-new-ui-portal-loading-kind"
-          markerValue="api-key-creation"
-        />
-      </div>
-    </>
+    </div>
   );
 };
 
@@ -1278,7 +1155,8 @@ const PlaceholderSection: FC<{ title: string }> = ({ title }) => (
 const SectionContent: FC<{
   sectionId: string;
   onAccountUnsavedChange: (unsaved: boolean) => void;
-}> = ({ sectionId, onAccountUnsavedChange }) => {
+  onLeaveGuardChange: (guard: LeaveGuard | null) => void;
+}> = ({ sectionId, onAccountUnsavedChange, onLeaveGuardChange }) => {
   switch (sectionId) {
     case 'general':
       return <GeneralSection />;
@@ -1287,7 +1165,7 @@ const SectionContent: FC<{
     case 'usage':
       return <UsageSection />;
     case 'apikeys':
-      return <ApiKeysSection active={true} />;
+      return <ApiKeysSection active={true} onLeaveGuardChange={onLeaveGuardChange} />;
     case 'promptTemplates':
       return <PromptTemplatesSection />;
     case 'customInstructions':
@@ -1384,17 +1262,20 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
     track('Settings Section Viewed', { 'Section': showAdminUI ? 'admin' : activeSection });
   }, [activeSection, showAdminUI, track]);
   const [accountHasUnsavedChanges, setAccountHasUnsavedChanges] = useState(false);
+  // A section other than Account can also hold something worth confirming before leaving
+  // (API Access: an uncopied one-time key, or unsaved key edits).
+  const [sectionGuard, setSectionGuard] = useState<LeaveGuard | null>(null);
   const [pendingLeaveAction, setPendingLeaveAction] = useState<(() => void) | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const requestLeave = useCallback((action: () => void) => {
-    if (!accountHasUnsavedChanges) {
+    if (!accountHasUnsavedChanges && !sectionGuard) {
       action();
       return;
     }
     setPendingLeaveAction(() => action);
-  }, [accountHasUnsavedChanges]);
+  }, [accountHasUnsavedChanges, sectionGuard]);
 
   // Section requests are events rather than prop changes: the same destination
   // may be requested repeatedly while Settings remains mounted.
@@ -1532,14 +1413,29 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
   // Active item label for the heading
   const activeItem = allNavItems.find((i) => i.id === activeSection);
 
+  const leaveGuard: LeaveGuard | null = accountHasUnsavedChanges
+    ? {
+        title: 'Unsaved account changes',
+        message:
+          'You have unsaved account changes. Save them before leaving to keep your updates, or leave without saving to discard them.',
+        confirmLabel: 'Leave without saving',
+        cancelLabel: 'Keep editing',
+        variant: 'danger',
+      }
+    : sectionGuard;
+  // A pending leave whose guard has since cleared is stale; drop it so it can't fire later.
+  const hasLeaveGuard = leaveGuard !== null;
+  useEffect(() => {
+    if (pendingLeaveAction && !hasLeaveGuard) setPendingLeaveAction(null);
+  }, [pendingLeaveAction, hasLeaveGuard]);
   const unsavedChangesDialog = (
     <ConfirmDialog
-      isOpen={pendingLeaveAction !== null}
-      title="Unsaved account changes"
-      message="You have unsaved account changes. Save them before leaving to keep your updates, or leave without saving to discard them."
-      confirmLabel="Leave without saving"
-      cancelLabel="Keep editing"
-      variant="danger"
+      isOpen={pendingLeaveAction !== null && leaveGuard !== null}
+      title={leaveGuard?.title ?? ''}
+      message={leaveGuard?.message ?? ''}
+      confirmLabel={leaveGuard?.confirmLabel}
+      cancelLabel={leaveGuard?.cancelLabel}
+      variant={leaveGuard?.variant ?? 'danger'}
       onConfirm={confirmLeave}
       onCancel={() => setPendingLeaveAction(null)}
     />
@@ -1835,6 +1731,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
               <SectionContent
                 sectionId={activeSection}
                 onAccountUnsavedChange={setAccountHasUnsavedChanges}
+                onLeaveGuardChange={setSectionGuard}
               />
             </React.Suspense>
           </div>

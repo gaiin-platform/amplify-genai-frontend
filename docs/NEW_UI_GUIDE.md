@@ -51,6 +51,7 @@ Defined in `styles/globals.css`. Always use these — never hardcode hex values.
 --bg-composer     /* chat input card background */
 --bg-card         /* card surface that must stay distinct from --bg-raised
                      (e.g. file cards inside a modal panel) */
+--bg-elevated     /* card that sits ON --bg-app (settings lists): white in light mode */
 
 /* Borders */
 --border-subtle             /* default border color */
@@ -61,6 +62,10 @@ Defined in `styles/globals.css`. Always use these — never hardcode hex values.
 --text-secondary  /* labels, secondary info */
 --text-muted      /* timestamps, placeholders, captions only */
 --text-error      /* failure reasons — text only, never a fill */
+
+/* Status — callouts and status text only, never interactive accents */
+--warning-bg / --warning-border / --warning-fg / --warning-icon   /* caution callout (e.g. shown-once key) */
+--success-fg / --success-bg                                       /* "Active" status */
 
 /* File-type icon hues — semantic, non-interactive. Icons only. */
 --file-icon-pdf   /* red   — PDF */
@@ -119,6 +124,13 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewAccountSection.tsx` | Settings → Account |
 | `NewStorageSection.tsx` | Settings → Storage |
 | `NewConnectorsSection.tsx` | Settings → Connectors (Integrations + Tool API Keys tabs) |
+| `NewApiKeysSection.tsx` | Settings → API Access. Replaces the legacy `Settings/AccountComponents/ApiKeys` render: intro, create form, "Your keys" + "Delegated to you" lists (search/status/sort), shown-once key after create. Reports uncopied-key / unsaved-edit state to the modal via `onLeaveGuardChange` |
+| `apiKeys/ApiKeyCard.tsx` | One key: the whole header row is the `aria-expanded` toggle (name or italic "Untitled key", meta line, one Active / Expired / Inactive pill), a read-only details grid, a single explicit Edit mode (Cancel / Save changes, Escape cancels), rotate + deactivate behind `ConfirmDialog`s, shown-once reveal after rotation. View and edit share one `auto-fill` grid so columns don't move. Edit state is per card |
+| `apiKeys/apiKeyModel.ts` | React-free rules: `keyStatus` (expired comes from the DATE — the backend flips expired keys to `active=false` on fetch), who may edit/rotate (owner, active, unexpired), `describeLastUsed` / `neverUsed` (`lastAccessed` is initialised to `createdAt`), `formatAccount`, the edit draft → `updates` diff (only changed fields), validation, `minExpirationDate` (today is already expired server-side), Full access vs individual types, list filter/sort |
+| `apiKeys/apiKeyActions.ts` | The Save / Rotate request handling (`saveKeyUpdates`, `rotateKey`) with injectable services; failure → message mapping |
+| `apiKeys/AccessTypesField.tsx` | Access-types checkbox grid; Full access checks + disables the rest |
+| `apiKeys/buttonStyles.ts` | Primary / secondary / ghost-danger button classes for the section |
+| `leaveGuard.ts` | `LeaveGuard` — copy a section hands the settings modal when leaving would lose something (uncopied key, unsaved key edits) |
 | `PromptTemplatesSection.tsx` | Settings → Customize → Prompt Templates. Two tabs: "My Templates" (Edit/Share/Delete hover actions) + "Shared with Me" (lazy-loads via `getSharedItems`, import on open) |
 | `CustomInstructionsSection.tsx` | Settings → Customize → Custom Instructions. List of named instructions with hover Edit/Delete, radio-style active selector (one or none), inline create/edit form, ConfirmDialog for deletes. Active instruction injected into every new blank conversation |
 | `SidebarItemsSection.tsx` | Settings → Customize → Sidebar Items visibility toggles |
@@ -133,6 +145,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 |------|---------|
 | `CreationModalShell.tsx` | Single-column creation modal shell (1100px × min(820px,90dvh)) |
 | `ConfirmDialog.tsx` | Portalled confirmation modal; `variant='danger'/'warning'/'neutral'` |
+| `FormControls.tsx` | The standard `TextControl` / `TextAreaControl` / `SelectControl` (real chevron) / `CheckboxControl` + `FieldError`: 36px, `--border-subtle`, focus ring, `aria-invalid` |
+| `OneTimeSecretReveal.tsx` | The one place a shown-once secret (new / rotated API key) is displayed: calm warning callout, read-only monospace field, labelled Copy ("Copied ✓" + `aria-live`), Done. `useOneTimeSecret()` holds the value and the "Have you saved this key?" rule (`guard(action)`); copying counts as saving. Never log or persist the value |
 | `IconButton.tsx` | Accessible icon button — always pass `aria-label` |
 | `ToggleSwitch.tsx` | Pill switch; `role="switch"`, `aria-checked` |
 | `SegmentedControl.tsx` | Tab strip / segmented picker; pass `aria-label` |
@@ -621,6 +635,17 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     not forward `max_tokens`/`length` stops, so truncation is only knowable when the backend
     adds one to `data.state` (`shared/responseTruncation`). Do not infer "cut off" from text that
     merely ends abruptly.
+
+39. **A `window` event only the classic UI dispatches is a dead save path, not just a dead link.**
+    `Settings/AccountComponents/ApiKeys` queued each field edit in a ref and sent them on the
+    `settingsSave` event, which only `Settings/SettingDialog.tsx` (classic) fires — so in the New
+    UI every API-key edit was collected and never sent, with no error. §18 covers dead *navigation*
+    bridges; the same applies to deferred *saves*. When wrapping an old component, grep its
+    `addEventListener` names for a dispatcher in the new branch, and prefer a section that saves
+    itself (`settings/NewApiKeysSection`). Related backend facts it encodes: `/apiKeys/keys/update`
+    is owner-only and rejects inactive or expired keys, an expiration of *today* already counts as
+    expired, and `full_access` is a stored sentinel (every check is `type in access or
+    "full_access" in access`), not shorthand for the other types.
 
 ---
 

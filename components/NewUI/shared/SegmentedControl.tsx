@@ -27,6 +27,28 @@ interface SegmentedControlProps {
   'aria-label'?: string;
 }
 
+/** The track's inner padding on every side (matches `p-[3px]` and the thumb's `top-[3px]`). */
+export const TRACK_PADDING_PX = 3;
+
+/**
+ * Size and position of the sliding highlight.
+ *
+ * The thumb is absolutely positioned inside the track's padding box (width W) starting at
+ * `TRACK_PADDING_PX`, and the segments share the content box (W − 2·padding) equally. So each
+ * segment — and the thumb — is `(W − 2·padding) / n` wide, and moving one segment over is
+ * exactly one thumb width: `translateX(index · 100%)`. (An extra per-step offset makes the
+ * highlight drift toward the right edge: "All" ends up inset 3px, the last segment ~0px.)
+ */
+export function segmentThumbStyle(count: number, index: number): { width: string; transform: string; opacity?: number } {
+  const n = Math.max(1, count);
+  return {
+    width: `calc((100% - ${TRACK_PADDING_PX * 2}px) / ${n})`,
+    transform: `translateX(${Math.max(0, index) * 100}%)`,
+    // No matching segment: show no highlight rather than parking it on the first one.
+    ...(index < 0 ? { opacity: 0 } : null),
+  };
+}
+
 export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   items,
   value,
@@ -49,11 +71,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
       {/* Sliding thumb */}
       <div
         className="absolute top-[3px] h-[calc(100%-6px)] rounded-[8px] bg-[--bg-active] transition-transform duration-150 ease-out"
-        style={{
-          width: `calc(${100 / items.length}% - 6px / ${items.length})`,
-          transform: `translateX(calc(${activeIndex} * (100% + ${6 / items.length}px)))`,
-          left: '3px',
-        }}
+        style={{ ...segmentThumbStyle(items.length, activeIndex), left: `${TRACK_PADDING_PX}px` }}
         aria-hidden="true"
       />
       {items.map((item) => (

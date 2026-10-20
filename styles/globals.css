@@ -22,6 +22,8 @@
   /* Card surface that must stay visibly distinct from --bg-raised (e.g. file
      cards inside a modal, whose panel is already --bg-raised). */
   --bg-card:       #eaeae8;
+  /* Card surface that sits ON --bg-app (settings lists): white in light mode. */
+  --bg-elevated:   #ffffff;
   --border-subtle: #e5e5e4;
   /* Composer-specific surfaces (chat input card) */
   --bg-composer:             #ffffff;
@@ -47,6 +49,15 @@
   /* Error text (failure reasons, invalid input). Not an interactive accent. */
   --text-error: #B42318;
 
+  /* Status colours — callouts and status text only, never interactive accents.
+     --warning-* : a caution surface (e.g. "copy this key now"). --success-fg : "Active". */
+  --warning-bg:     #fffbeb;
+  --warning-border: #f3d58a;
+  --warning-fg:     #8a4b08;
+  --warning-icon:   #c2650a;
+  --success-fg:     #15803D;
+  --success-bg:     #ecfdf3;
+
   /* File-type icon hues — semantic, non-interactive. Used by DataSourceCard. */
   --file-icon-pdf:   #C0392B;
   --file-icon-doc:   #2563EB;
@@ -69,6 +80,7 @@
   --bg-hover:      #2F2E2C;
   --bg-active:     #3A3A38;
   --bg-card:       #3A3A37;
+  --bg-elevated:   #1d1d1c;
   --border-subtle: #363635;
   /* Composer-specific surfaces (chat input card) */
   --bg-composer:             #20201f;
@@ -87,6 +99,13 @@
   --selection-reply-fg: #ffffff;
 
   --text-error: #F97066;
+
+  --warning-bg:     rgba(245, 158, 11, 0.10);
+  --warning-border: rgba(245, 158, 11, 0.38);
+  --warning-fg:     #f6c86a;
+  --warning-icon:   #fbbf24;
+  --success-fg:     #6FCF97;
+  --success-bg:     rgba(111, 207, 151, 0.12);
 
   --file-icon-pdf:   #F08076;
   --file-icon-doc:   #7AA7F5;
