@@ -142,7 +142,6 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
 
   // ── MTD cost state
   const [mtdData, setMtdData] = useState<UserMtdCosts | null>(null);
-  const [mtdLoading, setMtdLoading] = useState(false);
 
   // ── Unsaved-change tracking (persisted changes plus meaningful form drafts)
   const [addedAccounts, setAddedAccounts] = useState<string[]>([]);
@@ -209,12 +208,9 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
   // ── Load MTD costs on mount
   useEffect(() => {
     if (!session?.user?.email) return;
-    setMtdLoading(true);
-    getUserMtdCosts()
-      .then((result) => {
-        if (result.success) setMtdData(result.data);
-      })
-      .finally(() => setMtdLoading(false));
+    getUserMtdCosts().then((result) => {
+      if (result.success) setMtdData(result.data);
+    });
   }, [session?.user?.email]);
 
   // ── MTD cost helpers (ported from original getAccountMtdCost)
@@ -412,43 +408,6 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
           {accountNotice}
         </span>
       </div>
-
-      {/* ─── MTD Cost Summary ─── */}
-      {mtdLoading ? (
-        <div style={{
-          ...card,
-          display: 'flex',
-          alignItems: 'center',
-          gap: '10px',
-          color: 'var(--text-muted)',
-          fontSize: '13px',
-        }}>
-          <IconLoader2 size={16} style={{ flexShrink: 0 }} className="motion-safe:animate-spin motion-reduce:animate-none" />
-          Loading cost data…
-        </div>
-      ) : mtdData ? (
-        <div style={card}>
-          <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', marginBottom: '14px' }}>
-            Cost Summary
-          </h3>
-          <div style={{ display: 'flex', gap: '32px', flexWrap: 'wrap' }}>
-            {[
-              { label: 'Today', value: formatCurrency(mtdData.dailyCost) },
-              { label: 'This month', value: formatCurrency(mtdData.monthlyCost) },
-              { label: 'All time', value: formatCurrency(mtdData.totalCost) },
-            ].map((stat) => (
-              <div key={stat.label}>
-                <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '3px' }}>
-                  {stat.label}
-                </div>
-                <div style={{ fontSize: '20px', fontWeight: 600, color: 'var(--text-primary)' }}>
-                  {stat.value}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
 
       {/* ─── Rate-limit warning banner ─── */}
       {rateLimitWarning && (
