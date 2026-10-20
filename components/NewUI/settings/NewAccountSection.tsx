@@ -5,14 +5,15 @@
  *
  * What this section does (all from original):
  *  - Loads accounts on mount via getAccounts()
- *  - Loads MTD cost data via getUserMtdCosts()
+ *  - Loads month-to-date cost via getUserMtdCosts() and attributes it per account
+ *    (settings/accountCosts — includes API-key spend, which the old string match missed)
  *  - Add account (COA/ID + name + rate limit), delete, edit rate limit inline
  *  - Default account selector
  *  - Save via saveAccounts()
  *  - Wires settingsSave event exactly like the original
  */
 
-import React, { FC, useContext, useEffect, useRef, useState } from 'react';
+import React, { FC, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   IconTrashX,
@@ -37,6 +38,14 @@ import {
   periodTypes,
 } from '@/types/rateLimit';
 import { getUserMtdCosts, UserMtdCosts } from '@/services/mtdCostService';
+import { fetchAllApiKeys } from '@/services/apiKeysService';
+import {
+  AccountCost,
+  KeyAccountMap,
+  attributeAccountCosts,
+  buildKeyAccountMap,
+  describeAccountCost,
+} from '@/components/NewUI/settings/accountCosts';
 import { formatCurrency } from '@/utils/app/data';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
@@ -142,6 +151,9 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
 
   // ── MTD cost state
   const [mtdData, setMtdData] = useState<UserMtdCosts | null>(null);
+  const [mtdStatus, setMtdStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  // api_owner_id → account id, so API-key spend can be attributed to the account it bills.
+  const [keyAccounts, setKeyAccounts] = useState<KeyAccountMap>({});
 
   // ── Unsaved-change tracking (persisted changes plus meaningful form drafts)
   const [addedAccounts, setAddedAccounts] = useState<string[]>([]);
@@ -205,27 +217,41 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
     load();
   }, []);
 
-  // ── Load MTD costs on mount
+  // ── Load month-to-date costs (and the user's keys, for attribution) when the section opens
   useEffect(() => {
     if (!session?.user?.email) return;
-    getUserMtdCosts().then((result) => {
-      if (result.success) setMtdData(result.data);
-    });
+    let cancelled = false;
+    setMtdStatus('loading');
+    getUserMtdCosts()
+      .then((result) => {
+        if (cancelled) return;
+        if (result.success) {
+          setMtdData(result.data);
+          setMtdStatus('ready');
+        } else {
+          setMtdStatus('error');
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMtdStatus('error');
+      });
+    // Keys are only used to attribute key spend; if this fails the figures fall back to
+    // matching on the account text alone.
+    fetchAllApiKeys()
+      .then((result: any) => {
+        if (!cancelled && result?.success) setKeyAccounts(buildKeyAccountMap(result.data));
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
   }, [session?.user?.email]);
 
-  // ── MTD cost helpers (ported from original getAccountMtdCost)
-  const getAccountMtdCost = (accountId: string) => {
-    if (!mtdData?.accounts) return null;
-    const matching = mtdData.accounts.filter(
-      (acc) => acc.accountInfo.split('#')[0] === accountId,
-    );
-    if (matching.length === 0) return null;
-    return {
-      dailyCost: matching.reduce((s, a) => s + a.dailyCost, 0),
-      monthlyCost: matching.reduce((s, a) => s + a.monthlyCost, 0),
-      totalCost: matching.reduce((s, a) => s + a.totalCost, 0),
-    };
-  };
+  // ── Per-account spend (month to date, API keys included)
+  const accountCosts: Map<string, AccountCost> = useMemo(
+    () => attributeAccountCosts(mtdData?.accounts, accounts.map((a) => a.id), keyAccounts),
+    [mtdData, accounts, keyAccounts],
+  );
 
   // ── Add account
   const handleAddAccount = () => {
@@ -337,7 +363,9 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
     for (const account of accounts) {
       const limit = account.rateLimit;
       if (!limit?.rate || limit.period?.toLowerCase() === 'unlimited') continue;
-      const cost = getAccountMtdCost(account.id);
+      // Exact-match spend only: the backend checks an account's limit against the cost record
+      // for that exact account#actor, not against spend summed across API keys.
+      const cost = accountCosts.get(account.id)?.exact;
       if (!cost) continue;
       let spent = 0;
       if (limit.period === 'Daily') spent = cost.dailyCost;
@@ -602,7 +630,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
             {accounts.map((account, index) => {
               const isHovered = hoverAccount === index;
-              const cost = getAccountMtdCost(account.id);
+              const cost = accountCosts.get(account.id);
               const isEditing = editingIndex === index;
               const isDefault = account.name === defaultAccount.name;
 
@@ -663,17 +691,32 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
                     </div>
                   </div>
 
-                  {/* MTD cost */}
-                  {cost && (
-                    <span style={{
-                      fontSize: '12px',
-                      color: cost.totalCost > 10 ? '#ef4444' : 'var(--text-secondary)',
-                      flexShrink: 0,
-                      whiteSpace: 'nowrap',
+                  {/* Month-to-date spend, API keys included */}
+                  <div
+                    title={mtdStatus === 'error' ? 'Cost data is unavailable right now.' : describeAccountCost(cost, account.id)}
+                    style={{ flexShrink: 0, textAlign: 'right', minWidth: '84px' }}
+                  >
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      lineHeight: '16px',
+                      color: cost && cost.total.totalCost > 10 ? 'var(--text-error)' : 'var(--text-primary)',
                     }}>
-                      {formatCurrency(cost.totalCost)}
-                    </span>
-                  )}
+                      {mtdStatus === 'loading' ? (
+                        <IconLoader2
+                          size={14}
+                          aria-label="Loading cost"
+                          className="motion-safe:animate-spin motion-reduce:animate-none"
+                          style={{ color: 'var(--text-muted)' }}
+                        />
+                      ) : mtdStatus === 'error' ? (
+                        <span style={{ color: 'var(--text-muted)' }}>—</span>
+                      ) : (
+                        formatCurrency(cost?.total.totalCost ?? 0)
+                      )}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', lineHeight: '14px' }}>This month</div>
+                  </div>
 
                   {/* Rate limit — display or edit inline */}
                   {isEditing ? (
