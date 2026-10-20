@@ -45,6 +45,11 @@ import {
   isHalloweenSeason,
 } from '@/components/NewUI/home/HalloweenHero';
 import { releaseBatSwarm } from '@/components/NewUI/home/batSwarm';
+import { HalloweenControls } from '@/components/NewUI/home/HalloweenControls';
+import {
+  getHalloweenPartEnabled,
+  USER_HALLOWEEN_EFFECTS_CHANGED_EVENT,
+} from '@/components/NewUI/shared/userHalloweenEffects';
 import {
   UIAttachment,
   createUIAttachmentFromDoc,
@@ -93,8 +98,21 @@ export const NewHome: React.FC = () => {
 
   const composerRef = useRef<RichComposerHandle>(null);
   // Seasonal theme — resolved after mount to avoid SSR/client date mismatches.
+  // Users can opt out in Settings → General (or via the link under the greeting).
+  const [inHalloweenSeason, setInHalloweenSeason] = useState(false);
   const [isHalloween, setIsHalloween] = useState(false);
-  useEffect(() => setIsHalloween(isHalloweenSeason()), []);
+  const [batSwarmOn, setBatSwarmOn] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      const season = isHalloweenSeason();
+      setInHalloweenSeason(season);
+      setIsHalloween(season && getHalloweenPartEnabled('theme'));
+      setBatSwarmOn(getHalloweenPartEnabled('swarm'));
+    };
+    sync();
+    window.addEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
+  }, []);
   const [hasContent, setHasContent] = useState(false);
 
   useEffect(() => {
@@ -465,7 +483,7 @@ export const NewHome: React.FC = () => {
     if (blockIfOtherChatGenerating(selectedConversation?.id)) return false; // RichComposer keeps the draft only on an explicit false
     // Halloween: bats burst from the composer and sweep over the transition to
     // the chat view. Fire-and-forget on document.body — never delays the send.
-    if (isHalloween) releaseBatSwarm();
+    if (isHalloween && batSwarmOn) releaseBatSwarm();
     const pastedAttachments = readyAttachments.filter((a) => a.kind === 'paste');
     const pastedMessage = buildPastedTextMessage(trimmed, pastedAttachments);
     // Docs whose S3 upload finished (doc.key set by handleFile's onSetKey).
@@ -752,6 +770,8 @@ export const NewHome: React.FC = () => {
       {...dropHandlers}
     >
       {isHalloween && <HalloweenBackdrop />}
+      {/* Visible opt-out — stays in October even after the theme is turned off */}
+      {inHalloweenSeason && <HalloweenControls />}
       {/* Drop anywhere on the landing pane → attaches to the composer */}
       {isFileDragOver && (
         <FileDropOverlay

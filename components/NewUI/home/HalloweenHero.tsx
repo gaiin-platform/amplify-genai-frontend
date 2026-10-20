@@ -200,7 +200,6 @@ const HalloweenStyles = () => (
       animation: hw-glow 3.2s ease-in-out infinite;
     }
     .hw-subtitle { color: rgba(196, 181, 253, .75); text-shadow: 0 0 10px rgba(139,92,246,.45); }
-
     /* Composer gets an eerie ember edge while in season */
     .hw-active .new-ui-composer-card { position: relative; z-index: 1; box-shadow: 0 0 0 1px rgba(249,115,22,.18), 0 0 28px -6px rgba(249,115,22,.35); }
     .hw-active .new-ui-composer-card:focus-within { box-shadow: 0 0 0 1px rgba(249,115,22,.45), 0 0 34px -4px rgba(249,115,22,.5); }
