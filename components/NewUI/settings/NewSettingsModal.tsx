@@ -62,6 +62,12 @@ import { DEFAULT_STORAGE_SELECTION, getChatFont, saveDisplayPrefsToServer } from
 import { getUserWebSearchEnabled, setUserWebSearchEnabled, WEB_SEARCH_LEVEL3_INFO } from '@/components/NewUI/shared/userWebSearch';
 import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { isHalloweenSeason } from '@/components/NewUI/home/HalloweenHero';
+import {
+  getHalloweenPartEnabled,
+  setHalloweenPartEnabled,
+  USER_HALLOWEEN_EFFECTS_CHANGED_EVENT,
+} from '@/components/NewUI/shared/userHalloweenEffects';
 import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 import {
   NewUILoadingStatus,
@@ -212,6 +218,20 @@ const GeneralSection: FC = () => {
     // on clears an "off" held by other devices.
     void saveDisplayPrefsToServer({ webSearchEnabled: enabled });
   };
+
+  // ── Halloween effects (seasonal; row only shown during October) ──────
+  const showHalloweenToggle = isHalloweenSeason();
+  const [halloweenEnabled, setHalloweenEnabledState] = useState<boolean>(() => getHalloweenPartEnabled('theme'));
+  const [batSwarmEnabled, setBatSwarmEnabledState] = useState<boolean>(() => getHalloweenPartEnabled('swarm'));
+  // Stay in sync with the corner control on the home page.
+  useEffect(() => {
+    const sync = () => {
+      setHalloweenEnabledState(getHalloweenPartEnabled('theme'));
+      setBatSwarmEnabledState(getHalloweenPartEnabled('swarm'));
+    };
+    window.addEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
+  }, []);
 
   // ── Appearance (system / light / dark) ───────────────────────────────
   // The theme actually applied (`lightMode`, kept current by every writer incl. the
@@ -822,6 +842,57 @@ const GeneralSection: FC = () => {
               aria-labelledby="settings-web-search-label"
             />
           </div>
+        )}
+
+        {/* Halloween effects row (seasonal) */}
+        {showHalloweenToggle && (
+          <>
+            {[
+              {
+                part: 'theme' as const,
+                id: 'settings-halloween-label',
+                label: 'Halloween theme 🎃',
+                hint: 'Spooky home page: pumpkin, bats, cobweb and fog.',
+                checked: halloweenEnabled,
+                disabled: false,
+              },
+              {
+                part: 'swarm' as const,
+                id: 'settings-bat-swarm-label',
+                label: 'Bat swarm on send 🦇',
+                hint: 'Bats fly across the screen when you send from the home page.',
+                checked: halloweenEnabled && batSwarmEnabled,
+                disabled: !halloweenEnabled,
+              },
+            ].map(({ part, id, label, hint, checked, disabled }) => (
+              <div
+                key={part}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  paddingBottom: '14px',
+                  borderBottom: '1px solid var(--border-subtle)',
+                  marginBottom: '14px',
+                  opacity: disabled ? 0.5 : 1,
+                }}
+              >
+                <div>
+                  <span id={id} style={{ fontSize: '14px', color: 'var(--text-primary)' }}>
+                    {label}
+                  </span>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', margin: '2px 0 0' }}>{hint}</p>
+                </div>
+                <ToggleSwitch
+                  checked={checked}
+                  disabled={disabled}
+                  onChange={(v) => setHalloweenPartEnabled(part, v)}
+                  aria-labelledby={id}
+                />
+              </div>
+            ))}
+          </>
         )}
 
         {/* Storage row */}

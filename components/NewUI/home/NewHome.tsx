@@ -39,6 +39,18 @@ import { AttachMenu, AttachMenuChips, type SelectedAction } from '@/components/N
 import { AttachmentRail } from '@/components/NewUI/shared/AttachmentRail';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import {
+  HalloweenBackdrop,
+  HalloweenGreeting,
+  HALLOWEEN_PLACEHOLDER,
+  isHalloweenSeason,
+} from '@/components/NewUI/home/HalloweenHero';
+import { releaseBatSwarm } from '@/components/NewUI/home/batSwarm';
+import { HalloweenControls } from '@/components/NewUI/home/HalloweenControls';
+import {
+  getHalloweenPartEnabled,
+  USER_HALLOWEEN_EFFECTS_CHANGED_EVENT,
+} from '@/components/NewUI/shared/userHalloweenEffects';
+import {
   UIAttachment,
   createUIAttachmentFromDoc,
   createPasteAttachment,
@@ -85,6 +97,22 @@ export const NewHome: React.FC = () => {
   const enforcedModelId = activeAssistant?.definition?.data?.model as string | undefined;
 
   const composerRef = useRef<RichComposerHandle>(null);
+  // Seasonal theme — resolved after mount to avoid SSR/client date mismatches.
+  // Users can opt out in Settings → General (or via the link under the greeting).
+  const [inHalloweenSeason, setInHalloweenSeason] = useState(false);
+  const [isHalloween, setIsHalloween] = useState(false);
+  const [batSwarmOn, setBatSwarmOn] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      const season = isHalloweenSeason();
+      setInHalloweenSeason(season);
+      setIsHalloween(season && getHalloweenPartEnabled('theme'));
+      setBatSwarmOn(getHalloweenPartEnabled('swarm'));
+    };
+    sync();
+    window.addEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
+  }, []);
   const [hasContent, setHasContent] = useState(false);
 
   useEffect(() => {
@@ -453,6 +481,9 @@ export const NewHome: React.FC = () => {
     if (!trimmed && readyAttachments.length === 0) return;
     // Another chat is still answering: keep the draft and ask the user to wait.
     if (blockIfOtherChatGenerating(selectedConversation?.id)) return false; // RichComposer keeps the draft only on an explicit false
+    // Halloween: bats burst from the composer and sweep over the transition to
+    // the chat view. Fire-and-forget on document.body — never delays the send.
+    if (isHalloween && batSwarmOn) releaseBatSwarm();
     const pastedAttachments = readyAttachments.filter((a) => a.kind === 'paste');
     const pastedMessage = buildPastedTextMessage(trimmed, pastedAttachments);
     // Docs whose S3 upload finished (doc.key set by handleFile's onSetKey).
@@ -734,10 +765,13 @@ export const NewHome: React.FC = () => {
 
   return (
     <div
-      className="relative flex-1 flex flex-col items-center justify-start bg-[--bg-app] overflow-hidden"
+      className={`relative flex-1 flex flex-col items-center justify-start bg-[--bg-app] overflow-hidden${isHalloween ? ' hw-active' : ''}`}
       style={{ fontFamily: 'Inter, sans-serif' }}
       {...dropHandlers}
     >
+      {isHalloween && <HalloweenBackdrop />}
+      {/* Visible opt-out — stays in October even after the theme is turned off */}
+      {inHalloweenSeason && <HalloweenControls />}
       {/* Drop anywhere on the landing pane → attaches to the composer */}
       {isFileDragOver && (
         <FileDropOverlay
@@ -758,19 +792,23 @@ export const NewHome: React.FC = () => {
 
       {/* Centered content column */}
       <div
-        className="w-full max-w-[760px] px-6 flex flex-col items-center"
+        className="relative z-[1] w-full max-w-[760px] px-6 flex flex-col items-center"
         style={{ paddingTop: 'max(72px, 26vh)' }}
       >
         {/* Greeting */}
-        <div className="flex items-center gap-3 mb-8 justify-center">
-          <Image src="/amplify-logo.png" alt="Amplify" width={40} height={40} style={{ borderRadius: 6 }} />
-          <h1
-            className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
-            style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
-          >
-            How can I help?
-          </h1>
-        </div>
+        {isHalloween ? (
+          <HalloweenGreeting />
+        ) : (
+          <div className="flex items-center gap-3 mb-8 justify-center">
+            <Image src="/amplify-logo.png" alt="Amplify" width={40} height={40} style={{ borderRadius: 6 }} />
+            <h1
+              className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
+              style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
+            >
+              How can I help?
+            </h1>
+          </div>
+        )}
 
         {/* Composer box — 3-band grid: rail | textarea | toolbar */}
         <div
@@ -803,7 +841,7 @@ export const NewHome: React.FC = () => {
             onChange={(value) => setHasContent(value.trim().length > 0)}
             onLargePaste={handleLargePaste}
             onImagePaste={addFileToRail}
-            placeholder="Ask anything…"
+            placeholder={isHalloween ? HALLOWEEN_PLACEHOLDER : 'Ask anything…'}
             editorClassName="max-h-[240px] overflow-y-auto"
             autoFocus
             hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
