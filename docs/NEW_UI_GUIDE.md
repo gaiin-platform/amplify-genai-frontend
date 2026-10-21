@@ -134,7 +134,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `PromptTemplatesSection.tsx` | Settings → Customize → Prompt Templates. Two tabs: "My Templates" (Edit/Share/Delete hover actions) + "Shared with Me" (lazy-loads via `getSharedItems`, import on open) |
 | `CustomInstructionsSection.tsx` | Settings → Customize → Custom Instructions. List of named instructions with hover Edit/Delete, radio-style active selector (one or none), inline create/edit form, ConfirmDialog for deletes. Active instruction injected into every new blank conversation |
 | `SidebarItemsSection.tsx` | Settings → Customize → Sidebar Items visibility toggles |
-| `admin/AdminsCard.tsx` | Admin section wrapper card |
+| `admin/AdminsCard.tsx` | Admin section wrapper card; removing an admin uses the shared `ConfirmDialog` (its open state feeds the modal's Escape guard) |
 | `admin/ConfigurationsTab.tsx` | Admin → Configurations tab content |
 | `admin/SystemPromptsTab.tsx` | Admin → System Prompts tab — editors for ordinary-chat base, web-search, artifact, code-interpreter, and feature-gated Amplify-helper prompts |
 | `admin/DeploymentFeaturesTab.tsx` | Admin → Deployment tab — toggles for deployment-wide feature availability (highlighter, artifacts, web search, code interpreter, memory) and classic-UI switch control |

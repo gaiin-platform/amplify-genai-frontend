@@ -13,7 +13,7 @@
  *     change on hover → no reflow.
  *   - UUID fallback: raw UUIDs show "Unknown user" + amber warning icon + full UUID
  *     in the native title tooltip.
- *   - Destructive safety: per-chip confirm() before removal; aria-label on every
+ *   - Destructive safety: per-chip ConfirmDialog (shared, not the browser confirm()) before removal; aria-label on every
  *     delete button.
  *   - Remove mode: "Remove Admins" button toggles `.new-ui-admin-chips--removing`
  *     on the chip list, making all delete icons visible without per-chip hover.
@@ -37,6 +37,7 @@ import { CsvUpload } from '@/components/ReusableComponents/CsvUpload';
 import { CsvPreviewModal } from '@/components/ReusableComponents/CsvPreviewModal';
 import { useCsvUpload } from '@/hooks/useCsvUpload';
 import { AdminCsvUploadConfig, AdminCsvPreviewConfig } from '@/config/csvUploadConfigs';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import toast from 'react-hot-toast';
 
 // ── UUID helpers (mirrors Configurations.tsx) ─────────────────────────────────
@@ -65,6 +66,7 @@ export const AdminsCard: React.FC<Props> = ({
 }) => {
   const [showAddInput, setShowAddInput] = useState(false);
   const [isRemoving, setIsRemoving]     = useState(false);
+  const [pendingRemoval, setPendingRemoval] = useState<string | null>(null);
 
   // ── CSV upload ──────────────────────────────────────────────────────────────
   const adminCsvUpload = useCsvUpload({
@@ -84,8 +86,8 @@ export const AdminsCard: React.FC<Props> = ({
 
   // Notify parent when portal modals open/close
   useEffect(() => {
-    onModalStateChange?.(adminCsvUpload.hasOpenModal);
-  }, [adminCsvUpload.hasOpenModal, onModalStateChange]);
+    onModalStateChange?.(adminCsvUpload.hasOpenModal || pendingRemoval !== null);
+  }, [adminCsvUpload.hasOpenModal, pendingRemoval, onModalStateChange]);
 
   // ── Helpers ─────────────────────────────────────────────────────────────────
   const handleUpdateAdmins = (updated: string[]) => {
@@ -108,16 +110,15 @@ export const AdminsCard: React.FC<Props> = ({
     return user;
   };
 
-  const confirmAndRemove = (user: string) => {
-    const display = getDisplayName(user);
-    const label   = display ?? `unknown user (${user.slice(0, 8)}…)`;
-    if (
-      confirm(
-        `Remove "${label}" as an admin?\n\nThis change takes effect when you save.`,
-      )
-    ) {
-      handleUpdateAdmins(admins.filter((a) => a !== user));
+  const pendingLabel = pendingRemoval
+    ? getDisplayName(pendingRemoval) ?? `unknown user (${pendingRemoval.slice(0, 8)}…)`
+    : '';
+
+  const handleConfirmRemove = () => {
+    if (pendingRemoval !== null) {
+      handleUpdateAdmins(admins.filter((a) => a !== pendingRemoval));
     }
+    setPendingRemoval(null);
   };
 
   // ── Render ───────────────────────────────────────────────────────────────────
@@ -243,7 +244,7 @@ export const AdminsCard: React.FC<Props> = ({
                   tabIndex={isRemoving ? 0 : -1} /* keyboard-reachable in remove mode */
                   onClick={(e) => {
                     e.stopPropagation();
-                    confirmAndRemove(user);
+                    setPendingRemoval(user);
                   }}
                 >
                   <IconTrash size={12} aria-hidden="true" />
@@ -253,6 +254,23 @@ export const AdminsCard: React.FC<Props> = ({
           })
         )}
       </div>
+
+      {/* ── Remove-admin confirmation ── */}
+      <ConfirmDialog
+        isOpen={pendingRemoval !== null}
+        title="Remove admin?"
+        message={
+          <>
+            Remove{' '}
+            <strong style={{ color: 'var(--text-primary)' }}>{pendingLabel}</strong>{' '}
+            as an admin? This change takes effect when you save.
+          </>
+        }
+        confirmLabel="Remove"
+        variant="danger"
+        onConfirm={handleConfirmRemove}
+        onCancel={() => setPendingRemoval(null)}
+      />
 
       {/* ── CSV Upload portal ── */}
       {adminCsvUpload.showUpload &&
