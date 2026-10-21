@@ -51,6 +51,10 @@ export const getActivePlugins = (settings: Settings, featureFlags: any, validPlu
         for (const id of settingsDrivenPlugins) {
             savedSelections[id] = defaults[id];
         }
+        // MCP has no user-facing toggle anymore, so a stale or missing localStorage
+        // entry must not decide it. The admin flag is the gate; which servers/tools
+        // actually go out is decided per-server (getEnabledMCPToolsForLLM).
+        savedSelections[PluginID.MCP] = featureFlags?.mcp === true;
         // The old mode selector is removed. Ignore a stale browser selection so it
         // cannot reactivate code interpreter after the server-owned routing change.
         savedSelections[PluginID.CODE_INTERPRETER] = false;
