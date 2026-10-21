@@ -195,6 +195,18 @@ export function getAllDataSources(
 }
 
 /**
+ * Dollar cost of sending `tokens` input tokens to `model`.
+ *
+ * `model.inputTokenCost` is USD per 1,000 tokens — the same unit the backend bills with
+ * (amplify-lambda-js/common/accounting.js: `(tokens / 1000) * InputCostPerThousandTokens`)
+ * and that Settings → pricing multiplies by 1000 to show per-million. Dividing by
+ * 1,000,000 here under-estimated every prompt 1000x.
+ */
+export function tokensToInputCost(tokens: number, model: Pick<Model, 'inputTokenCost'>): number {
+    return (tokens / 1000) * (model.inputTokenCost || 0);
+}
+
+/**
  * Calculates the estimated cost of a prompt
  * Main function that combines all estimation logic
  *
@@ -240,10 +252,7 @@ export function calculatePromptCost(
     }
 
     // 5. Calculate cost
-    // model.inputTokenCost is cost per 1 million tokens
-    const cost = (totalTokens / 1_000_000) * model.inputTokenCost;
-
-    return cost;
+    return tokensToInputCost(totalTokens, model);
 }
 
 /**
@@ -297,7 +306,7 @@ export function calculatePromptCostDetailed(
     }
 
     const totalTokens = messageTokens + attachedDocTokens + conversationDocTokens;
-    const cost = (totalTokens / 1_000_000) * model.inputTokenCost;
+    const cost = tokensToInputCost(totalTokens, model);
 
     return {
         cost,
@@ -306,7 +315,7 @@ export function calculatePromptCostDetailed(
             attachedDocTokens,
             conversationDocTokens,
             totalTokens,
-            pricePerMillionTokens: model.inputTokenCost
+            pricePerMillionTokens: (model.inputTokenCost || 0) * 1000
         }
     };
 }

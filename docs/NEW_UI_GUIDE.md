@@ -151,6 +151,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `ToggleSwitch.tsx` | Pill switch; `role="switch"`, `aria-checked` |
 | `SegmentedControl.tsx` | Tab strip / segmented picker; pass `aria-label` |
 | `ModelPicker.tsx` | Model selector with families, effort levels, hover preview cards |
+| `modelCost.ts` | `getModelCostTier(model)` → `'low' \| 'moderate' \| 'high' \| null` plus `MODEL_COST_LABEL` / `MODEL_COST_GLYPHS` ($/$$/$$$). Shown on the `ModelPicker` hover card. Ports the classic `ModelSelect#getCostIcon` thresholds (costs are USD per **1K** tokens); the higher of input/output wins; `null` when unpriced so an unconfigured model is never advertised as "Low". No React imports |
 | `InfoTooltip.tsx` | Hover/focus (i) icon with a small floating explanation; props `text`, `ariaLabel`, `maxWidth`. The reusable "what is this?" affordance |
 | `InfoFloatCard.tsx` | 250ms hover-in preview card; Floating UI positioned |
 | `AttachMenu.tsx` | ⊕ attach menu (files, library, assistant, explicit connectors). Optional ordinary-chat tools are deployment-managed and selected server-side; skills/plugin mode selectors are not user entry points. "Add from library" opens `DataSourceLibraryPicker` in a `surface='floating'` submenu and emits the picked files — it never opens the local file picker |
