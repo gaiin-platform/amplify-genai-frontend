@@ -683,6 +683,13 @@ export function useSendService() {
                     if (options?.codeInterpreterOnly === true && deploymentAvailability.codeInterpreter) {
                         chatBody.codeInterpreterOnly = true;
                     }
+                    // Reuse this conversation's code interpreter session. The backend picks the
+                    // interpreter itself, so nothing else sends the saved record id back; without
+                    // it every turn would start a fresh session (losing Python state and orphaning
+                    // the previous one). The backend ignores it on turns that don't use the interpreter.
+                    if (updatedConversation.codeInterpreterRecordId && deploymentAvailability.codeInterpreter) {
+                        chatBody.codeInterpreterRecordId = updatedConversation.codeInterpreterRecordId;
+                    }
 
                     if (selectedConversation?.projectId) {
                         // console.log("Selected Project Memory ID:", selectedConversation.projectId);
