@@ -60,6 +60,7 @@ import { Model } from '@/types/model';
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
 import { getUserDefaultModelId } from './userDefaultModel';
+import { getModelCostTier, MODEL_COST_GLYPHS, MODEL_COST_LABEL } from './modelCost';
 import {
   InfoCardMeta,
   InfoCardPill,
@@ -579,6 +580,7 @@ const ModelCardBody: React.FC<{ model: Model }> = ({ model }) => {
   if (model.inputContextWindow >= LARGE_CONTEXT_THRESHOLD) capabilities.push('Large context');
 
   const description = (model.description ?? '').trim();
+  const costTier = getModelCostTier(model);
 
   return (
     <>
@@ -595,6 +597,14 @@ const ModelCardBody: React.FC<{ model: Model }> = ({ model }) => {
       {/* Skipped entirely when the backend didn't send a context window */}
       {model.inputContextWindow > 0 && (
         <InfoCardMeta>Context: {formatTokenCount(model.inputContextWindow)} tokens</InfoCardMeta>
+      )}
+
+      {/* Relative cost; omitted when the admin hasn't priced the model */}
+      {costTier && (
+        <InfoCardMeta>
+          Cost: <span aria-hidden="true">{MODEL_COST_GLYPHS[costTier]} · </span>
+          {MODEL_COST_LABEL[costTier]}
+        </InfoCardMeta>
       )}
 
       {description && <InfoCardText>{description}</InfoCardText>}
