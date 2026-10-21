@@ -13,9 +13,17 @@ import type { Features } from '@/types/features';
 /** Backoff between attempts. The array length is the retry budget per outage. */
 export const FLAG_RETRY_DELAYS_MS: readonly number[] = [1500, 4000, 10000, 30000, 60000];
 
-/** Delay before retry number `attempt` (0-based); `null` once the budget is spent. */
+/**
+ * Cadence once the backoff budget is spent. A long outage (or a user who simply never
+ * switches tabs, so focus never re-arms a try) must still heal without a refresh; one
+ * request per few minutes, and only while flags are missing, is cheap.
+ */
+export const FLAG_RETRY_STEADY_MS = 5 * 60 * 1000;
+
+/** Delay before retry number `attempt` (0-based): backoff first, then a slow steady cadence. */
 export function nextFlagRetryDelay(attempt: number): number | null {
-  return attempt >= 0 && attempt < FLAG_RETRY_DELAYS_MS.length ? FLAG_RETRY_DELAYS_MS[attempt] : null;
+  if (attempt < 0) return null;
+  return attempt < FLAG_RETRY_DELAYS_MS.length ? FLAG_RETRY_DELAYS_MS[attempt] : FLAG_RETRY_STEADY_MS;
 }
 
 /**

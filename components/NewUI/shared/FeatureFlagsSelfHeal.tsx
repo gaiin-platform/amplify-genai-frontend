@@ -7,9 +7,10 @@
  * `useStableFeatureFlags` masks this only for users who have a cached flag set.
  *
  * While the state holds no full flag set this retries the (de-duplicated) request with
- * backoff, and again whenever the tab regains focus or the network returns, then
- * dispatches the result into `state.featureFlags` so raw readers heal too. It stops as
- * soon as any writer — including home.tsx's own late response — supplies a full set.
+ * backoff, then every few minutes for as long as flags are missing, and immediately
+ * whenever the tab regains focus or the network returns. A successful result is
+ * dispatched into `state.featureFlags` so raw readers heal too. It stops as soon as any
+ * writer — including home.tsx's own late response — supplies a full set.
  */
 
 import { FC, useContext, useEffect, useRef } from 'react';
@@ -41,8 +42,9 @@ export const FeatureFlagsSelfHeal: FC = () => {
     const schedule = () => {
       window.clearTimeout(timer);
       const delay = nextFlagRetryDelay(attempt);
-      if (delay === null) return; // budget spent — focus / online will still re-arm one try
-      timer = window.setTimeout(run, delay);
+      if (delay === null) return;
+      // A hidden tab skips the fetch and just waits another interval; becoming visible re-arms an immediate try.
+      timer = window.setTimeout(() => (document.visibilityState === 'hidden' ? schedule() : void run()), delay);
     };
 
     const run = async () => {

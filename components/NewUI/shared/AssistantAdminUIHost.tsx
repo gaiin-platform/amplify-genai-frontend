@@ -17,8 +17,8 @@
  * needed.
  */
 
-import React, { useContext, useEffect, useRef, useState } from 'react';
-import HomeContext from '@/components/Home/home.context';
+import React, { useEffect, useRef, useState } from 'react';
+import { useStableFeatureFlags } from './useStableFeatureFlags';
 import { AssistantAdminUI } from '@/components/Admin/AssistantAdminUI';
 import { Group } from '@/types/groups';
 import { Prompt } from '@/types/prompt';
@@ -32,7 +32,8 @@ interface AstAdminEventData {
 }
 
 export const AssistantAdminUIHost: React.FC = () => {
-    const { state: { featureFlags } } = useContext(HomeContext);
+    // Cached-fallback flags: raw state is `{}` until /feature_flags lands (or if it fails).
+    const featureFlags = useStableFeatureFlags();
 
     // Keep featureFlags in a ref so the stable event handler always sees the
     // latest value without needing to be re-registered.

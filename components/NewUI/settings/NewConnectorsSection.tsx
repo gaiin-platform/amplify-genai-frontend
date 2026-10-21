@@ -38,6 +38,7 @@ import { capitalize } from '@/utils/app/data';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { integrationIcon } from '@/components/NewUI/shared/integrationIcon';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { ToolApiKeysTab } from '@/components/Settings/ToolApiKeysTab';
 import { NewUILoadingStatus, NewUILegacyLoadingAdapter } from '@/components/NewUI/shared/NewUILoadingStatus';
 
@@ -57,8 +58,9 @@ interface FlatIntegration extends Integration {
 
 export const NewConnectorsSection: FC = () => {
   const {
-    state: { featureFlags, canAddWebSearchApiKey, statsService },
+    state: { canAddWebSearchApiKey, statsService },
   } = useContext(HomeContext);
+  const featureFlags = useStableFeatureFlags();
   const toolApiKeysWrapperRef = useRef<HTMLDivElement>(null);
 
   // ── Tab state

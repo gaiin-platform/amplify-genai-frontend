@@ -26,6 +26,7 @@ import HomeContext from '@/components/Home/home.context';
 import { setUIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
 import { useUiSwitchPolicy } from '@/components/NewUI/shared/useUiSwitchPolicy';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import toast from 'react-hot-toast';
 
 const DOCS_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
@@ -46,7 +47,10 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   onOpenSettings,
   collapsed = false,
 }) => {
-  const { state: { lightMode, featureFlags, statsService }, dispatch } = useContext(HomeContext);
+  const { state: { lightMode, statsService }, dispatch } = useContext(HomeContext);
+  // Cached-fallback flags, not raw state: `state.featureFlags` is `{}` until /feature_flags
+  // lands (and for the whole session if it fails), which hid Admin Panel from admins.
+  const featureFlags = useStableFeatureFlags();
   const { canSwitchToClassic: classicAllowed } = useUiSwitchPolicy();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);

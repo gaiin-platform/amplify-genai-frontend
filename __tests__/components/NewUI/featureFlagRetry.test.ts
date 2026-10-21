@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     FLAG_RETRY_DELAYS_MS,
+    FLAG_RETRY_STEADY_MS,
     mergeRetriedFlags,
     nextFlagRetryDelay,
 } from '@/components/NewUI/shared/featureFlagRetry';
@@ -13,12 +14,13 @@ import {
 const full = { newUi: true, uploadDocuments: true, integrations: true, smartMessages: true };
 
 describe('nextFlagRetryDelay', () => {
-    it('backs off, then reports the budget as spent', () => {
+    it('backs off, then settles into a steady cadence instead of giving up', () => {
         expect(nextFlagRetryDelay(0)).toBe(FLAG_RETRY_DELAYS_MS[0]);
         expect(nextFlagRetryDelay(FLAG_RETRY_DELAYS_MS.length - 1)).toBe(
             FLAG_RETRY_DELAYS_MS[FLAG_RETRY_DELAYS_MS.length - 1],
         );
-        expect(nextFlagRetryDelay(FLAG_RETRY_DELAYS_MS.length)).toBeNull();
+        expect(nextFlagRetryDelay(FLAG_RETRY_DELAYS_MS.length)).toBe(FLAG_RETRY_STEADY_MS);
+        expect(nextFlagRetryDelay(1000)).toBe(FLAG_RETRY_STEADY_MS);
         expect(nextFlagRetryDelay(-1)).toBeNull();
     });
 

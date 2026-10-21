@@ -71,6 +71,7 @@ import {
 } from '@/components/NewUI/shared/AttachMenu';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import { AttachmentRail } from '@/components/NewUI/shared/AttachmentRail';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import {
   type EffortLevel,
   ModelPicker,
@@ -156,7 +157,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       selectedConversation,
       availableModels,
       defaultModelId,
-      featureFlags,
       ragOn,
       chatEndpoint,
       messageIsStreaming,
@@ -165,6 +165,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     handleUpdateConversation,
     handleUpdateSelectedConversation,
   } = useContext(HomeContext);
+  // Cached-fallback flags: raw `state.featureFlags` is `{}` until /feature_flags lands (or
+  // forever if it fails), which silently skipped uploads for files the ⊕ menu let users attach.
+  const featureFlags = useStableFeatureFlags();
   const track = useTrack();
 
   // ── Direct-send service (for pasted images with S3 keys) ─────────────────

@@ -80,7 +80,7 @@ import { consumeAmplifyHelperPrefill } from '@/components/NewUI/shared/amplifyHe
 export const NewHome: React.FC = () => {
   const {
     state: {
-      availableModels, defaultModelId, featureFlags, ragOn, selectedAssistant,
+      availableModels, defaultModelId, ragOn, selectedAssistant,
       statsService, selectedConversation, page, chatEndpoint,
     },
     handleNewConversation,
@@ -101,6 +101,8 @@ export const NewHome: React.FC = () => {
   // Seasonal theme — gated by the `halloween` feature flag (off unless an admin enables it).
   // Users can opt out in Settings → General (or via the corner pill).
   const stableFlags = useStableFeatureFlags();
+  // Upload gating must agree with the ⊕ menu (stable flags), not raw `{}`-until-loaded state.
+  const featureFlags = stableFlags;
   const halloweenFlag = isHalloweenSeason(stableFlags);
   const [inHalloweenSeason, setInHalloweenSeason] = useState(false);
   const [isHalloween, setIsHalloween] = useState(false);
