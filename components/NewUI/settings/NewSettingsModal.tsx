@@ -219,8 +219,8 @@ const GeneralSection: FC = () => {
     void saveDisplayPrefsToServer({ webSearchEnabled: enabled });
   };
 
-  // ── Halloween effects (seasonal; row only shown during October) ──────
-  const showHalloweenToggle = isHalloweenSeason();
+  // ── Halloween effects (rows only shown when the `halloween` feature flag is on) ──
+  const showHalloweenToggle = isHalloweenSeason(featureFlags);
   const [halloweenEnabled, setHalloweenEnabledState] = useState<boolean>(() => getHalloweenPartEnabled('theme'));
   const [batSwarmEnabled, setBatSwarmEnabledState] = useState<boolean>(() => getHalloweenPartEnabled('swarm'));
   // Stay in sync with the corner control on the home page.

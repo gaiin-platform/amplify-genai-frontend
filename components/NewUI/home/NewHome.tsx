@@ -44,6 +44,7 @@ import {
   HALLOWEEN_PLACEHOLDER,
   isHalloweenSeason,
 } from '@/components/NewUI/home/HalloweenHero';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { releaseBatSwarm } from '@/components/NewUI/home/batSwarm';
 import { HalloweenControls } from '@/components/NewUI/home/HalloweenControls';
 import {
@@ -97,14 +98,16 @@ export const NewHome: React.FC = () => {
   const enforcedModelId = activeAssistant?.definition?.data?.model as string | undefined;
 
   const composerRef = useRef<RichComposerHandle>(null);
-  // Seasonal theme — resolved after mount to avoid SSR/client date mismatches.
-  // Users can opt out in Settings → General (or via the link under the greeting).
+  // Seasonal theme — gated by the `halloween` feature flag (off unless an admin enables it).
+  // Users can opt out in Settings → General (or via the corner pill).
+  const stableFlags = useStableFeatureFlags();
+  const halloweenFlag = isHalloweenSeason(stableFlags);
   const [inHalloweenSeason, setInHalloweenSeason] = useState(false);
   const [isHalloween, setIsHalloween] = useState(false);
   const [batSwarmOn, setBatSwarmOn] = useState(false);
   useEffect(() => {
     const sync = () => {
-      const season = isHalloweenSeason();
+      const season = halloweenFlag;
       setInHalloweenSeason(season);
       setIsHalloween(season && getHalloweenPartEnabled('theme'));
       setBatSwarmOn(getHalloweenPartEnabled('swarm'));
@@ -112,7 +115,7 @@ export const NewHome: React.FC = () => {
     sync();
     window.addEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
     return () => window.removeEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
-  }, []);
+  }, [halloweenFlag]);
   const [hasContent, setHasContent] = useState(false);
 
   useEffect(() => {

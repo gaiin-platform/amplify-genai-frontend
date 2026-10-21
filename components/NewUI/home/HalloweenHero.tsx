@@ -8,8 +8,13 @@
  */
 import React from 'react';
 
-/** Halloween season = the month of October (local time). */
-export const isHalloweenSeason = (date: Date = new Date()) => date.getMonth() === 9;
+/**
+ * Master gate for ALL Halloween UI (theme, controls pill, settings rows, bat swarm).
+ * Driven by the `halloween` feature flag (admin → Feature Flags). Unset/false = OFF,
+ * so nothing renders until the flag is explicitly enabled.
+ */
+export const isHalloweenSeason = (featureFlags?: { [key: string]: boolean } | null) =>
+  featureFlags?.halloween === true;
 
 export const HALLOWEEN_PLACEHOLDER = 'Ask anything… if you dare 🕯️';
 
