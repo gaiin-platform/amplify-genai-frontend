@@ -642,8 +642,13 @@ export function useSendService() {
                         chatBody.disableWebSearch = true;
                     }
 
-                    // Check if MCP is enabled (requires feature flag AND plugin enabled)
-                    const isMCPOn = featureFlags.mcp && (plugins?.some(p => p.id === PluginID.MCP) ?? false);
+                    // MCP is gated by the admin feature flag alone. The per-send `plugins`
+                    // list is a snapshot some callers cache (Chat.tsx's local state is built
+                    // once from the raw flags at mount), so a stale snapshot silently dropped
+                    // MCP on a new conversation's first message. Which tools go out is still
+                    // decided per-server by getEnabledMCPToolsForLLM. Stable flags: the raw
+                    // state can briefly be a lone patch like { smartMessages } at startup.
+                    const isMCPOn = stableFeatureFlags.mcp === true;
                     console.log("MCP on: ", isMCPOn);
 
                     let mcpTools: any[] = [];
