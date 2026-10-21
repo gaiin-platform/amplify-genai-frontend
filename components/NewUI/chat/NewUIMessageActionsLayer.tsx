@@ -145,10 +145,13 @@ function extractMessageText(el: HTMLElement, role: Role): string {
     const userMsgEl = el.querySelector<HTMLElement>('#userMessage');
     return (userMsgEl ?? el).innerText ?? '';
   }
-  const contentBlock = el.querySelector<HTMLElement>('.assistantContentBlock');
-  if (contentBlock) return contentBlock.innerText ?? '';
-  const chatHover = el.querySelector<HTMLElement>('#chatHover');
-  return (chatHover ?? el).innerText ?? '';
+  // Assistant: copy ONLY the answer text. `.chatContentBlock` is the markdown
+  // body from ChatContentBlock. Its siblings inside #chatHover — the tool-steps
+  // host ("Searched Inbox … Done"), "Reasoning / Actions", the "N source(s)"
+  // pill, the truncation notice — are UI chrome and must not reach the
+  // clipboard, so never read #chatHover wholesale.
+  const contentBlock = el.querySelector<HTMLElement>('.chatContentBlock');
+  return contentBlock?.innerText ?? '';
 }
 
 /**
@@ -940,6 +943,13 @@ export const NewUIMessageActionsLayer: React.FC = () => {
       const blocks: any[] = (slot.message.data as any)?.largeTextBlocks ?? [];
       const pasteText = blocks.map((b: any) => b.originalText ?? '').filter(Boolean).join('\n\n');
       if (pasteText) text = pasteText;
+    }
+
+    // Assistant reply with no rendered body (e.g. the message is being edited,
+    // so the markdown block is swapped for a textarea): use the stored text
+    // rather than scraping the surrounding chrome.
+    if (!text.trim() && slot.role === 'assistant' && typeof slot.message.content === 'string') {
+      text = slot.message.content;
     }
 
     try {
