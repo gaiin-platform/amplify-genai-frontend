@@ -8,8 +8,27 @@ export interface CodeBlockDetails {
 }
 
 
+// True when the whole text is a plain HTML document (no markdown, no code fences).
+const isPlainHtmlDocument = (content: string) =>
+  !content.includes('```') && /^\s*(<!doctype\s+html|<html[\s>])/i.test(content);
+
+// The page a vanilla/static preview should open: a block already named index.html,
+// otherwise the first html block (the same convention the artifact editor uses).
+export const findEntryHtml = (blocks: CodeBlockDetails[]): CodeBlockDetails | undefined =>
+  blocks.find((block) => block.language === 'html' && block.filename === 'index.html') ??
+  blocks.find((block) => block.language === 'html');
+
 // Function to separate code blocks and text content from a markdown string
 export const extractCodeBlocksAndText = (content: string) => {
+  // A web page written as plain HTML, with no code fences, is one html file rather than text.
+  if (isPlainHtmlDocument(content)) {
+    return [{
+      language: 'html',
+      filename: 'index.html',
+      extension: getFileExtensionFromLanguage('html'),
+      code: content.trim()
+    }] as CodeBlockDetails[];
+  }
   const parts = content.split(/```(\w+)?/);
   const codeBlocks: CodeBlockDetails[] = [];
 
