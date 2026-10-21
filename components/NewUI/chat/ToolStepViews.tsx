@@ -46,6 +46,7 @@ import {
   describeToolStep,
 } from '@/components/NewUI/shared/toolStepLabels';
 import {
+  CodeRunDetail,
   ToolStep,
   formatParamRows,
   groupTitle,
@@ -122,7 +123,8 @@ const StatusIndicator: React.FC<{ status: ToolStep['status'] }> = ({ status }) =
 const stepLabel = (step: ToolStep, desc: ToolStepDescription): string => {
   if (step.status === 'running') return desc.running;
   if (step.status === 'error') return desc.running.replace(/…$/, '');
-  return desc.done;
+  // A finished code run is named by what the model says it did ("Calculated monthly revenue").
+  return step.title || desc.done;
 };
 
 const openConnectorsSettings = () => {
@@ -155,6 +157,34 @@ function useTruncationTitle(fullText: string) {
   return { ref, title: truncated ? fullText : undefined };
 }
 
+// ─── Copy to clipboard ───────────────────────────────────────────────────────
+
+/** "Copied ✓" for 1.5s after a successful copy; silent when the clipboard is unavailable. */
+function useCopy(getText: () => string) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      setCopied(true);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable (insecure context / denied) — nothing useful to show */
+    }
+  };
+
+  return { copied, copy };
+}
+
 // ─── Details panel ───────────────────────────────────────────────────────────
 
 interface ToolStepDetailsProps {
@@ -169,26 +199,7 @@ interface ToolStepDetailsProps {
  */
 export const ToolStepDetails: React.FC<ToolStepDetailsProps> = ({ id, args, errorDetail }) => {
   const params = formatParamRows(args);
-  const [copied, setCopied] = useState(false);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(
-    () => () => {
-      if (timer.current) clearTimeout(timer.current);
-    },
-    [],
-  );
-
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(args, null, 2));
-      setCopied(true);
-      if (timer.current) clearTimeout(timer.current);
-      timer.current = setTimeout(() => setCopied(false), 1500);
-    } catch {
-      /* clipboard unavailable (insecure context / denied) — nothing useful to show */
-    }
-  };
+  const { copied, copy } = useCopy(() => JSON.stringify(args, null, 2));
 
   return (
     <div id={id} className="nui-step-details">
@@ -219,6 +230,69 @@ export const ToolStepDetails: React.FC<ToolStepDetailsProps> = ({ id, args, erro
         <div className="nui-step-raw-error">
           <div className="nui-step-raw-error-title">Error details</div>
           <div className="nui-step-raw-error-text">{errorDetail}</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── What a code run did ─────────────────────────────────────────────────────
+
+const CodeSection: React.FC<{ title: string; text: string; tone?: 'error'; note?: string }> = ({
+  title,
+  text,
+  tone,
+  note,
+}) => (
+  <div className="nui-code-section">
+    <div className="nui-code-title">{title}</div>
+    <pre className="nui-code-pre" data-tone={tone}>
+      {text}
+    </pre>
+    {note && <div className="nui-code-note">{note}</div>}
+  </div>
+);
+
+interface CodeRunDetailsProps {
+  id?: string;
+  detail: CodeRunDetail;
+}
+
+/**
+ * The expanded body of a code-interpreter step: the Python that ran (copyable), what it
+ * printed, the error if it failed, and the files it created. Sections with nothing in
+ * them are not rendered.
+ */
+export const CodeRunDetails: React.FC<CodeRunDetailsProps> = ({ id, detail }) => {
+  const { copied, copy } = useCopy(() => detail.code);
+  const files = detail.files ?? [];
+
+  return (
+    <div id={id} className="nui-step-details nui-code-run">
+      <button
+        type="button"
+        className="nui-step-copy"
+        onClick={copy}
+        aria-label={copied ? 'Code copied' : 'Copy code'}
+        title={copied ? 'Copied' : 'Copy code'}
+      >
+        {copied ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : <IconCopy size={14} stroke={1.75} aria-hidden="true" />}
+      </button>
+      <CodeSection title="Code" text={detail.code} note={detail.truncated?.code ? 'Code shortened' : undefined} />
+      {detail.output && (
+        <CodeSection title="Output" text={detail.output} note={detail.truncated?.stdout ? 'Output shortened' : undefined} />
+      )}
+      {detail.error && (
+        <CodeSection title="Error" text={detail.error} tone="error" note={detail.truncated?.error ? 'Error shortened' : undefined} />
+      )}
+      {files.length > 0 && (
+        <div className="nui-code-section">
+          <div className="nui-code-title">{files.length === 1 ? 'File created' : 'Files created'}</div>
+          <ul className="nui-code-files">
+            {files.map((f, i) => (
+              <li key={`${f.name}-${i}`}>{f.name}</li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
@@ -280,7 +354,12 @@ export const ToolStepRow: React.FC<ToolStepRowProps> = ({ step, now, onOpenConne
         </div>
       )}
 
-      {open && <ToolStepDetails id={detailsId} args={step.args} errorDetail={step.errorDetail} />}
+      {open &&
+        (step.detail ? (
+          <CodeRunDetails id={detailsId} detail={step.detail} />
+        ) : (
+          <ToolStepDetails id={detailsId} args={step.args} errorDetail={step.errorDetail} />
+        ))}
     </div>
   );
 };

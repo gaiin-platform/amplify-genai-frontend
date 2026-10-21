@@ -14,9 +14,12 @@
  *   2. Renders `MessageToolSteps` into that host from structured data:
  *        • LIVE   — the HomeContext `status` string, parsed and accumulated into
  *                   a step list (shared/toolSteps#advanceLiveSteps).
- *        • SAVED  — `message.data.state.agentLog` (shared/toolSteps#stepsFromAgentLog).
- *                   Authoritative: it carries errors and result counts, and it is
- *                   what a reloaded conversation shows. Wins over LIVE once present.
+ *        • SAVED  — `message.data.state.agentLog` (shared/toolSteps#stepsFromAgentLog)
+ *                   plus `message.data.state.codeInterpreter.runs`
+ *                   (#stepsFromInterpreterRuns: the code, output and files of each
+ *                   sandbox execution). Authoritative: it carries errors and result
+ *                   counts, and it is what a reloaded conversation shows. Wins over
+ *                   LIVE once present.
  *   3. Flags the host `data-takeover="true"` while it has something to show; a
  *      `:has()` rule in conversation-view.css then hides the classic status
  *      wrapper. With nothing to show (e.g. a plain chat before any tool call)
@@ -55,6 +58,7 @@ import {
   parseLegacyToolStatus,
   plainErrorMessage,
   stepsFromAgentLog,
+  stepsFromInterpreterRuns,
 } from '@/components/NewUI/shared/toolSteps';
 import { MessageToolSteps } from './ToolStepViews';
 
@@ -63,7 +67,7 @@ import { MessageToolSteps } from './ToolStepViews';
 /** Decompressing + parsing an agent log is not free; key on the stored value itself. */
 const savedStepsCache = new WeakMap<object, ToolStep[]>();
 
-const savedSteps = (message: Message | undefined): ToolStep[] => {
+const agentLogSteps = (message: Message | undefined): ToolStep[] => {
   const raw = message?.data?.state?.agentLog;
   if (!raw || typeof raw !== 'object') return [];
   const hit = savedStepsCache.get(raw);
@@ -76,6 +80,30 @@ const savedSteps = (message: Message | undefined): ToolStep[] => {
   }
   savedStepsCache.set(raw, steps);
   return steps;
+};
+
+/**
+ * Code-interpreter runs. While streaming, `deepMerge` appends to the SAME `runs` array in
+ * place, so identity alone is not enough to cache on — the length must match too.
+ */
+const runStepsCache = new WeakMap<object, { length: number; steps: ToolStep[] }>();
+
+const interpreterRunSteps = (message: Message | undefined): ToolStep[] => {
+  const runs = message?.data?.state?.codeInterpreter?.runs;
+  if (!Array.isArray(runs) || runs.length === 0) return [];
+  const hit = runStepsCache.get(runs);
+  if (hit && hit.length === runs.length) return hit.steps;
+  const steps = stepsFromInterpreterRuns(message?.data?.state?.codeInterpreter);
+  runStepsCache.set(runs, { length: runs.length, steps });
+  return steps;
+};
+
+/** Everything the message did, in order: agent-loop tool calls, then code-interpreter runs. */
+const savedSteps = (message: Message | undefined): ToolStep[] => {
+  const agent = agentLogSteps(message);
+  const runs = interpreterRunSteps(message);
+  if (runs.length === 0) return agent;
+  return agent.length === 0 ? runs : [...agent, ...runs];
 };
 
 // ─── Live status analysis ────────────────────────────────────────────────────

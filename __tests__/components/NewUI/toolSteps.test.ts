@@ -14,6 +14,7 @@ import {
   parseLegacyToolStatus,
   plainErrorMessage,
   stepsFromAgentLog,
+  stepsFromInterpreterRuns,
   summarizeResult,
   ToolStep,
 } from '@/components/NewUI/shared/toolSteps';
@@ -301,5 +302,80 @@ describe('isAwaitingAnswer', () => {
 
   it('is false with no steps (the classic Thinking row is still visible then)', () => {
     expect(isAwaitingAnswer({ ...base, steps: [] })).toBe(false);
+  });
+});
+
+describe('stepsFromInterpreterRuns', () => {
+  const run = (over: Record<string, unknown> = {}) => ({ id: 'call_1', ok: true, code: 'print(1)', ...over });
+
+  it('turns each run into an exec_code step, in order, with the model\'s description as the title', () => {
+    const steps = stepsFromInterpreterRuns({
+      runs: [
+        run({ description: 'Calculated monthly revenue', stdout: '42\n' }),
+        run({ id: 'call_2', description: 'Charted sales', files: [{ name: 'sales.png', type: 'image/png' }] }),
+      ],
+    });
+    expect(steps.map((s) => [s.id, s.tool, s.status, s.title])).toEqual([
+      ['ci-call_1', 'exec_code', 'done', 'Calculated monthly revenue'],
+      ['ci-call_2', 'exec_code', 'done', 'Charted sales'],
+    ]);
+    expect(steps[0].detail).toEqual({ code: 'print(1)', output: '42\n' });
+    expect(steps[1].detail?.files).toEqual([{ name: 'sales.png', type: 'image/png' }]);
+  });
+
+  it('summarises only what is certain: files created, else printed output, else nothing', () => {
+    const [files, one, printed, nothing] = stepsFromInterpreterRuns({
+      runs: [
+        run({ id: 'a', files: [{ name: 'a.csv' }, { name: 'b.csv' }] }),
+        run({ id: 'b', files: [{ name: 'a.csv' }] }),
+        run({ id: 'c', stdout: 'hi' }),
+        run({ id: 'd' }),
+      ],
+    });
+    expect(files.resultSummary).toBe('2 files created');
+    expect(one.resultSummary).toBe('1 file created');
+    expect(printed.resultSummary).toBe('Printed output');
+    expect(nothing.resultSummary).toBeUndefined();
+  });
+
+  it('marks a failed run as an error and keeps the Python error out of the summary', () => {
+    const [s] = stepsFromInterpreterRuns({ runs: [run({ ok: false, code: '1/0', error: 'ZeroDivisionError: division by zero' })] });
+    expect(s.status).toBe('error');
+    expect(s.resultSummary).toBeUndefined();
+    expect(s.errorDetail).toBe('ZeroDivisionError: division by zero');
+    expect(s.detail?.error).toBe('ZeroDivisionError: division by zero');
+    expect(plainErrorMessage(s)).toEqual({ text: 'The code hit an error.', linkToConnectors: false });
+    // the agent loop's exec_code (no detail) keeps its generic line
+    expect(plainErrorMessage({ ...s, detail: undefined })).toEqual({ text: "This step didn't finish.", linkToConnectors: false });
+  });
+
+  it('treats anything not explicitly ok as failed', () => {
+    expect(stepsFromInterpreterRuns({ runs: [run({ ok: undefined })] })[0].status).toBe('error');
+  });
+
+  it('carries truncation flags and ignores blank descriptions', () => {
+    const [s] = stepsFromInterpreterRuns({ runs: [run({ description: '   ', truncated: { stdout: true, bogus: true } })] });
+    expect(s.title).toBeUndefined();
+    expect(s.detail?.truncated).toEqual({ stdout: true });
+  });
+
+  it('skips malformed runs and files instead of throwing', () => {
+    const steps = stepsFromInterpreterRuns({
+      runs: [null, 'x', {}, { id: 1, code: 'x' }, { id: 'no-code' }, run({ id: 'good', files: [null, { name: 5 }, { name: 'ok.txt' }] })],
+    });
+    expect(steps).toHaveLength(1);
+    expect(steps[0].detail?.files).toEqual([{ name: 'ok.txt', type: undefined }]);
+  });
+
+  it('returns no steps for missing or non-array state', () => {
+    expect(stepsFromInterpreterRuns(undefined)).toEqual([]);
+    expect(stepsFromInterpreterRuns({})).toEqual([]);
+    expect(stepsFromInterpreterRuns({ runs: 'nope' })).toEqual([]);
+    expect(stepsFromInterpreterRuns({ error: 'session', content: [] })).toEqual([]);
+  });
+
+  it('titles a group of only code runs "Ran code"', () => {
+    const steps = stepsFromInterpreterRuns({ runs: [run({ id: 'a' }), run({ id: 'b' })] });
+    expect(groupTitle(steps)).toBe('Ran code · 2 steps');
   });
 });

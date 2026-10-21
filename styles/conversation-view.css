@@ -5727,6 +5727,66 @@
   color: var(--text-error);
 }
 
+/* ── What a code run did: Code / Output / Error / Files in the same panel shell ──
+   Sections are separated by a hairline, not boxed. `pre` resets use !important for the
+   same reason as the params grid: Tailwind Typography styles pre inside #chatHover
+   (.prose) with its own background, padding and margins. */
+.nui-step-details.nui-code-run {
+  max-height: 340px;
+}
+
+.nui-code-section + .nui-code-section {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.nui-code-title {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+}
+
+/* The first title shares a line with the floating copy button; keep it clear. */
+.nui-code-run .nui-code-section:first-of-type .nui-code-title {
+  padding-right: 28px;
+}
+
+.nui-code-pre {
+  margin: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  font: inherit !important;
+  line-height: inherit !important;
+  color: var(--text-primary) !important;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.nui-code-pre[data-tone="error"] {
+  color: var(--text-error) !important;
+}
+
+.nui-code-note {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.nui-code-files {
+  margin: 0 !important;
+  padding: 0 !important;
+  list-style: none !important;
+}
+
+.nui-code-files li {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}
+
 /* ── Group body: rows indented under the header, no box, no left border ── */
 .nui-group-body {
   display: flex;

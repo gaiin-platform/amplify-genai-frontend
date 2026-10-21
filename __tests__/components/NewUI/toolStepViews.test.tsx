@@ -8,6 +8,7 @@ vi.mock('next/image', () => ({
 }));
 
 import {
+  CodeRunDetails,
   MessageToolSteps,
   ThinkingRow,
   ToolStepDetails,
@@ -187,5 +188,85 @@ describe('MessageToolSteps', () => {
 
   it('renders nothing but the root for no steps and no thinking', () => {
     expect(html(<MessageToolSteps steps={[]} />)).toBe('<div class="nui-ts-root" data-awaiting="false"></div>');
+  });
+});
+
+describe('code interpreter steps', () => {
+  const codeStep = (over: Partial<ToolStep> = {}): ToolStep => ({
+    id: 'ci-1',
+    tool: 'exec_code',
+    status: 'done',
+    args: {},
+    detail: { code: 'print(1)' },
+    ...over,
+  });
+
+  it('names a finished run by the model\'s description, with the summary after it', () => {
+    const out = html(<ToolStepRow step={codeStep({ title: 'Calculated monthly revenue', resultSummary: '2 files created' })} />);
+    expect(out).toContain('Calculated monthly revenue');
+    expect(out).toContain('· 2 files created');
+    expect(out).not.toContain('Ran code');
+  });
+
+  it('falls back to "Ran code" without a description, and never shows a title while running', () => {
+    expect(html(<ToolStepRow step={codeStep()} />)).toContain('Ran code');
+    const running = html(<ToolStepRow step={codeStep({ status: 'running', title: 'Calculated monthly revenue' })} />);
+    expect(running).toContain('Running code…');
+    expect(running).not.toContain('Calculated monthly revenue');
+  });
+
+  it('says the code hit an error, without the Python error in the collapsed row', () => {
+    const out = html(<ToolStepRow step={codeStep({ status: 'error', errorDetail: 'ZeroDivisionError' })} />);
+    expect(out).toContain('The code hit an error.');
+    expect(out).not.toContain('ZeroDivisionError');
+    expect(out).not.toContain('Settings → Connectors');
+  });
+});
+
+describe('CodeRunDetails', () => {
+  it('shows the code with a labelled copy button, and nothing for empty sections', () => {
+    const out = html(<CodeRunDetails detail={{ code: 'print("hi")' }} />);
+    expect(out).toContain('Code');
+    expect(out).toContain('print(&quot;hi&quot;)');
+    expect(out).toContain('aria-label="Copy code"');
+    expect(out).not.toContain('Output');
+    expect(out).not.toContain('Error');
+    expect(out).not.toContain('Files created');
+  });
+
+  it('shows output, error and files when present, with the error in its own tone', () => {
+    const out = html(
+      <CodeRunDetails
+        detail={{
+          code: 'x',
+          output: '42',
+          error: 'NameError: y',
+          files: [{ name: 'a.csv' }, { name: 'b.png' }],
+        }}
+      />,
+    );
+    expect(out).toContain('Output');
+    expect(out).toContain('42');
+    expect(out).toContain('data-tone="error"');
+    expect(out).toContain('NameError: y');
+    expect(out).toContain('Files created');
+    expect(out).toContain('<li>a.csv</li>');
+    expect(out).toContain('<li>b.png</li>');
+  });
+
+  it('uses the singular heading for one file, and says when something was shortened', () => {
+    const out = html(
+      <CodeRunDetails detail={{ code: 'x', output: 'y', files: [{ name: 'a.csv' }], truncated: { code: true, stdout: true } }} />,
+    );
+    expect(out).toContain('File created');
+    expect(out).not.toContain('Files created');
+    expect(out).toContain('Code shortened');
+    expect(out).toContain('Output shortened');
+  });
+
+  it('renders code as text, never as markup', () => {
+    const out = html(<CodeRunDetails detail={{ code: '<script>alert(1)</script>' }} />);
+    expect(out).not.toContain('<script>');
+    expect(out).toContain('&lt;script&gt;');
   });
 });

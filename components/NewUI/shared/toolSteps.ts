@@ -42,6 +42,22 @@ export interface ToolStep {
   resultSummary?: string;
   /** Raw failure text — shown only inside the expandable details. */
   errorDetail?: string;
+  /** The model's own short summary of what the step did ("Calculated monthly revenue"); replaces the generic done label. */
+  title?: string;
+  /** What a code run did: when present, the expanded row shows this instead of raw parameters. */
+  detail?: CodeRunDetail;
+}
+
+/** The expandable body of a code-interpreter step. */
+export interface CodeRunDetail {
+  code: string;
+  /** What the code printed. */
+  output?: string;
+  /** The Python error, when the run failed. */
+  error?: string;
+  files?: Array<{ name: string; type?: string }>;
+  /** Which parts the backend cut short, so the UI can say so. */
+  truncated?: { code?: boolean; stdout?: boolean; error?: boolean };
 }
 
 export interface ParsedToolCall {
@@ -228,6 +244,68 @@ export const stepsFromAgentLog = (agentLog: unknown): ToolStep[] => {
   return steps;
 };
 
+// ─── Saved: rebuild from code-interpreter runs ───────────────────────────────
+
+/** More than the backend ever sends (it loops at most a handful of times) — a guard, not a limit users meet. */
+const MAX_INTERPRETER_RUNS = 20;
+
+const asString = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() !== '' ? v : undefined);
+
+/** "2 files created" — only what we can state for certain; no output and no files says nothing. */
+const summarizeRun = (files: number, hasOutput: boolean): string | undefined => {
+  if (files > 0) return `${files} ${files === 1 ? 'file' : 'files'} created`;
+  return hasOutput ? 'Printed output' : undefined;
+};
+
+/**
+ * Steps from `message.data.state.codeInterpreter` — the per-execution `runs` the backend streams
+ * (amplify-lambda-js `buildRunRecord`). One step per run, in order. Anything malformed is skipped:
+ * a half-understood record must never take the message down or claim something untrue.
+ */
+export const stepsFromInterpreterRuns = (codeInterpreterState: unknown): ToolStep[] => {
+  const runs = isRecord(codeInterpreterState) ? codeInterpreterState.runs : undefined;
+  if (!Array.isArray(runs)) return [];
+
+  const steps: ToolStep[] = [];
+  for (const run of runs.slice(0, MAX_INTERPRETER_RUNS)) {
+    if (!isRecord(run) || typeof run.id !== 'string' || typeof run.code !== 'string') continue;
+
+    const output = asString(run.stdout);
+    const error = asString(run.error);
+    const files = Array.isArray(run.files)
+      ? run.files
+          .filter((f): f is Record<string, unknown> => isRecord(f) && typeof f.name === 'string')
+          .map((f) => ({ name: f.name as string, type: typeof f.type === 'string' ? f.type : undefined }))
+      : [];
+    const t = isRecord(run.truncated) ? run.truncated : {};
+    const truncated = {
+      ...(t.code === true ? { code: true } : {}),
+      ...(t.stdout === true ? { stdout: true } : {}),
+      ...(t.error === true ? { error: true } : {}),
+    };
+    const failed = run.ok !== true;
+    const title = asString(run.description);
+
+    steps.push({
+      id: `ci-${run.id}`,
+      tool: 'exec_code',
+      status: failed ? 'error' : 'done',
+      args: {},
+      ...(title ? { title: title.trim() } : {}),
+      ...(!failed ? { resultSummary: summarizeRun(files.length, !!output) } : {}),
+      ...(failed && error ? { errorDetail: error } : {}),
+      detail: {
+        code: run.code,
+        ...(output ? { output } : {}),
+        ...(error ? { error } : {}),
+        ...(files.length ? { files } : {}),
+        ...(Object.keys(truncated).length ? { truncated } : {}),
+      },
+    });
+  }
+  return steps;
+};
+
 // ─── Grouping & copy ─────────────────────────────────────────────────────────
 
 const joinNames = (names: string[]): string => {
@@ -271,6 +349,8 @@ const AUTH_ERROR = /token|auth|unauthori[sz]ed|forbidden|\b40[13]\b|not connecte
 /** Plain-language failure line for the main row; the raw text stays in the details. */
 export const plainErrorMessage = (step: ToolStep): StepErrorMessage => {
   const { connectorName } = describeToolStep(step.tool);
+  // A code-interpreter run (it carries its code/output); the agent loop's exec_code keeps the generic line.
+  if (step.detail) return { text: 'The code hit an error.', linkToConnectors: false };
   if (!connectorName) return { text: "This step didn't finish.", linkToConnectors: false };
   if (step.errorDetail && AUTH_ERROR.test(step.errorDetail)) {
     return { text: `Couldn't sign in to ${connectorName}. Reconnect it in`, linkToConnectors: true };
