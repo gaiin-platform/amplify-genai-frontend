@@ -22,6 +22,15 @@ export const UNSAVED_KEY_GUARD: LeaveGuard = {
   variant: 'neutral',
 };
 
+/** A half-filled "Add MCP server" form. */
+export const UNSAVED_MCP_SERVER_GUARD: LeaveGuard = {
+  title: 'Discard this new server?',
+  message: "You've started filling in a new MCP server. If you leave now, what you entered will be lost.",
+  confirmLabel: 'Discard',
+  cancelLabel: 'Keep editing',
+  variant: 'danger',
+};
+
 export const UNSAVED_KEY_EDITS_GUARD: LeaveGuard = {
   title: 'Discard unsaved changes?',
   message: "You have unsaved changes to an API key. If you leave now they'll be discarded.",

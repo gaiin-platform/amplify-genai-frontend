@@ -40,7 +40,7 @@ import { ConversationStorage } from '@/types/conversationStorage';
 import { saveConversations } from '@/utils/app/conversation';
 import toast from 'react-hot-toast';
 import { SkillsLibrary } from '@/components/Skills/SkillsLibrary';
-import { MCPServersTab } from '@/components/Settings/MCPServersTab';
+import { NewMcpServersSection } from '@/components/NewUI/settings/NewMcpServersSection';
 import { NewApiKeysSection } from '@/components/NewUI/settings/NewApiKeysSection';
 import type { LeaveGuard } from '@/components/NewUI/settings/leaveGuard';
 import { getAccounts } from '@/services/accountService';
@@ -1070,25 +1070,9 @@ const SkillsSection: FC = () => {
   );
 };
 
-const MCPServersSection: FC = () => {
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
-  return (
-    <div
-      ref={wrapperRef}
-      className="new-ui-skills-override relative"
-      data-new-ui-settings-mcp="true"
-    >
-      <MCPServersTab open={true} />
-      <NewUILegacyLoadingAdapter
-        wrapperRef={wrapperRef}
-        selector=":scope > .flex.items-center.justify-center.p-8:has(> svg.animate-spin)"
-        matchText="Loading..."
-        message="Loading MCP servers…"
-      />
-    </div>
-  );
-};
+const MCPServersSection: FC<{
+  onLeaveGuardChange: (guard: LeaveGuard | null) => void;
+}> = ({ onLeaveGuardChange }) => <NewMcpServersSection onLeaveGuardChange={onLeaveGuardChange} />;
 
 // ---------------------------------------------------------------------------
 // Storage Section — delegates to NewStorageSection (new-UI styled)
@@ -1246,7 +1230,7 @@ const SectionContent: FC<{
     case 'connectors':
       return <NewConnectorsSection />;
     case 'mcp':
-      return <MCPServersSection />;
+      return <MCPServersSection onLeaveGuardChange={onLeaveGuardChange} />;
     case 'sidebarItems':
       return <SidebarItemsSection />;
     case 'admin':
@@ -1724,7 +1708,7 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
                 <InfoTooltip
                   ariaLabel="About MCP servers"
                   maxWidth={360}
-                  text="Model Context Protocol (MCP) lets the AI use external tools and services. MCP servers are available across all conversations; you do not attach them to individual chats. The AI automatically uses tools from enabled servers when you ask or when they are relevant to the conversation."
+                  text="MCP servers give the AI extra tools from external services. You don’t attach them to individual conversations: enabled servers are available in every chat, and the AI calls their tools automatically when your prompt calls for it. Client-side servers are called from your browser, so backend refresh and OAuth are unavailable. Trusting a server lets Amplify’s backend call it instead, which turns those features on."
                 />
               )}
               {activeSection === 'sidebarItems' && (
