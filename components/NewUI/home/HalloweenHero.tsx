@@ -11,7 +11,38 @@ import React from 'react';
 /** Halloween season = the month of October (local time). */
 export const isHalloweenSeason = (date: Date = new Date()) => date.getMonth() === 9;
 
-export const HALLOWEEN_PLACEHOLDER = 'Ask anything… if you dare 🕯️';
+const pick = <T,>(items: readonly T[]): T => items[Math.floor(Math.random() * items.length)];
+
+const HALLOWEEN_HEADLINES = [
+  'What shall we conjure?',
+  "Let's raise some answers from the dead",
+  'Boo-tiful questions only',
+  "What's haunting your mind?",
+  'Cast a spell, ask a question',
+  'Something wicked this way types',
+  'Fang-tastic ideas start here',
+  'Got a skeleton in your codebase?',
+] as const;
+
+const HALLOWEEN_SUBTITLES = [
+  '🦇 Happy Halloween from Amplify 🦇',
+  '🎃 Trick or treat yourself to an answer 🎃',
+  '👻 No ghosting here, we reply fast 👻',
+  '🕷️ Spinning a web of answers 🕷️',
+  '🧙 Brewing responses, cauldron-fresh 🧙',
+  '💀 Bone-afide help, 24/7 💀',
+] as const;
+
+const HALLOWEEN_PLACEHOLDERS = [
+  'Ask anything… if you dare 🕯️',
+  'Whisper your question into the void 👻',
+  'Summon an answer… 🔮',
+  'Trick or treat? Ask away 🎃',
+  'Type something spooky… 🦇',
+  "I ain't afraid of no question 👻",
+] as const;
+
+export const pickHalloweenPlaceholder = () => pick(HALLOWEEN_PLACEHOLDERS);
 
 const JackOLantern = ({ size = 56 }: { size?: number }) => (
   <svg
@@ -114,22 +145,25 @@ export const HalloweenBackdrop = () => (
 );
 
 /** Logo + headline, drop-in replacement for the default greeting row. */
-export const HalloweenGreeting = () => (
-  <div className="flex flex-col items-center mb-8 relative z-[1]">
-    <div className="flex items-center gap-3 justify-center">
-      <JackOLantern />
-      <h1
-        className="hw-title text-[42px] leading-none text-center"
-        style={{ fontFamily: '"Creepster", "Chiller", "Newsreader", Georgia, serif', fontWeight: 400 }}
-      >
-        What shall we conjure?
-      </h1>
+export const HalloweenGreeting = () => {
+  // Only mounted after the client-side season check, so random picks can't cause a hydration mismatch.
+  const [headline] = React.useState(() => pick(HALLOWEEN_HEADLINES));
+  const [subtitle] = React.useState(() => pick(HALLOWEEN_SUBTITLES));
+  return (
+    <div className="flex flex-col items-center mb-8 relative z-[1]">
+      <div className="flex items-center gap-3 justify-center">
+        <JackOLantern />
+        <h1
+          className="hw-title text-[42px] leading-none text-center"
+          style={{ fontFamily: '"Creepster", "Chiller", "Newsreader", Georgia, serif', fontWeight: 400 }}
+        >
+          {headline}
+        </h1>
+      </div>
+      <p className="hw-subtitle mt-3 text-[13px] tracking-[0.18em] uppercase">{subtitle}</p>
     </div>
-    <p className="hw-subtitle mt-3 text-[13px] tracking-[0.18em] uppercase">
-      🦇 Happy Halloween from Amplify 🦇
-    </p>
-  </div>
-);
+  );
+};
 
 const HalloweenStyles = () => (
   <style>{`
