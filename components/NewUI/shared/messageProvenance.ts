@@ -156,11 +156,18 @@ export const getMessageProvenance = ({
 
   const mcpResults: any[] = Array.isArray(message?.data?.mcpToolResults) ? message!.data.mcpToolResults : [];
   const mcpCalls: any[] = Array.isArray(state.mcpToolCalls) ? state.mcpToolCalls : [];
+  // Calls the backend ran itself (`state.mcpRuns`, one record per call).
+  const mcpRuns: any[] = Array.isArray(state.mcpRuns) ? state.mcpRuns : [];
   const mcpTools = uniq([
     ...mcpResults.map((r) =>
       r?.toolName ? `${r.serverName ? `${r.serverName} · ` : ''}${humanizeToolName(String(r.toolName))}` : '',
     ),
     ...mcpCalls.map((c) => (c?.function?.name ? humanizeToolName(String(c.function.name)) : '')),
+    ...mcpRuns.map((r) =>
+      typeof r?.tool === 'string' && r.tool
+        ? `${typeof r.serverName === 'string' && r.serverName ? `${r.serverName} · ` : ''}${humanizeToolName(r.tool)}`
+        : '',
+    ),
   ]);
 
   const files = uniq(

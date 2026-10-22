@@ -20,6 +20,11 @@
  *                   sandbox execution). Authoritative: it carries errors and result
  *                   counts, and it is what a reloaded conversation shows. Wins over
  *                   LIVE once present.
+ *      MCP tool calls are SAVED too, from two places (both gated on the `mcp` feature flag):
+ *        • `data.state.mcpRuns`     — calls the BACKEND ran (#stepsFromMcpRuns)
+ *        • `data.mcpToolResults` + `tool_calls` — calls the BROWSER ran, which the send hook
+ *          keeps on an intermediate assistant message (#stepsFromMcpToolResults). A call that
+ *          is still running is shown from the LIVE status until its record lands.
  *   3. Flags the host `data-takeover="true"` while it has something to show; a
  *      `:has()` rule in conversation-view.css then hides the classic status
  *      wrapper. With nothing to show (e.g. a plain chat before any tool call)
@@ -49,16 +54,20 @@ import { PromptStatusDetails } from '@/components/Status/PromptStatusDetails';
 import { Message } from '@/types/chat';
 import { Status } from '@/types/workflow';
 import { getAgentLog } from '@/utils/app/agent';
-import { describeToolStep } from '@/components/NewUI/shared/toolStepLabels';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import {
   ParsedToolCall,
   ToolStep,
   advanceLiveSteps,
+  describeStep,
   isAwaitingAnswer,
   parseLegacyToolStatus,
   plainErrorMessage,
   stepsFromAgentLog,
   stepsFromInterpreterRuns,
+  stepsFromMcpRuns,
+  stepsFromMcpToolResults,
+  withRunningMcpSteps,
 } from '@/components/NewUI/shared/toolSteps';
 import { MessageToolSteps } from './ToolStepViews';
 
@@ -98,12 +107,57 @@ const interpreterRunSteps = (message: Message | undefined): ToolStep[] => {
   return steps;
 };
 
-/** Everything the message did, in order: agent-loop tool calls, then code-interpreter runs. */
-const savedSteps = (message: Message | undefined): ToolStep[] => {
+/** MCP calls the backend ran: `state.mcpRuns` grows in place while streaming, so key on identity AND length. */
+const mcpRunStepsCache = new WeakMap<object, { length: number; steps: ToolStep[] }>();
+
+const mcpRunSteps = (message: Message | undefined): ToolStep[] => {
+  const runs = message?.data?.state?.mcpRuns;
+  if (!Array.isArray(runs) || runs.length === 0) return [];
+  const hit = mcpRunStepsCache.get(runs);
+  if (hit && hit.length === runs.length) return hit.steps;
+  const steps = stepsFromMcpRuns(message?.data?.state);
+  mcpRunStepsCache.set(runs, { length: runs.length, steps });
+  return steps;
+};
+
+/** MCP calls the browser ran: results on `data.mcpToolResults`, arguments on the message's `tool_calls`. */
+const mcpResultStepsCache = new WeakMap<object, { length: number; steps: ToolStep[] }>();
+
+const mcpResultSteps = (message: Message | undefined): ToolStep[] => {
+  const results = message?.data?.mcpToolResults;
+  if (!Array.isArray(results) || results.length === 0) return [];
+  const hit = mcpResultStepsCache.get(results);
+  if (hit && hit.length === results.length) return hit.steps;
+  const steps = stepsFromMcpToolResults(message);
+  mcpResultStepsCache.set(results, { length: results.length, steps });
+  return steps;
+};
+
+/**
+ * Everything the message did, in order: agent-loop tool calls, code-interpreter runs, then MCP calls.
+ * MCP rows only exist while the `mcp` feature is on, like the classic card they replace.
+ */
+const savedSteps = (message: Message | undefined, mcpOn: boolean): ToolStep[] => {
   const agent = agentLogSteps(message);
   const runs = interpreterRunSteps(message);
-  if (runs.length === 0) return agent;
-  return agent.length === 0 ? runs : [...agent, ...runs];
+  const mcp = mcpOn ? [...mcpRunSteps(message), ...mcpResultSteps(message)] : [];
+  if (runs.length === 0 && mcp.length === 0) return agent;
+  return [...agent, ...runs, ...mcp];
+};
+
+/**
+ * Does every entry of the classic `data.mcpToolResults` card have a row? Only then may the card be
+ * hidden — otherwise a result with no row would show nothing at all.
+ */
+const mcpCardIsCovered = (message: Message | undefined, mcpOn: boolean): boolean => {
+  const results = message?.data?.mcpToolResults;
+  return mcpOn && Array.isArray(results) && results.length > 0 && mcpResultSteps(message).length === results.length;
+};
+
+/** The steps a message shows: saved wins once present; a still-running MCP call is added from LIVE. */
+const stepsToShow = (saved: ToolStep[], live: LiveRun, key: string): ToolStep[] => {
+  const liveSteps = live.key === key ? live.steps : [];
+  return saved.length > 0 ? withRunningMcpSteps(saved, liveSteps) : liveSteps;
 };
 
 // ─── Live status analysis ────────────────────────────────────────────────────
@@ -169,11 +223,12 @@ interface SlotViewProps {
   live: LiveRun;
   analysis: StatusAnalysis;
   isLiveSlot: boolean;
+  mcpOn: boolean;
 }
 
-const SlotView: React.FC<SlotViewProps> = ({ slot, message, live, analysis, isLiveSlot }) => {
-  const saved = savedSteps(message);
-  const steps = saved.length > 0 ? saved : live.key === slot.key ? live.steps : [];
+const SlotView: React.FC<SlotViewProps> = ({ slot, message, live, analysis, isLiveSlot, mcpOn }) => {
+  const steps = stepsToShow(savedSteps(message, mcpOn), live, slot.key);
+  const mcpCovered = mcpCardIsCovered(message, mcpOn);
 
   const showThinking = isLiveSlot && analysis.hasReasoning;
   const takeOver = steps.length > 0 || showThinking;
@@ -204,6 +259,14 @@ const SlotView: React.FC<SlotViewProps> = ({ slot, message, live, analysis, isLi
       slot.host.setAttribute('data-takeover', 'false');
     };
   }, [slot.host, takeOver]);
+
+  // The classic MCP result card is hidden only while its rows are on screen.
+  useLayoutEffect(() => {
+    slot.host.setAttribute('data-mcp-takeover', mcpCovered ? 'true' : 'false');
+    return () => {
+      slot.host.setAttribute('data-mcp-takeover', 'false');
+    };
+  }, [slot.host, mcpCovered]);
 
   // While the answer hasn't started, the CSS collapses the (empty) reply block so
   // the "Thinking…" row sits an even distance from the "Reasoning / Actions" block.
@@ -240,6 +303,10 @@ export const NewUIToolStepsLayer: React.FC = () => {
   const {
     state: { selectedConversation, messageIsStreaming, status },
   } = useContext(HomeContext);
+
+  const mcpOn = !!useStableFeatureFlags().mcp;
+  const mcpOnRef = useRef(mcpOn);
+  mcpOnRef.current = mcpOn;
 
   const [slots, setSlots] = useState<Slot[]>([]);
   const [live, setLive] = useState<LiveRun>({ key: null, steps: [], ended: true });
@@ -300,7 +367,7 @@ export const NewUIToolStepsLayer: React.FC = () => {
       if (!entry || entry.message.role !== 'assistant' || !el.classList.contains('assistant-message')) return;
 
       const isLast = entry.index === all.length - 1;
-      const wanted = (isLast && streamingRef.current) || savedSteps(entry.message).length > 0;
+      const wanted = (isLast && streamingRef.current) || savedSteps(entry.message, mcpOnRef.current).length > 0;
       if (!wanted) return;
 
       const hover = el.querySelector<HTMLElement>('#chatHover');
@@ -368,22 +435,21 @@ export const NewUIToolStepsLayer: React.FC = () => {
   }, [scan]);
 
   // A new message, a stream starting/stopping, or a log landing changes who needs a host.
-  const lastHasLog = savedSteps(messages[lastIndex]).length > 0;
+  const lastHasLog = savedSteps(messages[lastIndex], mcpOn).length > 0;
   useEffect(() => {
     const t = setTimeout(scan, SCAN_THROTTLE_MS);
     return () => clearTimeout(t);
-  }, [messages.length, messageIsStreaming, lastHasLog, scan]);
+  }, [messages.length, messageIsStreaming, lastHasLog, mcpOn, scan]);
 
   // ── Screen-reader announcement ─────────────────────────────────────────────
   const announcement = useMemo(() => {
     if (!liveKey) return '';
     const current = messages[lastIndex];
-    const saved = savedSteps(current);
-    const steps = saved.length > 0 ? saved : live.key === liveKey ? live.steps : [];
+    const steps = stepsToShow(savedSteps(current, mcpOn), live, liveKey);
     const failed = steps.find((s) => s.status === 'error');
     if (failed) return announceError(failed);
     const running = [...steps].reverse().find((s) => s.status === 'running');
-    if (running) return describeToolStep(running.tool, running.args).running;
+    if (running) return describeStep(running).running;
     const waiting = isAwaitingAnswer({
       isLive: true,
       steps,
@@ -393,7 +459,7 @@ export const NewUIToolStepsLayer: React.FC = () => {
     });
     return waiting ? 'Thinking…' : '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [liveKey, live, messages.length, lastHasLog, analysis]);
+  }, [liveKey, live, messages.length, lastHasLog, mcpOn, analysis]);
 
   return (
     <>
@@ -408,6 +474,7 @@ export const NewUIToolStepsLayer: React.FC = () => {
             live={live}
             analysis={analysis}
             isLiveSlot={liveKey === slot.key}
+            mcpOn={mcpOn}
           />,
           slot.host,
           slot.key,

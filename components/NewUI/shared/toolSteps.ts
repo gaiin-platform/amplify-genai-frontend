@@ -24,8 +24,11 @@
 import {
   CONNECTOR_NAMES,
   ConnectorId,
+  ToolStepDescription,
   describeToolStep,
+  humanizeMcpToolName,
   isHiddenTool,
+  parseMcpToolName,
 } from './toolStepLabels';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -46,6 +49,25 @@ export interface ToolStep {
   title?: string;
   /** What a code run did: when present, the expanded row shows this instead of raw parameters. */
   detail?: CodeRunDetail;
+  /** An MCP tool call: the server, what came back, and anything that isn't text. */
+  mcp?: McpStepDetail;
+}
+
+/** The expandable body of an MCP step (the arguments are the step's own `args`). */
+export interface McpStepDetail {
+  /** The server's own tool name, e.g. "search_issues". */
+  toolName: string;
+  serverName?: string;
+  result?: string;
+  error?: string;
+  /** Non-text parts, described without their payload. */
+  media?: Array<{ kind: 'image' | 'resource' | 'other'; mimeType?: string; uri?: string }>;
+  /** Images already stored on the message (client-side path), shown in the expanded row. */
+  images?: Array<{ mimeType: string; data: string }>;
+  /** Milliseconds the call took, when known. */
+  ms?: number;
+  /** Which parts were cut short, so the UI can say so. */
+  truncated?: { args?: boolean; result?: boolean; error?: boolean };
 }
 
 /** The expandable body of a code-interpreter step. */
@@ -110,6 +132,16 @@ export const parseLegacyToolStatus = (
   }
 
   if (summary === 'Hold on...') return { tool: 'terminate', args: {} };
+
+  // MCP, server-side: toolLoop sends "Executing MCP tool: <full name>..." (no arguments).
+  const mcpServerSide = summary.match(/^Executing MCP tool:\s*(\S+?)\.{3}$/);
+  if (mcpServerSide) return { tool: mcpServerSide[1], args: {} };
+
+  // MCP, browser-side: summary "Executing MCP Tool", message "Running <full name>...".
+  if (summary === 'Executing MCP Tool') {
+    const running = message.match(/^Running\s+(\S+?)\.{3}$/);
+    if (running) return { tool: running[1], args: {} };
+  }
 
   return null;
 };
@@ -306,6 +338,229 @@ export const stepsFromInterpreterRuns = (codeInterpreterState: unknown): ToolSte
   return steps;
 };
 
+// ─── MCP tool calls ──────────────────────────────────────────────────────────
+
+/** More than any one answer makes (the browser loop stops at 10 rounds) — a guard, not a limit users meet. */
+const MAX_MCP_STEPS = 40;
+const MCP_RESULT_CAP = 4000;
+const MCP_ERROR_CAP = 2000;
+const MAX_MCP_IMAGES = 3;
+const MAX_MCP_MEDIA = 5;
+/** Raster formats only: an SVG data URI is markup, so it is never rendered. */
+const SAFE_IMAGE_TYPES: ReadonlySet<string> = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
+
+const clipText = (text: string, max: number): { text: string; cut: boolean } =>
+  text.length > max ? { text: text.slice(0, max), cut: true } : { text, cut: false };
+
+/** `mcp:` can never parse as a real `mcp_<server>_<tool>` name, so a converted step is never mistaken for a live one. */
+const mcpToolId = (toolName: string): string => `mcp:${toolName}`;
+
+/** Is this step an MCP call — converted from saved data, or a live one still carrying its full `mcp_…` name? */
+export const isMcpStep = (step: Pick<ToolStep, 'tool' | 'mcp'>): boolean =>
+  !!step.mcp || (typeof step.tool === 'string' && step.tool.startsWith('mcp_'));
+
+/** Tool arguments as an object: JSON text or an object, anything else (or unparseable) is "no arguments". */
+const parseArgs = (raw: unknown): Record<string, unknown> => {
+  if (isRecord(raw)) return raw;
+  if (typeof raw !== 'string' || raw.trim() === '') return {};
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return isRecord(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+/** "3 results" — only when the text is a JSON list (or an object whose `results`/`items` is one). Else nothing. */
+export const summarizeMcpResult = (text: string | undefined): string | undefined => {
+  if (!text) return undefined;
+  const t = text.trim();
+  if (!t.startsWith('[') && !t.startsWith('{')) return undefined;
+  let value: unknown;
+  try {
+    value = JSON.parse(t);
+  } catch {
+    return undefined;
+  }
+  const list = Array.isArray(value)
+    ? value
+    : isRecord(value)
+      ? (Array.isArray(value.results) ? value.results : Array.isArray(value.items) ? value.items : null)
+      : null;
+  if (!list) return undefined;
+  if (list.length === 0) return 'No results';
+  return `${list.length} ${list.length === 1 ? 'result' : 'results'}`;
+};
+
+const asMedia = (raw: unknown): McpStepDetail['media'] => {
+  if (!Array.isArray(raw)) return undefined;
+  const media: NonNullable<McpStepDetail['media']> = [];
+  for (const m of raw) {
+    if (!isRecord(m) || media.length >= MAX_MCP_MEDIA) continue;
+    const kind = m.kind === 'image' || m.kind === 'resource' ? m.kind : 'other';
+    media.push({
+      kind,
+      ...(asString(m.mimeType) ? { mimeType: m.mimeType as string } : {}),
+      ...(asString(m.uri) ? { uri: m.uri as string } : {}),
+    });
+  }
+  return media.length ? media : undefined;
+};
+
+/**
+ * Steps from `message.data.state.mcpRuns` — the per-call records the backend streams for MCP tools it ran
+ * itself (amplify-lambda-js `buildMcpRunRecord`: `{id, ok, tool, serverName?, args?, result?, error?, media?,
+ * ms?, truncated?}`). One step per record, in order; malformed records are skipped.
+ */
+export const stepsFromMcpRuns = (state: unknown): ToolStep[] => {
+  const runs = isRecord(state) ? state.mcpRuns : undefined;
+  if (!Array.isArray(runs)) return [];
+
+  const steps: ToolStep[] = [];
+  runs.slice(0, MAX_MCP_STEPS).forEach((run, index) => {
+    if (!isRecord(run) || typeof run.tool !== 'string' || run.tool.trim() === '') return;
+
+    const result = asString(run.result);
+    const error = asString(run.error);
+    const failed = run.ok !== true;
+    const t = isRecord(run.truncated) ? run.truncated : {};
+    const truncated = {
+      ...(t.args === true ? { args: true } : {}),
+      ...(t.result === true ? { result: true } : {}),
+      ...(t.error === true ? { error: true } : {}),
+    };
+    const serverName = asString(run.serverName);
+    const media = asMedia(run.media);
+    const summary = failed ? undefined : summarizeMcpResult(result);
+
+    steps.push({
+      id: `mcp-run-${typeof run.id === 'string' && run.id ? run.id : index}`,
+      tool: mcpToolId(run.tool),
+      status: failed ? 'error' : 'done',
+      args: parseArgs(run.args),
+      ...(summary ? { resultSummary: summary } : {}),
+      ...(failed && error ? { errorDetail: error } : {}),
+      mcp: {
+        toolName: run.tool,
+        ...(serverName ? { serverName } : {}),
+        ...(result ? { result } : {}),
+        ...(error ? { error } : {}),
+        ...(media ? { media } : {}),
+        ...(typeof run.ms === 'number' && Number.isFinite(run.ms) && run.ms >= 0 ? { ms: run.ms } : {}),
+        ...(Object.keys(truncated).length ? { truncated } : {}),
+      },
+    });
+  });
+  return steps;
+};
+
+/**
+ * Steps from a message the BROWSER executed MCP tools for. After a client-side round the send hook keeps
+ * the results on an assistant message as `data.mcpToolResults: [{toolName, serverName?, content:
+ * MCPToolContent[], isError?, executionTime?}]`, and the calls (with their JSON-string arguments) in the
+ * message's own `tool_calls` — both in call order. Arguments are only attached when the two lists line up.
+ */
+export const stepsFromMcpToolResults = (message: unknown): ToolStep[] => {
+  const data = isRecord(message) && isRecord(message.data) ? message.data : null;
+  const results = data?.mcpToolResults;
+  if (!Array.isArray(results) || results.length === 0) return [];
+  const rawCalls = isRecord(message) ? message.tool_calls : undefined;
+  const calls = Array.isArray(rawCalls) && rawCalls.length === results.length ? rawCalls : [];
+
+  const steps: ToolStep[] = [];
+  results.slice(0, MAX_MCP_STEPS).forEach((r, index) => {
+    if (!isRecord(r) || typeof r.toolName !== 'string' || r.toolName.trim() === '') return;
+    const call = isRecord(calls[index]) ? (calls[index] as Record<string, unknown>) : null;
+    const fn = call && isRecord(call.function) ? call.function : null;
+
+    // A thrown error records the full `mcp_<server>_<tool>` name; a normal result already has the bare tool name.
+    const toolName = parseMcpToolName(r.toolName)?.toolName ?? r.toolName;
+    const serverName = asString(r.serverName);
+    const failed = r.isError === true;
+
+    const parts = Array.isArray(r.content) ? r.content.filter(isRecord) : [];
+    const text = parts
+      .filter((p) => p.type === 'text' && typeof p.text === 'string')
+      .map((p) => p.text as string)
+      .join('\n');
+    const clipped = clipText(text, failed ? MCP_ERROR_CAP : MCP_RESULT_CAP);
+    const nonText = parts.filter((p) => p.type !== 'text');
+    const media = asMedia(
+      nonText.map((p) => ({
+        kind: p.type === 'image' || p.type === 'resource' ? p.type : 'other',
+        mimeType: p.mimeType,
+        uri: p.uri,
+      })),
+    );
+    const images = nonText
+      .filter(
+        (p) =>
+          p.type === 'image' &&
+          typeof p.data === 'string' &&
+          p.data !== '' &&
+          typeof p.mimeType === 'string' &&
+          SAFE_IMAGE_TYPES.has(p.mimeType.toLowerCase()),
+      )
+      .slice(0, MAX_MCP_IMAGES)
+      .map((p) => ({ mimeType: (p.mimeType as string).toLowerCase(), data: p.data as string }));
+    const summary = failed ? undefined : summarizeMcpResult(clipped.text);
+    const callId = call && typeof call.id === 'string' && call.id ? call.id : '';
+
+    steps.push({
+      id: `mcp-res-${callId || index}`,
+      tool: mcpToolId(toolName),
+      status: failed ? 'error' : 'done',
+      args: parseArgs(fn?.arguments),
+      ...(summary ? { resultSummary: summary } : {}),
+      ...(failed && clipped.text ? { errorDetail: clipped.text } : {}),
+      mcp: {
+        toolName,
+        ...(serverName ? { serverName } : {}),
+        ...(!failed && clipped.text ? { result: clipped.text } : {}),
+        ...(failed && clipped.text ? { error: clipped.text } : {}),
+        ...(media ? { media } : {}),
+        ...(images.length ? { images } : {}),
+        ...(typeof r.executionTime === 'number' && Number.isFinite(r.executionTime) && r.executionTime >= 0
+          ? { ms: r.executionTime }
+          : {}),
+        ...(clipped.cut ? { truncated: failed ? { error: true } : { result: true } } : {}),
+      },
+    });
+  });
+  return steps;
+};
+
+/**
+ * While an MCP call runs the saved list has no row for it yet (a record is streamed only when a call
+ * FINISHES). Append the live MCP steps beyond the ones already saved, if they are still running.
+ */
+export const withRunningMcpSteps = (saved: ToolStep[], live: ToolStep[]): ToolStep[] => {
+  const savedCount = saved.filter(isMcpStep).length;
+  const liveMcp = live.filter(isMcpStep);
+  const extra = liveMcp.slice(savedCount).filter((s) => s.status === 'running');
+  return extra.length ? [...saved, ...extra.map((s, i) => ({ ...s, id: `live-mcp-${savedCount + i}` }))] : saved;
+};
+
+/**
+ * Description of a step as the chat shows it. MCP steps carry their own server name, which
+ * `describeToolStep` cannot know:  "Calling Search issues on GitHub…" → "Search issues (GitHub)".
+ */
+export const describeStep = (
+  step: ToolStep,
+  opts: { now?: Date; timeZone?: string; locale?: string } = {},
+): ToolStepDescription => {
+  if (!step.mcp) return describeToolStep(step.tool, step.args, opts);
+  const name = humanizeMcpToolName(step.mcp.toolName);
+  const server = step.mcp.serverName;
+  return {
+    tool: step.tool,
+    category: 'mcp',
+    running: server ? `Calling ${name} on ${server}…` : `Calling ${name}…`,
+    done: server ? `${name} (${server})` : name,
+    known: false,
+  };
+};
+
 // ─── Grouping & copy ─────────────────────────────────────────────────────────
 
 const joinNames = (names: string[]): string => {
@@ -325,14 +580,26 @@ export const connectorsUsed = (steps: ToolStep[]): ConnectorId[] => {
   return seen;
 };
 
+/** MCP server names touched by these steps, in first-use order (case-insensitive de-duplication). */
+export const mcpServersUsed = (steps: ToolStep[]): string[] => {
+  const seen = new Map<string, string>();
+  for (const s of steps) {
+    const name = s.mcp?.serverName;
+    if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name);
+  }
+  return Array.from(seen.values());
+};
+
 /** "Used Outlook · 2 steps" (+ " · 1 failed"). */
 export const groupTitle = (steps: ToolStep[]): string => {
-  const names = connectorsUsed(steps).map((c) => CONNECTOR_NAMES[c]);
+  const names = [...connectorsUsed(steps).map((c) => CONNECTOR_NAMES[c]), ...mcpServersUsed(steps)];
   const subject = names.length
     ? `Used ${joinNames(names)}`
     : steps.length > 0 && steps.every((s) => s.tool === 'exec_code')
       ? 'Ran code'
-      : 'Used tools';
+      : steps.length > 0 && steps.every(isMcpStep)
+        ? 'Used MCP tools'
+        : 'Used tools';
   const n = steps.length;
   const failed = steps.filter((s) => s.status === 'error').length;
   return `${subject} · ${n} ${n === 1 ? 'step' : 'steps'}${failed ? ` · ${failed} failed` : ''}`;
@@ -351,6 +618,10 @@ export const plainErrorMessage = (step: ToolStep): StepErrorMessage => {
   const { connectorName } = describeToolStep(step.tool);
   // A code-interpreter run (it carries its code/output); the agent loop's exec_code keeps the generic line.
   if (step.detail) return { text: 'The code hit an error.', linkToConnectors: false };
+  // An MCP call: the raw reason stays in the expanded view; the row says it in plain words.
+  if (step.mcp) {
+    return { text: `${humanizeMcpToolName(step.mcp.toolName)} didn't work. Open this step for details.`, linkToConnectors: false };
+  }
   if (!connectorName) return { text: "This step didn't finish.", linkToConnectors: false };
   if (step.errorDetail && AUTH_ERROR.test(step.errorDetail)) {
     return { text: `Couldn't sign in to ${connectorName}. Reconnect it in`, linkToConnectors: true };

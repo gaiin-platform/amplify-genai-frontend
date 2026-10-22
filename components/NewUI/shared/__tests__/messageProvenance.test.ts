@@ -105,6 +105,31 @@ describe('getMessageProvenance', () => {
   });
 });
 
+describe('MCP tools in provenance', () => {
+  it('lists backend-run calls from state.mcpRuns as "server · tool"', () => {
+    const p = getMessageProvenance({
+      message: {
+        role: 'assistant',
+        data: { state: { mcpRuns: [{ tool: 'search_issues', serverName: 'GitHub' }, { tool: 'get_issue' }, null, { tool: '' }] } },
+      },
+    });
+    expect(p.mcpTools).toEqual(['GitHub · Search issues', 'Get issue']);
+  });
+
+  it('keeps the browser-run sources working and does not list a call twice', () => {
+    const p = getMessageProvenance({
+      message: {
+        role: 'assistant',
+        data: {
+          mcpToolResults: [{ toolName: 'search_issues', serverName: 'GitHub' }],
+          state: { mcpRuns: [{ tool: 'search_issues', serverName: 'GitHub' }] },
+        },
+      },
+    });
+    expect(p.mcpTools).toEqual(['GitHub · Search issues']);
+  });
+});
+
 describe('formatExactTimestamp', () => {
   it('is empty for missing/invalid input', () => {
     expect(formatExactTimestamp(undefined)).toBe('');

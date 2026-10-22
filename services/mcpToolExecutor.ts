@@ -51,6 +51,39 @@ function generateRequestId(): string {
 }
 
 /**
+ * Pick the JSON-RPC response for `requestId` out of a Server-Sent Events body
+ * (`event: message` / `data: {...}`), which streamable-HTTP MCP servers may send instead of plain JSON.
+ * Prefers the message with the matching id, then any response; ignores comments and non-JSON events.
+ */
+export function parseSseJsonRpc(text: string, requestId?: string | number): JsonRpcResponse | null {
+  const events: string[] = [];
+  let data: string[] = [];
+  const flush = () => {
+    if (data.length) events.push(data.join('\n'));
+    data = [];
+  };
+  for (const line of text.split(/\r\n|\n|\r/)) {
+    if (line === '') flush();
+    else if (line.startsWith('data:')) data.push(line.slice(5).replace(/^ /, ''));
+  }
+  flush();
+
+  let firstResponse: JsonRpcResponse | null = null;
+  for (const raw of events) {
+    let msg: any;
+    try {
+      msg = JSON.parse(raw);
+    } catch {
+      continue;
+    }
+    if (!msg || typeof msg !== 'object' || !('result' in msg || 'error' in msg)) continue;
+    if (requestId !== undefined && msg.id === requestId) return msg as JsonRpcResponse;
+    if (firstResponse === null) firstResponse = msg as JsonRpcResponse;
+  }
+  return firstResponse;
+}
+
+/**
  * Execute a tool call on an MCP server
  */
 export async function executeMCPTool(
@@ -80,16 +113,16 @@ export async function executeMCPTool(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        'Accept': 'application/json, text/event-stream',
         ...customHeaders
       },
       body: JSON.stringify(request),
       signal: controller.signal
     });
 
-    clearTimeout(timeoutId);
-
+    // The timer stays armed until the body is read, so a stream that never closes still times out.
     if (!response.ok) {
+      clearTimeout(timeoutId);
       return {
         success: false,
         content: `HTTP error: ${response.status} ${response.statusText}`,
@@ -98,7 +131,21 @@ export async function executeMCPTool(
       };
     }
 
-    const jsonResponse: JsonRpcResponse = await response.json();
+    // A server may answer with plain JSON or with a Server-Sent Events stream.
+    const isEventStream = (response.headers.get('content-type') || '').includes('text/event-stream');
+    const jsonResponse: JsonRpcResponse | null = isEventStream
+      ? parseSseJsonRpc(await response.text(), requestId)
+      : await response.json();
+    clearTimeout(timeoutId);
+
+    if (!jsonResponse) {
+      return {
+        success: false,
+        content: 'MCP server sent an event stream with no JSON-RPC response',
+        rawResult: null,
+        isError: true
+      };
+    }
 
     if (jsonResponse.error) {
       return {

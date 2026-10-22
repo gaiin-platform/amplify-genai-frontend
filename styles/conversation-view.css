@@ -5441,6 +5441,13 @@
   display: none !important;
 }
 
+/* The classic MCP result card (ChatMessage: <div class="mcp-tool-results my-4">). The layer sets
+   data-mcp-takeover="true" only once EVERY result in the message has its own step row, so a message
+   whose rows can't render keeps the card. Images the card used to show are in the expanded row. */
+[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-mcp-takeover="true"]) .mcp-tool-results {
+  display: none !important;
+}
+
 /* Spacing is owned by this one container:
      --nui-ts-gap       between step rows (and the group)
      --nui-ts-wait-gap  around the "Thinking…" row while the answer is pending.
@@ -5785,6 +5792,53 @@
   padding: 0 !important;
   overflow-wrap: anywhere;
   color: var(--text-primary);
+}
+
+/* ── MCP tool call body: reuses the code-run panel (.nui-code-*) and adds only these ── */
+.nui-mcp-meta {
+  margin-bottom: 10px;
+  padding-right: 28px; /* clear of the floating copy button */
+  overflow-wrap: anywhere;
+  color: var(--text-muted);
+}
+
+.nui-mcp-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.nui-mcp-title .nui-step-link {
+  color: var(--text-muted);
+}
+
+.nui-mcp-title .nui-step-link:hover {
+  color: var(--text-primary);
+}
+
+.nui-mcp-title .nui-step-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.nui-mcp-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* Tailwind Typography gives img margins inside #chatHover (.prose). */
+.nui-mcp-img {
+  max-width: 100%;
+  max-height: 220px;
+  margin: 0 !important;
+  border-radius: 6px;
+  background: var(--bg-card);
+}
+
+.nui-mcp-note {
+  margin-top: 0;
 }
 
 /* ── Group body: rows indented under the header, no box, no left border ── */

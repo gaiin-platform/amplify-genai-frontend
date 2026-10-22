@@ -33,6 +33,7 @@ import {
   IconMail,
   IconMessages,
   IconNotes,
+  IconPlug,
   IconTable,
   IconTool,
   IconUsers,
@@ -48,8 +49,10 @@ import {
 import {
   CodeRunDetail,
   ToolStep,
+  describeStep,
   formatParamRows,
   groupTitle,
+  isMcpStep,
   plainErrorMessage,
 } from '@/components/NewUI/shared/toolSteps';
 
@@ -68,6 +71,7 @@ const CATEGORY_ICON: Record<ToolCategory, React.ComponentType<{ size?: number; s
   contacts: IconAddressBook,
   people: IconUsers,
   code: IconCode,
+  mcp: IconPlug,
   generic: IconTool,
 };
 
@@ -299,6 +303,129 @@ export const CodeRunDetails: React.FC<CodeRunDetailsProps> = ({ id, detail }) =>
   );
 };
 
+// ─── What an MCP tool call did ───────────────────────────────────────────────
+
+const formatDuration = (ms: number): string => (ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
+
+const mediaNote = (m: { kind: string; mimeType?: string; uri?: string }): string => {
+  if (m.kind === 'image') return 'Returned an image';
+  if (m.kind === 'resource') return m.uri ? `Returned a resource: ${m.uri}` : 'Returned a resource';
+  return 'Returned other content';
+};
+
+interface McpCallDetailsProps {
+  id?: string;
+  step: ToolStep;
+}
+
+/**
+ * The expanded body of an MCP step: which server and tool, the arguments sent (copyable as JSON),
+ * the text that came back (copyable), the error if it failed, and a note — never a payload — for
+ * anything that isn't text. Images already stored on the message are shown; sections with nothing
+ * in them are not rendered.
+ */
+export const McpCallDetails: React.FC<McpCallDetailsProps> = ({ id, step }) => {
+  const mcp = step.mcp;
+  const params = formatParamRows(step.args);
+  const { copied, copy } = useCopy(() => JSON.stringify(step.args, null, 2));
+  const { copied: resultCopied, copy: copyResult } = useCopy(() => mcp?.result ?? '');
+  if (!mcp) return null;
+
+  const images = mcp.images ?? [];
+  // An image we can show needs no "Returned an image" line; everything else gets one.
+  const notes = (mcp.media ?? []).filter((m) => !(m.kind === 'image' && images.length > 0)).map(mediaNote);
+  const hasOutcome = !!(mcp.result || mcp.error || images.length || notes.length);
+
+  return (
+    <div id={id} className="nui-step-details nui-code-run">
+      {params.length > 0 && (
+        <button
+          type="button"
+          className="nui-step-copy"
+          onClick={copy}
+          aria-label={copied ? 'Parameters copied' : 'Copy parameters as JSON'}
+          title={copied ? 'Copied' : 'Copy parameters as JSON'}
+        >
+          {copied ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : <IconCopy size={14} stroke={1.75} aria-hidden="true" />}
+        </button>
+      )}
+      <div className="nui-mcp-meta">
+        {mcp.serverName ? `${mcp.serverName} · ${mcp.toolName}` : mcp.toolName}
+        {mcp.ms !== undefined && ` · ${formatDuration(mcp.ms)}`}
+      </div>
+
+      <div className="nui-code-section">
+        <div className="nui-code-title">Arguments</div>
+        {params.length > 0 ? (
+          <dl className="nui-step-params">
+            {params.map(({ key, value }) => (
+              <React.Fragment key={key}>
+                <dt>{key}</dt>
+                <dd>{value}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        ) : (
+          <div className="nui-step-params-empty">No arguments</div>
+        )}
+        {mcp.truncated?.args && <div className="nui-code-note">Arguments shortened</div>}
+      </div>
+
+      {mcp.result && (
+        <div className="nui-code-section">
+          <div className="nui-code-title nui-mcp-title">
+            <span>Result</span>
+            <button type="button" className="nui-step-link" onClick={copyResult}>
+              {resultCopied ? 'Copied' : 'Copy'}
+              <span className="sr-only"> result</span>
+            </button>
+          </div>
+          <pre className="nui-code-pre">{mcp.result}</pre>
+          {mcp.truncated?.result && <div className="nui-code-note">Result shortened</div>}
+        </div>
+      )}
+
+      {mcp.error && (
+        <div className="nui-code-section">
+          <div className="nui-code-title">Error</div>
+          <pre className="nui-code-pre" data-tone="error">
+            {mcp.error}
+          </pre>
+          {mcp.truncated?.error && <div className="nui-code-note">Error shortened</div>}
+        </div>
+      )}
+
+      {images.length > 0 && (
+        <div className="nui-code-section">
+          <div className="nui-code-title">{images.length === 1 ? 'Image' : 'Images'}</div>
+          <div className="nui-mcp-images">
+            {images.map((img, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} className="nui-mcp-img" src={`data:${img.mimeType};base64,${img.data}`} alt="Image returned by the tool" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {notes.length > 0 && (
+        <div className="nui-code-section">
+          {notes.map((n, i) => (
+            <div key={i} className="nui-code-note nui-mcp-note">
+              {n}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!hasOutcome && step.status !== 'running' && (
+        <div className="nui-code-section">
+          <div className="nui-step-params-empty">The tool returned no output.</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ─── One step ────────────────────────────────────────────────────────────────
 
 interface ToolStepRowProps {
@@ -312,7 +439,7 @@ interface ToolStepRowProps {
 export const ToolStepRow: React.FC<ToolStepRowProps> = ({ step, now, onOpenConnectors = openConnectorsSettings }) => {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
-  const desc = describeToolStep(step.tool, step.args, { now });
+  const desc = describeStep(step, { now });
   const label = stepLabel(step, desc);
   const error = step.status === 'error' ? plainErrorMessage(step) : null;
   const fullText = step.status === 'done' && step.resultSummary ? `${label} · ${step.resultSummary}` : label;
@@ -357,6 +484,8 @@ export const ToolStepRow: React.FC<ToolStepRowProps> = ({ step, now, onOpenConne
       {open &&
         (step.detail ? (
           <CodeRunDetails id={detailsId} detail={step.detail} />
+        ) : step.mcp ? (
+          <McpCallDetails id={detailsId} step={step} />
         ) : (
           <ToolStepDetails id={detailsId} args={step.args} errorDetail={step.errorDetail} />
         ))}
@@ -380,10 +509,12 @@ export const ToolStepGroup: React.FC<ToolStepGroupProps> = ({ steps, now, onOpen
   const running = [...steps].reverse().find((s) => s.status === 'running');
   const open = userOpen ?? !!running;
 
-  const headDesc = describeToolStep((running ?? steps[0]).tool, (running ?? steps[0]).args, { now });
+  const headDesc = describeStep(running ?? steps[0], { now });
   const connectors = new Set(steps.map((s) => describeToolStep(s.tool).connector).filter(Boolean));
   const headIcon: Pick<ToolStepDescription, 'connector' | 'category'> =
-    connectors.size === 1 ? headDesc : { connector: undefined, category: 'generic' };
+    connectors.size === 1
+      ? headDesc
+      : { connector: undefined, category: steps.every(isMcpStep) ? 'mcp' : 'generic' };
 
   const headText = running ? headDesc.running : groupTitle(steps);
   const { ref: headTextRef, title: headTitle } = useTruncationTitle(headText);

@@ -2,15 +2,23 @@ import { describe, expect, it } from 'vitest';
 import {
   TOOL_STEP_CONFIG,
   describeToolStep,
+  parseMcpToolName,
   friendlyFolder,
   humanizeToolLabel,
   isHiddenTool,
 } from '@/components/NewUI/shared/toolStepLabels';
 import {
   advanceLiveSteps,
+  describeStep,
   formatParamRows,
   groupTitle,
   isAwaitingAnswer,
+  isMcpStep,
+  mcpServersUsed,
+  stepsFromMcpRuns,
+  stepsFromMcpToolResults,
+  summarizeMcpResult,
+  withRunningMcpSteps,
   parseLegacyToolStatus,
   plainErrorMessage,
   stepsFromAgentLog,
@@ -377,5 +385,301 @@ describe('stepsFromInterpreterRuns', () => {
   it('titles a group of only code runs "Ran code"', () => {
     const steps = stepsFromInterpreterRuns({ runs: [run({ id: 'a' }), run({ id: 'b' })] });
     expect(groupTitle(steps)).toBe('Ran code · 2 steps');
+  });
+});
+
+
+// ─── MCP tool calls ──────────────────────────────────────────────────────────
+
+const FULL = 'mcp_mcp_1767629390657_b1c2812d7_search_issues';
+
+describe('parseMcpToolName / describeToolStep for MCP', () => {
+  it('splits the server id from the tool name', () => {
+    expect(parseMcpToolName(FULL)).toEqual({ serverId: 'mcp_1767629390657_b1c2812d7', toolName: 'search_issues' });
+    expect(parseMcpToolName('mcp_srv_do_thing')).toEqual({ serverId: 'srv', toolName: 'do_thing' });
+    expect(parseMcpToolName('microsoftListMessages')).toBeNull();
+    expect(parseMcpToolName('mcp_x')).toBeNull();
+    expect(parseMcpToolName(undefined as unknown as string)).toBeNull();
+  });
+
+  it('never shows the raw prefixed name for a live MCP call', () => {
+    const d = describeToolStep(FULL);
+    expect(d.category).toBe('mcp');
+    expect(d.running).toBe('Calling Search issues…');
+    expect(d.done).toBe('Search issues');
+    expect(`${d.running} ${d.done}`).not.toContain('1767629390657');
+  });
+});
+
+describe('parseLegacyToolStatus for MCP', () => {
+  it('reads the server-side status', () => {
+    expect(parseLegacyToolStatus({ summary: `Executing MCP tool: ${FULL}...`, message: '' })).toEqual({ tool: FULL, args: {} });
+  });
+  it('reads the browser-side status', () => {
+    expect(parseLegacyToolStatus({ summary: 'Executing MCP Tool', message: `Running ${FULL}...` })).toEqual({ tool: FULL, args: {} });
+  });
+  it('ignores look-alikes', () => {
+    expect(parseLegacyToolStatus({ summary: 'MCP tools enabled (server-side)', message: '' })).toBeNull();
+    expect(parseLegacyToolStatus({ summary: `MCP tool ${FULL} completed`, message: '' })).toBeNull();
+    expect(parseLegacyToolStatus({ summary: 'Executing MCP Tool', message: 'something else' })).toBeNull();
+  });
+  it('accumulates a live MCP call as one running step', () => {
+    const call = { tool: FULL, args: {} };
+    const a = advanceLiveSteps([], call);
+    expect(a).toHaveLength(1);
+    expect(a[0].status).toBe('running');
+    expect(advanceLiveSteps(a, call)).toBe(a);
+  });
+});
+
+describe('stepsFromMcpRuns (backend-run calls)', () => {
+  const run = (over: Record<string, unknown> = {}) => ({
+    id: 'call_1',
+    ok: true,
+    tool: 'search_issues',
+    serverName: 'GitHub',
+    args: { query: 'is:open', limit: 5 },
+    result: 'Found some',
+    ms: 412,
+    ...over,
+  });
+
+  it('builds a done step with server, args, result and duration', () => {
+    const [s] = stepsFromMcpRuns({ mcpRuns: [run()] });
+    expect(s.status).toBe('done');
+    expect(s.args).toEqual({ query: 'is:open', limit: 5 });
+    expect(s.mcp).toEqual({ toolName: 'search_issues', serverName: 'GitHub', result: 'Found some', ms: 412 });
+    expect(isMcpStep(s)).toBe(true);
+    expect(describeStep(s)).toMatchObject({ category: 'mcp', running: 'Calling Search issues on GitHub…', done: 'Search issues (GitHub)' });
+  });
+
+  it('labels without a server when none is known', () => {
+    const [s] = stepsFromMcpRuns({ mcpRuns: [run({ serverName: undefined })] });
+    expect(describeStep(s).done).toBe('Search issues');
+  });
+
+  it('marks a failed call as an error with the raw reason only in errorDetail/mcp.error', () => {
+    const [s] = stepsFromMcpRuns({ mcpRuns: [run({ ok: false, result: undefined, error: 'HTTP 401 Unauthorized' })] });
+    expect(s.status).toBe('error');
+    expect(s.errorDetail).toBe('HTTP 401 Unauthorized');
+    expect(s.mcp?.error).toBe('HTTP 401 Unauthorized');
+    expect(plainErrorMessage(s)).toEqual({ text: "Search issues didn't work. Open this step for details.", linkToConnectors: false });
+    expect(plainErrorMessage(s).text).not.toContain('401');
+  });
+
+  it('treats anything not explicitly ok as failed', () => {
+    expect(stepsFromMcpRuns({ mcpRuns: [run({ ok: undefined })] })[0].status).toBe('error');
+  });
+
+  it('keeps order and several calls, with unique ids even when an id is missing', () => {
+    const steps = stepsFromMcpRuns({ mcpRuns: [run({ id: 'a' }), run({ id: '', tool: 'b' }), run({ id: undefined, tool: 'c' })] });
+    expect(steps.map((s) => s.mcp?.toolName)).toEqual(['search_issues', 'b', 'c']);
+    expect(new Set(steps.map((s) => s.id)).size).toBe(3);
+  });
+
+  it('carries truncation flags, media notes and drops unusable media', () => {
+    const [s] = stepsFromMcpRuns({
+      mcpRuns: [
+        run({
+          truncated: { args: true, result: true, bogus: true },
+          media: [{ kind: 'image', mimeType: 'image/png' }, null, { kind: 'resource', uri: 'file:///a.csv' }, { kind: 'weird' }],
+        }),
+      ],
+    });
+    expect(s.mcp?.truncated).toEqual({ args: true, result: true });
+    expect(s.mcp?.media).toEqual([{ kind: 'image', mimeType: 'image/png' }, { kind: 'resource', uri: 'file:///a.csv' }, { kind: 'other' }]);
+  });
+
+  it('skips malformed records and non-array state instead of throwing', () => {
+    const steps = stepsFromMcpRuns({ mcpRuns: [null, 'x', {}, { id: 'a' }, { tool: '  ' }, { tool: 5 }, run({ args: 'not json{', ms: 'fast' })] });
+    expect(steps).toHaveLength(1);
+    expect(steps[0].args).toEqual({});
+    expect(steps[0].mcp?.ms).toBeUndefined();
+    expect(stepsFromMcpRuns(undefined)).toEqual([]);
+    expect(stepsFromMcpRuns({})).toEqual([]);
+    expect(stepsFromMcpRuns({ mcpRuns: 'nope' })).toEqual([]);
+  });
+
+  it('adds a "N results" summary only when the result is clearly a list', () => {
+    expect(stepsFromMcpRuns({ mcpRuns: [run({ result: '[{"a":1},{"a":2},{"a":3}]' })] })[0].resultSummary).toBe('3 results');
+    expect(stepsFromMcpRuns({ mcpRuns: [run({ result: 'Found 3 things' })] })[0].resultSummary).toBeUndefined();
+    expect(stepsFromMcpRuns({ mcpRuns: [run({ ok: false, error: 'x', result: '[1,2]' })] })[0].resultSummary).toBeUndefined();
+  });
+});
+
+describe('summarizeMcpResult', () => {
+  it('counts a JSON list or a results/items list; says nothing otherwise', () => {
+    expect(summarizeMcpResult('[1]')).toBe('1 result');
+    expect(summarizeMcpResult('[]')).toBe('No results');
+    expect(summarizeMcpResult('{"results":[1,2]}')).toBe('2 results');
+    expect(summarizeMcpResult('{"items":[1]}')).toBe('1 result');
+    expect(summarizeMcpResult('{"data":[1,2]}')).toBeUndefined();
+    expect(summarizeMcpResult('{"count": 3}')).toBeUndefined();
+    expect(summarizeMcpResult('[1, 2, ')).toBeUndefined(); // cut short by the backend cap
+    expect(summarizeMcpResult('plain text')).toBeUndefined();
+    expect(summarizeMcpResult(undefined)).toBeUndefined();
+  });
+});
+
+describe('stepsFromMcpToolResults (browser-run calls)', () => {
+  const result = (over: Record<string, unknown> = {}) => ({
+    toolName: 'search_issues',
+    serverName: 'GitHub',
+    content: [{ type: 'text', text: 'Found some' }],
+    isError: false,
+    ...over,
+  });
+  const call = (id: string, args: unknown) => ({ id, type: 'function', function: { name: FULL, arguments: args } });
+  const message = (results: unknown[], calls?: unknown[]) => ({ role: 'assistant', content: '', tool_calls: calls, data: { mcpToolResults: results } });
+
+  it('pairs each result with its call arguments (JSON string) in order', () => {
+    const steps = stepsFromMcpToolResults(
+      message([result(), result({ toolName: 'get_issue' })], [call('c1', '{"query":"x"}'), call('c2', '{"number":7}')]),
+    );
+    expect(steps).toHaveLength(2);
+    expect(steps[0].args).toEqual({ query: 'x' });
+    expect(steps[1].args).toEqual({ number: 7 });
+    expect(steps[0].id).toBe('mcp-res-c1');
+    expect(steps[0].mcp).toMatchObject({ toolName: 'search_issues', serverName: 'GitHub', result: 'Found some' });
+  });
+
+  it('attaches no arguments when the call list does not line up, or the JSON is broken', () => {
+    expect(stepsFromMcpToolResults(message([result()], [call('a', '{}'), call('b', '{}')]))[0].args).toEqual({});
+    expect(stepsFromMcpToolResults(message([result()], [call('a', '{oops')]))[0].args).toEqual({});
+    expect(stepsFromMcpToolResults(message([result()], [call('a', '[1,2]')]))[0].args).toEqual({});
+    expect(stepsFromMcpToolResults(message([result()]))[0].args).toEqual({});
+  });
+
+  it('accepts already-parsed object arguments', () => {
+    expect(stepsFromMcpToolResults(message([result()], [call('a', { q: 1 })]))[0].args).toEqual({ q: 1 });
+  });
+
+  it('shows an error result as a failed step, and reads the bare name from a thrown error', () => {
+    const [s] = stepsFromMcpToolResults(
+      message([{ toolName: FULL, content: [{ type: 'text', text: 'Error: Failed to parse JSON arguments' }], isError: true }]),
+    );
+    expect(s.status).toBe('error');
+    expect(s.mcp?.toolName).toBe('search_issues');
+    expect(s.mcp?.serverName).toBeUndefined();
+    expect(s.mcp?.error).toBe('Error: Failed to parse JSON arguments');
+    expect(s.mcp?.result).toBeUndefined();
+    expect(s.errorDetail).toContain('Failed to parse');
+  });
+
+  it('describes non-text parts and keeps only a few safe raster images', () => {
+    const png = { type: 'image', mimeType: 'image/png', data: 'AAAA' };
+    const [s] = stepsFromMcpToolResults(
+      message([
+        result({
+          content: [
+            { type: 'text', text: 'chart' },
+            { type: 'resource', uri: 'file:///r.csv' },
+            png,
+            { type: 'image', mimeType: 'image/svg+xml', data: '<svg onload=alert(1)/>' },
+            { type: 'image', mimeType: 'image/png' },
+            { type: 'image', mimeType: 'image/jpeg', data: 'BBBB' },
+            { type: 'image', mimeType: 'image/gif', data: 'CCCC' },
+            { type: 'image', mimeType: 'image/webp', data: 'DDDD' },
+          ],
+        }),
+      ]),
+    );
+    expect(s.mcp?.images).toEqual([
+      { mimeType: 'image/png', data: 'AAAA' },
+      { mimeType: 'image/jpeg', data: 'BBBB' },
+      { mimeType: 'image/gif', data: 'CCCC' },
+    ]);
+    expect(s.mcp?.media?.some((m) => m.kind === 'resource' && m.uri === 'file:///r.csv')).toBe(true);
+    expect(s.mcp?.media).toHaveLength(5); // described parts are capped
+    // The media list describes parts; it never carries a payload.
+    expect(JSON.stringify(s.mcp?.media)).not.toContain('AAAA');
+  });
+
+  it('cuts a long result and says so', () => {
+    const [s] = stepsFromMcpToolResults(message([result({ content: [{ type: 'text', text: 'x'.repeat(9000) }] })]));
+    expect(s.mcp?.result).toHaveLength(4000);
+    expect(s.mcp?.truncated).toEqual({ result: true });
+  });
+
+  it('uses executionTime as the duration', () => {
+    expect(stepsFromMcpToolResults(message([result({ executionTime: 250 })]))[0].mcp?.ms).toBe(250);
+    expect(stepsFromMcpToolResults(message([result({ executionTime: 'x' })]))[0].mcp?.ms).toBeUndefined();
+  });
+
+  it('survives malformed input of every kind', () => {
+    for (const bad of [undefined, null, 'x', 5, {}, { data: {} }, { data: { mcpToolResults: 'nope' } }, { data: { mcpToolResults: [] } }]) {
+      expect(stepsFromMcpToolResults(bad)).toEqual([]);
+    }
+    const steps = stepsFromMcpToolResults(message([null, 'x', {}, { toolName: 5 }, { toolName: '  ' }, result({ content: 'not an array' })]));
+    expect(steps).toHaveLength(1);
+    expect(steps[0].mcp?.result).toBeUndefined();
+  });
+
+  it('is the same after a save/reload round trip (JSON)', () => {
+    const m = message([result()], [call('c1', '{"query":"x"}')]);
+    expect(stepsFromMcpToolResults(JSON.parse(JSON.stringify(m)))).toEqual(stepsFromMcpToolResults(m));
+  });
+});
+
+describe('MCP in groups', () => {
+  const mcp = (serverName?: string, tool = 't'): ToolStep => ({
+    id: `m-${tool}-${serverName}`,
+    tool: `mcp:${tool}`,
+    status: 'done',
+    args: {},
+    mcp: { toolName: tool, serverName },
+  });
+  const step = (tool: string): ToolStep => ({ id: tool, tool, status: 'done', args: {} });
+
+  it('names the servers, alongside connectors', () => {
+    expect(groupTitle([mcp('GitHub'), mcp('GitHub', 'u')])).toBe('Used GitHub · 2 steps');
+    expect(groupTitle([mcp('GitHub'), step('microsoftListMessages'), mcp('Linear')])).toBe('Used Outlook, GitHub and Linear · 3 steps');
+    expect(groupTitle([mcp('github'), mcp('GitHub')])).toBe('Used github · 2 steps');
+  });
+
+  it('falls back to "Used MCP tools" without server names, and counts failures', () => {
+    expect(groupTitle([mcp(), mcp(undefined, 'u')])).toBe('Used MCP tools · 2 steps');
+    expect(groupTitle([mcp(), { ...mcp(undefined, 'u'), status: 'error' }])).toBe('Used MCP tools · 2 steps · 1 failed');
+    expect(groupTitle([mcp(), step('exec_code')])).toBe('Used tools · 2 steps');
+  });
+
+  it('lists servers in first-use order', () => {
+    expect(mcpServersUsed([mcp('B'), mcp('A'), mcp('b')])).toEqual(['B', 'A']);
+  });
+});
+
+describe('withRunningMcpSteps', () => {
+  const saved = (n: number): ToolStep[] =>
+    Array.from({ length: n }, (_, i) => ({ id: `s${i}`, tool: `mcp:t${i}`, status: 'done' as const, args: {}, mcp: { toolName: `t${i}` } }));
+  const live = (statuses: Array<'running' | 'done'>): ToolStep[] =>
+    statuses.map((status, i) => ({ id: `l${i}`, tool: `mcp_mcp_1767629390657_b1c2812d7_t${i}`, status, args: {} }));
+
+  it('adds a call that is still running after the saved ones', () => {
+    const out = withRunningMcpSteps(saved(1), live(['done', 'running']));
+    expect(out).toHaveLength(2);
+    expect(out[1].status).toBe('running');
+  });
+  it('does not duplicate a call whose record already arrived', () => {
+    const s = saved(1);
+    expect(withRunningMcpSteps(s, live(['running']))).toBe(s);
+  });
+  it('ignores live steps that are not running, and non-MCP live steps', () => {
+    const s = saved(1);
+    expect(withRunningMcpSteps(s, live(['done', 'done']))).toBe(s);
+    expect(withRunningMcpSteps(s, [{ id: 'x', tool: 'microsoftListMessages', status: 'running', args: {} }])).toBe(s);
+  });
+});
+
+describe('a message that used a connector and an MCP tool', () => {
+  it('describes both in one ordered list', () => {
+    const connector = stepsFromAgentLog([
+      { role: 'assistant', content: { tool: 'microsoftListMessages', args: {} } },
+      { role: 'environment', content: { tool: 'microsoftListMessages', tool_executed: true, result: { data: [1, 2] } } },
+    ]);
+    const mcp = stepsFromMcpRuns({ mcpRuns: [{ id: 'a', ok: true, tool: 'search_issues', serverName: 'GitHub' }] });
+    const all = [...connector, ...mcp];
+    expect(groupTitle(all)).toBe('Used Outlook and GitHub · 2 steps');
+    expect(describeStep(all[0]).connector).toBe('microsoft_outlook');
+    expect(describeStep(all[1]).category).toBe('mcp');
   });
 });

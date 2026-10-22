@@ -9,6 +9,7 @@ vi.mock('next/image', () => ({
 
 import {
   CodeRunDetails,
+  McpCallDetails,
   MessageToolSteps,
   ThinkingRow,
   ToolStepDetails,
@@ -268,5 +269,149 @@ describe('CodeRunDetails', () => {
     const out = html(<CodeRunDetails detail={{ code: '<script>alert(1)</script>' }} />);
     expect(out).not.toContain('<script>');
     expect(out).toContain('&lt;script&gt;');
+  });
+});
+
+
+describe('MCP steps', () => {
+  const mcpStep = (over: Partial<ToolStep> = {}, mcp: Partial<NonNullable<ToolStep['mcp']>> = {}): ToolStep => ({
+    id: 'mcp-1',
+    tool: 'mcp:search_issues',
+    status: 'done',
+    args: { query: 'is:open', limit: 5 },
+    mcp: { toolName: 'search_issues', serverName: 'GitHub', result: 'Found 2', ...mcp },
+    ...over,
+  });
+
+  it('renders a collapsed row: plug-category label with the server, status, no raw details', () => {
+    const out = html(<ToolStepRow step={mcpStep({ resultSummary: '2 results' })} />);
+    expect(out).toContain('Search issues (GitHub)');
+    expect(out).toContain('2 results');
+    expect(out).toContain('nui-step-line');
+    expect(out).toMatch(/<button[^>]*aria-expanded="false"/);
+    expect(out).toContain('Done');
+    expect(out).not.toMatch(/is:open|Found 2|nui-step-details|mcp:search/);
+  });
+
+  it('labels a running call "Calling … on …" with a spinner', () => {
+    const out = html(<ToolStepRow step={mcpStep({ status: 'running' })} />);
+    expect(out).toContain('Calling Search issues on GitHub…');
+    expect(out).toContain('nui-step-spinner');
+    expect(out).toContain('In progress');
+  });
+
+  it('shows a failed call with a plain line, not the raw error', () => {
+    const out = html(
+      <ToolStepRow step={mcpStep({ status: 'error', errorDetail: 'HTTP 401 raw' }, { result: undefined, error: 'HTTP 401 raw' })} />,
+    );
+    expect(out).toContain('Failed');
+    expect(out).toContain("Search issues didn&#x27;t work. Open this step for details.");
+    expect(out).not.toContain('HTTP 401 raw');
+    expect(out).not.toContain('Settings → Connectors');
+  });
+
+  it('groups MCP and connector steps under one header naming both', () => {
+    const out = html(
+      <ToolStepGroup
+        steps={[step({ id: 'a' }), mcpStep({ id: 'b' })]}
+        now={new Date('2026-10-15T15:55:00Z')}
+      />,
+    );
+    expect(out).toContain('Used Outlook and GitHub · 2 steps');
+    expect(out).toMatch(/aria-expanded="false"/);
+  });
+
+  it('uses the plug icon for an all-MCP group', () => {
+    const out = html(<ToolStepGroup steps={[mcpStep({ id: 'a' }), mcpStep({ id: 'b' })]} />);
+    expect(out).toContain('Used GitHub · 2 steps');
+    expect(out).toContain('tabler-icon-plug');
+  });
+
+  it('a lone live MCP step (full name, no server) is humanized', () => {
+    const out = html(
+      <MessageToolSteps steps={[{ id: 's0', tool: 'mcp_mcp_1767629390657_b1c2812d7_search_issues', status: 'running', args: {} }]} />,
+    );
+    expect(out).toContain('Calling Search issues…');
+    expect(out).not.toContain('1767629390657');
+  });
+});
+
+describe('McpCallDetails', () => {
+  const base = (mcp: Record<string, unknown> = {}, over: Partial<ToolStep> = {}): ToolStep => ({
+    id: 'mcp-1',
+    tool: 'mcp:search_issues',
+    status: 'done',
+    args: { query: 'is:open', limit: 5 },
+    mcp: { toolName: 'search_issues', serverName: 'GitHub', result: 'Found 2', ms: 412, ...mcp },
+    ...over,
+  });
+
+  it('shows server · tool · duration, the argument grid, a copy button, and the result', () => {
+    const out = html(<McpCallDetails step={base()} />);
+    expect(out).toContain('GitHub · search_issues · 412 ms');
+    expect(out).toContain('Arguments');
+    expect(out).toContain('<dt>query</dt>');
+    expect(out).toContain('<dd>is:open</dd>');
+    expect(out).toContain('aria-label="Copy parameters as JSON"');
+    expect(out).toContain('Result');
+    expect(out).toContain('Found 2');
+    expect(out).toContain('nui-code-pre');
+    expect(out).not.toContain('Error');
+  });
+
+  it('formats a long duration in seconds and handles a missing server', () => {
+    expect(html(<McpCallDetails step={base({ ms: 2500, serverName: undefined })} />)).toContain('search_issues · 2.5 s');
+  });
+
+  it('says when arguments are absent or the result was shortened', () => {
+    const out = html(<McpCallDetails step={base({ truncated: { args: true, result: true } }, { args: {} })} />);
+    expect(out).toContain('No arguments');
+    expect(out).not.toContain('aria-label="Copy parameters as JSON"');
+    expect(out).toContain('Arguments shortened');
+    expect(out).toContain('Result shortened');
+  });
+
+  it('puts an error in its own tone and says when it was shortened', () => {
+    const out = html(
+      <McpCallDetails step={base({ result: undefined, error: 'Boom', truncated: { error: true } }, { status: 'error' })} />,
+    );
+    expect(out).toContain('data-tone="error"');
+    expect(out).toContain('Boom');
+    expect(out).toContain('Error shortened');
+    expect(out).not.toContain('Result');
+  });
+
+  it('notes non-text results without a payload', () => {
+    const out = html(
+      <McpCallDetails
+        step={base({ result: undefined, media: [{ kind: 'image', mimeType: 'image/png' }, { kind: 'resource', uri: 'file:///r.csv' }, { kind: 'other' }] })}
+      />,
+    );
+    expect(out).toContain('Returned an image');
+    expect(out).toContain('Returned a resource: file:///r.csv');
+    expect(out).toContain('Returned other content');
+    expect(out).not.toContain('base64');
+  });
+
+  it('renders images already stored on the message, and then needs no "Returned an image" line', () => {
+    const out = html(
+      <McpCallDetails
+        step={base({ result: undefined, media: [{ kind: 'image', mimeType: 'image/png' }], images: [{ mimeType: 'image/png', data: 'AAAA' }] })}
+      />,
+    );
+    expect(out).toContain('src="data:image/png;base64,AAAA"');
+    expect(out).toContain('alt="Image returned by the tool"');
+    expect(out).toContain('>Image<');
+    expect(out).not.toContain('Returned an image');
+  });
+
+  it('says so when the tool returned nothing', () => {
+    expect(html(<McpCallDetails step={base({ result: undefined })} />)).toContain('The tool returned no output.');
+  });
+
+  it('escapes tool output instead of rendering it as markup', () => {
+    const out = html(<McpCallDetails step={base({ result: '<img src=x onerror=alert(1)>' })} />);
+    expect(out).not.toContain('<img src=x');
+    expect(out).toContain('&lt;img src=x');
   });
 });

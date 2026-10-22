@@ -17,6 +17,8 @@
  * `connector`, so this stays unit-testable.
  */
 
+import { humanizeToolName } from './messageProvenance';
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 export type ToolCategory =
@@ -32,6 +34,7 @@ export type ToolCategory =
   | 'contacts'
   | 'people'
   | 'code'
+  | 'mcp'
   | 'generic';
 
 /** Ids match `public/logos/integrations/<id with hyphens>.svg`. */
@@ -446,6 +449,26 @@ export const humanizeToolLabel = (raw: string): string => {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase();
 };
 
+// ─── MCP tool names ──────────────────────────────────────────────────────────
+
+/**
+ * Split an MCP tool name — `mcp_<serverId>_<tool>`, e.g. `mcp_mcp_1767629390657_b1c2812d7_install_package` —
+ * into the server id and the server's own tool name. Same rule as `services/mcpToolExecutor#parseMCPToolName`
+ * (a copy: importing that module would drag its network code into this React-free file).
+ */
+export const parseMcpToolName = (fullName: string): { serverId: string; toolName: string } | null => {
+  if (typeof fullName !== 'string' || !fullName.startsWith('mcp_')) return null;
+  const remaining = fullName.substring(4);
+  const m = remaining.match(/^(mcp_\d+_[a-z0-9]+)_(.+)$/);
+  if (m) return { serverId: m[1], toolName: m[2] };
+  const parts = remaining.split('_');
+  if (parts.length < 2) return null;
+  return { serverId: parts[0], toolName: parts.slice(1).join('_') };
+};
+
+/** "search_issues" / "searchIssues" → "Search issues". */
+export const humanizeMcpToolName = (toolName: string): string => humanizeToolName(toolName);
+
 // ─── Public API ──────────────────────────────────────────────────────────────
 
 const resolveLabel = (label: Label, ctx: LabelContext): string =>
@@ -461,6 +484,11 @@ export const describeToolStep = (
     : undefined;
 
   if (!config) {
+    const mcp = parseMcpToolName(tool);
+    if (mcp) {
+      const human = humanizeMcpToolName(mcp.toolName);
+      return { tool, category: 'mcp', running: `Calling ${human}…`, done: human, known: false };
+    }
     const human = humanizeToolLabel(tool);
     return { tool, category: 'generic', running: `${human}…`, done: human, known: false };
   }
