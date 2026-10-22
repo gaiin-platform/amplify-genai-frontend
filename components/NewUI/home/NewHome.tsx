@@ -41,7 +41,7 @@ import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import {
   HalloweenBackdrop,
   HalloweenGreeting,
-  HALLOWEEN_PLACEHOLDER,
+  pickHalloweenPlaceholder,
   isHalloweenSeason,
 } from '@/components/NewUI/home/HalloweenHero';
 import { releaseBatSwarm } from '@/components/NewUI/home/batSwarm';
@@ -102,6 +102,7 @@ export const NewHome: React.FC = () => {
   const [inHalloweenSeason, setInHalloweenSeason] = useState(false);
   const [isHalloween, setIsHalloween] = useState(false);
   const [batSwarmOn, setBatSwarmOn] = useState(false);
+  const [halloweenPlaceholder] = useState(pickHalloweenPlaceholder);
   useEffect(() => {
     const sync = () => {
       const season = isHalloweenSeason();
@@ -841,7 +842,7 @@ export const NewHome: React.FC = () => {
             onChange={(value) => setHasContent(value.trim().length > 0)}
             onLargePaste={handleLargePaste}
             onImagePaste={addFileToRail}
-            placeholder={isHalloween ? HALLOWEEN_PLACEHOLDER : 'Ask anything…'}
+            placeholder={isHalloween ? halloweenPlaceholder : 'Ask anything…'}
             editorClassName="max-h-[240px] overflow-y-auto"
             autoFocus
             hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
