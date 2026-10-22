@@ -25,6 +25,25 @@ export async function killRequest(requestId: string) {
     return res.status === 200;
 }
 
+// A failed chat request normally carries a JSON body from our proxy, but a load balancer / WAF in front of
+// the app can answer with an HTML page instead. Returns the parsed JSON object, or null when it isn't one.
+export function parseErrorBody(raw: string): any | null {
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed !== null && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+export function nonJsonErrorMessage(status: number): string {
+    if (status === 403) {
+        return 'Request blocked (403) before it reached Amplify, most likely by a network firewall. ' +
+            'Please try again. If it keeps happening, contact support.';
+    }
+    return `The server returned an unexpected response (${status}). Please try again in a minute.`;
+}
+
 // `endpoint` is an optional override (e.g. an assistant-defined uri); the proxy
 // validates it against its allowlist. Pass the default chat endpoint or null to
 // use the server-configured CHAT_ENDPOINT.
@@ -94,13 +113,17 @@ export async function sendChatRequestWithDocuments(endpoint: string | null, chat
     const decoder = new TextDecoder();
 
     if (res.status !== 200) {
-        const result = await res.json();
-        let error = 'Error communicating with the server. Please try again in a minute.';
-        if (result.error) {
+        // The error may not be JSON: a load balancer / WAF in front of the app answers with an HTML page
+        // (e.g. a 403 block), and res.json() on that throws "Unexpected token '<'" and hides the real status.
+        const result = parseErrorBody(await res.text());
+        let error = result === null
+            ? nonJsonErrorMessage(res.status)
+            : 'Error communicating with the server. Please try again in a minute.';
+        if (result?.error) {
             error = result.error;
-        } else if (result.value) {
-            error = decoder.decode(result?.value);
-        } else if (result.statusText) {
+        } else if (result?.value) {
+            error = decoder.decode(result.value);
+        } else if (result?.statusText) {
             error = result.statusText;
         }
         if (typeof error !== 'string')  error = JSON.stringify(error);

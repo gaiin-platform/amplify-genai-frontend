@@ -3,17 +3,17 @@ import HomeContext from "@/components/Home/home.context";
 import {Conversation, Message, newMessage} from "@/types/chat";
 import {deepMerge} from "@/utils/app/state";
 import { MetaHandler, sendChatRequestWithDocuments } from "@/services/chatService";
-import { IconHammer, IconFileText, IconTable, IconCode, IconChartBar, IconEye, IconEyeOff } from "@tabler/icons-react";
+import { IconHammer, IconFileText, IconTable, IconCode, IconChartBar, IconEye, IconEyeOff, IconAlertTriangle } from "@tabler/icons-react";
 import { Artifact, ArtifactBlockDetail, ArtifactMessageStatus, validArtifactTypes, resolveNUIType, sniffContentType } from "@/types/artifacts";
 import { lzwCompress, lzwUncompress } from "@/utils/app/lzwCompression";
 import { getDateName } from "@/utils/app/date";
 import { fixJsonString } from "@/utils/app/errorHandling";
 import { DefaultModels, Model } from "@/types/model";
-import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
 import { saveArtifact, getAllArtifacts } from "@/services/artifactsService";
 import { jsonrepair } from "jsonrepair";
 import { v4 as uuidv4 } from "uuid";
 import { buildArtifactSavePayload, resolveArtifactName } from "@/components/NewUI/shared/artifactLibraryModel";
+import { buildArtifactContentMap, pickBaseVersion } from "@/components/NewUI/shared/artifactContentMap";
 import { appendAutoArtifactChunk, mergeAutoArtifactMessage } from "@/components/NewUI/shared/autoArtifactStream";
 
 interface Props {
@@ -55,58 +55,10 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
         foldersRef.current = folders;
     }, [folders]);
 
-const startMarker = '<>';
-const endMarker = '</>';
-
-
-const ARTIFACT_CUSTOM_INSTRUCTIONS = `You are generating the content of an artifact. Follow the rules for the artifact type strictly.
-
-## Artifact type rules
-
-### Type: spreadsheet
-Output ONLY raw CSV content — no markdown fences, no prose, no explanation.
-- First row must be the header row with column names.
-- Use commas as delimiters. Wrap any field that contains a comma, newline, or double-quote in double-quotes; escape internal double-quotes by doubling them.
-- CRITICAL: cells that list multiple items MUST keep natural punctuation including commas. Always quote such cells.
-  ✓ Correct:  "Variables, control flow, functions, debugging"
-  ✗ Wrong:    Variables control flow functions debugging  (commas stripped)
-- Do NOT wrap the CSV in a code block. The entire response (before the ${startMarker} summary) must be plain CSV text.
-- Example (correct):
-  Name,Department,Skills
-  Alice,"Engineering, Backend","Python, SQL, Docker"
-  Bob,Marketing,"Copywriting, SEO"
-
-### Type: code
-Output the code in a single fenced code block with the correct language identifier.
-- Include the filename as a comment on the first line (e.g. \`# main.py\` or \`// app.js\`).
-- No prose outside the code block (before the ${startMarker} summary).
-- Example: ${"```python\n# main.py\nprint('Hello')\n```"}
-
-### Type: visualization
-Output a single self-contained HTML document.
-- All CSS and JavaScript must be inline (no external CDN or fetch calls).
-- The document must render correctly in a sandboxed iframe.
-- Do NOT wrap in a code block — output raw HTML starting with <!DOCTYPE html> or <html>.
-- For SVG: output the raw <svg …> element directly, no wrapper.
-- For Mermaid diagrams: use a ${"```mermaid"} code block.
-- For data charts: prefer Vega-Lite in a ${"```vega"} code block.
-
-### Type: document  (default)
-Respond in valid Markdown. Use headings, lists, tables, and code blocks as appropriate.
-- If you include code, wrap it in a fenced code block with the language identifier.
-- Do not wrap the whole document in a code block.
-
-## Output structure
-1. The artifact content (per the type rules above).
-2. REQUIRED: A brief 1–2 sentence summary wrapped in ${startMarker} ... ${endMarker} tags immediately after the content. Never skip this.
-   Example: ${startMarker} I've created the departments CSV with 33 rows and 2 columns. Let me know if you'd like any changes. ${endMarker}
-
-## General rules
-- Do not include explanations or commentary OUTSIDE the ${startMarker}...${endMarker} summary.
-- When creating an update to an existing artifact, output the entire updated contents.
-- If any ambiguities exist, note them in the summary (inside the tags).
-- Ensure artifacts are complete and ready to use.
-`
+// The per-type artifact rules (CSV / code / visualization / document) are added by the backend's
+// ArtifactModeAssistant. They contain literal HTML/SVG, which the WAF in front of the app rejects as XSS
+// (403) when it is sent from the browser, so this request carries only a short, markup-free system prompt.
+const ARTIFACT_SYSTEM_PROMPT = 'You are generating the content of an artifact.';
 
 const ARTIFACT_VERSION_INSTRUCTIONS = `
     It is required to have a complete and/or fully functional artifact version.
@@ -326,14 +278,9 @@ const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string
             const content = lzwUncompress(lastArtifact);
             if (id === currentId) {
                 versionInstr += ARTIFACT_VERSION_INSTRUCTIONS + '\nArtifact Context split up into parts:\n';
-                let contentList: string[] = extractCodeBlocksAndText(content).map((detail: CodeBlockDetails) =>
-                                                                                   detail.extension === ".txt" ? detail.code :
-                                                                                   `\`\`\`${detail.language} \n${detail.code} \n\`\`\` `
-                                                                                   );
+                const contentMap = buildArtifactContentMap(content);
 
-                if (contentList.length > 0){
-                    const contentMap: {[key:string]:string} = {};
-                    contentList.forEach((part: string, index: number) => contentMap[`A${index}`] = part );
+                if (Object.keys(contentMap).length > 0){
                     versionContentMapRef.current = contentMap;
                     console.log("CONTENT MAP: ", contentMap )
                     versionInstr += JSON.stringify(contentMap);
@@ -429,7 +376,13 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             state: (state: any) => currentState = deepMerge(currentState, state),
             shouldAbort: () => false
         };
-        
+
+        // Needed by the catch below, which runs outside the try's scope.
+        let pendingList: Artifact[] | undefined;      // the list a placeholder artifact was pushed to
+        let pendingArtifact: Artifact | undefined;    // that placeholder (undefined when resuming an existing one)
+        let isResuming = false;
+        let streamingStarted = false;                 // once true, the streaming finally{} owns cleanup
+
         try {
             // setup selectedArtifacts
             let selectArtifacts = selectedConversation.artifacts ? (selectedConversation.artifacts[artifactDetail.artifactId] ?? []) : [];
@@ -457,13 +410,23 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 // Store language hint for code artifacts in metadata
                 metadata: codeLang ? { language: codeLang } : undefined,
             }
+            // `~A#` references in the model's output are expanded from this map, which is only filled in when the
+            // request is first prepared. A retry/continue after a page reload skips that, and an empty map would
+            // silently drop every referenced part, so rebuild it from the version this one builds on.
+            if (Object.keys(versionContentMapRef.current ?? {}).length === 0) {
+                const base = pickBaseVersion(selectArtifacts, resuming);
+                if (base) versionContentMapRef.current = buildArtifactContentMap(lzwUncompress(base.contents as any));
+            }
             if (!resuming) selectArtifacts.push(artifact);
+            pendingList = selectArtifacts;
+            pendingArtifact = resuming ? undefined : artifact;
+            isResuming = resuming;
             homeDispatch({field: "selectedArtifacts", value: selectArtifacts});
             const model: Model = selectedConversation.model ?? getDefaultModel(DefaultModels.ADVANCED);
             const chatBody = {
             model: model,
             messages: [{role: 'user', content: llmInstructions} as Message],
-            prompt: ARTIFACT_CUSTOM_INSTRUCTIONS,
+            prompt: ARTIFACT_SYSTEM_PROMPT,
             temperature: 0.5,
             maxTokens: model.outputTokenLimit, // Default to max token
             skipRag: true,
@@ -480,6 +443,9 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: true, artifactIndex:  selectArtifacts.length - 1}} ));
 
             const response = await sendChatRequestWithDocuments(chatEndpoint || null, chatBody, controller.signal, metaHandler);
+            // sendChatRequestWithDocuments returns the error text as a non-OK response instead of throwing.
+            // Without this check that text would be read below as if it were the artifact itself.
+            if (!response.ok) throw new Error((await response.text()).trim() || `Artifact request failed (${response.status}).`);
 
             let updatedConversation: Conversation = {...selectedConversation, artifacts: selectedConversation.artifacts || {}};
             const messageId = message.id;
@@ -496,6 +462,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             let isAssistantMsg = false;
             let buffer = '';
             let unresolvedPlaceholder = '';
+            streamingStarted = true;
             try {
                 while (!controller.signal.aborted) {
                     const {value, done} = await reader.read();
@@ -631,6 +598,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                         : (cutOff ? ArtifactMessageStatus.INCOMPLETE : ArtifactMessageStatus.COMPLETE),
                     ...(resuming ? {} : { artifactDetails: [artifactDetail] }),
                     ...(cutOff ? { artifactResume: { prompt: llmInstructions, type } } : {}),
+                    artifactError: null,
                 });
 
                 handleUpdateSelectedConversation(updatedConversation);
@@ -659,6 +627,34 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             // Clean up the processing flag on error (but don't set cooldown for errors)
             if (messageKey) {
                 delete (window as any)[messageKey];
+            }
+            // The request failed before any artifact text streamed (e.g. blocked by the WAF, server error,
+            // dropped connection). Nothing else will end the "Writing…" state, so end it here and say why.
+            if (!streamingStarted && !controller.signal.aborted) {
+                homeDispatch({field: 'messageIsStreaming', value: false});
+                homeDispatch({field: 'artifactIsStreaming', value: false});
+                llmPromptedRef.current = false;
+
+                if (pendingArtifact && pendingList) {
+                    const at = pendingList.indexOf(pendingArtifact);
+                    if (at >= 0) pendingList.splice(at, 1);
+                    homeDispatch({field: 'selectedArtifacts', value: [...pendingList]});
+                    window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
+                }
+
+                const reason = (e instanceof Error && e.message ? e.message : 'Artifact generation failed.').slice(0, 500);
+                const failedStatus = isResuming ? ArtifactMessageStatus.INCOMPLETE : ArtifactMessageStatus.CANCELLED;
+                message.data = { ...(message.data || {}), artifactStatus: failedStatus, artifactError: reason };
+                const latest = (selectedConversationRef.current?.id === selectedConversation.id
+                    ? selectedConversationRef.current
+                    : undefined) ?? selectedConversation;
+                handleUpdateSelectedConversation(mergeAutoArtifactMessage(latest, message.id, {
+                    artifactStatus: failedStatus,
+                    artifactError: reason,
+                    // Lets the card's Retry reuse the Continue machinery; an empty resume text starts a fresh run.
+                    artifactResume: { prompt: llmInstructions, type },
+                    ...(isResuming ? {} : { artifactDetails: [artifactDetail] }),
+                }));
             }
         }
         // clean up event listener
@@ -775,6 +771,10 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
     const cancelled = message.data?.artifactStatus === ArtifactMessageStatus.CANCELLED;
     const incomplete = message.data?.artifactStatus === ArtifactMessageStatus.INCOMPLETE;
     const canContinue = incomplete && !!message.data?.artifactResume && !artifactIsStreaming;
+    // The artifact request itself failed (blocked, server error, dropped connection) — see getArtifactMessages' catch.
+    const requestError: string | undefined = typeof message.data?.artifactError === 'string' ? message.data.artifactError : undefined;
+    const requestFailed = cancelled && !!requestError;
+    const canRetry = requestFailed && !!message.data?.artifactResume && !!message.data?.artifacts?.[0] && !artifactIsStreaming;
     const isGeneratingNow = !stopped && !cancelled && (generating || (artifactIsStreaming && !artifact));
 
     const handleTogglePanel = () => {
@@ -787,6 +787,51 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
             }));
         }
     };
+
+    /* ── The request failed: say so, and let the user try again ── */
+    if (requestFailed) {
+        return (
+            <div
+                data-nui-direct-artifact-card="error"
+                role="alert"
+                style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 14px', borderRadius: 12, maxWidth: 480,
+                    border: '1px solid var(--border-subtle)',
+                    background: 'var(--bg-raised)',
+                    margin: '6px 0',
+                    fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+                }}
+            >
+                <IconAlertTriangle size={18} aria-hidden="true" style={{ flexShrink: 0, color: 'var(--text-error)' }} />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
+                        Couldn&apos;t create the artifact
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--text-error)', marginTop: 1, overflowWrap: 'anywhere' }}>
+                        {requestError}
+                    </div>
+                </div>
+                {canRetry && (
+                    <button
+                        type="button"
+                        aria-label="Try creating the artifact again"
+                        onClick={() => window.dispatchEvent(new CustomEvent('continueArtifactRequest', { detail: { messageId: message.id } }))}
+                        style={{
+                            display: 'flex', alignItems: 'center', gap: 5,
+                            padding: '0 10px', height: 28, borderRadius: 7,
+                            border: '1px solid var(--accent)',
+                            background: 'transparent', color: 'var(--accent)',
+                            fontSize: 12, fontWeight: 500, cursor: 'pointer', flexShrink: 0,
+                            fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+                        }}
+                    >
+                        Try again
+                    </button>
+                )}
+            </div>
+        );
+    }
 
     /* ── Unavailable state for cancelled/missing artifacts ── */
     const isCancelled = cancelled || stopped;
@@ -811,7 +856,7 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
     }
 
     const displayTitle  = artifact?.name || (isGeneratingNow ? 'Creating artifact…' : 'Artifact');
-    const displayType   = isGeneratingNow ? 'Writing…' : incomplete ? 'Cut off before finishing' : typeLabel(artifact?.type, artifact?.metadata?.language as string);
+    const displayType   = isGeneratingNow ? 'Writing…' : incomplete ? (requestError ? 'Couldn\u2019t continue \u2014 try again' : 'Cut off before finishing') : typeLabel(artifact?.type, artifact?.metadata?.language as string);
     const version       = artifact?.version;
     const showVersion   = !isGeneratingNow && typeof version === 'number' && version > 1;
 

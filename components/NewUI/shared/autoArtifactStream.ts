@@ -64,15 +64,29 @@ function markerPrefixLength(value: string, marker: string): number {
 export function mergeAutoArtifactMessage(
   conversation: Conversation,
   messageId: string,
-  update: { content?: string; state?: Record<string, unknown>; artifactStatus?: string; artifactDetails?: unknown[]; artifactResume?: { prompt: string; type: string } },
+  update: {
+    content?: string;
+    state?: Record<string, unknown>;
+    artifactStatus?: string;
+    artifactDetails?: unknown[];
+    artifactResume?: { prompt: string; type: string };
+    /** Why the artifact request failed. `null` clears a previous failure (e.g. after a successful retry). */
+    artifactError?: string | null;
+  },
 ): Conversation {
   const messageIndex = conversation.messages?.findIndex((message) => message.id === messageId) ?? -1;
   if (messageIndex < 0) return conversation;
 
   const messages = [...conversation.messages];
   const message = messages[messageIndex];
-  const previousData = message.data ?? {};
+  const existingData = (message.data ?? {}) as Record<string, any>;
+  // Passing `artifactError` at all replaces the old one (null just clears it); omitting it leaves it alone.
+  const { artifactError: _replaced, ...dataWithoutError } = existingData;
+  const previousData = update.artifactError === undefined ? existingData : dataWithoutError;
   const previousArtifacts = Array.isArray(previousData.artifacts) ? previousData.artifacts : [];
+  // A retry re-records the detail for the same artifact; replace it rather than listing it twice.
+  const incomingIds = new Set((update.artifactDetails ?? []).map((d: any) => d?.artifactId).filter(Boolean));
+  const keptArtifacts = previousArtifacts.filter((d: any) => !incomingIds.has(d?.artifactId));
   messages[messageIndex] = {
     ...message,
     ...(update.content !== undefined ? { content: update.content } : {}),
@@ -80,8 +94,9 @@ export function mergeAutoArtifactMessage(
       ...previousData,
       ...(update.state ? { state: { ...(previousData.state ?? {}), ...update.state } } : {}),
       ...(update.artifactStatus ? { artifactStatus: update.artifactStatus } : {}),
-      ...(update.artifactDetails ? { artifacts: [...previousArtifacts, ...update.artifactDetails] } : {}),
+      ...(update.artifactDetails ? { artifacts: [...keptArtifacts, ...update.artifactDetails] } : {}),
       ...(update.artifactResume ? { artifactResume: update.artifactResume } : {}),
+      ...(typeof update.artifactError === 'string' ? { artifactError: update.artifactError } : {}),
     },
   } as Message;
 

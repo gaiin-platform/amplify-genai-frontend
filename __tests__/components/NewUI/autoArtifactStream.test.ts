@@ -53,6 +53,35 @@ describe('appendAutoArtifactChunk', () => {
     expect(restored.messages).toHaveLength(3);
   });
 
+  it('records a failed artifact request, then clears it and does not duplicate the detail on a successful retry', () => {
+    const original = {
+      id: 'conv-1',
+      messages: [{ id: 'assistant-1', role: 'assistant', content: 'before', data: {} }],
+    } as any;
+    const detail = { artifactId: 'artifact-1', version: 1 };
+
+    const failed = mergeAutoArtifactMessage(original, 'assistant-1', {
+      artifactStatus: 'cancelled',
+      artifactDetails: [detail],
+      artifactResume: { prompt: 'write it', type: 'document' },
+      artifactError: 'Request blocked (403)',
+    });
+    expect(failed.messages[0].data.artifactError).toBe('Request blocked (403)');
+    expect(failed.messages[0].data.artifacts).toEqual([detail]);
+
+    const untouched = mergeAutoArtifactMessage(failed, 'assistant-1', { content: 'more' });
+    expect(untouched.messages[0].data.artifactError).toBe('Request blocked (403)');
+
+    const retried = mergeAutoArtifactMessage(failed, 'assistant-1', {
+      artifactStatus: 'complete',
+      artifactDetails: [detail],
+      artifactError: null,
+    });
+    expect(retried.messages[0].data.artifactError).toBeUndefined();
+    expect(retried.messages[0].data.artifacts).toEqual([detail]);
+    expect('artifactError' in retried.messages[0].data).toBe(false);
+  });
+
   it('splits the artifact end marker and excludes commentary from artifact text', () => {
     const first = appendAutoArtifactChunk('', '# Report\ncontent\n<>Summary begins here<', false);
     expect(first.artifactText).toBe('# Report\ncontent\n');
