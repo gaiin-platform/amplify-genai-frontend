@@ -1,8 +1,9 @@
 /**
  * HalloweenHero — seasonal replacement for the NewHome greeting.
  *
- * Renders a glowing jack-o'-lantern logo, a spooky headline, drifting bats,
- * a corner cobweb and low-lying fog. Everything is pure SVG/CSS (no assets),
+ * Renders a glowing jack-o'-lantern logo, a spooky headline, drifting bats and
+ * ghosts, twinkling stars, occasional lightning, lurking eyes, a corner cobweb
+ * and low-lying fog. Everything is pure SVG/CSS (no assets),
  * pointer-events are disabled on decorations so the composer stays usable,
  * and all motion is disabled under prefers-reduced-motion.
  */
@@ -77,6 +78,48 @@ const Bat = ({ className }: { className: string }) => (
   </div>
 );
 
+const Ghost = ({ className }: { className: string }) => (
+  <div className={`hw-ghost-track ${className}`}>
+    <div className="hw-ghost-float">
+      <svg className="hw-ghost" viewBox="0 0 60 76" aria-hidden="true">
+        <path
+          className="hw-ghost-body"
+          d="M30 2 C14 2, 6 14, 6 30 L6 70 L14 62 L22 72 L30 62 L38 72 L46 62 L54 70 L54 30 C54 14, 46 2, 30 2 Z"
+        />
+        <ellipse cx="22" cy="28" rx="4" ry="6" className="hw-ghost-eye" />
+        <ellipse cx="38" cy="28" rx="4" ry="6" className="hw-ghost-eye" />
+        <ellipse cx="30" cy="42" rx="5" ry="7" className="hw-ghost-eye" />
+      </svg>
+    </div>
+  </div>
+);
+
+const STARS: Array<[string, string, number]> = [
+  ['6%', '8%', 0],
+  ['18%', '22%', 1.2],
+  ['31%', '6%', 2.1],
+  ['47%', '14%', 0.6],
+  ['62%', '5%', 1.7],
+  ['74%', '19%', 2.6],
+  ['88%', '10%', 0.9],
+  ['93%', '30%', 1.9],
+];
+
+const Stars = () => (
+  <>
+    {STARS.map(([left, top, delay], i) => (
+      <span key={i} className="hw-star" style={{ left, top, animationDelay: `${delay}s` }} />
+    ))}
+  </>
+);
+
+const LurkingEyes = () => (
+  <div className="hw-eyes">
+    <span />
+    <span />
+  </div>
+);
+
 const Cobweb = () => (
   <svg className="hw-web" viewBox="0 0 160 160" aria-hidden="true">
     <g stroke="currentColor" strokeWidth="1" fill="none">
@@ -103,8 +146,13 @@ const Cobweb = () => (
 export const HalloweenBackdrop = () => (
   <div className="hw-backdrop" aria-hidden="true">
     <HalloweenStyles />
+    <Stars />
+    <div className="hw-lightning" />
     <div className="hw-moon" />
     <Cobweb />
+    <Ghost className="hw-ghost-1" />
+    <Ghost className="hw-ghost-2" />
+    <LurkingEyes />
     <Bat className="hw-bat-1" />
     <Bat className="hw-bat-2" />
     <Bat className="hw-bat-3" />
@@ -182,6 +230,33 @@ const HalloweenStyles = () => (
     .hw-bat-2 { top: 34%; --size: 38px; --fly: 26s; --delay: -15s; --flap: .26s; --bob: 2.1s; opacity: .8; }
     .hw-bat-3 { top: 9%;  --size: 28px; --fly: 34s; --delay: -24s; --flap: .22s; --bob: 3.4s; opacity: .55; filter: blur(.4px); }
 
+    /* Ghosts: track (vertical lane) > float (slow drift across + fade in/out) > svg (wobble) */
+    .hw-ghost-track { position: absolute; left: 0; right: 0; height: 0; }
+    .hw-ghost-float { width: var(--size, 54px); animation: hw-ghost-drift var(--drift, 30s) ease-in-out infinite var(--delay, 0s); }
+    .hw-ghost { display: block; width: 100%; overflow: visible; animation: hw-wobble 3.4s ease-in-out infinite; filter: drop-shadow(0 0 10px rgba(216,200,255,.55)); }
+    .hw-ghost-body { fill: rgba(245, 243, 255, .82); }
+    .dark .hw-ghost-body { fill: rgba(235, 230, 255, .62); }
+    .hw-ghost-eye { fill: #1c1424; }
+    .hw-ghost-1 { top: 55%; --size: 60px; --drift: 32s; --delay: -6s; }
+    .hw-ghost-2 { top: 28%; --size: 40px; --drift: 40s; --delay: -22s; opacity: .7; }
+
+    .hw-star {
+      position: absolute; width: 3px; height: 3px; border-radius: 50%;
+      background: #fde68a; box-shadow: 0 0 6px 1px rgba(253, 230, 138, .7);
+      opacity: 0; animation: hw-twinkle 3.6s ease-in-out infinite;
+    }
+    .hw-lightning {
+      position: absolute; inset: 0; opacity: 0;
+      background: radial-gradient(ellipse at 70% 0%, rgba(221,214,254,.55) 0%, rgba(167,139,250,.18) 40%, transparent 70%);
+      animation: hw-flash 14s linear infinite 5s;
+    }
+    .hw-eyes { position: absolute; left: 4%; bottom: 14%; display: flex; gap: 14px; opacity: 0; animation: hw-peek 11s ease-in-out infinite 3s; }
+    .hw-eyes span {
+      width: 12px; height: 7px; border-radius: 50%; background: #fb923c;
+      box-shadow: 0 0 10px 3px rgba(249,115,22,.65); transform: rotate(-8deg);
+    }
+    .hw-eyes span:last-child { transform: rotate(8deg); }
+
     .hw-fog {
       position: absolute; left: -50%; width: 200%; height: 220px; bottom: -60px;
       background: radial-gradient(ellipse at center, rgba(200,200,215,.10) 0%, transparent 65%);
@@ -217,6 +292,17 @@ const HalloweenStyles = () => (
       75%  { transform: translateY(12px) rotate(-2deg); }
       100% { transform: translateY(0) rotate(4deg); }
     }
+    @keyframes hw-ghost-drift {
+      0%   { transform: translate(-20%, 0); opacity: 0; }
+      12%  { opacity: .9; }
+      50%  { transform: translate(45vw, -30px); }
+      88%  { opacity: .9; }
+      100% { transform: translate(95vw, 10px); opacity: 0; }
+    }
+    @keyframes hw-wobble { 0%,100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-10px) rotate(4deg); } }
+    @keyframes hw-twinkle { 0%,100% { opacity: 0; transform: scale(.6); } 50% { opacity: .9; transform: scale(1.2); } }
+    @keyframes hw-flash { 0%,100% { opacity: 0; } 1% { opacity: 1; } 2% { opacity: .1; } 3% { opacity: .85; } 6% { opacity: 0; } }
+    @keyframes hw-peek { 0%,55%,100% { opacity: 0; } 58%,64% { opacity: 1; } 61% { opacity: 0; } 62% { opacity: 1; } 68% { opacity: 0; } }
     @keyframes hw-drift { from { transform: translateX(-8%); } to { transform: translateX(8%); } }
     @keyframes hw-dangle { 0%,100% { transform: rotate(-4deg) scaleY(1); } 50% { transform: rotate(4deg) scaleY(1.12); } }
     @keyframes hw-bob { 0%,100% { transform: translateY(0) rotate(-3deg); } 50% { transform: translateY(-4px) rotate(3deg); } }
@@ -228,7 +314,7 @@ const HalloweenStyles = () => (
 
     @media (prefers-reduced-motion: reduce) {
       .hw-backdrop *, .hw-pumpkin, .hw-face, .hw-title { animation: none !important; }
-      .hw-bat-track { display: none; }
+      .hw-bat-track, .hw-ghost-track, .hw-lightning, .hw-eyes { display: none; }
     }
   `}</style>
 );
