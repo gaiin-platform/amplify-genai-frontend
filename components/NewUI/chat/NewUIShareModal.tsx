@@ -36,6 +36,7 @@ import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
 import { isAssistant } from '@/utils/app/assistants';
 import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
+import { SignInRequiredNote } from '@/components/NewUI/shared/SignInRequiredNote';
 import {
     looksLikeEmail,
     resolveUsernameForEmail,
@@ -48,6 +49,11 @@ import {
     ShareHistoryItemType,
 } from '@/components/NewUI/shared/shareHistory';
 import { invalidateSharedItemsCache } from '@/components/NewUI/shared/sharedItemClassifier';
+import {
+    interpretShareResult,
+    noneSignedInMessage,
+    partialSignedInMessage,
+} from '@/components/NewUI/shared/shareOutcome';
 
 // ── Focus-trap selector ───────────────────────────────────────────────────────
 const FOCUSABLE_SEL = [
@@ -177,6 +183,8 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
     const [isSharing, setIsSharing] = useState(false);
     const [shareSuccess, setShareSuccess] = useState(false);
     const [shareError, setShareError] = useState('');
+    // Addresses a partial share skipped because they've never signed in.
+    const [notSignedIn, setNotSignedIn] = useState<string[]>([]);
 
     const panelRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
@@ -342,14 +350,24 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                 sharedData,
             );
 
+            const outcome = interpretShareResult(result, finalRecipients, sharedWith);
+
+            if (outcome.status === 'none') {
+                // Nobody on the list has ever signed in — nothing was shared.
+                setIsSharing(false);
+                setShareError(noneSignedInMessage(outcome.notSignedIn));
+                return;
+            }
+
             if (result.success) {
                 // Record the share in the local history so "Previously shared with"
                 // is populated the next time this item is opened for sharing.
+                // Only people it actually reached.
                 recordShare(sharedBy, {
                     type: itemType,
                     sourceId,
                     sourceName,
-                    sharedWith: finalRecipients,
+                    sharedWith: outcome.reached,
                     note: message,
                 });
                 // Invalidate the classifier cache so the Shared-with-Me sections
@@ -358,13 +376,18 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
 
                 statsService.trackEvent('Item Shared', {
                     'Item Type': itemType,
-                    'Recipient Count': sharedWith.length,
+                    'Recipient Count': outcome.reached.length,
                     'Has Note': message.trim().length > 0,
                 });
 
                 setIsSharing(false);
                 setShareSuccess(true);
-                setTimeout(() => onClose(), 1500);
+                if (outcome.status === 'partial') {
+                    // Stay open: the user must see who was skipped.
+                    setNotSignedIn(outcome.notSignedIn);
+                } else {
+                    setTimeout(() => onClose(), 1500);
+                }
             } else {
                 setIsSharing(false);
                 setShareError('Sharing failed. Please try again.');
@@ -541,6 +564,44 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                             >
                                 {isPromptShare ? 'Template shared' : isAssistantShare ? 'Assistant shared' : 'Conversation shared'}
                             </p>
+                            {notSignedIn.length > 0 && (
+                                <>
+                                    <p
+                                        role="alert"
+                                        style={{
+                                            margin: 0,
+                                            maxWidth: 420,
+                                            padding: '10px 14px',
+                                            borderRadius: 8,
+                                            background: 'var(--warning-bg)',
+                                            border: '1px solid var(--warning-border)',
+                                            color: 'var(--warning-fg)',
+                                            fontSize: 13,
+                                            lineHeight: 1.45,
+                                            textAlign: 'center',
+                                        }}
+                                    >
+                                        {partialSignedInMessage(notSignedIn)} Once they sign in, you can share with them again.
+                                    </p>
+                                    <button
+                                        onClick={onClose}
+                                        style={{
+                                            height: 36,
+                                            padding: '0 20px',
+                                            borderRadius: 8,
+                                            border: 'none',
+                                            background: 'var(--accent)',
+                                            color: 'var(--accent-fg)',
+                                            fontSize: 13,
+                                            fontWeight: 500,
+                                            cursor: 'pointer',
+                                            fontFamily: 'inherit',
+                                        }}
+                                    >
+                                        Done
+                                    </button>
+                                </>
+                            )}
                         </div>
                     ) : (
                         /* ── Form ──────────────────────────────────────── */
@@ -715,6 +776,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                                         add an address
                                     </p>
                                 )}
+                                <SignInRequiredNote action="share" />
                             </div>
 
                             {/* Personal message */}

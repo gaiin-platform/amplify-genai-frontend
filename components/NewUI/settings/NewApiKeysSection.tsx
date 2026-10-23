@@ -32,6 +32,7 @@ import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus
 import { SearchInput } from '@/components/NewUI/shared/SearchInput';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
+import { SignInRequiredNote } from '@/components/NewUI/shared/SignInRequiredNote';
 import { resolveUsernameForEmail } from '@/components/NewUI/shared/emailSuggestions';
 import {
   CheckboxControl,
@@ -653,6 +654,7 @@ export const NewApiKeysSection: FC<NewApiKeysSectionProps> = ({ accounts, defaul
                       placeholderWithSelection="Replace delegate…"
                       ariaLabel="Delegate email"
                     />
+                    <SignInRequiredNote action="delegate" />
                   </div>
                 )}
                 <div style={{ marginTop: 12 }}>

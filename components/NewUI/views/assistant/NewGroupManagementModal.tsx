@@ -50,6 +50,7 @@ import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 import { CapabilityCard } from '@/components/NewUI/views/assistant/CapabilityCard';
 import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
+import { SignInRequiredNote } from '@/components/NewUI/shared/SignInRequiredNote';
 import { resolveUsernameForEmail } from '@/components/NewUI/shared/emailSuggestions';
 import toast from 'react-hot-toast';
 
@@ -430,6 +431,7 @@ export const NewGroupManagementModal: React.FC<Props> = ({ group, onClose }) => 
                                             excludeEmails={currentMemberEmails}
                                             placeholder="Search or type an email…"
                                         />
+                                        <SignInRequiredNote action="add" />
                                         {addEmails.length > 0 && (
                                             <div className="flex flex-col gap-1.5">
                                                 {addEmails.map((email) => (

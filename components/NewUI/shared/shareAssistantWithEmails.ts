@@ -13,15 +13,23 @@ import { shareItems } from '@/services/shareService';
 import { resolveUsernameForEmail } from '@/components/NewUI/shared/emailSuggestions';
 import { recordShare, resolveShareNote } from '@/components/NewUI/shared/shareHistory';
 import { invalidateSharedItemsCache } from '@/components/NewUI/shared/sharedItemClassifier';
+import { interpretShareResult } from '@/components/NewUI/shared/shareOutcome';
+
+export interface AssistantShareResult {
+    /** At least one person received it (or there was no one to share with). */
+    ok: boolean;
+    /** Addresses skipped because they have never signed in to Amplify. */
+    notSignedIn: string[];
+}
 
 export async function shareAssistantWithEmails(opts: {
     prompt: Prompt;
     emails: string[];
     sharedBy: string;
     amplifyUsers: Record<string, string>;
-}): Promise<boolean> {
+}): Promise<AssistantShareResult> {
     const { prompt, emails, sharedBy, amplifyUsers } = opts;
-    if (emails.length === 0) return true;
+    if (emails.length === 0) return { ok: true, notSignedIn: [] };
 
     // Deep copy so the caller's prompt is never mutated; drop sender-owned fields (as NewUIShareModal does).
     const toExport = JSON.parse(JSON.stringify(prompt));
@@ -38,15 +46,16 @@ export async function shareAssistantWithEmails(opts: {
         resolveShareNote('', 'assistant', prompt.name),
         sharedData,
     );
-    if (!result?.success) return false;
+    const outcome = interpretShareResult(result, emails, sharedWith);
+    if (!result?.success) return { ok: false, notSignedIn: outcome.notSignedIn };
 
     recordShare(sharedBy, {
         type: 'assistant',
         sourceId: (prompt.data?.assistant?.definition as any)?.assistantId ?? prompt.id,
         sourceName: prompt.name,
-        sharedWith: emails,
+        sharedWith: outcome.reached,
         note: '',
     });
     invalidateSharedItemsCache();
-    return true;
+    return { ok: true, notSignedIn: outcome.notSignedIn };
 }

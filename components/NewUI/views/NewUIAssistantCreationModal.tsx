@@ -75,7 +75,8 @@ import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { createAssistantPrompt, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { getUserIdentifier } from '@/utils/app/data';
 import { resolveUsernameForEmail } from '@/components/NewUI/shared/emailSuggestions';
-import { shareAssistantWithEmails } from '@/components/NewUI/shared/shareAssistantWithEmails';
+import { shareAssistantWithEmails, AssistantShareResult } from '@/components/NewUI/shared/shareAssistantWithEmails';
+import { joinEmails } from '@/components/NewUI/shared/shareOutcome';
 import toast from 'react-hot-toast';
 import { promptForData } from '@/utils/app/llm';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS } from '@/utils/app/const';
@@ -84,6 +85,7 @@ import { opLanguageOptionsMap } from '@/types/op';
 import { Flag } from '@/components/ReusableComponents/FlagsMap';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
+import { SignInRequiredNote } from '@/components/NewUI/shared/SignInRequiredNote';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { AssistantEmailEventsPanel } from '@/components/NewUI/views/assistant/AssistantEmailEventsPanel';
@@ -1401,7 +1403,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 const newRecipients = emailList.filter((e) => !known.has(e.toLowerCase()));
                 if (newRecipients.length > 0) {
                     setLoadingMessage('Sharing assistant…');
-                    let shared = false;
+                    let shared: AssistantShareResult = { ok: false, notSignedIn: [] };
                     try {
                         shared = await shareAssistantWithEmails({
                             prompt: aPrompt,
@@ -1412,7 +1414,13 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     } catch (shareErr) {
                         console.error('Error sharing assistant:', shareErr);
                     }
-                    if (!shared) {
+                    if (shared.notSignedIn.length > 0) {
+                        // Covers "nobody had signed in" (ok=false) and a partial share (ok=true).
+                        toast.error(
+                            `${shared.ok ? 'Not shared with' : 'The assistant was saved, but it couldn’t be shared with'} ${joinEmails(shared.notSignedIn)} — they haven’t signed in to Amplify yet.`,
+                            { duration: 8000 },
+                        );
+                    } else if (!shared.ok) {
                         toast.error('The assistant was saved, but sharing failed. Use Share on the assistant to try again.');
                     }
                 }
@@ -1654,6 +1662,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                         inputId="assistant-access-emails"
                                                         ariaLabel="Who has access — email addresses"
                                                     />
+                                                    <SignInRequiredNote action="access" fontSize={11} />
                                                 </div>
                                             )}
 
@@ -1906,6 +1915,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                             inputId="new-group-members"
                                                             ariaLabel="Group members — email addresses"
                                                         />
+                                                        <SignInRequiredNote action="add" fontSize={11} />
                                                         {/* Per-email access level pickers */}
                                                         {selectedMemberEmails.length > 0 && (
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 6 }}>
