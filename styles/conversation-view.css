@@ -4736,10 +4736,12 @@
    class combo `pointer-events-auto max-w-full overflow-hidden` is used only by
    AgentLogBlock's disclosure wrapper, and everything is under [data-new-ui].
 ───────────────────────────────────────────────────────────────────────────── */
+/* Also applied to [data-nui-agentlog="true"]: the Scheduled Tasks run-log viewer renders AgentLogBlock
+   outside the chat shell and opts in with that attribute, so both surfaces share one definition. */
 /* AgentLogBlock sizes its outer wrapper with an inline px width (68% of the whole
    .chatcontainer, measured at mount), which is wider than the new UI's text column
    and never tracks it. Track the column instead so the cards match the message text. */
-[data-new-ui="true"] .mt-3.pointer-events-none:has(> .pointer-events-auto.max-w-full.overflow-hidden) {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .mt-3.pointer-events-none:has(> .pointer-events-auto.max-w-full.overflow-hidden) {
   width: 100% !important;
   max-width: 100% !important;
   min-width: 0;
@@ -4749,16 +4751,16 @@
 
 /* AgentFileList renders <ul class="space-y-2"> even with no files. Inside .prose that
    empty list carries a 20px top margin, which sat between this wrapper and the pill. */
-[data-new-ui="true"] .mt-3.pointer-events-none:has(> .pointer-events-auto.max-w-full.overflow-hidden)
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .mt-3.pointer-events-none:has(> .pointer-events-auto.max-w-full.overflow-hidden)
   > .pointer-events-auto > ul.space-y-2:empty {
   display: none;
 }
 
 /* overflow-hidden would clip the pill's -8px hover bleed; the cards below bound themselves. */
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden {
   overflow: visible;
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent {
   display: inline-flex !important;
   /* The pill is inline-level, so it sat on a line box whose strut inherited the message
      body's 27px line-height and was pushed ~6px down inside it. Top-align it. */
@@ -4774,25 +4776,25 @@
   user-select: none;
   transition: background-color 0.12s ease;
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent:hover {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent:hover {
   background: var(--bg-hover);
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent:focus-visible {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 /* Swap the caret icons for the pill's trailing chevron. */
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent svg {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent svg {
   display: none !important;
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent .font-medium {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent .font-medium {
   margin-left: 0 !important;
   font-size: 13px;
   font-weight: 500;
   line-height: 1.4;
   color: var(--text-muted);
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent::after {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent::after {
   content: "";
   width: 13px;
   height: 13px;
@@ -4804,12 +4806,12 @@
   transition: transform 0.15s ease;
 }
 /* Open state: ExpansionComponent only wraps the icon in .icon-pop-group when closed. */
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent:not(:has(.icon-pop-group))::after {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent:not(:has(.icon-pop-group))::after {
   transform: rotate(0deg);
 }
 
 /* Expanded panel: drop the left rule, stack items as bordered cards. */
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l {
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -4817,7 +4819,7 @@
   padding: 0 !important;
   border-left: none !important;
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l > div > div {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l > div > div {
   margin: 0 !important;
   min-width: 0;
   padding: 8px 10px !important;
@@ -4829,42 +4831,42 @@
 }
 /* Keep long unbroken values (tool args, JSON, URLs) inside the column. The
    wrapper's overflow-hidden was lifted above, so bound everything here. */
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l {
   max-width: 100%;
   min-width: 0;
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l > div,
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l > div > div {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l > div,
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l > div > div {
   max-width: 100%;
   min-width: 0;
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l > div > div {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l > div > div {
   overflow-x: auto;
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l :is(span, p, div, li) {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l :is(span, p, div, li) {
   overflow-wrap: anywhere;
   min-width: 0;
 }
 /* Field-name column: shrinkable (was min-w-fit shrink-0) so a long key can't push the row wide. */
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l .min-w-fit {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l .min-w-fit {
   min-width: 0 !important;
   max-width: 45%;
   flex-shrink: 1 !important;
 }
 /* Code / JSON blocks scroll inside the card instead of widening it. */
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l pre {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l pre {
   max-width: 100%;
   overflow-x: auto;
 }
 
 /* Retire the blue / purple / amber accents inside the cards (accent rule §3);
    green / red result states stay semantic. */
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l [class*="text-blue-"],
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l [class*="text-purple-"],
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l [class*="text-amber-"] {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l [class*="text-blue-"],
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l [class*="text-purple-"],
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l [class*="text-amber-"] {
   color: var(--text-muted) !important;
 }
-[data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > .border-l .font-medium[class*="text-"]:not([class*="text-green-"]):not([class*="text-red-"]) {
+:is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > .border-l .font-medium[class*="text-"]:not([class*="text-green-"]):not([class*="text-red-"]) {
   color: var(--text-secondary) !important;
 }
 
@@ -4875,8 +4877,8 @@
   .nui-src-card,
   .nui-src-ext-icon,
   .nui-src-show-more,
-  [data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent,
-  [data-new-ui="true"] .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent::after {
+  :is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent,
+  :is([data-new-ui="true"], [data-nui-agentlog="true"]) .pointer-events-auto.max-w-full.overflow-hidden > #expandComponent::after {
     transition: none !important;
   }
 }

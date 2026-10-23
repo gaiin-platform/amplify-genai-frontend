@@ -88,6 +88,7 @@ import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { saveActionSet, ActionItem } from '@/services/actionSetsService';
 import { splitEmailList, looksLikeEmail } from '@/components/NewUI/shared/emailSuggestions';
 import { useLegacySettingsEventBridge } from '@/components/NewUI/shared/newUISettingsEvents';
+import { formatRunStatus, LOAD_FAILED_DETAILS_MESSAGE, normalizeExecutionRecord } from '@/components/NewUI/shared/scheduledTaskLogDetails';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -370,6 +371,8 @@ export const NewScheduledTasksView: React.FC = () => {
     const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
     const [selectedLogDetails, setSelectedLogDetails] = useState<any>(null);
     const [isLoadingLogDetails, setIsLoadingLogDetails] = useState(false);
+    const [logDetailsError, setLogDetailsError] = useState<string | null>(null);
+    const logDetailsSeqRef = useRef(0);
     const [isLogsExpanded, setIsLogsExpanded] = useState(false);
     const [isTestingTask, setIsTestingTask] = useState(false);
     const pollingCancelledRef = useRef(false);
@@ -663,19 +666,28 @@ export const NewScheduledTasksView: React.FC = () => {
 
     const fetchLogDetails = async (taskId: string, executionId: string) => {
         if (!taskId || !executionId) return;
+        // Only the newest request may write state: clicking through runs quickly must not let a slow
+        // earlier response replace the run now on screen.
+        const seq = ++logDetailsSeqRef.current;
         setIsLoadingLogDetails(true);
+        setLogDetailsError(null);
+        setSelectedLogDetails(null);
         try {
             const result = await getTaskExecutionDetails(taskId, executionId);
-            if (result.success && result.data?.details) {
-                setSelectedLogDetails(result.data.details);
+            if (seq !== logDetailsSeqRef.current) return;
+            const record = result?.success ? normalizeExecutionRecord(result.data?.details) : null;
+            if (record) {
+                setSelectedLogDetails(record);
             } else {
-                setSelectedLogId(null);
-                setSelectedLogDetails(null);
+                // Keep the panel open and say why, rather than closing it as if nothing was clicked.
+                console.warn('Could not load scheduled task run details:', result?.message);
+                setLogDetailsError(LOAD_FAILED_DETAILS_MESSAGE);
             }
         } catch (err) {
             console.error('Error fetching log details:', err);
+            if (seq === logDetailsSeqRef.current) setLogDetailsError(LOAD_FAILED_DETAILS_MESSAGE);
         } finally {
-            setIsLoadingLogDetails(false);
+            if (seq === logDetailsSeqRef.current) setIsLoadingLogDetails(false);
         }
     };
 
@@ -699,7 +711,12 @@ export const NewScheduledTasksView: React.FC = () => {
     useEffect(() => { if (isViewingLogs) fetchTaskLogs(selectedTask.taskId); }, [isViewingLogs, selectedTask.taskId]);
     useEffect(() => {
         if (selectedLogId && selectedTask.taskId) fetchLogDetails(selectedTask.taskId, selectedLogId);
-        else setSelectedLogDetails(null);
+        else {
+            logDetailsSeqRef.current++;
+            setSelectedLogDetails(null);
+            setLogDetailsError(null);
+            setIsLoadingLogDetails(false);
+        }
     }, [selectedLogId, selectedTask.taskId]);
 
     // Object selector handlers (ported)
@@ -1173,7 +1190,7 @@ export const NewScheduledTasksView: React.FC = () => {
                                             <td className="px-4 py-3 text-[13px]" style={{ color: 'var(--text-primary)' }}>{userFriendlyDate(log.executedAt)}</td>
                                             <td className="px-4 py-3 text-[12.5px]">
                                                 <span className="px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-raised)', color: statusColor(log.status) }}>
-                                                    {log.status.charAt(0).toUpperCase() + log.status.slice(1)}
+                                                    {formatRunStatus(log.status)}
                                                 </span>
                                             </td>
                                             <td className="px-4 py-3 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
@@ -1208,7 +1225,7 @@ export const NewScheduledTasksView: React.FC = () => {
                                     <div>
                                         <span className="font-medium" style={{ color: 'var(--text-primary)' }}>Status:</span>{' '}
                                         <span style={{ color: statusColor(selectedLogDetails.status) }}>
-                                            {selectedLogDetails.status.charAt(0).toUpperCase() + selectedLogDetails.status.slice(1)}
+                                            {formatRunStatus(selectedLogDetails.status)}
                                         </span>
                                     </div>
                                 </div>
@@ -1221,9 +1238,16 @@ export const NewScheduledTasksView: React.FC = () => {
                                     </div>
                                 )}
 
+                                {selectedLogDetails.detailsError && !selectedLogDetails.details && (
+                                    <div className="rounded-[8px] p-3 border text-[12.5px]" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                                        <div className="font-medium" style={{ color: 'var(--text-primary)' }}>Details unavailable for this run</div>
+                                        <div className="mt-1 break-words" style={{ color: 'var(--text-muted)' }}>{selectedLogDetails.detailsError}</div>
+                                    </div>
+                                )}
+
                                 {selectedLogDetails.details?.result && (
-                                    <div className="rounded-[8px] p-3 border text-neutral-900 dark:text-white" style={{ backgroundColor: 'var(--bg-raised)', borderColor: 'var(--border-subtle)' }}>
-                                        <div className="font-medium mb-2" style={{ color: 'var(--text-primary)' }}>Result:</div>
+                                    // data-nui-agentlog scopes the chat's "Reasoning / Actions" styling (conversation-view.css).
+                                    <div data-nui-agentlog="true" className="text-neutral-900 dark:text-white">
                                         {(() => {
                                             try {
                                                 return (
@@ -1262,9 +1286,10 @@ export const NewScheduledTasksView: React.FC = () => {
                                 )}
                             </div>
                         ) : (
-                            <div className="text-center py-6 rounded-[8px] border" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}>
+                            <div className="text-center py-6 rounded-[8px] border" role="status" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}>
                                 <IconExclamationCircle size={22} className="mx-auto mb-2 opacity-30" />
                                 <p className="text-[13px]">No details available for this execution</p>
+                                {logDetailsError && <p className="text-[11.5px] mt-1">{logDetailsError}</p>}
                             </div>
                         )}
                     </div>
