@@ -19,7 +19,6 @@ import {
   IconCheck,
   IconEye,
   IconEyeOff,
-  IconInfoCircle,
   IconLoader2,
   IconPlugConnected,
   IconPlus,
@@ -29,6 +28,7 @@ import { MCPTransport } from '@/types/mcp';
 import { addMCPServer } from '@/services/mcpService';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { FieldError, SelectControl, TextControl } from '@/components/NewUI/shared/FormControls';
+import { InfoCallout } from '@/components/NewUI/shared/InfoCallout';
 import { btnPrimary, btnSecondary } from '../apiKeys/buttonStyles';
 import {
   assessServerUrl,
@@ -427,32 +427,11 @@ export const McpAddServerForm: FC<McpAddServerFormProps> = ({ onAdded, onCancel,
         )}
 
         {/* Client-side notice — see mcp_servers.py#add_mcp_server (no trustMode ⇒ "untrusted") */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: 10,
-            marginTop: 16,
-            padding: 12,
-            borderRadius: 8,
-            // --bg-raised is a visible step from the --bg-elevated card in both themes (--bg-app is
-            // near-white on the white light-mode card, which read as a smudge).
-            background: 'var(--bg-raised)',
-            border: '1px solid var(--border-subtle)',
-            color: 'var(--text-secondary)',
-            fontSize: 13,
-            lineHeight: '20px',
-            textAlign: 'left',
-          }}
-        >
-          {/* 16px icon centred on the first 20px line */}
-          <IconInfoCircle size={16} aria-hidden="true" style={{ flexShrink: 0, marginTop: 2, color: 'var(--text-muted)' }} />
-          <p style={{ margin: 0, minWidth: 0 }}>
-            New servers start as client-side only. To enable OAuth, backend refresh and server-side tools, choose{' '}
-            <strong style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Trust for server-side</strong> on the
-            server’s row after adding it.
-          </p>
-        </div>
+        <InfoCallout marginTop={16}>
+          New servers start as client-side only. To enable OAuth, backend refresh and server-side tools, choose{' '}
+          <strong style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Trust for server-side</strong> on the
+          server’s row after adding it.
+        </InfoCallout>
 
         {/* Footer */}
         <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8, marginTop: 20 }}>

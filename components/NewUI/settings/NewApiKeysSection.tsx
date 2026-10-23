@@ -19,7 +19,7 @@
 import React, { FC, ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import toast from 'react-hot-toast';
-import { IconChevronDown, IconExternalLink, IconLoader2, IconPlus } from '@tabler/icons-react';
+import { IconChevronDown, IconLoader2, IconPlus } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
 import { Account, noCoaAccount } from '@/types/accounts';
 import { ApiKey } from '@/types/apikeys';
@@ -43,6 +43,7 @@ import {
 import { OneTimeSecretReveal, useOneTimeSecret } from '@/components/NewUI/shared/OneTimeSecretReveal';
 import { ApiKeyCard, CardGuardKind } from './apiKeys/ApiKeyCard';
 import { AccessTypesField } from './apiKeys/AccessTypesField';
+import { ApiKeysIntro, BILLING_CALLOUT_ID } from './apiKeys/ApiKeysIntro';
 import { btnPrimary, btnSecondary } from './apiKeys/buttonStyles';
 import {
   KeySort,
@@ -63,8 +64,6 @@ import {
   validateCreate,
 } from './apiKeys/apiKeyModel';
 import { LeaveGuard, UNSAVED_KEY_EDITS_GUARD, UNSAVED_KEY_GUARD } from './leaveGuard';
-
-const API_RESOURCES_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
 
 export interface NewApiKeysSectionProps {
   accounts: Account[];
@@ -207,6 +206,9 @@ export const NewApiKeysSection: FC<NewApiKeysSectionProps> = ({ accounts, defaul
   const userEmail = session?.user?.email ?? undefined;
 
   const validAccounts = useMemo(() => accounts.filter((a) => a.id !== noCoaAccount.id), [accounts]);
+  // A billing account is a real entry from the accounts service; the "No COA On File" placeholder
+  // doesn't count. (The parent only renders this section once the accounts have loaded.)
+  const hasBillingAccount = validAccounts.length > 0;
 
   const [keys, setKeys] = useState<ApiKey[] | null>(null);
   const [loadError, setLoadError] = useState(false);
@@ -426,57 +428,13 @@ export const NewApiKeysSection: FC<NewApiKeysSectionProps> = ({ accounts, defaul
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, color: 'var(--text-primary)' }}>
-      {/* Intro */}
-      <div style={{ ...cardShell, padding: 18 }}>
-        <p style={{ margin: 0, fontSize: 13.5, lineHeight: 1.55, color: 'var(--text-secondary)', maxWidth: 720 }}>
-          API keys let scripts and apps call Amplify on your behalf, billed to the account you choose. Every key
-          needs a billing account —{' '}
-          <button
-            type="button"
-            onClick={() =>
-              window.dispatchEvent(new CustomEvent('openNewUISettingsSection', { detail: { section: 'account' } }))
-            }
-            className="underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] rounded-sm"
-            style={{ background: 'none', border: 0, padding: 0, color: 'var(--text-primary)', cursor: 'pointer', font: 'inherit' }}
-          >
-            add one in Account settings
-          </button>{' '}
-          first. A key is shown only once, when you create or rotate it.
-        </p>
-        <div style={{ marginTop: 10 }}>
-          <a
-            href={API_RESOURCES_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-[13px] underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] rounded-sm"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            API documentation <IconExternalLink size={14} aria-hidden="true" />
-          </a>
-        </div>
-        <details style={{ marginTop: 12 }}>
-          <summary
-            className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] rounded-sm"
-            style={{ cursor: 'pointer', fontSize: 13, color: 'var(--text-secondary)', width: 'fit-content' }}
-          >
-            About key types
-          </summary>
-          <dl style={{ margin: '10px 0 0', display: 'grid', gap: 8, fontSize: 13, color: 'var(--text-secondary)', maxWidth: 720 }}>
-            <div>
-              <dt style={{ display: 'inline', fontWeight: 600, color: 'var(--text-primary)' }}>Personal use</dt>
-              <dd style={{ display: 'inline', margin: 0 }}> — acts on your behalf, with access to your data and permissions.</dd>
-            </div>
-            <div>
-              <dt style={{ display: 'inline', fontWeight: 600, color: 'var(--text-primary)' }}>System use</dt>
-              <dd style={{ display: 'inline', margin: 0 }}> — operates independently of any user account, with its own permissions. Good for automation.</dd>
-            </div>
-            <div>
-              <dt style={{ display: 'inline', fontWeight: 600, color: 'var(--text-primary)' }}>Delegate use</dt>
-              <dd style={{ display: 'inline', margin: 0 }}> — a personal key for another Amplify user, billed to your account. You can&apos;t see the key; the delegate rotates it to get theirs.</dd>
-            </div>
-          </dl>
-        </details>
-      </div>
+      {/* Intro: page-level description, no card */}
+      <ApiKeysIntro
+        hasBillingAccount={hasBillingAccount}
+        onOpenAccountSettings={() =>
+          window.dispatchEvent(new CustomEvent('openNewUISettingsSection', { detail: { section: 'account' } }))
+        }
+      />
 
       {/* Shown-once key from creation */}
       {created.secret !== null && (
@@ -762,7 +720,17 @@ export const NewApiKeysSection: FC<NewApiKeysSectionProps> = ({ accounts, defaul
             // replace the shown-once key before it was copied).
             action={
               createOpen || created.secret !== null ? null : (
-                <button id="nui-open-create" type="button" className={btnPrimary} onClick={openCreate}>
+                // Without a billing account the button stays focusable (aria-disabled, not `disabled`,
+                // which would also swallow the hover that shows the tooltip) but does nothing.
+                <button
+                  id="nui-open-create"
+                  type="button"
+                  className={`${btnPrimary}${hasBillingAccount ? '' : ' opacity-50 hover:opacity-50 cursor-not-allowed'}`}
+                  aria-disabled={!hasBillingAccount}
+                  aria-describedby={hasBillingAccount ? undefined : BILLING_CALLOUT_ID}
+                  title={hasBillingAccount ? undefined : 'Add a billing account in Account settings to create a key.'}
+                  onClick={hasBillingAccount ? openCreate : undefined}
+                >
                   <IconPlus size={15} aria-hidden="true" />
                   Create key
                 </button>
