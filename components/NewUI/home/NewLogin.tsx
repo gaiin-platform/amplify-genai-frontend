@@ -1,5 +1,5 @@
 import React from 'react';
-import Image from 'next/image';
+import { AmplifyLogo } from '@/components/NewUI/shared/AmplifyLogo';
 import { signIn } from 'next-auth/react';
 import { IconArrowRight } from '@tabler/icons-react';
 
@@ -13,7 +13,7 @@ export const NewLogin: React.FC = () => {
       <section className="w-full max-w-[620px]" aria-labelledby="new-login-title">
         <div className="flex w-full flex-col items-center rounded-[16px] border border-[--border-subtle] bg-[--bg-composer] px-8 py-12 text-center shadow-sm sm:px-14 sm:py-16">
           <div className="mb-9 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-[--border-subtle] bg-[--bg-raised] shadow-sm">
-            <Image src="/amplify-logo.png" alt="Amplify" width={58} height={58} className="rounded-full" priority />
+            <AmplifyLogo size={58} className="rounded-full" priority />
           </div>
 
           <div className="mb-10">

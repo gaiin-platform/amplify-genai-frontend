@@ -3,9 +3,9 @@
  * Height 48px: [amplify-logo.png Amplify wordmark] [collapse button] [search button]
  */
 import React from 'react';
-import Image from 'next/image';
 import { IconLayoutSidebarLeftCollapse, IconSearch } from '@tabler/icons-react';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
+import { AmplifyLogo } from '@/components/NewUI/shared/AmplifyLogo';
 
 interface SidebarHeaderProps {
   onCollapse: () => void;
@@ -28,7 +28,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
         title="New chat"
         type="button"
       >
-        <Image src="/amplify-logo.png" alt="Amplify" width={24} height={24} style={{ borderRadius: 4 }} />
+        <AmplifyLogo size={24} radius={4} />
         <span
           className="text-[20px] text-[--text-primary] tracking-[-0.01em]"
           style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}

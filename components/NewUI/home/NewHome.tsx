@@ -20,7 +20,7 @@
  * Send button: 32×32, radius 8px, --accent bg, white glyph var(--accent-fg)
  */
 import React, { useContext, useRef, useState, useCallback, useEffect } from 'react';
-import Image from 'next/image';
+import { AmplifyLogo } from '@/components/NewUI/shared/AmplifyLogo';
 import {
   IconArrowUp,
 } from '@tabler/icons-react';
@@ -805,7 +805,7 @@ export const NewHome: React.FC = () => {
           <HalloweenGreeting />
         ) : (
           <div className="flex items-center gap-3 mb-8 justify-center">
-            <Image src="/amplify-logo.png" alt="Amplify" width={40} height={40} style={{ borderRadius: 6 }} />
+            <AmplifyLogo size={40} radius={6} />
             <h1
               className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
               style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
