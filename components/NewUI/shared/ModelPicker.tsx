@@ -573,7 +573,7 @@ function formatTokenCount(n: number): string {
  * provider/vendor. The display name carries enough, and both extras made the card
  * read as debug output. Don't re-add them without asking.
  */
-const ModelCardBody: React.FC<{ model: Model }> = ({ model }) => {
+export const ModelCardBody: React.FC<{ model: Model }> = ({ model }) => {
   const capabilities: string[] = [];
   if (model.supportsImages) capabilities.push('Vision');
   if (model.supportsReasoning) capabilities.push('Reasoning');

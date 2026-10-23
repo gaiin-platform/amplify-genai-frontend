@@ -150,10 +150,10 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `IconButton.tsx` | Accessible icon button — always pass `aria-label` |
 | `ToggleSwitch.tsx` | Pill switch; `role="switch"`, `aria-checked` |
 | `SegmentedControl.tsx` | Tab strip / segmented picker; pass `aria-label` |
-| `ModelPicker.tsx` | Model selector with families, effort levels, hover preview cards |
+| `ModelPicker.tsx` | Model selector with families, effort levels, hover preview cards. Also exports `ModelCardBody` (the card content) — pair it with `InfoFloatCard` + `useInfoCardHover<Model>()` to preview a model anywhere (Settings → General default-model list does) |
 | `modelCost.ts` | `getModelCostTier(model)` → `'low' \| 'moderate' \| 'high' \| null` plus `MODEL_COST_LABEL` / `MODEL_COST_GLYPHS` ($/$$/$$$). Shown on the `ModelPicker` hover card. Ports the classic `ModelSelect#getCostIcon` thresholds (costs are USD per **1K** tokens); the higher of input/output wins; `null` when unpriced so an unconfigured model is never advertised as "Low". No React imports |
 | `InfoTooltip.tsx` | Hover/focus (i) icon with a small floating explanation; props `text`, `ariaLabel`, `maxWidth`. The reusable "what is this?" affordance |
-| `InfoFloatCard.tsx` | 250ms hover-in preview card; Floating UI positioned |
+| `InfoFloatCard.tsx` | 250ms hover-in preview card; Floating UI positioned. Used by `AttachMenu`, `ModelPicker`, and Settings → General default model |
 | `AttachMenu.tsx` | ⊕ attach menu (files, library, assistant, explicit connectors). Optional ordinary-chat tools are deployment-managed and selected server-side; skills/plugin mode selectors are not user entry points. "Add from library" opens `DataSourceLibraryPicker` in a `surface='floating'` submenu and emits the picked files — it never opens the local file picker |
 | `AttachmentRail.tsx` | Pre-send attachment card strip above the composer textarea |
 | `AttachmentCard.tsx` | Individual attachment with upload progress and retry |

@@ -56,7 +56,9 @@ import { CustomInstructionsSection } from '@/components/NewUI/settings/CustomIns
 import { filterModels } from '@/utils/app/models';
 import { getUserDefaultModelId, setUserDefaultModelId } from '@/components/NewUI/shared/userDefaultModel';
 import { getUserDefaultEffort, setUserDefaultEffort } from '@/components/NewUI/shared/userDefaultEffort';
-import { EFFORT_OPTIONS } from '@/components/NewUI/shared/ModelPicker';
+import { EFFORT_OPTIONS, ModelCardBody } from '@/components/NewUI/shared/ModelPicker';
+import { InfoFloatCard, useInfoCardHover } from '@/components/NewUI/shared/InfoFloatCard';
+import type { Model } from '@/types/model';
 import type { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { DEFAULT_STORAGE_SELECTION, getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
 import { getUserWebSearchEnabled, setUserWebSearchEnabled, WEB_SEARCH_LEVEL3_INFO } from '@/components/NewUI/shared/userWebSearch';
@@ -176,7 +178,15 @@ const GeneralSection: FC = () => {
     () => getUserDefaultModelId() ?? '',
   );
 
+  // Same hover-preview card the chat model picker shows (250ms in / 200ms out).
+  const modelCard = useInfoCardHover<Model>();
+  useEffect(() => {
+    if (!modelDropdownOpen) modelCard.hideNow();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modelDropdownOpen]);
+
   const handleDefaultModelChange = (id: string) => {
+    modelCard.hideNow();
     setUserDefaultModelIdState(id);
     setUserDefaultModelId(id || null);
     setModelDropdownOpen(false);
@@ -648,8 +658,16 @@ const GeneralSection: FC = () => {
                           textAlign: 'left',
                           transition: 'background 80ms ease',
                         }}
-                        onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
-                        onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)';
+                          modelCard.show(model, e.currentTarget);
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) (e.currentTarget as HTMLElement).style.background = 'transparent';
+                          modelCard.hide();
+                        }}
+                        onFocus={(e) => modelCard.show(model, e.currentTarget)}
+                        onBlur={() => modelCard.hide()}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '8px' }}>
                           <span style={{ fontSize: '14px', color: 'var(--text-primary)', fontWeight: isActive ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -668,6 +686,13 @@ const GeneralSection: FC = () => {
                     );
                   })}
                 </div>
+
+                {/* Hover-preview card — portalled, so the scroll container can't clip it */}
+                {modelCard.item && (
+                  <InfoFloatCard anchor={modelCard.anchor} onMouseEnter={modelCard.cancelHide} onMouseLeave={modelCard.hide}>
+                    <ModelCardBody model={modelCard.item} />
+                  </InfoFloatCard>
+                )}
               </>
             )}
           </div>
