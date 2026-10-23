@@ -26,6 +26,7 @@ import {
     IconEye,
     IconEyeOff,
     IconCopy,
+    IconCopyPlus,
 } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
 import { useDebouncedSearchTracking, useTrack } from '@/components/NewUI/shared/UiAnalytics';
@@ -52,6 +53,7 @@ import { DefaultModels } from '@/types/model';
 import { NewUIAssistantCreationModal } from './NewUIAssistantCreationModal';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { RowActionButton } from '@/components/NewUI/shared/RowActionButton';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import ReactDOM from 'react-dom';
 import { savePrompts } from '@/utils/app/prompts';
@@ -108,6 +110,8 @@ interface RowProps {
     /** Indicates an owned copy that originated from a received share. */
     sharedBy?: string;
     onCopy?: (e: React.MouseEvent) => void;
+    /** Open the editor prefilled from this (own) assistant to save a variation as a new one. */
+    onDuplicate?: (e: React.MouseEvent) => void;
     onHide?: (e: React.MouseEvent) => void;
 }
 
@@ -207,6 +211,7 @@ const AssistantRow: React.FC<RowProps> = ({
     onDelete,
     onPreview,
     onCopy,
+    onDuplicate,
     onHide,
     isDeleting,
     accessBadge,
@@ -312,124 +317,48 @@ const AssistantRow: React.FC<RowProps> = ({
                 </button>
 
                 {onCopy && (
-                    <button
-                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                        }}
-                        onClick={onCopy}
-                        aria-label={`Make a copy of ${name}`}
-                        title="Make a copy"
-                    >
+                    <RowActionButton aria-label={`Make a copy of ${name}`} title="Make a copy" onClick={onCopy}>
                         <IconCopy size={14} />
-                    </button>
+                    </RowActionButton>
                 )}
                 {onPreview && (
-                    <button
-                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                        }}
-                        onClick={onPreview}
-                        aria-label={`View prompt for ${name}`}
-                        title="View prompt"
-                    >
+                    <RowActionButton aria-label={`View prompt for ${name}`} title="View prompt" onClick={onPreview}>
                         <IconEye size={14} />
-                    </button>
+                    </RowActionButton>
                 )}
                 {onHide && (
-                    <button
-                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                        }}
-                        onClick={onHide}
-                        aria-label={`Hide ${name}`}
-                        title="Hide"
-                    >
+                    <RowActionButton aria-label={`Hide ${name}`} title="Hide" onClick={onHide}>
                         <IconEyeOff size={14} />
-                    </button>
+                    </RowActionButton>
                 )}
-
+                {onDuplicate && (
+                    <RowActionButton aria-label={`Duplicate ${name}`} title="Duplicate" onClick={onDuplicate}>
+                        <IconCopyPlus size={14} />
+                    </RowActionButton>
+                )}
                 {onEdit && (
-                    <button
-                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                        }}
-                        onClick={onEdit}
-                        aria-label={`Edit ${name}`}
-                        title="Edit"
-                    >
+                    <RowActionButton aria-label={`Edit ${name}`} title="Edit" onClick={onEdit}>
                         <IconPencil size={14} />
-                    </button>
+                    </RowActionButton>
                 )}
-
                 {onShare && (
-                    <button
-                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                        }}
-                        onClick={onShare}
-                        aria-label={`Share ${name}`}
-                        title="Share"
-                    >
+                    <RowActionButton aria-label={`Share ${name}`} title="Share" onClick={onShare}>
                         <IconShare size={14} />
-                    </button>
+                    </RowActionButton>
                 )}
-
                 {onDelete && (
-                    <button
-                        className="flex items-center justify-center h-[28px] w-[28px] rounded-[6px] transition-colors"
-                        style={{ color: 'var(--text-muted)' }}
-                        onMouseEnter={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
-                            (e.currentTarget as HTMLElement).style.color = '#e05252';
-                        }}
-                        onMouseLeave={(e) => {
-                            (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
-                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
-                        }}
-                        onClick={onDelete}
+                    <RowActionButton
+                        aria-label={isDeleting ? `Deleting ${name}` : `Delete ${name}`}
                         title="Delete"
+                        danger
+                        onClick={onDelete}
                         disabled={isDeleting}
                     >
                         {isDeleting
                             ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" />
                             : <IconTrash size={14} />
                         }
-                    </button>
+                    </RowActionButton>
                 )}
             </div>
         </div>
@@ -553,6 +482,8 @@ const MyAssistantsTab: React.FC = () => {
     const [assistantForShare, setAssistantForShare] = useState<Prompt | null>(null);
     const [previewPrompt, setPreviewPrompt] = useState<Prompt | null>(null);
     const [copyingAssistant, setCopyingAssistant] = useState<{ prompt: Prompt; provenance: ShareProvenance } | null>(null);
+    // Duplicate: the creation modal in copy mode (no share provenance) for one of the user's own assistants
+    const [duplicatingAssistant, setDuplicatingAssistant] = useState<Prompt | null>(null);
     // Delete confirm dialog
     const [confirmDeleteAssistant, setConfirmDeleteAssistant] = useState<Prompt | null>(null);
     // prompt.id of the row whose backend delete is in flight (null = idle)
@@ -670,6 +601,11 @@ const MyAssistantsTab: React.FC = () => {
     const handleEditAssistant = (e: React.MouseEvent, p: Prompt) => {
         e.stopPropagation();
         setEditingAssistant(p);
+    };
+
+    const handleDuplicateAssistant = (e: React.MouseEvent, p: Prompt) => {
+        e.stopPropagation();
+        setDuplicatingAssistant(p);
     };
 
     const handleShareAssistant = (e: React.MouseEvent, p: Prompt) => {
@@ -795,6 +731,7 @@ const MyAssistantsTab: React.FC = () => {
                                 e.stopPropagation();
                                 setPromptToHide(p);
                             } : undefined}
+                            onDuplicate={p.data?.noEdit || isReceivedSharedAssistant(p) ? undefined : (e) => handleDuplicateAssistant(e, p)}
                             onEdit={p.data?.noEdit ? undefined : (e) => handleEditAssistant(e, p)}
                             onShare={p.data?.noShare ? undefined : (e) => handleShareAssistant(e, p)}
                             onDelete={p.data?.noDelete ? undefined : (e) => {
@@ -806,14 +743,6 @@ const MyAssistantsTab: React.FC = () => {
                     ))
                 )}
             </div>
-
-            {copyingAssistant && (
-                <NewUIAssistantCreationModal
-                    copyingAssistant={copyingAssistant.prompt}
-                    copyProvenance={copyingAssistant.provenance}
-                    onClose={() => setCopyingAssistant(null)}
-                />
-            )}
             {/* Blocks the list while the backend delete is in flight so it can't double-fire */}
             <NewUILoadingStatus open={!!deletingPromptId} message="Deleting assistant…" />
 
@@ -829,6 +758,14 @@ const MyAssistantsTab: React.FC = () => {
                     copyingAssistant={copyingAssistant.prompt}
                     copyProvenance={copyingAssistant.provenance}
                     onClose={() => setCopyingAssistant(null)}
+                />
+            )}
+
+            {/* Duplicate — same modal as "Make a copy", prefilled from the user's own assistant */}
+            {duplicatingAssistant && (
+                <NewUIAssistantCreationModal
+                    copyingAssistant={duplicatingAssistant}
+                    onClose={() => setDuplicatingAssistant(null)}
                 />
             )}
 
