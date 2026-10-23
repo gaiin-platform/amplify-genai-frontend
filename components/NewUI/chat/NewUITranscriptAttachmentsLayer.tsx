@@ -67,7 +67,7 @@ function middleEllipsis(value: string, maxLength = 30): string {
 /** A classic non-image PDF tile that should show a first-page thumbnail. */
 interface PdfThumbTarget {
   face: HTMLElement;
-  doc: { id: string; name?: string; size?: number; groupId?: string };
+  doc: { id?: string; name?: string; size?: number; groupId?: string };
 }
 
 export const NewUITranscriptAttachmentsLayer: React.FC = () => {
@@ -215,6 +215,8 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
           });
           card.setAttribute('role', 'button');
           card.setAttribute('tabindex', '0');
+          // Cards render one per data source, in order.
+          const dataSource = message.data?.dataSources?.[cardIndex];
           const label = card.querySelector<HTMLElement>(
             '.absolute.bottom-0.left-0.right-0',
           );
@@ -223,6 +225,11 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
             card.setAttribute('aria-label', `Open attachment ${name}`);
             if (label && label.textContent !== middleEllipsis(name))
               label.textContent = middleEllipsis(name);
+            // The label is truncated twice over (classic 50-char cut, then ours);
+            // the tooltip carries the real name.
+            const fullName =
+              typeof dataSource?.name === 'string' && dataSource.name ? dataSource.name : name;
+            if (label && label.title !== fullName) label.title = fullName;
           }
           const imageFace = card.querySelector<HTMLElement>(
             ':scope > .absolute.inset-0.bg-cover.bg-center',
@@ -237,9 +244,8 @@ export const NewUITranscriptAttachmentsLayer: React.FC = () => {
             delete card.dataset.newUiImageLoading;
           }
 
-          // Cards render one per data source, in order. A non-image PDF card
-          // gets its classic grey tile face replaced by a first-page thumbnail.
-          const dataSource = message.data?.dataSources?.[cardIndex];
+          // A non-image PDF card gets its classic grey tile face covered by a
+          // first-page thumbnail (or, if that cannot render, a clean file card).
           const placeholderFace = card.querySelector<HTMLElement>(
             ':scope > .absolute.inset-0.bg-gradient-to-br',
           );

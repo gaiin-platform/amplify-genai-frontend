@@ -1,7 +1,9 @@
 /**
  * AttachmentCard — a single 160×160 attachment tile shown in the composer rail.
  *
- * Three variants: image (thumbnail), file (name + badge), paste (text preview + badge).
+ * Variants: image (thumbnail), PDF (first-page thumbnail via `PdfThumbnailFace` — the
+ * same face the sent/reloaded transcript card uses), file (name + badge),
+ * paste (text preview + badge).
  * Has a remove (×) button that fades in on hover.
  * Clicking the card face opens the preview overlay.
  *
@@ -14,6 +16,7 @@
 import React, { useRef, useState } from 'react';
 import { IconEdit, IconLoader2 } from '@tabler/icons-react';
 import { UIAttachment, formatBytes } from './attachmentTypes';
+import { PdfThumbnailFace } from './PdfThumbnailFace';
 
 interface AttachmentCardProps {
   attachment: UIAttachment;
@@ -81,6 +84,9 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
   } = attachment;
 
   const isFailed = status === 'failed';
+  // A PDF is drawn as a still first page (or a clean file card), never embedded.
+  // A failed upload keeps the plain variant so its FAILED badge + Retry still read.
+  const isPdf = kind === 'file' && !isFailed && (attachment.mime === 'application/pdf' || /\.pdf$/i.test(name));
   const composerPaste = kind === 'paste' && !readOnly && !attachment.sourceMessageId;
   const canEditPaste = composerPaste && Boolean(onEdit);
   const cardWidth = composerPaste ? 240 : width;
@@ -163,9 +169,19 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
           {/* ── Body region ── */}
           <div
             className="relative overflow-hidden"
-            style={{ padding: kind !== 'image' ? inset : 0 }}
+            style={{ padding: kind !== 'image' && !isPdf ? inset : 0 }}
           >
-            {kind === 'image' ? (
+            {isPdf ? (
+              <PdfThumbnailFace
+                source={attachment.previewUrl ? { kind: 'url', url: attachment.previewUrl } : null}
+                name={name}
+                bytes={attachment.bytes || undefined}
+                width={cardWidth}
+                height={cardHeight}
+                pending={attachment.previewState === 'pending'}
+                showName
+              />
+            ) : kind === 'image' ? (
               /* Image variant: thumbnail letterboxed in card, no badge */
               <div
                 className="absolute inset-0 flex items-center justify-center p-2"
@@ -254,7 +270,7 @@ export const AttachmentCard: React.FC<AttachmentCardProps> = ({
           </div>
 
           {/* ── Badge row ── */}
-          {(ext || kind === 'paste' || isFailed) && kind !== 'image' && (
+          {(ext || kind === 'paste' || isFailed) && kind !== 'image' && !isPdf && (
             <div
               style={{
                 padding: canEditPaste ? `0 ${inset + 48}px ${inset}px ${inset}px` : `0 ${inset}px ${inset}px`,

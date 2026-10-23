@@ -32,6 +32,38 @@ function cacheKey({ key, kind, mime, groupId }: PreviewRequest): string {
   return `${kind}:${mime || ''}:${groupId || ''}:${key}`;
 }
 
+/**
+ * The PDF bytes behind a download response. The store sometimes returns the
+ * file as base64 text (optionally JSON-wrapped, optionally a data URL) rather
+ * than raw bytes, so decode that shape first and fall back to the raw payload.
+ */
+async function readPdfBytes(content: Response): Promise<Uint8Array> {
+  const payload = typeof content.arrayBuffer === 'function'
+    ? await content.arrayBuffer()
+    : new TextEncoder().encode(await content.text()).buffer;
+  const contentType = content.headers?.get?.('content-type') || '';
+  const rawText = new TextDecoder().decode(payload).trim();
+  let candidate = rawText;
+  if (contentType.includes('json')) {
+    try {
+      const parsed = JSON.parse(rawText);
+      candidate = typeof parsed === 'string' ? parsed : parsed?.data ?? parsed?.body ?? rawText;
+    } catch {
+      // Fall back to the raw bytes.
+    }
+  }
+  const base64 = candidate.includes(',') ? candidate.slice(candidate.indexOf(',') + 1) : candidate;
+  if (base64 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64.replace(/\s/g, ''))) {
+    try {
+      const decoded = window.atob(base64.replace(/\s/g, '').padEnd(Math.ceil(base64.length / 4) * 4, '='));
+      return Uint8Array.from(decoded, (char) => char.charCodeAt(0));
+    } catch {
+      // Fall back to the raw bytes.
+    }
+  }
+  return new Uint8Array(payload);
+}
+
 async function fetchPreview({ key, kind, mime, groupId }: PreviewRequest): Promise<LibraryPreviewResult> {
   const response = await getFileDownloadUrl(key, groupId);
   if (!response.success || !response.downloadUrl) {
@@ -47,38 +79,11 @@ async function fetchPreview({ key, kind, mime, groupId }: PreviewRequest): Promi
   }
 
   if (kind === 'pdf') {
-    const payload = typeof content.arrayBuffer === 'function'
-      ? await content.arrayBuffer()
-      : new TextEncoder().encode(await content.text()).buffer;
-    const contentType = content.headers?.get?.('content-type') || '';
-    const rawText = new TextDecoder().decode(payload).trim();
-    let candidate = rawText;
-    if (contentType.includes('json')) {
-      try {
-        const parsed = JSON.parse(rawText);
-        candidate = typeof parsed === 'string' ? parsed : parsed?.data ?? parsed?.body ?? rawText;
-      } catch {
-        // Fall back to the raw bytes.
-      }
-    }
-    const base64 = candidate.includes(',') ? candidate.slice(candidate.indexOf(',') + 1) : candidate;
-    if (base64 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64.replace(/\s/g, ''))) {
-      try {
-        const decoded = window.atob(base64.replace(/\s/g, '').padEnd(Math.ceil(base64.length / 4) * 4, '='));
-        const bytes = Uint8Array.from(decoded, (char) => char.charCodeAt(0));
-        return {
-          kind,
-          objectUrl: URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })),
-          bytes: bytes.byteLength,
-        };
-      } catch {
-        // Fall back to the raw bytes.
-      }
-    }
+    const bytes = await readPdfBytes(content);
     return {
       kind,
-      objectUrl: URL.createObjectURL(new Blob([payload], { type: 'application/pdf' })),
-      bytes: payload.byteLength,
+      objectUrl: URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })),
+      bytes: bytes.byteLength,
     };
   }
 
@@ -142,6 +147,23 @@ export async function fetchLibraryPdfPreview(
   const result = await fetchPreview({ ...normalized, kind: 'pdf' });
   if (result.kind !== 'pdf') throw new Error('Unexpected preview kind');
   return result;
+}
+
+/**
+ * Fetch just the bytes of a library PDF (no object URL to own or revoke) —
+ * for rendering a thumbnail with pdf.js rather than handing it to a viewer.
+ */
+export async function fetchLibraryPdfBytes(
+  request: Omit<PreviewRequest, 'kind'>,
+): Promise<Uint8Array> {
+  const key = request.key.replace(/^s3:\/\//, '');
+  const response = await getFileDownloadUrl(key, request.groupId);
+  if (!response.success || !response.downloadUrl) {
+    throw new Error('Preview URL unavailable');
+  }
+  const content = await fetch(response.downloadUrl);
+  if (!content.ok) throw new Error(`Preview request failed: ${content.status}`);
+  return readPdfBytes(content);
 }
 
 /** Test-only reset; does not cancel requests already in progress. */

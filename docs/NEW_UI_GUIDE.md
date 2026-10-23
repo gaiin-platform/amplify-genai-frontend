@@ -98,7 +98,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewUIShareModal.tsx` | Share conversation/assistant modal |
 | `NewUIUserMessageMarkdownLayer.tsx` | Portal-based markdown render inside user bubbles |
 | `NewUITranscriptAttachmentsLayer.tsx` | Moves post-send attachment cards into a sibling surface above user bubbles |
-| `NewUITranscriptPdfThumbnail.tsx` | First-page PDF thumbnail portaled by `NewUITranscriptAttachmentsLayer` into the classic grey "PDF" tile. Lazy-fetches on scroll-into-view, renders the blob in a scaled, non-interactive browser-viewer iframe (no PDF library); falls back to the classic icon on failure or >25 MB |
+| `NewUITranscriptPdfThumbnail.tsx` | Adapter that `NewUITranscriptAttachmentsLayer` portals into the classic grey "PDF" tile: maps a data source to `shared/PdfThumbnailFace` (library source, name left to the classic label). Covers sent **and** reloaded messages. No iframe/embed/object — see §5 rule 40 |
 | `NewUITranscriptPastedTextLayer.tsx` | Renders sent `data.largeTextBlocks` pastes as `shared/AttachmentCard` chips in the transcript rail; opens `shared/AttachmentPreview` on click |
 | `NewUITranscriptPreviewLayer.tsx` | Suppresses the classic `ImageModal` and mirrors post-send attachment previews into `shared/AttachmentPreview` (same component as the composer) |
 | `NewUISourcesLayer.tsx` | Portal-based replacement for `ChatSourcesBlock`/`ExpansionComponent` "Sources" — renders a compact "N source(s)" pill toggle + flat list of source cards; hides original via `data-nui-src-original` CSS attribute |
@@ -157,6 +157,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `AttachMenu.tsx` | ⊕ attach menu (files, library, assistant, explicit connectors). Optional ordinary-chat tools are deployment-managed and selected server-side; skills/plugin mode selectors are not user entry points. "Add from library" opens `DataSourceLibraryPicker` in a `surface='floating'` submenu and emits the picked files — it never opens the local file picker |
 | `AttachmentRail.tsx` | Pre-send attachment card strip above the composer textarea |
 | `AttachmentCard.tsx` | Individual attachment with upload progress and retry |
+| `PdfThumbnailFace.tsx` | The one face of a PDF attachment card: skeleton → page-1 still (fills card width, cropped from the top, `devicePixelRatio`-sharp) with a "PDF · N pages" chip and optional truncated name + tooltip → on any failure (encrypted, corrupt, >25 MB, unreachable) a plain file card: PDF icon, "PDF · size", name. Lazy via IntersectionObserver. Used by `AttachmentCard` (composer) and `chat/NewUITranscriptPdfThumbnail` (sent/reloaded), so the surfaces cannot drift. `PdfThumbSource` is a stored library key or an in-memory URL |
+| `pdfThumbnail.ts` | pdf.js rendering behind it — `planThumbnail` (width-fill + top-crop + DPR clamp), `renderPdfThumbnail`, `loadPdfThumbnail` (shared in-flight fetch, 60-entry cache, 2 concurrent renders, permanent failures cached / transient ones retried), `classifyPdfError`. Loads the vendored `components/Chat/JsPDF.js` lazily; its worker is `public/pdfjs/pdf.worker.min.js` and **must match that file's pdf.js version (3.10.111)**. No React imports |
 | `DataSourceCard.tsx` | 76px file card + `DataSourceCardGrid` (2-col ≥640px, 12px gap) for attached data sources. State shows only in the 40px icon slot (spinner → file-type icon cross-fade) and the subtitle — the card surface never changes color |
 | `DataSourceLibraryPicker.tsx` | Multi-select picker for already-uploaded library files. Emits `{id, name, type, metadata}` with **no `key`** — the assistant save step prefixes a keyless source with `s3://`. `surface='inline'` (default) is a band in a form; `surface='floating'` + `width` is the ⊕ menu's submenu panel |
 | `libraryAttachment.ts` | The already-uploaded-file intake — `libraryFileToAttachedDocument` (derives the bare S3 `key`; `null` ⇒ unsendable, refuse it), `createLibraryUIAttachment` (`ready` card, `pending` preview), `hydrateLibraryAttachmentPreview` (downloads and resolves the card face; never throws). Use this for anything coming out of the library — `AttachFile#handleFile` would upload a second copy. No React imports |
@@ -648,6 +650,16 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     is owner-only and rejects inactive or expired keys, an expiration of *today* already counts as
     expired, and `full_access` is a stored sentinel (every check is `type in access or
     "full_access" in access`), not shorthand for the other types.
+
+40. **A PDF in the message list is a still image, never an `<iframe>`/`<embed>`/`<object>`.** Those
+    hand the file to the browser's own viewer, which paints its own toolbar (zoom / fit /
+    download) in a separate compositing layer that ignores the card's `overflow`, `transform` and
+    `opacity` — it floats beside the card, and `#toolbar=0` is a Chrome hint other browsers
+    ignore. Render page 1 with `shared/pdfThumbnail` and show it via `shared/PdfThumbnailFace`.
+    The native viewer may appear only in `shared/AttachmentPreview` (portalled out of the
+    transcript); `shared/__tests__/pdfThumbnail.test.ts` fails if another New UI file embeds one.
+    The classic code-interpreter block still embeds `<iframe id="Generated_PDF">`, so
+    `conversation-view.css` hides it inside `.chatcontainer`.
 
 ---
 

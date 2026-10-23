@@ -5930,3 +5930,15 @@
     transition: none;
   }
 }
+
+/* ─── No native PDF viewer inside the message list ──────────────────────────
+   ChatCodeInterpreter.tsx (classic, not ours to edit) shows a generated PDF in
+   a 625×450 `<iframe id="Generated_PDF">` under "Generated Files", which makes
+   the browser paint its own viewer chrome (zoom / fit / download) in the
+   transcript. The id is unique to that block; the Download button above it
+   stays. Sent-PDF cards are a pdf.js still image (shared/PdfThumbnailFace) and
+   the full viewer lives only in the shared AttachmentPreview overlay, which
+   is portalled out of `.chatcontainer`. */
+[data-new-ui="true"] .chatcontainer iframe#Generated_PDF {
+  display: none !important;
+}
