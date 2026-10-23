@@ -6,7 +6,7 @@ import {
     useSandpack,
   } from "@codesandbox/sandpack-react";
 
-import { CodeBlockDetails } from '@/utils/app/codeblock';
+import { CodeBlockDetails, findEntryHtml } from '@/utils/app/codeblock';
 import DOMPurify from 'dompurify';
 import HomeContext from '@/components/Home/home.context';
 import { IconAlertCircle, IconPresentation } from '@tabler/icons-react';
@@ -186,7 +186,9 @@ const VanillaPreview: React.FC<{ codeBlocks: CodeBlockDetails[]; height: number;
                     </body>
                     </html>
                 `.trim();
-                newFiles[indexHtmlPath] = { code: defaultHtml };
+                // With no file named index.html, the first html block is the page (as in the artifact editor).
+                const entryHtml = findEntryHtml(codeBlocks);
+                newFiles[indexHtmlPath] = { code: entryHtml ? entryHtml.code : defaultHtml };
             }
 
             setFiles(newFiles);
