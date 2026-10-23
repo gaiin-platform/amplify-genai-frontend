@@ -119,7 +119,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 ### `settings/`
 | File | Purpose |
 |------|---------|
-| `NewSettingsModal.tsx` | Two-column settings modal (left rail + right content) |
+| `NewSettingsModal.tsx` | Two-column settings modal (left rail + right content). Per-section `InfoTooltip` (i) sits beside the heading (Connectors, Skills, MCP, Usage, …) |
 | `NewAdminModal.tsx` | Two-column admin modal; replaces settings modal on open |
 | `NewAccountSection.tsx` | Settings → Account |
 | `NewStorageSection.tsx` | Settings → Storage |
@@ -261,7 +261,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 ### `views/`
 | File | Purpose |
 |------|---------|
-| `NewAssistantsView.tsx` | Assistants gallery: My / Shared with Me / Teams / Layered / feature-gated Amplify Helper tabs |
+| `NewAssistantsView.tsx` | Assistants gallery: My / Shared with Me / Teams / Layered / feature-gated Amplify Helper tabs. An `InfoTooltip` (i) at the right end of the tab bar explains the kinds of assistants (`ASSISTANT_TYPES_INFO`) |
 | `NewAssistantTypeSelector.tsx` | Step-0 type picker (Private/Managed/Team) before AssistantModal |
 | `NewUIAssistantCreationModal.tsx` | Unified assistant creation form (access type + fields inline) |
 | `NewUIPromptCreationModal.tsx` | Prompt template creation modal |
@@ -270,7 +270,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `LibraryView.tsx` | Thin wrapper for NewLibraryView |
 | `AmplifyHelperAssistant.tsx` | Feature-gated Amplify Helper tab guide and locked start-chat surface; never persisted as a user assistant |
 | `NewScheduledTasksView.tsx` | Scheduled tasks: list + editor/logs pane |
-| `NewWorkflowsView.tsx` | Workflow templates: list + detail pane |
+| `NewWorkflowsView.tsx` | Workflow templates: list + detail pane. An `InfoTooltip` (i) beside the "Workflows" title explains what workflows are |
 
 ### Root
 | File | Purpose |

@@ -1750,6 +1750,13 @@ export const NewSettingsModal: FC<NewSettingsModalProps> = ({ onClose, openToSec
                   text="Custom instructions are added to the system prompt for new standard, template, and assistant conversations to tailor responses to your preferences. Select None to turn them off."
                 />
               )}
+              {activeSection === 'usage' && (
+                <InfoTooltip
+                  ariaLabel="About usage"
+                  maxWidth={360}
+                  text="This page helps you understand your AI token usage. You are not charged or billed for usage accumulated through the Amplify interface; only API usage is billed."
+                />
+              )}
               {activeSection === 'promptTemplates' && (
                 <InfoTooltip
                   ariaLabel="About prompt templates"

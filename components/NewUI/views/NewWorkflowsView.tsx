@@ -53,6 +53,7 @@ import {
   deleteAstWorkflowTemplate,
 } from '@/services/assistantWorkflowService';
 import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { useLegacySettingsEventBridge } from '@/components/NewUI/shared/newUISettingsEvents';
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -747,12 +748,19 @@ export const NewWorkflowsView: React.FC = () => {
             <IconChevronLeft size={18} />
           </button>
 
-          <h1
-            className="text-[16px] font-semibold flex-1"
-            style={{ color: 'var(--text-primary)' }}
-          >
-            Workflows
-          </h1>
+          <div className="flex items-center gap-1.5 flex-1 min-w-0">
+            <h1
+              className="text-[16px] font-semibold"
+              style={{ color: 'var(--text-primary)' }}
+            >
+              Workflows
+            </h1>
+            <InfoTooltip
+              ariaLabel="About workflows"
+              maxWidth={360}
+              text="Workflows are reusable, multi-step templates that chain together AI steps, assistants, and tools to complete a larger task. Build one once, then run it whenever you need that process, instead of re-prompting each step by hand."
+            />
+          </div>
 
           {/* New Workflow button — only when canEdit */}
           {canEdit && (

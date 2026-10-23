@@ -53,6 +53,7 @@ import { DefaultModels } from '@/types/model';
 import { NewUIAssistantCreationModal } from './NewUIAssistantCreationModal';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { RowActionButton } from '@/components/NewUI/shared/RowActionButton';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import ReactDOM from 'react-dom';
@@ -85,6 +86,12 @@ import {
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 type MainTab = 'individual' | 'shared' | 'group' | 'layered' | 'amplifyHelper';
+
+const ASSISTANT_TYPES_INFO =
+    'My Assistants: assistants you created or imported, which you own and can edit. ' +
+    'Shared with Me: assistants other people shared with you; they are read-only until you import a copy. ' +
+    'Groups: assistants managed by a group you belong to, available to all of its members. ' +
+    'Layered Assistants: a router that reads your prompt and automatically picks the best assistant from a set you choose to answer it.';
 
 type ShareProvenance = SharedAssistantProvenance;
 
@@ -2023,6 +2030,14 @@ export const NewAssistantsView: React.FC = () => {
                                 </button>
                             );
                         })}
+                </div>
+
+                <div className="ml-2 flex items-center flex-shrink-0">
+                    <InfoTooltip
+                        ariaLabel="About the different kinds of assistants"
+                        maxWidth={380}
+                        text={ASSISTANT_TYPES_INFO}
+                    />
                 </div>
             </div>
 
