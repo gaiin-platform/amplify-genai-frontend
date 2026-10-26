@@ -45,6 +45,7 @@ import {
     IconArrowUpRight,
     IconPencil,
 } from '@tabler/icons-react';
+import type { Conversation } from '@/types/chat';
 import HomeContext from '@/components/Home/home.context';
 import { useDebouncedSearchTracking } from '@/components/NewUI/shared/UiAnalytics';
 import {
@@ -79,8 +80,17 @@ import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 import {
     buildArtifactLibraryItems,
     hydrateArtifactLibraryItem,
+    renameArtifactInConversation,
     type ArtifactLibraryItem,
 } from '@/components/NewUI/shared/artifactLibraryModel';
+import {
+    MAX_ARTIFACT_NAME_LENGTH,
+    applyRenameToSavedArtifacts,
+    findConversationArtifactGroup,
+    normalizeArtifactName,
+    renameArtifactsRemote,
+    resolveArtifactRenameKeys,
+} from '@/components/NewUI/shared/artifactRename';
 import { getAllArtifacts, getArtifact } from '@/services/artifactsService';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -560,13 +570,117 @@ type LibrarySortKey = 'name' | 'type' | 'createdAt' | 'status';
 
 const SORT_ACTION_WIDTH = 92;
 
+// ── Artifact row (Artifacts tab) ────────────────────────────────────────────
+
+const ArtifactLibraryRow: React.FC<{
+    item: ArtifactLibraryItem;
+    sourceLabel: string;
+    busy: boolean;
+    onView: () => void;
+    onChat: () => void;
+    onRename: (name: string) => Promise<boolean>;
+}> = ({ item, sourceLabel, busy, onView, onChat, onRename }) => {
+    const [isRenaming, setIsRenaming] = useState(false);
+    const [draft, setDraft] = useState(item.name);
+    const [isSaving, setIsSaving] = useState(false);
+    const inputRef = useRef<HTMLInputElement>(null);
+    // Enter/Save and the resulting blur must not both commit.
+    const savingRef = useRef(false);
+
+    useEffect(() => {
+        if (!isRenaming) return;
+        inputRef.current?.focus();
+        inputRef.current?.select();
+    }, [isRenaming]);
+
+    const cancel = () => {
+        if (savingRef.current) return;
+        setDraft(item.name);
+        setIsRenaming(false);
+    };
+
+    const commit = async () => {
+        if (savingRef.current) return;
+        const next = normalizeArtifactName(draft);
+        if (!next || next === item.name) {
+            cancel();
+            return;
+        }
+        savingRef.current = true;
+        setIsSaving(true);
+        try {
+            if (await onRename(next)) setIsRenaming(false);
+        } finally {
+            savingRef.current = false;
+            setIsSaving(false);
+        }
+    };
+
+    const buttonStyle = { color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' };
+
+    return (
+        <div className="group flex items-center gap-3 rounded-[9px] border px-4 py-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
+            <div className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-[8px]" style={{ color: 'var(--accent)', backgroundColor: 'var(--bg-active)' }}><IconLibrary size={17} /></div>
+            <div className="min-w-0 flex-1">
+                {isRenaming ? (
+                    <div className="flex items-center gap-1 min-w-0">
+                        <input
+                            ref={inputRef}
+                            value={draft}
+                            maxLength={MAX_ARTIFACT_NAME_LENGTH}
+                            disabled={isSaving}
+                            onChange={(event) => setDraft(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === 'Enter') {
+                                    event.preventDefault();
+                                    void commit();
+                                }
+                                if (event.key === 'Escape') cancel();
+                            }}
+                            aria-label={'Rename ' + item.name}
+                            className="min-w-0 flex-1 rounded-[4px] border px-1 text-[13px] font-medium focus:outline-none focus-visible:ring-2"
+                            style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)' }}
+                        />
+                        <button type="button" disabled={isSaving} aria-label="Save artifact name" title="Save" onMouseDown={(event) => event.preventDefault()} onClick={() => void commit()} className="flex items-center justify-center h-6 px-2 rounded-[5px] text-[12px] font-medium disabled:opacity-60" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}>
+                            {isSaving ? <IconLoader2 size={12} className="motion-safe:animate-spin motion-reduce:animate-none" /> : 'Save'}
+                        </button>
+                        <button type="button" disabled={isSaving} aria-label="Cancel rename" title="Cancel" onMouseDown={(event) => event.preventDefault()} onClick={cancel} className="flex items-center justify-center h-6 px-2 rounded-[5px] border text-[12px] disabled:opacity-60" style={buttonStyle}>
+                            Cancel
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1 min-w-0">
+                        <p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }} title={item.name}>{item.name}</p>
+                        <button
+                            type="button"
+                            aria-label={'Rename ' + item.name}
+                            title="Rename (applies to all versions)"
+                            onClick={() => { setDraft(item.name); setIsRenaming(true); }}
+                            className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-[4px] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                            style={{ color: 'var(--text-muted)' }}
+                        >
+                            <IconPencil size={13} />
+                        </button>
+                    </div>
+                )}
+                <p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version}{sourceLabel ? ` · ${sourceLabel}` : ''}</p>
+            </div>
+            <button type="button" disabled={busy} onClick={onView} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={buttonStyle}>{busy ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
+            <button type="button" disabled={busy} onClick={onChat} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
+        </div>
+    );
+};
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const NewLibraryView: React.FC = () => {
     const {
-        state: { featureFlags, artifacts: savedArtifacts, conversations, selectedConversation },
+        state: { featureFlags, artifacts: savedArtifacts, conversations, selectedConversation, selectedArtifacts },
         dispatch,
         setLoadingMessage,
+        getCompleteConversation,
+        handleUpdateConversation,
+        handleUpdateSelectedConversation,
         handleNewConversation,
         handleSelectConversation,
     } = useContext(HomeContext);
@@ -945,6 +1059,59 @@ export const NewLibraryView: React.FC = () => {
         }
     }, [dispatch, handleSelectConversation, hydrateArtifactItem, requestArtifactPanelOpen]);
 
+    /**
+     * Renames every version of the artifact `item` belongs to. Saved records don't know
+     * which chat they came from until hydrated, and the chat is what links the versions
+     * together — so hydrate, find the artifact's version list in its source chat, then
+     * rename all of those on the server in one call and mirror the name into the chat.
+     */
+    const handleRenameArtifact = useCallback(async (item: ArtifactLibraryItem, name: string): Promise<boolean> => {
+        const ownKey = item.artifact.key;
+        if (!ownKey) {
+            toast.error('Unable to rename this artifact');
+            return false;
+        }
+        const ref = { name: item.artifact.name, createdAt: item.artifact.createdAt, version: item.artifact.version };
+        let conversation: Conversation | null = null;
+        let group: ReturnType<typeof findConversationArtifactGroup> = null;
+        try {
+            const hydrated = await hydrateArtifactItem(item);
+            if (hydrated.source.conversation) {
+                conversation = (await getCompleteConversation(hydrated.source.conversation)) ?? null;
+                group = findConversationArtifactGroup(conversation, ref);
+            }
+        } catch {
+            // Without the source chat only this one record can be renamed.
+        }
+
+        const keys = Array.from(new Set([ownKey, ...resolveArtifactRenameKeys(savedArtifacts, group?.versions ?? [])]));
+        const result = await renameArtifactsRemote(keys, name);
+        if (!result.success) {
+            toast.error(result.message || 'Unable to rename artifact');
+            return false;
+        }
+        dispatch({ field: 'artifacts', value: applyRenameToSavedArtifacts(savedArtifacts, result.renamed, name) });
+
+        if (conversation && group) {
+            try {
+                const renamed = renameArtifactInConversation(conversation, group.artifactId, undefined, name);
+                if (selectedConversation?.id === conversation.id) {
+                    handleUpdateSelectedConversation(renamed);
+                    if (selectedArtifacts?.[0]?.artifactId === group.artifactId) {
+                        dispatch({ field: 'selectedArtifacts', value: renamed.artifacts?.[group.artifactId] ?? selectedArtifacts });
+                    }
+                } else {
+                    await handleUpdateConversation(conversation, { key: 'artifacts', value: renamed.artifacts });
+                }
+            } catch {
+                // The rename itself succeeded; the chat's copy catches up the next time it is renamed.
+                toast.error('Renamed, but the source chat could not be updated');
+            }
+        }
+        toast.success(keys.length > 1 ? 'Artifact renamed (all versions)' : 'Artifact renamed');
+        return true;
+    }, [dispatch, getCompleteConversation, handleUpdateConversation, handleUpdateSelectedConversation, hydrateArtifactItem, savedArtifacts, selectedArtifacts, selectedConversation]);
+
     const handleDownload = (file: FileRecord & { commonType?: string }) => {
         downloadDataSourceFile({ id: file.id, name: file.name, type: file.type });
     };
@@ -1269,17 +1436,17 @@ export const NewLibraryView: React.FC = () => {
                         <div className="flex flex-col items-center justify-center py-20 text-center"><IconLibrary size={30} style={{ color: 'var(--text-muted)', opacity: .45 }} /><p className="mt-3 text-[13px]" style={{ color: 'var(--text-secondary)' }}>No generated artifacts yet</p><p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Create an artifact in a chat and it will appear here.</p></div>
                     ) : (
                         <div className="flex flex-col gap-2">
-                            {artifactItems.map((item) => {
-                                const sourceLabel = item.source.conversation?.name || (item.source.conversationId ? 'Source conversation' : '');
-                                return (
-                                <div key={item.stableKey} className="flex items-center gap-3 rounded-[9px] border px-4 py-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
-                                    <div className="h-9 w-9 flex items-center justify-center rounded-[8px]" style={{ color: 'var(--accent)', backgroundColor: 'var(--bg-active)' }}><IconLibrary size={17} /></div>
-                                    <div className="min-w-0 flex-1"><p className="truncate text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{item.name}</p><p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version}{sourceLabel ? ` · ${sourceLabel}` : ''}</p></div>
-                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => void handleViewArtifact(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}>{viewLoadingKey === item.stableKey ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
-                                    <button type="button" disabled={viewLoadingKey === item.stableKey} onClick={() => void handleChatArtifact(item)} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
-                                </div>
-                                );
-                            })}
+                            {artifactItems.map((item) => (
+                                <ArtifactLibraryRow
+                                    key={item.stableKey}
+                                    item={item}
+                                    sourceLabel={item.source.conversation?.name || (item.source.conversationId ? 'Source conversation' : '')}
+                                    busy={viewLoadingKey === item.stableKey}
+                                    onView={() => void handleViewArtifact(item)}
+                                    onChat={() => void handleChatArtifact(item)}
+                                    onRename={(name) => handleRenameArtifact(item, name)}
+                                />
+                            ))}
                         </div>
                     )}
                 </div>

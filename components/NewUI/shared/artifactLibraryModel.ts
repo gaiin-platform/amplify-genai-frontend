@@ -101,9 +101,21 @@ function artifactIdOf(artifact: Partial<ArtifactLibraryRecord>): string {
   return typeof raw === 'string' ? raw : '';
 }
 
+/**
+ * The server derives both ids from the name and version — key `20261026/Plan:v2`,
+ * artifactId `Plan:v2-20261026` — and its list endpoint returns no `version` field.
+ */
+export function versionFromArtifactKey(value: unknown): number | undefined {
+  if (typeof value !== 'string') return undefined;
+  const match = value.match(/:v(\d+)(?:-\d{8})?$/);
+  const version = match ? Number(match[1]) : NaN;
+  return Number.isFinite(version) && version > 0 ? version : undefined;
+}
+
 function versionOf(artifact: Partial<ArtifactLibraryRecord>): number | undefined {
   const version = Number(artifact.version);
-  return Number.isFinite(version) && version > 0 ? version : undefined;
+  if (Number.isFinite(version) && version > 0) return version;
+  return versionFromArtifactKey(artifact.key) ?? versionFromArtifactKey(artifact.artifactId);
 }
 
 export function artifactStableKey(artifact: Partial<ArtifactLibraryRecord>): string {

@@ -17,7 +17,9 @@
  *       - Close (×) button
  *  5. Esc closes the panel (or exits fullscreen first).
  *  6. Detects potentially truncated artifact content and shows a notice.
- *  7. Rename persists to selectedArtifacts + selectedConversation via HomeContext.
+ *  7. Rename applies to every version of the artifact: the server is renamed first
+ *     (shared/artifactRename), then selectedArtifacts, the saved-artifact list and
+ *     selectedConversation are updated via HomeContext.
  *
  * Fixes applied vs. the previous version:
  *  - Bug 5: Title span no longer has maxWidth: '24ch'. The title row uses
@@ -50,8 +52,6 @@ import React, {
 import { createPortal } from 'react-dom';
 import toast from 'react-hot-toast';
 
-import { getAllArtifacts, saveArtifact } from '@/services/artifactsService';
-
 import { lzwUncompress } from '@/utils/app/lzwCompression';
 
 import { resolveNUIType, sniffContentType } from '@/types/artifacts';
@@ -61,6 +61,13 @@ import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 
 import { ArtifactExportMenu } from '@/components/NewUI/shared/ArtifactExportMenu';
 import { renameArtifactInConversation } from '@/components/NewUI/shared/artifactLibraryModel';
+import {
+  MAX_ARTIFACT_NAME_LENGTH,
+  applyRenameToSavedArtifacts,
+  normalizeArtifactName,
+  renameArtifactsRemote,
+  resolveArtifactRenameKeys,
+} from '@/components/NewUI/shared/artifactRename';
 
 /** ID of the header container injected into #artifactsTab */
 const HEADER_ROOT_ID = 'nui-artifact-header-root';
@@ -88,9 +95,15 @@ interface Props {
 
 export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
   const {
-    state: { selectedArtifacts, artifactIsStreaming, selectedConversation },
+    state: {
+      selectedArtifacts,
+      artifactIsStreaming,
+      selectedConversation,
+      artifacts: savedArtifacts,
+    },
     dispatch: homeDispatch,
     handleUpdateSelectedConversation,
+    handleUpdateConversation,
   } = useContext(HomeContext);
 
   const track = useTrack();
@@ -104,6 +117,13 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
   // Rename state
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState('');
+  const [isSavingRename, setIsSavingRename] = useState(false);
+  /** Blocks re-entry: Enter closes the input, which can blur it and commit again. */
+  const renameBusyRef = useRef(false);
+  /** False once the input is closed, so a late blur from unmounting can't commit again. */
+  const renameOpenRef = useRef(false);
+  const selectedConversationRef = useRef(selectedConversation);
+  selectedConversationRef.current = selectedConversation;
   const renameInputRef = useRef<HTMLInputElement>(null);
 
   const versionMenuRef = useRef<HTMLDivElement>(null);
@@ -116,6 +136,7 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
       if (detail?.isOpen === false) {
         setIsOpen(false);
         setIsFullscreen(false);
+        renameOpenRef.current = false;
         setIsRenaming(false);
         setShowCodeView(false);
       } else if (detail?.isOpen === true) {
@@ -230,6 +251,8 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
       if (e.key !== 'Escape') return;
       e.stopImmediatePropagation();
       if (isRenaming) {
+        if (renameBusyRef.current) return;
+        renameOpenRef.current = false;
         setIsRenaming(false);
         return;
       }
@@ -335,68 +358,72 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
   // ── Bug 7: Rename handlers ────────────────────────────────────────────────
 
   const startRename = () => {
-    if (!currentArtifact) return;
+    if (!currentArtifact || renameBusyRef.current) return;
+    renameOpenRef.current = true;
     setRenameValue(currentArtifact.name);
     setIsRenaming(true);
     setShowVersionMenu(false);
   };
 
   const commitRename = async () => {
-    const trimmed = renameValue.trim();
-    setIsRenaming(false);
-    if (!trimmed || !selectedArtifacts || !currentArtifact) return;
-    if (trimmed === currentArtifact.name) return;
-
-    const updatedArtifacts = selectedArtifacts.map((a, i) =>
-      i === currentIdx ? { ...a, name: trimmed } : a,
-    );
-    homeDispatch({ field: 'selectedArtifacts', value: updatedArtifacts });
-
-    if (selectedConversation && currentArtifact.artifactId) {
-      const updatedConversation = renameArtifactInConversation(
-        selectedConversation,
-        currentArtifact.artifactId,
-        currentArtifact.version,
-        trimmed,
-        updatedArtifacts,
-      );
-      handleUpdateSelectedConversation(updatedConversation);
+    if (renameBusyRef.current || !renameOpenRef.current) return;
+    const next = normalizeArtifactName(renameValue);
+    // Nothing to do: empty, or every version already carries this name.
+    if (!next || !selectedArtifacts || !currentArtifact || selectedArtifacts.every((a) => a.name === next)) {
+      renameOpenRef.current = false;
+      setIsRenaming(false);
+      return;
     }
+    renameBusyRef.current = true;
+    setIsSavingRename(true);
 
     try {
-      const result = await saveArtifact({
-        artifactId: currentArtifact.artifactId,
-        version: currentArtifact.version,
-        name: trimmed,
-        type: currentArtifact.type,
-        description: currentArtifact.description,
-        contents: currentArtifact.contents,
-        tags: currentArtifact.tags,
-        createdAt: currentArtifact.createdAt,
-        ...(selectedConversation?.id || currentArtifact.metadata
-          ? {
-              metadata: {
-                ...(currentArtifact.metadata ?? {}),
-                ...(selectedConversation?.id
-                  ? { conversationId: selectedConversation.id }
-                  : {}),
-              },
-            }
-          : {}),
-        ...(selectedConversation?.id
-          ? { conversationId: selectedConversation.id }
-          : {}),
-      });
-      if (!result?.success) throw new Error('Artifact rename failed');
-      const response = await getAllArtifacts();
-      if (response.success)
-        homeDispatch({ field: 'artifacts', value: response.data || [] });
-    } catch {
-      toast.error('Artifact renamed locally, but server sync failed');
+      // Server first, for all versions at once. A version that was never saved has
+      // no key; if none were saved yet there is nothing remote to rename.
+      const keys = resolveArtifactRenameKeys(savedArtifacts, selectedArtifacts);
+      if (keys.length) {
+        const result = await renameArtifactsRemote(keys, next);
+        if (!result.success) {
+          toast.error(result.message || 'Unable to rename artifact');
+          return; // keep the input open so the user can retry
+        }
+        homeDispatch({
+          field: 'artifacts',
+          value: applyRenameToSavedArtifacts(savedArtifacts, result.renamed, next),
+        });
+      }
+
+      const updatedArtifacts = selectedArtifacts.map((a) => ({ ...a, name: next }));
+      homeDispatch({ field: 'selectedArtifacts', value: updatedArtifacts });
+
+      const sourceConversation = selectedConversation;
+      if (sourceConversation && currentArtifact.artifactId) {
+        // The user may have switched chats while the request was in flight.
+        const latest = selectedConversationRef.current;
+        if (latest && latest.id === sourceConversation.id) {
+          handleUpdateSelectedConversation(
+            renameArtifactInConversation(latest, currentArtifact.artifactId, undefined, next, updatedArtifacts),
+          );
+        } else {
+          const renamed = renameArtifactInConversation(
+            sourceConversation, currentArtifact.artifactId, undefined, next, updatedArtifacts,
+          );
+          handleUpdateConversation(sourceConversation, { key: 'artifacts', value: renamed.artifacts });
+        }
+      }
+      renameOpenRef.current = false;
+      setIsRenaming(false);
+    } finally {
+      renameBusyRef.current = false;
+      setIsSavingRename(false);
     }
   };
 
-  const cancelRename = () => setIsRenaming(false);
+  const cancelRename = () => {
+    if (renameBusyRef.current) return;
+    renameOpenRef.current = false;
+    setIsRenaming(false);
+  };
 
   const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') commitRename();
@@ -473,6 +500,8 @@ export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
             onChange={(e) => setRenameValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
             onBlur={commitRename}
+            disabled={isSavingRename}
+            maxLength={MAX_ARTIFACT_NAME_LENGTH}
             aria-label="Artifact name"
             style={{
               flex: 1,
