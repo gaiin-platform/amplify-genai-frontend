@@ -268,7 +268,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `NewUIAssistantCreationModal.tsx` | Unified assistant creation form (access type + fields inline) |
 | `NewUIPromptCreationModal.tsx` | Prompt template creation modal |
 | `ChatsListView.tsx` | Chats & Tasks full-pane list with search |
-| `NewLibraryView.tsx` | Data sources library: list rows, upload, batch delete. Artifacts tab rows (`ArtifactLibraryRow`) rename inline — applies to every version, and the source chat's copy is updated to match |
+| `NewLibraryView.tsx` | Data sources library: list rows, upload, batch delete. Artifacts tab rows (`ArtifactLibraryRow`) rename inline — applies to every version, and the source chat's copy is updated to match. Listed **newest first** with a date/time column; the server's `createdAt` is date-only, so the time comes from the backend's `savedAt` stamp (older artifacts show the date alone and always sort below timestamped ones, with undated records last; `artifactLibraryModel.artifactCreated` / `sortArtifactLibraryItemsNewestFirst`) |
 | `LibraryView.tsx` | Thin wrapper for NewLibraryView |
 | `AmplifyHelperAssistant.tsx` | Feature-gated Amplify Helper tab guide and locked start-chat surface; never persisted as a user assistant |
 | `NewScheduledTasksView.tsx` | Scheduled tasks: list + editor/logs pane |

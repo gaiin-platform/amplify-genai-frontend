@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { lzwCompress } from '@/utils/app/lzwCompression';
 import {
+  artifactCreated,
   artifactDisplayName,
   artifactStableKey,
   buildArtifactLibraryItems,
@@ -199,5 +200,75 @@ describe('artifactLibraryModel', () => {
     const updated = renameArtifactInConversation(source, 'artifact-1', 1, 'Renamed');
     expect(updated.artifacts?.['artifact-1'][0].name).toBe('Renamed');
     expect(updated.messages[0].data.artifacts[0].name).toBe('Renamed');
+  });
+
+  describe('creation date', () => {
+    // Shape of GET /artifacts/get_all: date-only createdAt, optional server savedAt.
+    const listed = (name: string, key: string, createdAt: string, over: any = {}) => ({
+      key, artifactId: key, name, createdAt, ...over,
+    });
+
+    it('reads the exact time from savedAt, and only a date from the legacy createdAt', () => {
+      const withTime = artifactCreated({ createdAt: 'Oct 26, 2026', savedAt: '2026-10-26T15:42:10Z' });
+      expect(withTime).toEqual({ ms: Date.parse('2026-10-26T15:42:10Z'), hasTime: true });
+
+      const dateOnly = artifactCreated({ createdAt: 'Oct 26, 2026' });
+      expect(dateOnly?.hasTime).toBe(false);
+      expect(new Date(dateOnly!.ms).getDate()).toBe(26);
+    });
+
+    it('falls back to the key date prefix and gives up cleanly', () => {
+      const fromKey = artifactCreated({ key: '20261026/Plan:v1', createdAt: 'not a date', savedAt: 'nope' });
+      expect(fromKey?.hasTime).toBe(false);
+      expect(new Date(fromKey!.ms).getMonth()).toBe(9);
+      expect(artifactCreated({ createdAt: '' })).toBeUndefined();
+      expect(artifactCreated({})).toBeUndefined();
+    });
+
+    it('lists newest first, regardless of the order the server returned', () => {
+      const items = buildArtifactLibraryItems([
+        listed('Oldest', '20260105/Oldest:v1', 'Jan 5, 2026'),
+        listed('Newest', '20261026/Newest:v1', 'Oct 26, 2026'),
+        listed('Middle', '20260601/Middle:v1', 'Jun 1, 2026'),
+      ]);
+      expect(items.map((item) => item.name)).toEqual(['Newest', 'Middle', 'Oldest']);
+    });
+
+    it('breaks same-day ties by save order (later in the list is newer), and by savedAt when present', () => {
+      const sameDay = buildArtifactLibraryItems([
+        listed('First', '20261026/First:v1', 'Oct 26, 2026'),
+        listed('Second', '20261026/Second:v1', 'Oct 26, 2026'),
+        listed('Third', '20261026/Third:v1', 'Oct 26, 2026'),
+      ]);
+      expect(sameDay.map((item) => item.name)).toEqual(['Third', 'Second', 'First']);
+
+      const stamped = buildArtifactLibraryItems([
+        listed('Later', '20261026/Later:v1', 'Oct 26, 2026', { savedAt: '2026-10-26T18:00:00Z' }),
+        listed('Earlier', '20261026/Earlier:v1', 'Oct 26, 2026', { savedAt: '2026-10-26T09:00:00Z' }),
+      ]);
+      expect(stamped.map((item) => item.name)).toEqual(['Later', 'Earlier']);
+    });
+
+    it('puts timestamped artifacts above date-only ones, even when the date-only one has a later calendar day', () => {
+      const items = buildArtifactLibraryItems([
+        listed('Legacy newest', '20261231/Legacy_newest:v1', 'Dec 31, 2026'),
+        listed('Legacy old', '20260105/Legacy_old:v1', 'Jan 5, 2026'),
+        listed('Stamped', '20261026/Stamped:v1', 'Oct 26, 2026', { savedAt: '2026-10-26T09:00:00Z' }),
+        listed('Stamped later', '20261026/Stamped_later:v1', 'Oct 26, 2026', { savedAt: '2026-10-26T18:00:00Z' }),
+        { key: 'mystery', artifactId: 'mystery', name: 'Mystery' },
+      ]);
+      expect(items.map((item) => item.name)).toEqual(['Stamped later', 'Stamped', 'Legacy newest', 'Legacy old', 'Mystery']);
+    });
+
+    it('puts records with no readable date last, and keeps the date after hydration', () => {
+      const items = buildArtifactLibraryItems([
+        { key: 'mystery', artifactId: 'mystery', name: 'Mystery' },
+        listed('Dated', '20260601/Dated:v1', 'Jun 1, 2026', { savedAt: '2026-06-01T10:00:00Z' }),
+      ]);
+      expect(items.map((item) => item.name)).toEqual(['Dated', 'Mystery']);
+
+      const hydrated = hydrateArtifactLibraryItem(items[0], artifact({ artifactId: items[0].artifact.artifactId, createdAt: 'Jun 1, 2026' }));
+      expect(hydrated.created).toEqual({ ms: Date.parse('2026-06-01T10:00:00Z'), hasTime: true });
+    });
   });
 });

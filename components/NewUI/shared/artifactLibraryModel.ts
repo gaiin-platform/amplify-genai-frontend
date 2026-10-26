@@ -8,6 +8,8 @@ export type ArtifactLibraryRecord = Omit<Artifact, 'contents'> & {
   key?: string;
   conversationId?: string;
   sharedBy?: string;
+  /** Server-stamped ISO save time (UTC). Absent on artifacts saved before it existed. */
+  savedAt?: string;
 };
 
 export type ArtifactSourceMatch = {
@@ -31,6 +33,15 @@ export type ArtifactLibraryItem = {
   hasContent: boolean;
   nuiType: ReturnType<typeof resolveNUIType>;
   source: ArtifactSourceMatch;
+  /** When it was generated, for sorting and display. Undefined if no date can be read. */
+  created?: ArtifactCreated;
+};
+
+export type ArtifactCreated = {
+  /** Epoch ms. Midnight local time when `hasTime` is false. */
+  ms: number;
+  /** False for date-only records (everything saved before `savedAt` existed). */
+  hasTime: boolean;
 };
 
 const ARTIFACT_FALLBACK_PATTERNS = [
@@ -277,11 +288,58 @@ export function findArtifactSource(
   return { confidence: 'none' };
 }
 
+/**
+ * When an artifact was generated. The server's `createdAt` is date-only
+ * ("Oct 26, 2026"), so the exact time comes from `savedAt` where it exists; the
+ * date prefix of the storage key (`20261026/…`) is the last resort.
+ */
+export function artifactCreated(artifact: Partial<ArtifactLibraryRecord>): ArtifactCreated | undefined {
+  if (typeof artifact.savedAt === 'string') {
+    const ms = Date.parse(artifact.savedAt);
+    if (Number.isFinite(ms)) return { ms, hasTime: true };
+  }
+  if (typeof artifact.createdAt === 'string' && artifact.createdAt.trim()) {
+    const ms = Date.parse(artifact.createdAt);
+    if (Number.isFinite(ms)) return { ms, hasTime: /\d{1,2}:\d{2}/.test(artifact.createdAt) };
+  }
+  const keyDate = typeof artifact.key === 'string' ? artifact.key.match(/(?:^|\/)(\d{4})(\d{2})(\d{2})\//) : null;
+  if (keyDate) {
+    const ms = new Date(Number(keyDate[1]), Number(keyDate[2]) - 1, Number(keyDate[3])).getTime();
+    if (Number.isFinite(ms)) return { ms, hasTime: false };
+  }
+  return undefined;
+}
+
+/** 2 = has an exact time, 1 = date only, 0 = no readable date. */
+const artifactDateTier = (item: ArtifactLibraryItem): number =>
+  item.created ? (item.created.hasTime ? 2 : 1) : 0;
+
+/**
+ * Newest first, in three tiers: artifacts with an exact time (saved after the server
+ * began stamping `savedAt`) come before date-only ones (older), which come before
+ * records with no readable date. Within a tier, newest first; most date-only records
+ * share a day, so ties fall back to the server list's order, which is the order they
+ * were saved in (later = newer).
+ */
+export function sortArtifactLibraryItemsNewestFirst(items: ArtifactLibraryItem[]): ArtifactLibraryItem[] {
+  return items
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const tierDiff = artifactDateTier(b.item) - artifactDateTier(a.item);
+      if (tierDiff) return tierDiff;
+      const aMs = a.item.created?.ms ?? 0;
+      const bMs = b.item.created?.ms ?? 0;
+      if (aMs !== bMs) return aMs > bMs ? -1 : 1;
+      return b.index - a.index;
+    })
+    .map(({ item }) => item);
+}
+
 export function buildArtifactLibraryItems(
   rawArtifacts: unknown,
   conversations: Conversation[] = [],
 ): ArtifactLibraryItem[] {
-  return normalizeArtifactRecords(rawArtifacts).map((artifact) => {
+  const items = normalizeArtifactRecords(rawArtifacts).map((artifact) => {
     const content = decodeArtifactContents(artifact.contents);
     const hasContent = isUsableArtifactContent(content);
     const declared = resolveNUIType(artifact.type);
@@ -294,8 +352,10 @@ export function buildArtifactLibraryItems(
       hasContent,
       nuiType,
       source: findArtifactSource(artifact, conversations),
+      created: artifactCreated(artifact),
     };
   });
+  return sortArtifactLibraryItemsNewestFirst(items);
 }
 
 /**
@@ -334,6 +394,7 @@ export function hydrateArtifactLibraryItem(
     nuiType,
     name: artifactDisplayName(normalized) || item.name,
     source,
+    created: artifactCreated(normalized) ?? item.created,
   };
 }
 

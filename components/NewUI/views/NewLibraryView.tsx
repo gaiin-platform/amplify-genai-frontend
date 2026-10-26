@@ -81,6 +81,7 @@ import {
     buildArtifactLibraryItems,
     hydrateArtifactLibraryItem,
     renameArtifactInConversation,
+    type ArtifactCreated,
     type ArtifactLibraryItem,
 } from '@/components/NewUI/shared/artifactLibraryModel';
 import {
@@ -115,6 +116,16 @@ function formatTime(isoString: string): string {
     } catch {
         return '';
     }
+}
+
+/** Date (and time, when the record has one) an artifact was generated. */
+function formatArtifactCreated(created?: ArtifactCreated): { date: string; time: string; iso: string; title: string } | null {
+    if (!created) return null;
+    const when = new Date(created.ms);
+    if (Number.isNaN(when.getTime())) return null;
+    const date = when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const time = created.hasTime ? when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+    return { date, time, iso: when.toISOString(), title: 'Generated ' + date + (time ? ' at ' + time : '') };
 }
 
 /** Return the byte count stored on a library record by the file service. */
@@ -617,6 +628,7 @@ const ArtifactLibraryRow: React.FC<{
     };
 
     const buttonStyle = { color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' };
+    const createdLabel = formatArtifactCreated(item.created);
 
     return (
         <div className="group flex items-center gap-3 rounded-[9px] border px-4 py-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
@@ -665,6 +677,12 @@ const ArtifactLibraryRow: React.FC<{
                 )}
                 <p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version}{sourceLabel ? ` · ${sourceLabel}` : ''}</p>
             </div>
+            {createdLabel && (
+                <time dateTime={createdLabel.iso} title={createdLabel.title} data-new-ui-artifact-created="true" className="flex-shrink-0 w-[92px] text-right leading-tight">
+                    <span className="block text-[12px]" style={{ color: 'var(--text-secondary)' }}>{createdLabel.date}</span>
+                    {createdLabel.time && <span className="block text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{createdLabel.time}</span>}
+                </time>
+            )}
             <button type="button" disabled={busy} onClick={onView} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] border disabled:opacity-60" style={buttonStyle}>{busy ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={14} />} View</button>
             <button type="button" disabled={busy} onClick={onChat} className="inline-flex items-center gap-1 h-8 px-2.5 rounded-[7px] text-[12px] disabled:opacity-40" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}><IconArrowUpRight size={14} /> Chat</button>
         </div>
@@ -1426,7 +1444,7 @@ export const NewLibraryView: React.FC = () => {
                     <div className="flex items-center justify-between mb-3">
                         <div>
                             <h2 className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Generated artifacts</h2>
-                            <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Artifacts created in your conversations.</p>
+                            <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Artifacts created in your conversations, newest first.</p>
                         </div>
                         <button type="button" aria-label="Refresh artifacts" title="Refresh artifacts" onClick={handleRefreshArtifacts} className="h-8 w-8 rounded-[7px] flex items-center justify-center" style={{ color: 'var(--text-muted)' }}><IconRefresh size={15} /></button>
                     </div>
