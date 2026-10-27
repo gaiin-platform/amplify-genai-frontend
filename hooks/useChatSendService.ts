@@ -42,6 +42,7 @@ import { resolveContextString, messagesToCached } from '@/utils/app/contextConve
 import { saveContextCache } from '@/utils/app/storage';
 import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
 import { getFullTimestamp } from '@/utils/app/date';
+import { getContinuationCarryOver } from '@/utils/app/mcpContinuation';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
 
 export type ChatRequest = {
@@ -1277,6 +1278,10 @@ export function useSendService() {
                                 conversationId,
                                 // Use the same tools from the original request (already includes MCP tools)
                                 tools: chatBody.tools,
+                                // Repeat the selected assistant/group and data sources, otherwise the
+                                // backend treats this as a default-assistant chat and drops the
+                                // assistant's instructions after the first tool call.
+                                ...getContinuationCarryOver(chatBody),
                                 mcpEnabled: true,
                                 skipRag: true,
                                 skipCodeInterpreter: true
