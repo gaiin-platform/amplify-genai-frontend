@@ -113,10 +113,24 @@ const publishStreamingIds = (next: readonly string[]) => {
     streamingIds = next;
     streamingListeners.forEach(l => l());
 };
+/** The chat the user has open right now — readable from a stream whose host view has unmounted. */
+export const getLiveSelectedConversationId = (fallback?: string) => liveHome.mounted ? liveHome.selectedId : fallback;
+export const getLiveConversations = () => liveHome.mounted ? liveHome.conversations : undefined;
 export const markConversationStreaming = (id?: string) => {
     if (id && !streamingIds.includes(id)) publishStreamingIds([...streamingIds, id]);
 };
-export const clearStreamingConversations = () => publishStreamingIds(NO_IDS);
+// An artifact stream starts the moment the chat reply that requested it ends, so the reply's
+// "streaming off" clear can land after the artifact recorded its chat — leaving no owner until the
+// first artifact chunk. The claimed owner survives those clears until the artifact stream releases it.
+let artifactStreamOwner: string | undefined;
+export const claimArtifactStream = (id: string) => {
+    artifactStreamOwner = id;
+    markConversationStreaming(id);
+};
+export const releaseArtifactStream = (id: string) => {
+    if (artifactStreamOwner === id) artifactStreamOwner = undefined;
+};
+export const clearStreamingConversations = () => publishStreamingIds(artifactStreamOwner ? [artifactStreamOwner] : NO_IDS);
 export const getStreamingConversationIds = () => streamingIds;
 export function useStreamingConversationIds(): readonly string[] {
     return useSyncExternalStore(

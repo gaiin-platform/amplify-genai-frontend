@@ -60,6 +60,18 @@ function markerPrefixLength(value: string, marker: string): number {
   return 0;
 }
 
+/**
+ * Write an artifact stream's conversation back into history by id. Used once the user has left the
+ * source chat: writing it to `selectedConversation` would pull them back to it.
+ */
+export function replaceConversationById(
+  conversations: Conversation[],
+  conversation: Conversation,
+  condense: (conversation: Conversation) => Conversation,
+): Conversation[] {
+  return conversations.map((c) => (c.id === conversation.id ? condense(conversation) : c));
+}
+
 /** Merge an artifact-stream update into the newest selected conversation snapshot. */
 export function mergeAutoArtifactMessage(
   conversation: Conversation,

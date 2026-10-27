@@ -1774,7 +1774,8 @@ export const ConversationViewShell: React.FC<ConversationViewShellProps> = (prop
     () =>
       streamingHere === !!rawStreaming
         ? ctx
-        : { ...ctx, state: { ...ctx.state, messageIsStreaming: streamingHere, loading: false } },
+        // An artifact streaming in another chat must not show this one a stop button or a "Writing…" card.
+        : { ...ctx, state: { ...ctx.state, messageIsStreaming: streamingHere, artifactIsStreaming: false, loading: false } },
     [ctx, streamingHere, rawStreaming],
   );
   return (

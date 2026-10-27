@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { appendAutoArtifactChunk, mergeAutoArtifactMessage } from '@/components/NewUI/shared/autoArtifactStream';
+import { appendAutoArtifactChunk, mergeAutoArtifactMessage, replaceConversationById } from '@/components/NewUI/shared/autoArtifactStream';
 import { conversationWithCompressedMessages, conversationWithUncompressedMessages } from '@/utils/app/conversation';
 
 describe('appendAutoArtifactChunk', () => {
@@ -93,5 +93,19 @@ describe('appendAutoArtifactChunk', () => {
     expect(second.artifactText).toBe('More artifact');
     expect(second.assistantText).toBe('');
     expect(second.inAssistantText).toBe(false);
+  });
+});
+
+describe('replaceConversationById', () => {
+  it('writes the streamed conversation back by id without touching the chat the user opened since', () => {
+    const source = { id: 'source', name: 'Source', messages: [] } as any;
+    const opened = { id: 'new-chat', name: 'New Conversation', messages: [] } as any;
+    const finished = { ...source, artifacts: { a1: [{ artifactId: 'a1' }] } };
+
+    const all = replaceConversationById([source, opened], finished, (c) => ({ ...c, condensed: true }) as any);
+
+    expect(all).toHaveLength(2);
+    expect(all[0]).toMatchObject({ id: 'source', condensed: true, artifacts: { a1: [{ artifactId: 'a1' }] } });
+    expect(all[1]).toBe(opened);
   });
 });

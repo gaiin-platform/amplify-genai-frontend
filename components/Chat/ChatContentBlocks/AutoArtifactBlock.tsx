@@ -14,7 +14,10 @@ import { jsonrepair } from "jsonrepair";
 import { v4 as uuidv4 } from "uuid";
 import { buildArtifactSavePayload, resolveArtifactName } from "@/components/NewUI/shared/artifactLibraryModel";
 import { buildArtifactContentMap, pickBaseVersion } from "@/components/NewUI/shared/artifactContentMap";
-import { appendAutoArtifactChunk, mergeAutoArtifactMessage } from "@/components/NewUI/shared/autoArtifactStream";
+import { appendAutoArtifactChunk, mergeAutoArtifactMessage, replaceConversationById } from "@/components/NewUI/shared/autoArtifactStream";
+import { claimArtifactStream, getLiveConversations, getLiveSelectedConversationId, releaseArtifactStream } from "@/hooks/useChatSendService";
+import { condenseForConversationHistory, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
+import { uploadConversation } from "@/services/remoteConversationService";
 
 interface Props {
     content: string;
@@ -48,6 +51,14 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
         conversationsRef.current = conversations;
     }, [conversations]);
     selectedConversationRef.current = selectedConversation;
+
+    // The chat view is keyed by conversation id, so opening another chat unmounts this block
+    // while its artifact keeps streaming. After that, selectedConversationRef is a stale snapshot.
+    const mountedRef = useRef(true);
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => { mountedRef.current = false; };
+    }, []);
 
     const foldersRef = useRef(folders);
 
@@ -353,11 +364,35 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
     homeDispatch({field: "currentRequestId", value: requestId});
     if (selectedConversation && selectedConversation?.messages) {
 
+        // The stream outlives a switch to another chat (or "new chat"). Only touch the visible
+        // selection while the source chat is still the open one; otherwise write it back by id.
+        const sourceId = selectedConversation.id;
+        const isSourceOpen = () => getLiveSelectedConversationId(selectedConversationRef.current?.id) === sourceId;
+        const liveSource = (fallback: Conversation): Conversation =>
+            mountedRef.current && isSourceOpen() && selectedConversationRef.current?.id === sourceId
+                ? selectedConversationRef.current
+                : fallback;
+        const commitConversation = (conversation: Conversation) => {
+            if (isSourceOpen()) {
+                handleUpdateSelectedConversation(conversation);
+                return;
+            }
+            const all = replaceConversationById(getLiveConversations() ?? conversationsRef.current, conversation, condenseForConversationHistory);
+            homeDispatch({ field: 'conversations', value: all });
+            saveConversations(all);
+            if (isRemoteConversation(conversation)) uploadConversation(conversation, foldersRef.current);
+        };
+        // Scope the global streaming flags to this chat so a newly opened chat isn't treated as busy.
+        // Claimed (not just marked) so the chat reply's own "streaming off" can't wipe it before
+        // the first artifact chunk arrives. Released before every "streaming off" below.
+        claimArtifactStream(sourceId);
+
         // Create a new controller
         const controller = new AbortController(); 
 
         const handleStopGenerationEvent = () => {
             controller.abort();
+            releaseArtifactStream(sourceId);
             message.data = {
                 ...(message.data || {}),
                 artifactStatus: ArtifactMessageStatus.STOPPED,
@@ -490,12 +525,10 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                         text += parsedChunk.assistantText;
                         if (parsedChunk.artifactText || done) {
                             selectArtifacts[selectArtifacts.length - 1].contents = lzwCompress(artifactText);
-                            homeDispatch({field: 'selectedArtifacts', value: selectArtifacts});
+                            if (isSourceOpen()) homeDispatch({field: 'selectedArtifacts', value: selectArtifacts});
                         }
 
-                        const latestConversation = selectedConversationRef.current?.id === updatedConversation.id
-                            ? selectedConversationRef.current
-                            : updatedConversation;
+                        const latestConversation = liveSource(updatedConversation);
                         updatedConversation = mergeAutoArtifactMessage({
                             ...latestConversation,
                             artifacts: updatedConversation.artifacts,
@@ -503,7 +536,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                             content: text,
                             state: currentState,
                         });
-                        homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+                        if (isSourceOpen()) homeDispatch({ field: 'selectedConversation', value: updatedConversation });
                     }
 
                     if (done) break;
@@ -526,6 +559,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     reader.releaseLock();
                 } 
                 llmPromptedRef.current = false;
+                releaseArtifactStream(sourceId);
                 homeDispatch({field: 'messageIsStreaming', value: false});
                 homeDispatch({field: 'artifactIsStreaming', value: false});
 
@@ -540,8 +574,8 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     updatedConversation = mergeAutoArtifactMessage(updatedConversation, messageId, {
                         artifactStatus: ArtifactMessageStatus.CANCELLED,
                     });
-                    homeDispatch({ field: 'selectedArtifacts', value: selectArtifacts.slice(0, -1) });
-                    handleUpdateSelectedConversation(updatedConversation);
+                    if (isSourceOpen()) homeDispatch({ field: 'selectedArtifacts', value: selectArtifacts.slice(0, -1) });
+                    commitConversation(updatedConversation);
                     if (messageKey) delete (window as any)[messageKey];
                     window.removeEventListener('killArtifactRequest', handleStopGenerationEvent);
                     return;
@@ -569,14 +603,15 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                             conversationId,
                         };
                     }
-                    homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
+                    if (isSourceOpen()) homeDispatch({ field: 'selectedArtifacts', value: [...selectArtifacts] });
                 }
 
                 // Update the source assistant message by stable ID; the conversation may
                 // have gained another message while this artifact stream was in flight.
-                const latestSelectedConversation = selectedConversationRef.current?.id === updatedConversation.id
-                    ? { ...updatedConversation, ...selectedConversationRef.current }
-                    : updatedConversation;
+                const liveConversation = liveSource(updatedConversation);
+                const latestSelectedConversation = liveConversation === updatedConversation
+                    ? updatedConversation
+                    : { ...updatedConversation, ...liveConversation };
                 updatedConversation = {
                     ...latestSelectedConversation,
                     artifacts: {
@@ -601,7 +636,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     artifactError: null,
                 });
 
-                handleUpdateSelectedConversation(updatedConversation);
+                commitConversation(updatedConversation);
 
                 // ── Auto-save to server (fire-and-forget) so the artifact is
                 //    immediately available in the library even without the user
@@ -631,6 +666,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             // The request failed before any artifact text streamed (e.g. blocked by the WAF, server error,
             // dropped connection). Nothing else will end the "Writing…" state, so end it here and say why.
             if (!streamingStarted && !controller.signal.aborted) {
+                releaseArtifactStream(sourceId);
                 homeDispatch({field: 'messageIsStreaming', value: false});
                 homeDispatch({field: 'artifactIsStreaming', value: false});
                 llmPromptedRef.current = false;
@@ -638,17 +674,17 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 if (pendingArtifact && pendingList) {
                     const at = pendingList.indexOf(pendingArtifact);
                     if (at >= 0) pendingList.splice(at, 1);
-                    homeDispatch({field: 'selectedArtifacts', value: [...pendingList]});
-                    window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
+                    if (isSourceOpen()) {
+                        homeDispatch({field: 'selectedArtifacts', value: [...pendingList]});
+                        window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
+                    }
                 }
 
                 const reason = (e instanceof Error && e.message ? e.message : 'Artifact generation failed.').slice(0, 500);
                 const failedStatus = isResuming ? ArtifactMessageStatus.INCOMPLETE : ArtifactMessageStatus.CANCELLED;
                 message.data = { ...(message.data || {}), artifactStatus: failedStatus, artifactError: reason };
-                const latest = (selectedConversationRef.current?.id === selectedConversation.id
-                    ? selectedConversationRef.current
-                    : undefined) ?? selectedConversation;
-                handleUpdateSelectedConversation(mergeAutoArtifactMessage(latest, message.id, {
+                const latest = liveSource(selectedConversation);
+                commitConversation(mergeAutoArtifactMessage(latest, message.id, {
                     artifactStatus: failedStatus,
                     artifactError: reason,
                     // Lets the card's Retry reuse the Continue machinery; an empty resume text starts a fresh run.
