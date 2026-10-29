@@ -55,6 +55,10 @@ import type { AssistantAccessType } from './assistant/assistantTypeSwitch';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
+import { AssistantConfigSummary } from '@/components/NewUI/shared/AssistantConfigSummary';
+import { resolveSourceOpenTarget } from '@/components/NewUI/shared/assistantConfigModel';
+import type { SummaryDataSource } from '@/components/NewUI/shared/assistantConfigModel';
+import { getFileDownloadUrl } from '@/services/fileService';
 import { RowActionButton } from '@/components/NewUI/shared/RowActionButton';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import ReactDOM from 'react-dom';
@@ -138,8 +142,31 @@ const AssistantPromptPreview: React.FC<{
     onCopy?: () => void;
 }> = ({ prompt, sharedBy, note, onClose, onCopy }) => {
     const panelRef = useRef<HTMLDivElement>(null);
-    const definition = prompt.data?.assistant?.definition as AssistantDefinition | undefined;
-    const instructions = definition?.instructions || prompt.content || '';
+    const { state: { availableModels } } = useContext(HomeContext);
+    // A shared assistant's files are not the viewer's own: the backend lets them download one only
+    // through the read grant the share created, and says no otherwise. Websites open directly.
+    const openDocument = useCallback(async (source: SummaryDataSource) => {
+        const target = resolveSourceOpenTarget(source);
+        if (target.kind === 'invalid') throw new Error('This item has no address to open.');
+        if (target.kind === 'url') {
+            window.open(target.url, '_blank', 'noopener,noreferrer');
+            return;
+        }
+        let result: { success: boolean; downloadUrl?: string } | undefined;
+        try {
+            result = await getFileDownloadUrl(target.key, target.groupId);
+        } catch {
+            result = undefined;
+        }
+        if (!result?.success || !result.downloadUrl) {
+            throw new Error(`Couldn’t open “${source.name}”. You may not have access to this file yet, or it was removed.`);
+        }
+        window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+    }, []);
+    const modelName = useCallback(
+        (modelId: string) => (availableModels as Record<string, { name?: string }> | undefined)?.[modelId]?.name,
+        [availableModels],
+    );
 
     useEffect(() => {
         const panel = panelRef.current;
@@ -192,15 +219,12 @@ const AssistantPromptPreview: React.FC<{
                         <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Shared by {sharedBy}</p>
                         {note && note !== prompt.name && <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Share note: {note}</p>}
                     </div>
-                    <button type="button" onClick={onClose} aria-label="Close prompt preview" className="flex items-center justify-center w-8 h-8 rounded-[6px]" style={{ color: 'var(--text-secondary)' }}>
+                    <button type="button" onClick={onClose} aria-label="Close assistant preview" className="flex items-center justify-center w-8 h-8 rounded-[6px]" style={{ color: 'var(--text-secondary)' }}>
                         <IconX size={17} />
                     </button>
                 </header>
                 <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
-                    <h3 className="text-[12px] uppercase tracking-wide font-semibold mb-2" style={{ color: 'var(--text-muted)' }}>Instructions / system prompt</h3>
-                    <pre className="whitespace-pre-wrap break-words rounded-[8px] border p-4 text-[13px] leading-relaxed font-sans" style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-app)', color: 'var(--text-primary)' }}>
-                        {instructions || 'No prompt instructions were included with this share.'}
-                    </pre>
+                    <AssistantConfigSummary prompt={prompt} modelName={modelName} onOpenDocument={openDocument} />
                 </div>
                 <footer className="flex justify-end gap-2 px-5 py-3 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
                     <button type="button" onClick={onClose} className="h-9 px-4 rounded-[7px] text-[13px]" style={{ color: 'var(--text-secondary)', background: 'var(--bg-hover)' }}>Close</button>

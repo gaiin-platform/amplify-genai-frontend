@@ -588,6 +588,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // ── Workflow template state ───────────────────────────────────────────
     /** ID of the selected base workflow template. Empty string → undefined on save. */
     const [baseWorkflowTemplateId, setBaseWorkflowTemplateId] = useState<string | undefined>(undefined);
+    /** Display name of that template, saved with the assistant so a viewer who cannot read the
+     *  template (private, owned by someone else) can still be told which workflow it runs. */
+    const [workflowTemplateName, setWorkflowTemplateName] = useState<string | undefined>(undefined);
 
     // ── Advanced section state ────────────────────────────────────────────
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -730,6 +733,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         // — silently dropping the workflow. AssistantModal.tsx:378 hydrates it too.
         const workflowTemplate = (def.data as any)?.baseWorkflowTemplateId as string | undefined;
         if (workflowTemplate) setBaseWorkflowTemplateId(workflowTemplate);
+        const workflowName = (def.data as any)?.workflowTemplateName as string | undefined;
+        if (workflowTemplate && workflowName) setWorkflowTemplateName(workflowName);
 
         // Advanced
         const opsVersion = (def.data as any)?.opsLanguageVersion as string | undefined;
@@ -1361,6 +1366,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     ...(baseWorkflowTemplateId ? {
                         baseWorkflowTemplateId,
                         workflowTemplateId: baseWorkflowTemplateId,
+                        ...(workflowTemplateName ? { workflowTemplateName } : {}),
                         opsLanguageVersion: 'v4',
                     } : { opsLanguageVersion }),
                     availableOnRequest,
@@ -2576,7 +2582,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                      */}
                                     <WorkflowTemplatePicker
                                         selectedTemplateId={baseWorkflowTemplateId}
-                                        onTemplateChange={(id) => setBaseWorkflowTemplateId(id || undefined)}
+                                        onTemplateChange={(id) => {
+                                            setBaseWorkflowTemplateId(id || undefined);
+                                            // The old name belongs to the old template; the picker reports the new one.
+                                            setWorkflowTemplateName(undefined);
+                                        }}
+                                        onTemplateNameResolved={setWorkflowTemplateName}
                                     />
                                 </CapabilityCard>
                             )}

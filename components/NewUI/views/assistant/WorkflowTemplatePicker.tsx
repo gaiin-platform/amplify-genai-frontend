@@ -29,6 +29,13 @@ export interface WorkflowTemplatePickerProps {
     selectedTemplateId: string | undefined;
     /** Empty selection arrives as `''`; the modal maps that to `undefined`. */
     onTemplateChange: (workflowTemplateId: string) => void;
+    /**
+     * Reports the selected template's display name whenever it is known — after a pick, and when
+     * the list loads with an already-selected id (so an older assistant gets its name backfilled).
+     * The host stores it on the assistant: a viewer who is neither the owner nor on a public
+     * template cannot look the name up (`/get-workflow-template` resolves by owner or public only).
+     */
+    onTemplateNameResolved?: (name: string) => void;
     disabled?: boolean;
 }
 
@@ -86,6 +93,7 @@ const uniqueBaseTemplates = (
 export const WorkflowTemplatePicker: React.FC<WorkflowTemplatePickerProps> = ({
     selectedTemplateId,
     onTemplateChange,
+    onTemplateNameResolved,
     disabled = false,
 }) => {
     const { data: session } = useSession();
@@ -128,6 +136,13 @@ export const WorkflowTemplatePicker: React.FC<WorkflowTemplatePickerProps> = ({
     const loading = templates === null;
     const isEmpty = !loading && templates.length === 0;
     const selected = templates?.find((template) => template.templateId === selectedTemplateId);
+
+    const resolvedName = selected ? snakeCaseToTitleCase(selected.name) : undefined;
+    const onNameResolvedRef = useRef(onTemplateNameResolved);
+    onNameResolvedRef.current = onTemplateNameResolved;
+    useEffect(() => {
+        if (resolvedName) onNameResolvedRef.current?.(resolvedName);
+    }, [resolvedName]);
 
     // Guide §5.2 — one modal at a time, as an early return below every hook.
     if (builderOpen) {

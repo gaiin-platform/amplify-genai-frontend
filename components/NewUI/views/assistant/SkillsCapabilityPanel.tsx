@@ -31,6 +31,7 @@ import { SkillEditor } from '@/components/Skills/SkillEditor';
 import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { SearchInput } from '@/components/NewUI/shared/SearchInput';
 import { CapabilityRow } from './CapabilityRow';
+import { backfillSkillNames, newSkillReference } from './skillReferenceModel';
 
 export interface SkillsCapabilityPanelProps {
     chatEndpoint: string;
@@ -130,6 +131,14 @@ export const SkillsCapabilityPanel: React.FC<SkillsCapabilityPanelProps> = ({
         [skills],
     );
 
+    // Backfill names on references saved before names were stored. Idempotent: it only reports a
+    // change when some reference is missing a name that is now known, so it cannot loop.
+    useEffect(() => {
+        if (!skills || selectedSkills.length === 0) return;
+        const named = backfillSkillNames(selectedSkills, new Map(skills.map((skill) => [skill.id, skill.name])));
+        if (named !== selectedSkills) onSkillsChange(named);
+    }, [skills, selectedSkills, onSkillsChange]);
+
     /** Only enabled skills are attachable — a disabled skill would never fire. */
     const available = useMemo(() => {
         const needle = search.trim().toLowerCase();
@@ -151,7 +160,9 @@ export const SkillsCapabilityPanel: React.FC<SkillsCapabilityPanelProps> = ({
     const toggleSkill = (skillId: string, checked: boolean) => {
         if (checked) {
             if (selectedIds.has(skillId)) return;
-            onSkillsChange([...selectedSkills, { skillId, isRequired: true }]);
+            // Store the name with the reference: whoever the assistant is shared with may not be able
+            // to read this skill, and an id means nothing to them.
+            onSkillsChange([...selectedSkills, newSkillReference(skillId, byId.get(skillId)?.name)]);
         } else {
             onSkillsChange(selectedSkills.filter((ref) => ref.skillId !== skillId));
         }
@@ -177,7 +188,7 @@ export const SkillsCapabilityPanel: React.FC<SkillsCapabilityPanelProps> = ({
                 if (!alive.current) return;
                 // Newly created skills are attached straight away — the user made
                 // it from inside this editor, so they clearly want it here.
-                onSkillsChange([...selectedSkills, { skillId: created.id, isRequired: true }]);
+                onSkillsChange([...selectedSkills, newSkillReference(created.id, created.name)]);
             } else {
                 toast.error(response.message || 'Failed to create skill.');
             }
