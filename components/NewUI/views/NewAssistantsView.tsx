@@ -107,6 +107,23 @@ const ASSISTANT_TYPES_INFO =
 
 type ShareProvenance = SharedAssistantProvenance;
 
+const readScannedShareKeys = (storageKey: string): Set<string> => {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
+        return new Set(Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : []);
+    } catch {
+        return new Set();
+    }
+};
+
+const writeScannedShareKeys = (storageKey: string, keys: Set<string>): void => {
+    try {
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(keys)));
+    } catch {
+        // Storage full / unavailable: the scan simply repeats next visit.
+    }
+};
+
 const shareProvenance = (prompt: Prompt): ShareProvenance | undefined => {
     const value = prompt.data?.sharedAssistant as ShareProvenance | undefined;
     return value?.sharedBy ? value : undefined;
@@ -993,15 +1010,28 @@ const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) 
                 isAssistant(prompt) && prompt.data?.noEdit === true && !shareProvenance(prompt)
             );
             if (hasLegacyImports) {
+                // Each share is only ever downloaded once for this scan. Without a record of what
+                // was already examined, a legacy import that never matches any share kept
+                // `hasLegacyImports` true, so every visit re-downloaded every received bundle.
+                const scannedStorageKey = `amplify_legacy_share_scan:${user}`;
+                const scannedShareKeys = readScannedShareKeys(scannedStorageKey);
+                let scannedChanged = false;
                 for (const share of classified.assistants) {
+                    if (scannedShareKeys.has(share.item.key)) continue;
                     let bundle = share.bundle;
                     if (!bundle) {
                         try {
                             const response = await loadSharedItem(share.item.key);
                             if (response.success) bundle = JSON.parse(response.item);
+                            scannedShareKeys.add(share.item.key);
+                            scannedChanged = true;
                         } catch {
                             // Legacy records remain visible with a generic attribution.
+                            // A failed request is not recorded, so it is retried next time.
                         }
+                    } else {
+                        scannedShareKeys.add(share.item.key);
+                        scannedChanged = true;
                     }
                     if (!bundle) continue;
                     const sharedPrompts = (bundle.prompts ?? []).filter((prompt) => isAssistant(prompt));
@@ -1032,6 +1062,7 @@ const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) 
                         };
                     });
                 }
+                if (scannedChanged) writeScannedShareKeys(scannedStorageKey, scannedShareKeys);
             }
             if (migratedPrompts !== promptsRef.current && aliveRef.current) {
                 promptsRef.current = migratedPrompts;

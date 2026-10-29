@@ -22,10 +22,27 @@ import { doRequestOp } from './doRequestOp';
 const SERVICE_NAME = 'websearch';
 const URL_PATH = '/integrations';
 
-/**
- * Get all MCP servers configured for the current user
- */
-export async function listMCPServers(): Promise<MCPServerConfig[]> {
+// ── Server-list cache ────────────────────────────────────────────────────────
+// Chat sends and MCP tool calls only need the server list to build the tool
+// definitions / resolve a server, and they used to re-read it from the backend on
+// every message and twice per tool call. `listMCPServersCached` serves those paths
+// from a short-lived in-memory copy. `listMCPServers` (used by the management UI)
+// always hits the backend, and refreshes the copy as a side effect. Every mutation
+// below drops the copy; the TTL covers changes made from another tab or window
+// (for example the OAuth popup, which runs in its own JS context).
+const SERVER_LIST_TTL_MS = 30_000;
+let serverListCache: { at: number; servers: MCPServerConfig[] } | null = null;
+let serverListInFlight: Promise<MCPServerConfig[]> | null = null;
+let serverListEpoch = 0;
+
+export function invalidateMCPServerCache(): void {
+    serverListCache = null;
+    serverListInFlight = null;
+    serverListEpoch++;
+}
+
+/** One backend read. `ok` is false on any failure so failures are never cached. */
+async function fetchMCPServerList(): Promise<{ ok: boolean; servers: MCPServerConfig[] }> {
     try {
         const result = await doRequestOp({
             method: 'GET',
@@ -35,13 +52,45 @@ export async function listMCPServers(): Promise<MCPServerConfig[]> {
         });
 
         if (result.success && Array.isArray(result.data)) {
-            return result.data as MCPServerConfig[];
+            return { ok: true, servers: result.data as MCPServerConfig[] };
         }
-        return [];
+        return { ok: false, servers: [] };
     } catch (e) {
         console.error('Failed to list MCP servers:', e);
-        return [];
+        return { ok: false, servers: [] };
     }
+}
+
+/**
+ * Get all MCP servers configured for the current user
+ */
+export async function listMCPServers(): Promise<MCPServerConfig[]> {
+    const epoch = serverListEpoch;
+    const { ok, servers } = await fetchMCPServerList();
+    if (ok && epoch === serverListEpoch) serverListCache = { at: Date.now(), servers };
+    return servers;
+}
+
+/**
+ * Same data as `listMCPServers`, but served from memory for up to 30 s and shared
+ * between concurrent callers. Use on hot paths (chat send, tool execution); use
+ * `listMCPServers` when the result is shown to the user for editing.
+ */
+export async function listMCPServersCached(): Promise<MCPServerConfig[]> {
+    if (serverListCache && Date.now() - serverListCache.at < SERVER_LIST_TTL_MS) {
+        return serverListCache.servers;
+    }
+    if (serverListInFlight) return serverListInFlight;
+
+    const epoch = serverListEpoch;
+    const pending = fetchMCPServerList().then(({ ok, servers }) => {
+        if (ok && epoch === serverListEpoch) serverListCache = { at: Date.now(), servers };
+        return servers;
+    }).finally(() => {
+        if (serverListInFlight === pending) serverListInFlight = null;
+    });
+    serverListInFlight = pending;
+    return pending;
 }
 
 /**
@@ -87,6 +136,7 @@ export async function addMCPServer(
             service: SERVICE_NAME
         });
 
+        invalidateMCPServerCache();
         if (result.success && result.data) {
             return { success: true, server: result.data as MCPServerConfig };
         }
@@ -120,6 +170,7 @@ export async function updateMCPServer(
             service: SERVICE_NAME
         });
 
+        invalidateMCPServerCache();
         if (result.success && result.data) {
             return { success: true, server: result.data as MCPServerConfig };
         }
@@ -145,6 +196,7 @@ export async function deleteMCPServer(
             service: SERVICE_NAME
         });
 
+        invalidateMCPServerCache();
         if (result.success) {
             return { success: true };
         }
@@ -246,6 +298,7 @@ export async function refreshMCPServerTools(
             service: SERVICE_NAME
         });
 
+        invalidateMCPServerCache();
         if (result.success && result.data) {
             return {
                 success: true,
@@ -350,6 +403,7 @@ export async function disconnectMCPOAuth(
             service: SERVICE_NAME
         });
 
+        invalidateMCPServerCache();
         if (result.success) return { success: true };
         return { success: false, error: result.message || result.error || 'Failed to disconnect OAuth' };
     } catch (e) {
@@ -375,6 +429,7 @@ export async function mcpOAuthExchange(
             service: SERVICE_NAME
         });
 
+        invalidateMCPServerCache();
         if (result.success) return { success: true, message: result.message };
         return { success: false, error: result.message || result.error || 'Token exchange failed' };
     } catch (e) {

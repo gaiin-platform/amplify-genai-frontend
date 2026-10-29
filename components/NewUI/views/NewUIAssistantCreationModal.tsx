@@ -874,7 +874,13 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         }
     }, []);
 
+    // Only the Tools & APIs panel reads these two lists, and its card is collapsed unless
+    // the user opens it or something is already configured. Fetch on first need instead
+    // of on every modal open.
+    const [toolsCardActive, setToolsCardActive] = useState(false);
+    const activateToolsCard = useCallback(() => setToolsCardActive(true), []);
     useEffect(() => {
+        if (!toolsCardActive) return;
         if (featureFlags.integrations && availableApis === null) {
             void refreshAvailableApis();
         }
@@ -884,7 +890,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             });
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [toolsCardActive]);
 
     // ── Group access calc ──────────────────────────────────────────────────
     const adminGroups: Group[] = groups.filter((g: Group) => {
@@ -2705,6 +2711,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                 <CapabilityCard
                                     icon={<IconPlugConnected size={18} />}
                                     title="Tools & APIs"
+                                    onFirstActive={activateToolsCard}
                                     badge={
                                         selectedApis.length + builtInAgentTools.length > 0
                                             ? `${selectedApis.length + builtInAgentTools.length} configured`

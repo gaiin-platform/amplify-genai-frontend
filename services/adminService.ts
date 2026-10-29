@@ -113,7 +113,9 @@ export const embeddingDocumentStatus = async (dataSources: {key: string, type: s
     // Only make API call if there are non-cached items
     if (nonCachedDataSources.length > 0) {
         const op = {
-            data: { dataSources: dataSources },
+            // Completed sources are answered from the local cache above and merged back in
+            // below, so only the ones still unknown need a backend lookup.
+            data: { dataSources: nonCachedDataSources },
             method: 'POST',
             path: EMBEDDINGS_URL_PATH,
             op: '/status',

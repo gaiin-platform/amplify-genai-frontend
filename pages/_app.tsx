@@ -1,5 +1,4 @@
 import {Toaster} from 'react-hot-toast';
-import {QueryClient, QueryClientProvider} from 'react-query';
 import { SessionProvider } from "next-auth/react"
 import {appWithTranslation} from 'next-i18next';
 import type {AppProps} from 'next/app';
@@ -13,8 +12,6 @@ import { SessionActivityTracker } from '@/app/components/SessionActivityTracker'
 const inter = Inter({subsets: ['latin']});
 
 function App({ Component, pageProps }: AppProps) {
-    const queryClient = new QueryClient();
-
     // Initialize theme and chat color palette on app load
     useEffect(() => {
         // Initialize theme before first render
@@ -46,9 +43,7 @@ function App({ Component, pageProps }: AppProps) {
                     Skip to main content
                 </a>
                 <Toaster containerStyle={{ zIndex: 10001 }} />
-                <QueryClientProvider client={queryClient}>
-                    <Component {...pageProps} />
-                </QueryClientProvider>
+                <Component {...pageProps} />
             </div>
         </SessionProvider>
     );

@@ -220,26 +220,45 @@ export const fetchMultipleRemoteConversations = async (conversationIds: string[]
     }
 };
 
-const fetchConversationPresignedUrls = async (presignedUrls: string[]) => {
-    let conversationData: any = [];
+// Chunks are independent S3 GETs, so download them concurrently (bounded) instead of one after
+// another. Results keep their original order, and any failed chunk fails the whole read, as before.
+const PRESIGNED_FETCH_CONCURRENCY = 6;
 
-    for (let i = 0; i < presignedUrls.length; i++) {
-        const presigned_url = presignedUrls[i];
-        const response = await fetch(presigned_url, {
-            method: 'GET',
-            signal: null,
-        });
+const fetchConversationPresignedUrls = async (presignedUrls: string[]): Promise<any> => {
+    const chunks: any[][] = new Array(presignedUrls.length);
+    let nextIndex = 0;
+    let failed = false;
 
-        if (!response.ok) {
-            console.error("Error fetching presigned at index:", i);
-            return null; //   continue;
+    const worker = async () => {
+        while (!failed) {
+            const i = nextIndex++;
+            if (i >= presignedUrls.length) return;
+            try {
+                const response = await fetch(presignedUrls[i], {
+                    method: 'GET',
+                    signal: null,
+                });
 
+                if (!response.ok) {
+                    console.error("Error fetching presigned at index:", i);
+                    failed = true;
+                    return;
+                }
+                chunks[i] = await response.json();
+            } catch (error) {
+                console.error("Error fetching presigned at index:", i, error);
+                failed = true;
+                return;
+            }
         }
+    };
 
-        const chunkData = await response.json();
-        conversationData = [...conversationData, ...chunkData];
-    }
-    return conversationData;
+    const workerCount = Math.min(PRESIGNED_FETCH_CONCURRENCY, presignedUrls.length);
+    await Promise.all(Array.from({ length: workerCount }, worker));
+
+    if (failed) return null;
+    // One concatenation at the end rather than re-spreading the accumulator per chunk.
+    return ([] as any[]).concat(...chunks);
 }
 
 export const deleteRemoteConversation = async (conversationId: string, abortSignal = null) => {

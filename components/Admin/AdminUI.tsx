@@ -24,7 +24,7 @@ import { EmbeddingsTab } from "./AdminComponents/Embeddings";
 import { OpsTab } from "./AdminComponents/Ops";
 import { Pptx_TEMPLATES, Ast_Group_Data, FeatureDataTab, } from "./AdminComponents/FeatureData";
 import { CriticalErrorTrackingTab } from "./AdminComponents/Critical_Error_Tracking";
-import { ConversationStorage } from "@/types/conversationStorage";
+import { ConversationStorage, DEFAULT_CONVERSATION_STORAGE } from "@/types/conversationStorage";
 
 
 export const titleLabel = (title: string, textSize: string = "lg") => 
@@ -71,7 +71,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [criticalErrorsConfig, setCriticalErrorsConfig] = useState<CriticalErrorsConfig>({isActive:false, email:''});
     const [aiEmailDomain, setAiEmailDomain] = useState<string>('');
 
-    const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>('future-local');
+    const [defaultConversationStorage, setDefaultConversationStorage] = useState<ConversationStorage>(DEFAULT_CONVERSATION_STORAGE);
 
     const [availableModels, setAvailableModels] = useState<SupportedModelsConfig>({});   
     const [defaultModels, setDefaultModels] = useState<DefaultModelsConfig>({user: '', advanced: '', cheapest: '', agent: '', documentCaching: '', embeddings: ''});

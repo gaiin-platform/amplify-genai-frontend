@@ -1,4 +1,4 @@
-import { FC, useEffect, useState, useCallback, useContext } from "react";
+import { FC, useEffect, useState, useCallback, useContext, useRef } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import { ActiveTabs, Tabs } from "../ReusableComponents/ActiveTabs";
 import { getAllUserMtdCosts, getBillingGroupsCosts, getAllUserMtdCostsRecursive, AutoLoadProgress, getUserCostHistory, UserCostHistory, MonthlyHistoryData } from "@/services/mtdCostService";
@@ -114,7 +114,9 @@ export const UserCostsModal: FC<Props> = ({ open, onClose, inline = false }) => 
     batchNumber: 0,
     hasMore: false
   });
-  const [abortController, setAbortController] = useState<AbortController | null>(null);
+  // A ref, not state: the effect cleanup below must see the controller that is
+  // current when it runs, not the (null) value from the render the effect was created in.
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // History state
   const [userHistory, setUserHistory] = useState<Record<string, UserCostHistory>>({});
@@ -141,8 +143,10 @@ export const UserCostsModal: FC<Props> = ({ open, onClose, inline = false }) => 
 
   // Auto-load All Users MTD costs with progressive rendering
   const autoLoadAllUsers = useCallback(async () => {
+    // A newer load supersedes any run still paging.
+    abortControllerRef.current?.abort();
     const controller = new AbortController();
-    setAbortController(controller);
+    abortControllerRef.current = controller;
     setUserLoading(true);
     setUserError(null);
     setUserCosts([]);
@@ -187,7 +191,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose, inline = false }) => 
       setAutoLoadState(prev => ({ ...prev, status: 'error' }));
     } finally {
       setUserLoading(false);
-      setAbortController(null);
+      if (abortControllerRef.current === controller) abortControllerRef.current = null;
     }
   }, []);
 
@@ -223,15 +227,13 @@ export const UserCostsModal: FC<Props> = ({ open, onClose, inline = false }) => 
       fetchBillingGroupsCosts();
     }
     return () => {
-      if (abortController) {
-        abortController.abort();
-      }
+      abortControllerRef.current?.abort();
     };
   }, [open]);
 
   const handleStopLoading = () => {
-    if (abortController) {
-      abortController.abort();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
       setAutoLoadState(prev => ({ ...prev, status: 'aborted', hasMore: false }));
     }
   };

@@ -376,6 +376,14 @@ export const NewScheduledTasksView: React.FC = () => {
     const [isLogsExpanded, setIsLogsExpanded] = useState(false);
     const [isTestingTask, setIsTestingTask] = useState(false);
     const pollingCancelledRef = useRef(false);
+    // Identifies the current "Run" poll chain. A new run bumps it, which retires any chain still
+    // waiting on a timer (they previously both kept going once the shared flag was reset).
+    const pollRunIdRef = useRef(0);
+    // Leaving the page must stop the poll; it used to keep requesting the task until it finished.
+    useEffect(() => () => {
+        pollingCancelledRef.current = true;
+        pollRunIdRef.current += 1;
+    }, []);
 
     const [tagsInput, setTagsInput] = useState('');
     const [notifyEmailsInput, setNotifyEmailsInput] = useState('');
@@ -404,8 +412,15 @@ export const NewScheduledTasksView: React.FC = () => {
     const [availableWorkflows, setAvailableWorkflows] = useState<AstWorkflow[] | null>(null);
 
     // ── Effects: load supporting data ──
+    // The ops/integrations/agent-tools lists are only read by the action (apiTool/actionSet)
+    // editor, and the workflow list only by the workflow editor. The default task type is
+    // 'assistant', which needs none of them, so each list loads when its task type is selected
+    // instead of on every visit to this page.
+    const needsActionData = selectedTask.taskType === 'actionSet' || selectedTask.taskType === 'apiTool';
+    const needsWorkflowData = selectedTask.taskType === 'workflow';
+
     useEffect(() => {
-        if (featureFlags.integrations && availableApis === null) {
+        if (needsActionData && featureFlags.integrations && availableApis === null) {
             getOpsForUser().then((ops) => {
                 if (ops.success) {
                     filterSupportedIntegrationOps(ops.data).then((filtered) => { if (filtered) setAvailableApis(filtered); });
@@ -414,21 +429,21 @@ export const NewScheduledTasksView: React.FC = () => {
                 setAvailableApis([]);
             });
         }
-    }, [availableApis, featureFlags.integrations]);
+    }, [needsActionData, availableApis, featureFlags.integrations]);
 
     useEffect(() => {
-        if (featureFlags.agentTools && availableAgentTools === null) {
+        if (needsActionData && featureFlags.agentTools && availableAgentTools === null) {
             getAgentTools().then((tools) => setAvailableAgentTools(tools.success ? tools.data : {}));
         }
-    }, [availableAgentTools, featureFlags.agentTools]);
+    }, [needsActionData, availableAgentTools, featureFlags.agentTools]);
 
     useEffect(() => {
-        if (featureFlags.assistantWorkflows && availableWorkflows === null) {
+        if (needsWorkflowData && featureFlags.assistantWorkflows && availableWorkflows === null) {
             listAstWorkflowTemplates(true, false).then((response) => {
                 setAvailableWorkflows(response.success ? response.data?.templates ?? [] : []);
             });
         }
-    }, [availableWorkflows, featureFlags.assistantWorkflows]);
+    }, [needsWorkflowData, availableWorkflows, featureFlags.assistantWorkflows]);
 
     const fetchTasks = async () => {
         setIsLoadingTasks(true);
@@ -570,14 +585,24 @@ export const NewScheduledTasksView: React.FC = () => {
             let trackedExecutionId: string | null = null;
             let hasFoundRunning = false;
 
-            const getInterval = () => (!hasFoundRunning ? Math.min(3000 + attempts * 500, 6000) : 1500);
+            const getInterval = () => (!hasFoundRunning
+                ? Math.min(3000 + attempts * 500, 6000)
+                : Math.min(1500 + attempts * 100, 4000));
+
+            const runId = ++pollRunIdRef.current;
+            const isStale = () => pollingCancelledRef.current || runId !== pollRunIdRef.current;
 
             const pollForLogs = async () => {
-                if (pollingCancelledRef.current) return;
+                if (isStale()) return;
+                // Nobody is watching a background tab; wait without spending a request or an attempt.
+                if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+                    setTimeout(pollForLogs, 5000);
+                    return;
+                }
                 attempts++;
                 try {
                     const fetchedLogs = await fetchTaskLogs(taskId, false);
-                    if (pollingCancelledRef.current) return;
+                    if (isStale()) return;
 
                     const executionLogs = fetchedLogs
                         .filter((log: TaskExecutionRecord) => log.executionId.startsWith('execution-') || log.executionId.startsWith('scheduled-task-'))

@@ -10,8 +10,14 @@ export function SessionActivityTracker() {
   const lastActivityRef = useRef(Date.now());
   const timeoutRef = useRef<NodeJS.Timeout>();
 
+  // Depend on "is there a session", not the session object. next-auth replaces that object on
+  // every poll (SessionProvider refetches every 60 s) and on every window focus, which re-ran
+  // this effect and restarted the inactivity timer, so the one-hour logout could never fire
+  // while the tab could poll.
+  const hasSession = Boolean(session);
+
   useEffect(() => {
-    if (!session) return;
+    if (!hasSession) return;
 
     const resetTimer = () => {
       lastActivityRef.current = Date.now();
@@ -41,7 +47,7 @@ export function SessionActivityTracker() {
         clearTimeout(timeoutRef.current);
       }
     };
-  }, [session]);
+  }, [hasSession]);
 
   return null; // This component doesn't render anything
 }

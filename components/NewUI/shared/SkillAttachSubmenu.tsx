@@ -34,7 +34,7 @@ export const SkillAttachSubmenu: React.FC<SkillAttachSubmenuProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const response = await getUserSkills(chatEndpoint, true);
+      const response = await getUserSkills(chatEndpoint, true, { cached: true });
       if (response.success && Array.isArray(response.data)) {
         setSkills(response.data.filter((skill) => skill.isEnabled));
       } else {

@@ -119,8 +119,10 @@ export const useIntegrationConnections = (
         return () => { alive.current = false; };
     }, []);
 
-    const loadSupported = useCallback(async () => {
-        const response = await getAvailableIntegrations();
+    // `cached` is for the first load when a consumer appears (the + menu submenu remounts on
+    // every hover). Explicit refreshes and everything after a connect/disconnect read fresh.
+    const loadSupported = useCallback(async (cached = false) => {
+        const response = await getAvailableIntegrations({ cached });
         if (!response?.success) {
             if (!alive.current) return;
             setSupported([]);
@@ -165,8 +167,8 @@ export const useIntegrationConnections = (
         if (alive.current) setSupported(entries);
     }, []);
 
-    const loadConnected = useCallback(async () => {
-        const response = await getConnectedIntegrations();
+    const loadConnected = useCallback(async (cached = false) => {
+        const response = await getConnectedIntegrations({ cached });
         if (!alive.current) return;
         if (response?.success) {
             setConnected(filterRef.current(response.data || []));
@@ -178,16 +180,19 @@ export const useIntegrationConnections = (
         }
     }, []);
 
-    const refresh = useCallback(async () => {
+    const load = useCallback(async (cached: boolean) => {
         if (alive.current) setLoading(true);
         try {
-            await Promise.all([loadSupported(), loadConnected()]);
+            await Promise.all([loadSupported(cached), loadConnected(cached)]);
         } catch (error) {
             console.error('Error loading integrations:', error);
         } finally {
             if (alive.current) setLoading(false);
         }
     }, [loadSupported, loadConnected]);
+
+    /** Always reads fresh. The argument-free signature is deliberate: this is passed around as a callback. */
+    const refresh = useCallback(() => load(false), [load]);
 
     // Closing the provider popup can happen just before the OAuth callback finishes
     // persisting the user's integration. Keep checking the server briefly instead
@@ -218,7 +223,7 @@ export const useIntegrationConnections = (
     }, [loadSupported]);
 
     useEffect(() => {
-        refresh();
+        load(true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 

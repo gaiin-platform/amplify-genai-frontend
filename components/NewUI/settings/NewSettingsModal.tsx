@@ -60,7 +60,7 @@ import { EFFORT_OPTIONS, ModelCardBody } from '@/components/NewUI/shared/ModelPi
 import { InfoFloatCard, useInfoCardHover } from '@/components/NewUI/shared/InfoFloatCard';
 import type { Model } from '@/types/model';
 import type { EffortLevel } from '@/components/NewUI/shared/ModelPicker';
-import { DEFAULT_STORAGE_SELECTION, getChatFont, saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
+import { DEFAULT_STORAGE_SELECTION, getChatFont, saveDisplayPrefsToServer, syncDisplayPrefsFromServer } from '@/components/NewUI/shared/userDisplayPrefs';
 import { getUserWebSearchEnabled, setUserWebSearchEnabled, WEB_SEARCH_LEVEL3_INFO } from '@/components/NewUI/shared/userWebSearch';
 import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
@@ -171,6 +171,11 @@ const GeneralSection: FC = () => {
   const featureFlags = useStableFeatureFlags();
   const settings = getSettings(featureFlags);
 
+  // Controls the user has changed since this tab opened. The server read below lands
+  // asynchronously, and a value the user has just picked (whose save may not have reached the
+  // server yet) must not be overwritten by an older server answer.
+  const editedRef = useRef({ model: false, effort: false, webSearch: false, storage: false, font: false });
+
   // ── Default model ─────────────────────────────────────────────────────
   const allModels = filterModels(availableModels, settings.hiddenModelIds);
   const [modelDropdownOpen, setModelDropdownOpen] = useState(false);
@@ -186,6 +191,7 @@ const GeneralSection: FC = () => {
   }, [modelDropdownOpen]);
 
   const handleDefaultModelChange = (id: string) => {
+    editedRef.current.model = true;
     modelCard.hideNow();
     setUserDefaultModelIdState(id);
     setUserDefaultModelId(id || null);
@@ -205,6 +211,7 @@ const GeneralSection: FC = () => {
   );
 
   const handleDefaultEffortChange = (id: EffortLevel | '') => {
+    editedRef.current.effort = true;
     setUserDefaultEffortIdState(id);
     setUserDefaultEffort(id || null);
     setEffortDropdownOpen(false);
@@ -221,6 +228,7 @@ const GeneralSection: FC = () => {
   const [webSearchEnabled, setWebSearchEnabledState] = useState<boolean>(() => getUserWebSearchEnabled());
 
   const handleWebSearchChange = (enabled: boolean) => {
+    editedRef.current.webSearch = true;
     setWebSearchEnabledState(enabled);
     setUserWebSearchEnabled(enabled);
     statsService.trackEvent('Web Search Setting Changed', { 'Enabled': enabled });
@@ -297,6 +305,49 @@ const GeneralSection: FC = () => {
   const foldersRef = useRef(folders);
   useEffect(() => { foldersRef.current = folders; }, [folders]);
 
+  // ── Pull the current server values when the tab opens ─────────────────
+  // The controls above start from this browser's cached copy. That copy is only refreshed once
+  // per page load, so a change made on another device (or a value that arrived after this tab
+  // rendered) would not show until a reload. Ask the server now and bring default model,
+  // default reasoning effort, web search and conversation storage in line with it.
+  const storageSelectionRef = useRef(storageSelection);
+  storageSelectionRef.current = storageSelection;
+  const storageBusyRef = useRef(false);
+  storageBusyRef.current = storageSaving || pendingStorageSelection !== null;
+
+  useEffect(() => {
+    let cancelled = false;
+    void syncDisplayPrefsFromServer().then((synced) => {
+      // `null`: server unreachable or holds no settings yet. Keep what is shown.
+      if (cancelled || !synced) return;
+      const edited = editedRef.current;
+
+      // The sync has already written the server's values to the dedicated keys these getters
+      // read, so reading them back keeps one source of truth for what each control displays.
+      if (!edited.model) setUserDefaultModelIdState(getUserDefaultModelId() ?? '');
+      if (!edited.effort) setUserDefaultEffortIdState(getUserDefaultEffort() ?? '');
+      if (!edited.webSearch) setWebSearchEnabledState(getUserWebSearchEnabled());
+      if (!edited.font) setChatFont(getChatFont());
+
+      const serverStorage = synced.storageSelection;
+      if (
+        !edited.storage
+        && !storageBusyRef.current
+        && serverStorage
+        && STORAGE_OPTIONS.some((o) => o.id === serverStorage)
+        && serverStorage !== storageSelectionRef.current
+      ) {
+        // Same as the boot sync: adopt the preference only. Moving existing conversations is a
+        // deliberate action that belongs to the confirm dialog, never to a background read.
+        saveStorageSettings(serverStorage as ConversationStorage);
+        homeDispatch({ field: 'storageSelection', value: serverStorage });
+      }
+    });
+    return () => { cancelled = true; };
+    // Runs once per open of the tab. homeDispatch is stable (useReducer dispatch).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleStorageChange = (selection: ConversationStorage) => {
     setStorageDropdownOpen(false);
     if (selection === storageSelection || storageSaving) return;
@@ -311,6 +362,7 @@ const GeneralSection: FC = () => {
     const selection = pendingStorageSelection;
     setPendingStorageSelection(null);
     if (!selection) return;
+    editedRef.current.storage = true;
 
     setStorageSaving(true);
     const isAllOption = selection === 'local-only' || selection === 'cloud-only';
@@ -350,6 +402,7 @@ const GeneralSection: FC = () => {
   };
 
   const handleChatFontChange = (value: 'serif' | 'sans') => {
+    editedRef.current.font = true;
     setChatFont(value);
     localStorage.setItem('amplify_chat_font', value);
     window.dispatchEvent(new Event('amplifyChatFontChanged'));

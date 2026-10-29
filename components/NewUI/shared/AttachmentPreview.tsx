@@ -67,7 +67,11 @@ export const AttachmentPreview: React.FC<AttachmentPreviewProps> = ({
       attachment.previewState === 'available' &&
       !attachment.fullText &&
       !attachment.bodyPreview &&
-      !attachment.mime.startsWith('image/'),
+      !attachment.mime.startsWith('image/') &&
+      // A PDF is shown by the viewer from `previewUrl`; reading its bytes as text was wasted
+      // work (and a spurious loading state) because the text is never displayed for PDFs.
+      attachment.mime !== 'application/pdf' &&
+      !/\.pdf$/i.test(attachment.name),
     );
     if (!isRemoteText || !attachment?.previewUrl) {
       setRemoteTextLoading(false);

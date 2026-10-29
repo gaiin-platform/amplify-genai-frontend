@@ -105,7 +105,10 @@ export const downloadArtifacts = async (artifactName: string, textContent: strin
 
                             downloadBlob(blob, `${artifactName}.docx`);
                         } else if (triesLeft > 0) {
-                            setTimeout(() => checkReady(url, triesLeft - 1), 1000);
+                            // Back off from 1 s towards 3 s: a conversion that takes a while should not
+                            // be polled at the same rate for the whole wait.
+                            const delayMs = Math.min(1000 + (60 - triesLeft) * 100, 3000);
+                            setTimeout(() => checkReady(url, triesLeft - 1), delayMs);
                         } else {
                             console.error("Unable to download. Please check your Internet connection and try again.");
                             // Fallback to plain text download

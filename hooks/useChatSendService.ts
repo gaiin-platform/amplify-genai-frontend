@@ -591,6 +591,13 @@ export function useSendService() {
                     const isMemoryOn = deploymentAvailability.memory && stableFeatureFlags.memory === true;
                     console.log("Memory on: ", isMemoryOn)
 
+                    // One memory read per turn. It is independent of the MCP tool lookup and of
+                    // context resolution, so it starts now and is awaited where it is needed.
+                    // The same read feeds fact extraction after the response (previously a second
+                    // full read). The no-op catch keeps an unawaited rejection from surfacing.
+                    const memoryReadPromise: Promise<any> | null = isMemoryOn ? doReadMemoryOp({}) : null;
+                    memoryReadPromise?.catch(() => {});
+
                     console.log("Conversation tokens: ", updatedConversation.maxTokens);
 
                     const removedIds = new Set(updatedConversation.removedDocumentIds || []);
@@ -727,15 +734,15 @@ export function useSendService() {
                         // For memory context, use a short timeout to keep the request moving
                         // if memory retrieval takes too long
                         try {
-                            // Create a promise with a timeout
-                            const memoriesPromise = Promise.race([
-                                doReadMemoryOp({}),
-                                new Promise<any>((_, reject) =>
-                                    setTimeout(() => reject(new Error('Memory fetch timeout')), 500) // 500ms timeout
-                                )
-                            ]);
-
-                            const memoriesResponse = await memoriesPromise;
+                            // Race the (already running) read against a timeout, and clear the
+                            // timer either way so it does not outlive the send.
+                            let memoryTimer: ReturnType<typeof setTimeout> | undefined;
+                            const memoriesResponse = await Promise.race([
+                                memoryReadPromise as Promise<any>,
+                                new Promise<any>((_, reject) => {
+                                    memoryTimer = setTimeout(() => reject(new Error('Memory fetch timeout')), 500); // 500ms timeout
+                                })
+                            ]).finally(() => clearTimeout(memoryTimer));
                             const allMemories = JSON.parse(memoriesResponse.body).memories || [];
                             const relevantMemories = getRelevantMemories(allMemories);
                             const memoryContext = buildMemoryContextPrompt(relevantMemories);
@@ -1812,8 +1819,10 @@ export function useSendService() {
 
                                     // console.log("User input: ", userInput);
 
-                                    // Fetch existing memories for fact extraction
-                                    const memoriesResponse = await doReadMemoryOp({});
+                                    // Reuse this turn's read; only go back to the backend if it failed.
+                                    const memoriesResponse = (memoryReadPromise
+                                        ? await memoryReadPromise.catch(() => null)
+                                        : null) ?? await doReadMemoryOp({});
                                     let existingMemories: Memory[] = [];
 
                                     try {

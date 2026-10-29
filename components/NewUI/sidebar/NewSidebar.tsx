@@ -39,8 +39,6 @@ import {
   saveConversations,
   deleteConversationCleanUp,
 } from '@/utils/app/conversation';
-import { deleteRemoteConversation } from '@/services/remoteConversationService';
-import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
 import { getFullTimestamp, getDateName } from '@/utils/app/date';
 import { getArchiveNumOfDays, saveFolders } from '@/utils/app/folders';
 import { DefaultModels } from '@/types/model';
@@ -532,9 +530,9 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     saveConversations(updated);
     dispatch({ field: 'conversations', value: updated });
 
-    if (!getIsLocalStorageSelection(storageSelection)) {
-      deleteRemoteConversation(conversation.id).catch(() => {});
-    }
+    // The remote copy of a cloud conversation is already deleted by deleteConversationCleanUp
+    // above (keyed on the conversation itself). An extra delete here, keyed on the global
+    // storage setting, only duplicated that request and fired for local chats too.
   }, [conversations, selectedConversation, storageSelection, statsService]);
 
   // Only pass chat-type folders to the grouping function (never 'prompt' or 'workflow' folders)

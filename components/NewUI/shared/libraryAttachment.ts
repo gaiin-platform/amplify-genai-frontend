@@ -173,6 +173,14 @@ export async function hydrateLibraryAttachmentPreview(
             return;
         }
 
+        // Only images and text get a preview. Anything else (docx, xlsx, pptx, archives…) ends
+        // as 'unsupported' below, so don't request a signed URL and start downloading the file
+        // just to throw the body away.
+        if (!isImage && !isText) {
+            patch(doc.id, (attachment) => ({ ...attachment, previewState: 'unsupported' }));
+            return;
+        }
+
         const result = await getFileDownloadUrl(doc.key, doc.groupId);
         if (!result.success || !result.downloadUrl) throw new Error('Preview URL unavailable');
         const response = await fetch(result.downloadUrl);

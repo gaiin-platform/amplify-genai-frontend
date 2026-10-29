@@ -110,7 +110,7 @@ export const SkillsCapabilityPanel: React.FC<SkillsCapabilityPanelProps> = ({
     const loadSkills = useCallback(async () => {
         setError(null);
         try {
-            const response = await getUserSkills(chatEndpoint, true);
+            const response = await getUserSkills(chatEndpoint, true, { cached: true });
             if (!alive.current) return;
             if (response.success && response.data) setSkills(response.data);
             else {

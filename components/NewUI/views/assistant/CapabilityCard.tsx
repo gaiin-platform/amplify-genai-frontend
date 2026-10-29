@@ -26,6 +26,11 @@ export interface CapabilityCardProps {
     children: React.ReactNode;
     /** Start expanded — used when a saved assistant already has this configured. */
     defaultOpen?: boolean;
+    /**
+     * Called once, the first time the card's body is needed (opened, or something is
+     * already configured). Lets a parent defer data the body depends on.
+     */
+    onFirstActive?: () => void;
 }
 
 export const CapabilityCard: React.FC<CapabilityCardProps> = ({
@@ -34,8 +39,27 @@ export const CapabilityCard: React.FC<CapabilityCardProps> = ({
     badge,
     children,
     defaultOpen = false,
+    onFirstActive,
 }) => {
     const [open, setOpen] = useState(defaultOpen);
+    /**
+     * The body renders lazily. Panels inside fetch their own data when they first
+     * render, and a collapsed card is never looked at in most sessions, so rendering
+     * every panel up front cost several requests per modal open. A card renders its
+     * body when it is opened, or when it already has something configured (`badge`) —
+     * those panels also resolve display names that are written back on save. Once
+     * rendered it stays rendered, so closing keeps its state and reopening does not refetch.
+     */
+    const bodyRenderedRef = useRef(defaultOpen);
+    if (open || Boolean(badge)) bodyRenderedRef.current = true;
+    const bodyRendered = bodyRenderedRef.current;
+
+    const firstActiveFiredRef = useRef(false);
+    useEffect(() => {
+        if (!bodyRendered || firstActiveFiredRef.current) return;
+        firstActiveFiredRef.current = true;
+        onFirstActive?.();
+    }, [bodyRendered, onFirstActive]);
     /**
      * Clipping is only correct while the card is animating. Leaving
      * `overflow: hidden` on for good would cut off anything that escapes the
@@ -176,7 +200,7 @@ export const CapabilityCard: React.FC<CapabilityCardProps> = ({
             >
                 <div style={{ overflow: clip ? 'hidden' : 'visible', minHeight: 0 }}>
                     <div style={{ padding: 14, borderTop: '1px solid var(--border-subtle)' }}>
-                        {children}
+                        {bodyRendered ? children : null}
                     </div>
                 </div>
             </div>

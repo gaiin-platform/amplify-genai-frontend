@@ -6,7 +6,7 @@
  */
 
 import { MCPTool, MCPToolResult } from '@/types/mcp';
-import { listMCPServers } from './mcpService';
+import { listMCPServersCached } from './mcpService';
 
 // JSON-RPC request structure
 interface JsonRpcRequest {
@@ -207,7 +207,7 @@ export async function executeMCPToolByServerId(
   args: Record<string, unknown>
 ): Promise<MCPToolResult> {
   try {
-    const servers = await listMCPServers();
+    const servers = await listMCPServersCached();
     const server = servers.find(s => s.id === serverId);
 
     if (!server) {
@@ -263,7 +263,7 @@ export function mcpToolsToLLMFormat(tools: MCPTool[], serverId: string, serverNa
  */
 export async function getEnabledMCPToolsForLLM(): Promise<any[]> {
   try {
-    const servers = await listMCPServers();
+    const servers = await listMCPServersCached();
     const enabledServers = servers.filter(s => s.enabled && s.tools.length > 0);
 
     const allTools: any[] = [];
@@ -354,7 +354,7 @@ export async function handleMCPToolCall(
   // Find the server to get its name
   let serverName = parsed.serverId;
   try {
-    const servers = await listMCPServers();
+    const servers = await listMCPServersCached();
     const server = servers.find(s => s.id === parsed.serverId);
     if (server) {
       serverName = server.name;

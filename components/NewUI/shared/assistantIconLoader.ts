@@ -52,6 +52,28 @@ const fetchIconUrl = async (icon: AssistantIconRef): Promise<string | null> => {
     }
 };
 
+// A gallery with many custom icons used to start every icon load at once (two requests each).
+// Loads now run through a small pool; each card still resolves independently.
+const MAX_CONCURRENT_ICON_LOADS = 4;
+let activeIconLoads = 0;
+const waitingIconLoads: Array<() => void> = [];
+
+const withIconLoadSlot = async <T,>(task: () => Promise<T>): Promise<T> => {
+    if (activeIconLoads >= MAX_CONCURRENT_ICON_LOADS) {
+        await new Promise<void>((resolve) => waitingIconLoads.push(resolve));
+    } else {
+        activeIconLoads += 1;
+    }
+    try {
+        return await task();
+    } finally {
+        const next = waitingIconLoads.shift();
+        // Hand the slot straight to the next waiter; only release it when nobody is waiting.
+        if (next) next();
+        else activeIconLoads -= 1;
+    }
+};
+
 /** An object URL for the icon, or `null` when it cannot be read (no access, deleted, not an image…). */
 export const loadAssistantIconUrl = (icon: AssistantIconRef): Promise<string | null> => {
     const id = cacheKey(icon);
@@ -59,7 +81,7 @@ export const loadAssistantIconUrl = (icon: AssistantIconRef): Promise<string | n
     if (hit && (hit.failedAt === undefined || Date.now() - hit.failedAt < FAILURE_TTL_MS)) return hit.promise;
 
     const entry: CacheEntry = { promise: Promise.resolve(null) };
-    entry.promise = fetchIconUrl(icon).then((url) => {
+    entry.promise = withIconLoadSlot(() => fetchIconUrl(icon)).then((url) => {
         if (url === null) entry.failedAt = Date.now();
         return url;
     });

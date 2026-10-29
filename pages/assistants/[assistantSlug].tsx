@@ -343,9 +343,21 @@ const AssistantPage = ({
 
       try {
         setLoadingMessage('Loading models...');
-        
+
+        // Models, account and the assistant lookup do not depend on each other, so start all
+        // three now and handle the results in the same order as before. The no-op catches
+        // stop a rejection from being reported as unhandled while an earlier step is awaited;
+        // each rejection still surfaces where its result is awaited below.
+        const trimmedSlug = typeof assistantSlug === 'string' ? assistantSlug.trim() : '';
+        const modelsRequest = getAvailableModels();
+        const accountRequest = getAccounts();
+        const assistantRequest = trimmedSlug ? lookupAssistant(assistantSlug as string) : null;
+        modelsRequest.catch(() => {});
+        accountRequest.catch(() => {});
+        assistantRequest?.catch(() => {});
+
         // Fetch available models
-        const modelsResponse = await getAvailableModels();
+        const modelsResponse = await modelsRequest;
         
         let modelsList: any[] = [];
         if (modelsResponse.success) {
@@ -390,7 +402,7 @@ const AssistantPage = ({
         }
 
         setLoadingMessage('Loading account...');
-        const accountResponse = await getAccounts();
+        const accountResponse = await accountRequest;
         if (accountResponse.success) {
             const defaultAccount = accountResponse.data.find((account: any) => account.isDefault);
             if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
@@ -406,7 +418,7 @@ const AssistantPage = ({
         }
         
         // lookupAssistant takes only the path as argument
-        const assistantResult = await lookupAssistant(assistantSlug);
+        const assistantResult = await assistantRequest!;
         // console.log("assistantResult", assistantResult);
         
         if (!assistantResult) {

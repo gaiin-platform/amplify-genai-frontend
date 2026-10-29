@@ -63,55 +63,102 @@ const uploadFileToS3 = (
     return { response: result, abortController };
 }
 
+/**
+ * Poll a presigned metadata URL until the processed file's metadata object exists.
+ *
+ * Requests run one at a time (the next is scheduled only after the previous settles),
+ * back off from 0.5 s towards 3 s, and are skipped while the tab is hidden. A single
+ * abort listener cancels the in-flight XHR and stops the loop.
+ */
 export function checkContentReady(url: string, maxSeconds: number, abortController?: AbortController): Promise<any> {
     const startTime = Date.now();
+    const INITIAL_DELAY_MS = 500;
+    const MAX_DELAY_MS = 3000;
+    const REQUEST_TIMEOUT_MS = 15000;
 
     return new Promise((resolve, reject) => {
-        const intervalId = setInterval(() => {
-            // Check if aborted
-            if (abortController?.signal?.aborted) {
-                clearInterval(intervalId);
-                reject(new Error('Abort'));
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        let deadlineTimer: ReturnType<typeof setTimeout> | undefined;
+        let currentXhr: XMLHttpRequest | null = null;
+        let settled = false;
+        let delay = INITIAL_DELAY_MS;
+
+        const signal = abortController?.signal;
+
+        const finish = (action: () => void) => {
+            if (settled) return;
+            settled = true;
+            if (timer !== undefined) clearTimeout(timer);
+            if (deadlineTimer !== undefined) clearTimeout(deadlineTimer);
+            signal?.removeEventListener('abort', onAbort);
+            action();
+        };
+
+        function onAbort() {
+            currentXhr?.abort();
+            finish(() => reject(new Error('Abort')));
+        }
+
+        const schedule = () => {
+            if (settled) return;
+            timer = setTimeout(attempt, delay);
+            delay = Math.min(Math.round(delay * 1.5), MAX_DELAY_MS);
+        };
+
+        const attempt = () => {
+            if (settled) return;
+
+            if (signal?.aborted) {
+                finish(() => reject(new Error('Abort')));
                 return;
             }
 
-            // Check if timeout reached
             if (Date.now() - startTime >= maxSeconds * 1000) {
-                clearInterval(intervalId);
-                reject(new Error('Timeout reached'));
+                finish(() => reject(new Error('Timeout reached')));
+                return;
+            }
+
+            // Nothing to gain from polling a background tab; check again shortly after it returns.
+            if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+                schedule();
                 return;
             }
 
             const xhr = new XMLHttpRequest();
+            currentXhr = xhr;
             xhr.open('GET', url);
-            
-            // Add abort handling for the individual XHR request
-            if (abortController) {
-                abortController.signal.addEventListener('abort', () => xhr.abort());
-            }
-            
+            // A request that never answers must not stall the loop; a timeout surfaces as a
+            // finished request with status 0, which is handled like any other "not ready yet".
+            xhr.timeout = REQUEST_TIMEOUT_MS;
             xhr.onreadystatechange = function () {
-                if (xhr.readyState === 4) {
-                    if (xhr.status === 200) {
-                        console.log("File ready for chat");
-                        let metadata = null;
-                        try {
-                            metadata = JSON.parse(xhr.responseText);
-                        }
-                        catch (e) {
-                            console.log("Error parsing content metadata response", e);
-                        }
-                        clearInterval(intervalId);
-                        resolve({ success: true, metadata: metadata });
+                if (xhr.readyState !== 4) return;
+                currentXhr = null;
+                if (xhr.status === 200) {
+                    console.log("File ready for chat");
+                    let metadata: any = null;
+                    try {
+                        metadata = JSON.parse(xhr.responseText);
                     }
-                    // else if (xhr.status !== 404) {
-                    //     clearInterval(intervalId);
-                    //     reject(new Error(`Unexpected status code: ${xhr.status}`));
-                    // }
+                    catch (e) {
+                        console.log("Error parsing content metadata response", e);
+                    }
+                    finish(() => resolve({ success: true, metadata: metadata }));
+                    return;
                 }
+                // Not there yet (404 until processing finishes) — wait, then try again.
+                schedule();
             };
             xhr.send();
-        }, 500);
+        };
+
+        signal?.addEventListener('abort', onAbort);
+        // The overall limit is enforced by its own timer, not only between attempts, so it holds
+        // even while a request is outstanding.
+        deadlineTimer = setTimeout(() => {
+            currentXhr?.abort();
+            finish(() => reject(new Error('Timeout reached')));
+        }, maxSeconds * 1000);
+        schedule();
     });
 }
 

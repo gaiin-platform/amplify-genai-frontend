@@ -41,6 +41,7 @@ import { getUserDefaultModelId, setUserDefaultModelId } from './userDefaultModel
 import { getUserDefaultEffort, setUserDefaultEffort } from './userDefaultEffort';
 import { getStoredUserWebSearchChoice, setUserWebSearchEnabled } from './userWebSearch';
 import type { EffortLevel } from './ModelPicker';
+import { DEFAULT_CONVERSATION_STORAGE } from '@/types/conversationStorage';
 
 // ─── Storage keys ─────────────────────────────────────────────────────────────
 /** Dedicated localStorage key read by ConversationViewShell + the settings modal */
@@ -53,8 +54,8 @@ const SETTINGS_BLOB_KEY = 'settings';
 // ─── System defaults (applied to brand-new users with no saved preference) ────
 /** Default chat font — Inter (sans) */
 export const DEFAULT_CHAT_FONT: 'serif' | 'sans' = 'sans';
-/** Default conversation storage — new conversations go to the cloud */
-export const DEFAULT_STORAGE_SELECTION = 'future-cloud' as const;
+/** Default conversation storage — new conversations go to the cloud ("Cloud going forward") */
+export const DEFAULT_STORAGE_SELECTION = DEFAULT_CONVERSATION_STORAGE;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -256,6 +257,70 @@ export const applyServerPrefsToLocalStorage = (): {
     }
 
     return { chatFont, storageSelection };
+};
+
+// ─── Pull the current server values (used when Settings → General opens) ──────
+
+/** The settings keys that roam; only these are copied from the server object. */
+const ROAMING_PREF_KEYS = [
+    'chatFont',
+    'storageSelection',
+    'userDefaultModelId',
+    'userDefaultEffort',
+    'webSearchEnabled',
+] as const;
+
+/**
+ * Ask the server for the user's settings *now* and apply the roaming display prefs to
+ * this device, so a screen that shows them reflects what the server holds rather than
+ * whatever this browser last cached.
+ *
+ * The local copy is otherwise refreshed only once per page load (home.tsx fetchSettings
+ * → UserPrefsSync), so a change made on another device, or a value that arrived after the
+ * screen rendered, would not appear until a reload.
+ *
+ * Only the roaming prefs are copied into the local settings blob — not the whole server
+ * object — so theme, hidden models and feature options that other components are already
+ * rendering from are left alone.
+ *
+ * Same precedence as the boot sync: the server's value wins, `null` is an explicit clear,
+ * and a key the server does not hold leaves this device as it is.
+ *
+ * Resolves to what `applyServerPrefsToLocalStorage` reports, or `null` when the server
+ * could not be reached or holds no settings yet (nothing to apply — local stays as is).
+ * Never throws.
+ */
+export const syncDisplayPrefsFromServer = async (): Promise<{
+    chatFont: 'serif' | 'sans' | null;
+    storageSelection: string | null;
+} | null> => {
+    if (typeof window === 'undefined') return null;
+
+    let server: Record<string, unknown>;
+    try {
+        const result = await fetchUserSettings();
+        if (!result?.success || !result.data || typeof result.data !== 'object') return null;
+        server = result.data as Record<string, unknown>;
+    } catch {
+        return null;
+    }
+
+    try {
+        const blob = readSettingsBlob();
+        let changed = false;
+        for (const key of ROAMING_PREF_KEYS) {
+            if (!(key in server)) continue;
+            if (JSON.stringify(blob[key]) === JSON.stringify(server[key])) continue;
+            blob[key] = server[key];
+            changed = true;
+        }
+        if (changed) localStorage.setItem(SETTINGS_BLOB_KEY, JSON.stringify(blob));
+    } catch (e) {
+        console.error('[userDisplayPrefs] Failed to store server prefs locally:', e);
+        return null;
+    }
+
+    return applyServerPrefsToLocalStorage();
 };
 
 // ─── One-time backfill for users who set a preference before it roamed ────────

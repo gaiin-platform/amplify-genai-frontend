@@ -1,4 +1,4 @@
-import { ConversationStorage } from "@/types/conversationStorage";
+import { ConversationStorage, DEFAULT_CONVERSATION_STORAGE } from "@/types/conversationStorage";
 import { Conversation } from "@/types/chat";
 import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from "@/services/remoteConversationService";
 import cloneDeep from 'lodash/cloneDeep';
@@ -174,8 +174,12 @@ export const handleStorageSelection = (selection: String, conversations: Convers
 }
 
 
-export const getIsLocalStorageSelection = (storageSelection: string | null) => { 
-    return storageSelection ? storageSelection.includes('local') : true
+// Whether a conversation created now is stored locally. With no selection yet (a new user, or the
+// moments before a saved/admin preference has loaded) the system default applies, which is
+// "Cloud going forward" — it used to fall back to local, so a new user's first conversations
+// were kept in the browser even though the default says cloud.
+export const getIsLocalStorageSelection = (storageSelection: string | null) => {
+    return (storageSelection || DEFAULT_CONVERSATION_STORAGE).includes('local')
 }
 
   
@@ -185,13 +189,23 @@ export const saveStorageSettings = (storage: ConversationStorage) => {
 
 
 
-const updateRemoteConversation = async (conversationId: string, attributes: any, folders:FolderInterface[]) => {
-    const fullConv = await fetchRemoteConversation(conversationId);
-    if (fullConv) {
-        const updatedConv = {...fullConv, ...attributes};
-        // console.log("Update data on remote conversation: ", attributes);
-        uploadConversation(updatedConv, folders);
-    }
+// These repairs are background housekeeping and each one downloads and re-uploads a whole
+// conversation. A sync that finds many conversations to repair used to start all of them at
+// once; running them one at a time keeps that from becoming a startup request burst.
+let remoteConversationUpdateQueue: Promise<void> = Promise.resolve();
+
+const updateRemoteConversation = (conversationId: string, attributes: any, folders:FolderInterface[]): Promise<void> => {
+    remoteConversationUpdateQueue = remoteConversationUpdateQueue.then(async () => {
+        const fullConv = await fetchRemoteConversation(conversationId);
+        if (fullConv) {
+            const updatedConv = {...fullConv, ...attributes};
+            // console.log("Update data on remote conversation: ", attributes);
+            await uploadConversation(updatedConv, folders);
+        }
+    }).catch((error) => {
+        console.error("Failed to update remote conversation:", conversationId, error);
+    });
+    return remoteConversationUpdateQueue;
 }
 
 export interface remoteConvData {
