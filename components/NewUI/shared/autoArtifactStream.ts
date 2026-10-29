@@ -114,3 +114,74 @@ export function mergeAutoArtifactMessage(
 
   return { ...conversation, messages };
 }
+
+// An edit sends the whole current version and asks for the whole new one. Asking the model to reference
+// unchanged parts instead (the old `~A#` scheme) made it answer an edit with just the reference, because a
+// document usually splits into a single part, so the "new" version was the old one again.
+const ARTIFACT_EDIT_INSTRUCTIONS = `
+You are updating an existing artifact. Its current content is below.
+Apply the requested changes and output the COMPLETE updated artifact from start to finish.
+- Make the requested changes. Do not return the current content unchanged.
+- Keep every part the request does not ask to change as it is.
+- Write out the entire artifact. Do not use placeholders or references to the current content.
+- Do not describe the changes inside the artifact; mention them only in the summary.
+`;
+
+/** The part of an artifact request that hands the model the version it is editing. */
+export function buildArtifactEditContext(currentContent: string): string {
+  return `${ARTIFACT_EDIT_INSTRUCTIONS}\nCurrent artifact content:\n${currentContent}\n`;
+}
+
+/**
+ * The user message that led to an assistant message. The artifact request otherwise carries only the
+ * instructions the chat model wrote, which can be too vague to act on ("update the artifact as requested").
+ */
+export function findUserRequest(messages: Message[], assistantMessageId: string): string {
+  const index = messages.findIndex((candidate) => candidate.id === assistantMessageId);
+  for (let i = (index < 0 ? messages.length : index) - 1; i >= 0; i--) {
+    if (messages[i].role === 'user') return typeof messages[i].content === 'string' ? messages[i].content.trim() : '';
+  }
+  return '';
+}
+
+/** What the artifact panel is showing, as told by `openArtifactsTrigger` events. */
+export type PanelState = { isOpen: boolean; artifactIndex: number };
+
+/** The index is kept across events that omit it, as the panel itself does. */
+export function nextPanelState(prev: PanelState, detail: any): PanelState {
+  return {
+    isOpen: !!detail?.isOpen,
+    artifactIndex: typeof detail?.artifactIndex === 'number' ? detail.artifactIndex : prev.artifactIndex,
+  };
+}
+
+/**
+ * Every card shares one panel, so a card is only "open" while the panel shows its own artifact version,
+ * not whenever the panel is open.
+ */
+export function isCardPanelOpen(
+  panel: PanelState,
+  panelArtifactId: string | undefined,
+  card: { artifactId: string; idx: number } | null | undefined,
+): boolean {
+  return panel.isOpen && !!card && panelArtifactId === card.artifactId && panel.artifactIndex === card.idx;
+}
+
+/**
+ * Tells the chat model which artifacts already exist, so an edit reuses the exact id and becomes a new
+ * version instead of a separate artifact. Returns '' when there are none.
+ */
+export function buildExistingArtifactsPrompt(artifacts: Record<string, Array<{ name?: string; version?: number }>> | undefined): string {
+  const lines = Object.entries(artifacts ?? {})
+    .filter(([, versions]) => Array.isArray(versions) && versions.length > 0)
+    .map(([id, versions]) => {
+      const latest = versions[versions.length - 1];
+      return `- id: ${JSON.stringify(id)}, current name: ${JSON.stringify(latest?.name ?? '')}, latest version: ${latest?.version ?? versions.length}`;
+    });
+  if (lines.length === 0) return '';
+  return [
+    'Artifacts that already exist in this conversation:',
+    ...lines,
+    'When the user asks to change, extend or fix one of these, set "id" in the autoArtifacts block to its exact id from this list, even if the change renames it. Use a new id only for a genuinely new artifact.',
+  ].join('\n');
+}
