@@ -43,6 +43,7 @@ import { saveContextCache } from '@/utils/app/storage';
 import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
 import { getFullTimestamp } from '@/utils/app/date';
 import { getContinuationCarryOver } from '@/utils/app/mcpContinuation';
+import { buildExistingArtifactsPrompt } from '@/components/NewUI/shared/autoArtifactStream';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
 
 export type ChatRequest = {
@@ -688,6 +689,16 @@ export function useSendService() {
                     if (isArtifactsOn && selectedConversation.artifacts) {
                         console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
                         chatBody.artifacts = selectedConversation.artifacts;
+                        // An edit becomes a new version only when the model reuses the artifact's exact id.
+                        // It otherwise sees only the autoArtifacts blocks in history, and after a rename it
+                        // tends to derive a new id from the new title, starting a separate artifact.
+                        const artifactIdGuide = buildExistingArtifactsPrompt(selectedConversation.artifacts);
+                        if (artifactIdGuide) {
+                            chatBody.messages = [
+                                { id: `artifact-ids-${Date.now()}`, role: 'system', content: artifactIdGuide, type: undefined, data: {} } as Message,
+                                ...chatBody.messages,
+                            ];
+                        }
                     }
                     // Automatic routing stays backend-owned. Explicit artifact
                     // requests are intent only; the backend applies deployment policy

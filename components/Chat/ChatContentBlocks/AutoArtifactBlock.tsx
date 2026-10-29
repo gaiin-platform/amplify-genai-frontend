@@ -13,8 +13,7 @@ import { saveArtifact, getAllArtifacts } from "@/services/artifactsService";
 import { jsonrepair } from "jsonrepair";
 import { v4 as uuidv4 } from "uuid";
 import { buildArtifactSavePayload, resolveArtifactName } from "@/components/NewUI/shared/artifactLibraryModel";
-import { buildArtifactContentMap, pickBaseVersion } from "@/components/NewUI/shared/artifactContentMap";
-import { appendAutoArtifactChunk, mergeAutoArtifactMessage, replaceConversationById } from "@/components/NewUI/shared/autoArtifactStream";
+import { appendAutoArtifactChunk, buildArtifactEditContext, findUserRequest, isCardPanelOpen, mergeAutoArtifactMessage, nextPanelState, PanelState, replaceConversationById } from "@/components/NewUI/shared/autoArtifactStream";
 import { claimArtifactStream, getLiveConversations, getLiveSelectedConversationId, releaseArtifactStream } from "@/hooks/useChatSendService";
 import { condenseForConversationHistory, isRemoteConversation, saveConversations } from "@/utils/app/conversation";
 import { uploadConversation } from "@/services/remoteConversationService";
@@ -41,8 +40,6 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
         dispatch: homeDispatch, handleUpdateSelectedConversation, getDefaultModel
     } = useContext(HomeContext);
     const llmPromptedRef = useRef<boolean>(false);
-
-    const versionContentMapRef  = useRef<{[key:string]:string}>({});
 
     const conversationsRef = useRef(conversations);
     const selectedConversationRef = useRef(selectedConversation);
@@ -71,35 +68,6 @@ const AutoArtifactsBlock: React.FC<Props> = ({content, ready, message}) => {
 // (403) when it is sent from the browser, so this request carries only a short, markup-free system prompt.
 const ARTIFACT_SYSTEM_PROMPT = 'You are generating the content of an artifact.';
 
-const ARTIFACT_VERSION_INSTRUCTIONS = `
-    It is required to have a complete and/or fully functional artifact version.
-
-1. **Referencing Components**: You will be provided with an Map where each the key corresponds to a specific section of the artifact and the content of the component is the value. 
-Components are to be referred to by their key in the format '~A{number}'.
-
-2. **Updating Components**:
-   - If you are updating a component section, include the complete content of that section including edits in the new version, regardless of the extent of changes.
-   - For any component sections that remains unchanged, reference it using the '~A{number}' format, where number comes from the key values in the format 'A{number}'
-
-3. **Example Response Format**: structurinng the new version of an artifact with JavaScript at key A0 (~A0)  you decided there will be no changes applied to this section, HTML at index A1 (~1) you determine you will be applying changes, and a new CSS component:
-
-   ~A0
-
-   \`\`\`html
-   <!-- Complete HTML content with chnages-->
-   \`\`\`
- 
-   \`\`\`css
-   /* New CSS content */
-   /* ... */
-   \`\`\`
-
-5. **Consistency**: Ensure that the new version maintains the integrity and functionality of the artifact. All component sections, whether updated or referenced by their key, should work together seamlessly in the new version.
-If you provide a ~A# then assume I will insert the context for that specific referenced content and thus does not need to be reproduced by you. 
-
-Please save yourself work, if you can reuse any part of the the Artifact Context (when it makes sense to do so) then you must provide a ~A# so, we can save tokens.
-You goal is to maximize the saved tokens **while providing the user with a qulity response (top priority)**. 
-`;
 
 const repairJson = async () => {
     const model = getDefaultModel(DefaultModels.ADVANCED);
@@ -268,7 +236,8 @@ const prepareArtifacts = (jsonContent: string, retry: boolean) => {
         const additionalContent = appendRelevantArtifacts(includeArtifactsId, artifactId);
         const webSearchContent = collectRecentWebSearchResults();
 
-        const prompt = `${instr}\n\n${additionalContent}${webSearchContent}`
+        const userRequest = findUserRequest(selectedConversation?.messages ?? [], message.id);
+        const prompt = `${userRequest ? `The user's request:\n${userRequest}\n\n` : ''}${instr}\n\n${additionalContent}${webSearchContent}`
 
         getArtifactMessages(prompt,  artifactDetail as ArtifactBlockDetail, data.type, messageKey, cooldownKey);
 }
@@ -288,15 +257,7 @@ const appendRelevantArtifacts = (includeArtifactsId: string[], currentId: string
             const lastArtifact = artifacts.slice(-1)[0].contents;
             const content = lzwUncompress(lastArtifact);
             if (id === currentId) {
-                versionInstr += ARTIFACT_VERSION_INSTRUCTIONS + '\nArtifact Context split up into parts:\n';
-                const contentMap = buildArtifactContentMap(content);
-
-                if (Object.keys(contentMap).length > 0){
-                    versionContentMapRef.current = contentMap;
-                    console.log("CONTENT MAP: ", contentMap )
-                    versionInstr += JSON.stringify(contentMap);
-                }
-
+                versionInstr += buildArtifactEditContext(content);
             } else {
                 instr += `Artifact ID: ${id}, Content: ${content}\n\n`;
             }
@@ -445,13 +406,6 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                 // Store language hint for code artifacts in metadata
                 metadata: codeLang ? { language: codeLang } : undefined,
             }
-            // `~A#` references in the model's output are expanded from this map, which is only filled in when the
-            // request is first prepared. A retry/continue after a page reload skips that, and an empty map would
-            // silently drop every referenced part, so rebuild it from the version this one builds on.
-            if (Object.keys(versionContentMapRef.current ?? {}).length === 0) {
-                const base = pickBaseVersion(selectArtifacts, resuming);
-                if (base) versionContentMapRef.current = buildArtifactContentMap(lzwUncompress(base.contents as any));
-            }
             if (!resuming) selectArtifacts.push(artifact);
             pendingList = selectArtifacts;
             pendingArtifact = resuming ? undefined : artifact;
@@ -493,10 +447,8 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
             let text = selectedConversation.messages[messageLen].content + '\n\n';
             let artifactText = resuming ? (resumeText as string) : '';
 
-            const placeholderRegex = /\~A(\d+)/g;
             let isAssistantMsg = false;
             let buffer = '';
-            let unresolvedPlaceholder = '';
             streamingStarted = true;
             try {
                 while (!controller.signal.aborted) {
@@ -505,19 +457,6 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     else if (done) buffer += decoder.decode();
 
                     if (buffer.length > 0 || done) {
-                        // replace tag references with content:
-                        if (versionContentMapRef.current && (placeholderRegex.test(unresolvedPlaceholder + buffer) || unresolvedPlaceholder || /~A\d*$/.test(buffer))) {
-                            const withCarry = unresolvedPlaceholder + buffer;
-                            const completePlaceholders = done ? withCarry : withCarry.replace(/~A\d*$/, '');
-                            unresolvedPlaceholder = withCarry.slice(completePlaceholders.length);
-                            buffer = completePlaceholders.replace(placeholderRegex, (match) => {
-                                const key = match.slice(1);
-                                return key in versionContentMapRef.current
-                                    ? `\n${versionContentMapRef.current[key]}\n`
-                                    : '';
-                            });
-                        }
-                    
                         const parsedChunk = appendAutoArtifactChunk(buffer, '', isAssistantMsg, done);
                         buffer = parsedChunk.buffer;
                         isAssistantMsg = parsedChunk.inAssistantText;
@@ -620,8 +559,7 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
                     },
                 };
                 if (!controller.signal.aborted && !isAssistantMsg) {
-                    const pendingText = unresolvedPlaceholder + buffer;
-                    const parserFlush = appendAutoArtifactChunk('', pendingText, false, true);
+                    const parserFlush = appendAutoArtifactChunk('', buffer, false, true);
                     artifactText += parserFlush.artifactText;
                     text += parserFlush.assistantText;
                     selectArtifacts[selectArtifacts.length - 1].contents = lzwCompress(artifactText);
@@ -717,12 +655,19 @@ const getArtifactMessages = async (llmInstructions: string, artifactDetail: Arti
     );
 };
 
-/* ─── Module-level panel-open tracker (same pattern as ArtifactInlineCardLayer) */
-let _autoArtifactPanelOpen = false;
+/* ─── Module-level panel tracker (same pattern as ArtifactInlineCardLayer) ──── */
+let _autoArtifactPanelState: PanelState = { isOpen: false, artifactIndex: 0 };
 if (typeof window !== 'undefined') {
-    window.addEventListener('openArtifactsTrigger', (e: Event) => {
-        _autoArtifactPanelOpen = !!((e as CustomEvent).detail?.isOpen);
-    });
+    // Replace the listener a previous load of this module registered (hot reload), instead of stacking
+    // another one: the old one keeps calling into the old module's imports.
+    const listenerKey = '__autoArtifactPanelTracker';
+    const previous = (window as any)[listenerKey];
+    if (previous) window.removeEventListener('openArtifactsTrigger', previous);
+    const listener = (e: Event) => {
+        _autoArtifactPanelState = nextPanelState(_autoArtifactPanelState, (e as CustomEvent).detail);
+    };
+    (window as any)[listenerKey] = listener;
+    window.addEventListener('openArtifactsTrigger', listener);
 }
 
 /* Type icon lookup */
@@ -758,11 +703,12 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
         dispatch: homeDispatch,
     } = useContext(HomeContext);
 
-    const [isPanelOpen, setIsPanelOpen] = useState(() => _autoArtifactPanelOpen);
+    const [panelState, setPanelState] = useState<PanelState>(() => _autoArtifactPanelState);
 
     useEffect(() => {
         const handler = (e: Event) => {
-            setIsPanelOpen(!!((e as CustomEvent).detail?.isOpen));
+            const detail = (e as CustomEvent).detail;
+            setPanelState(prev => nextPanelState(prev, detail));
         };
         window.addEventListener('openArtifactsTrigger', handler);
         return () => window.removeEventListener('openArtifactsTrigger', handler);
@@ -803,6 +749,7 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
 
     const data = findArtifact();
     const artifact = data?.artifact ?? null;
+    const isPanelOpen = isCardPanelOpen(panelState, selectedArtifacts?.[0]?.artifactId, data && { artifactId: data.artifact.artifactId, idx: data.idx });
     const stopped = message.data?.artifactStatus === ArtifactMessageStatus.STOPPED;
     const cancelled = message.data?.artifactStatus === ArtifactMessageStatus.CANCELLED;
     const incomplete = message.data?.artifactStatus === ArtifactMessageStatus.INCOMPLETE;
