@@ -1287,51 +1287,129 @@
   color: var(--text-primary) !important;
 }
 
-/* Inline code (spec §4: "--code-fg on --bg-active at 60%, radius 4px, nowrap") */
+/* Inline code: same recessed --bg-inset surface as the fenced block, no border.
+   Wraps (rather than nowrap) so a long identifier/URL can't push the bubble
+   past its max-width. */
 [data-new-ui="true"] .new-ui-user-markdown .new-ui-user-inline-code {
   font-size: 13.5px !important;
-  background-color: rgba(var(--bg-active-rgb, 58, 58, 56), 0.6) !important;
-  background-color: var(--bg-active) !important;
+  background-color: var(--bg-inset) !important;
+  border: none !important;
   border-radius: 4px !important;
   padding: 1px 5px !important;
   color: #D9776A !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-  white-space: nowrap !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
   font-style: normal !important;
 }
 
-/* Fenced code block inset panel (spec §4):
-   --bg-app (recessed against the bubble's --bg-raised); 1px --border-subtle;
-   radius 12px; padding 16px 18px; margin 14px 0;
-   13.5px/1.6 monospace --text-primary; overflow-x auto; no syntax highlighting.
-   The scrollbar lives here (on <pre>), not on <code> — see overflow-x override
-   on .new-ui-user-code-block code below. Because the browser grows this element
-   to accommodate a classic scrollbar before painting, the 16px bottom padding
-   separates the text from the scrollbar track on all platforms. */
+/* Fenced code block in a user bubble (Claude.ai-style recessed panel).
+   ONE element: a single <pre> (see UserCodeBlock in
+   NewUIUserMessageMarkdownLayer.tsx) — no wrapper card, no borders.
+   --bg-inset is slightly darker than the bubble's --bg-raised in both themes;
+   8px radius; 12px 14px padding; 13.5px/1.6 monospace; wraps long lines
+   (pre-wrap + overflow-wrap:anywhere) so the whole block is visible inside the
+   bubble width. Indentation and blank lines are preserved by pre-wrap.
+   Height is NOT capped here: the bubble's own 380px collapse + "Show more"
+   (UserMsgMarkdown) already handles long blocks.
+   Specificity (0,3,0) beats the global `pre:has(code):not(:has(.codeblock))`
+   card rule (0,2,2) and `@media (max-width:720px) pre { width }`. */
 [data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block {
-  background-color: var(--bg-app) !important;
-  border: 1px solid var(--border-subtle) !important;
-  border-radius: 12px !important;
-  padding: 16px 18px !important;
-  margin: 14px 0 !important;
-  overflow-x: auto !important;
-}
-[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block code {
+  position: relative !important;
+  display: block !important;
+  box-sizing: border-box !important;
+  width: auto !important;
+  max-width: 100% !important;
+  margin: 10px 0 !important;
+  padding: 12px 14px !important;
+  background-color: var(--bg-inset) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  overflow: visible !important;
+  color: var(--text-primary) !important;
+  color: color-mix(in srgb, var(--text-primary) 90%, transparent) !important;
   font-size: 13.5px !important;
   line-height: 1.6 !important;
+  letter-spacing: normal !important;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-  color: var(--text-primary) !important;
-  background: transparent !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  tab-size: 2 !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block code {
+  display: block !important;
+  margin: 0 !important;
   padding: 0 !important;
   border: none !important;
   border-radius: 0 !important;
-  white-space: pre !important;
-  /* The global [data-new-ui] pre code rule sets overflow-x:auto on <code>, but
-     this <code> has padding:0 so that scrollbar would cover the text directly.
-     Disable overflow on <code> so the scrollbar lives on <pre> instead, which
-     has 28px of bottom padding (declared above) and keeps the text clear. */
-  overflow-x: visible !important;
-  overflow-y: visible !important;
+  background: transparent !important;
+  color: inherit !important;
+  font: inherit !important;
+  letter-spacing: normal !important;
+  white-space: pre-wrap !important;
+  overflow-wrap: anywhere !important;
+  overflow: visible !important;
+  tab-size: inherit !important;
+}
+
+/* Spacing: ~10px against neighbouring text; nothing extra at the bubble edges
+   (a code-block-only message has no empty space above or below). */
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block:first-child {
+  margin-top: 0 !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block:last-child {
+  margin-bottom: 0 !important;
+}
+/* Paragraphs/lists normally carry a 16px bottom margin; tighten it when a code
+   block follows so before/after gaps match. */
+[data-new-ui="true"] .new-ui-user-markdown p:has(+ .new-ui-user-code-block),
+[data-new-ui="true"] .new-ui-user-markdown ul:has(+ .new-ui-user-code-block),
+[data-new-ui="true"] .new-ui-user-markdown ol:has(+ .new-ui-user-code-block) {
+  margin-bottom: 10px !important;
+}
+
+/* Copy button: hidden until the block is hovered or focused, so the block
+   stays clean. opacity (not visibility) keeps it keyboard-reachable; focusing
+   it reveals it. "Copied" is a CSS ::after so it never enters innerText. */
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-copy {
+  position: absolute !important;
+  top: 6px !important;
+  right: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 4px !important;
+  min-width: 26px !important;
+  height: 26px !important;
+  padding: 0 6px !important;
+  border: none !important;
+  border-radius: 6px !important;
+  background-color: var(--bg-inset) !important;
+  color: var(--text-secondary) !important;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 12px !important;
+  line-height: 1 !important;
+  letter-spacing: normal !important;
+  white-space: nowrap !important;
+  cursor: pointer !important;
+  user-select: none !important;
+  opacity: 0 !important;
+  transition: opacity 120ms ease-out, color 120ms ease-out !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block:hover .new-ui-user-code-copy,
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-block:focus-within .new-ui-user-code-copy,
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-copy[data-copied="true"] {
+  opacity: 1 !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-copy:hover {
+  color: var(--text-primary) !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-copy:focus-visible {
+  outline: 2px solid var(--text-secondary) !important;
+  outline-offset: 1px !important;
+}
+[data-new-ui="true"] .new-ui-user-markdown .new-ui-user-code-copy[data-copied="true"]::after {
+  content: "Copied";
 }
 
 /* ── §5 — Collapse "Show more" control ──────────────────────────────────── */

@@ -51,6 +51,7 @@ import React, {
 } from 'react';
 import { createPortal } from 'react-dom';
 import ReactMarkdown from 'react-markdown';
+import { IconCheck, IconCopy } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
 import { Message } from '@/types/chat';
 import { stripLargeTextPlaceholders } from '@/components/NewUI/shared/attachmentTypes';
@@ -108,7 +109,60 @@ const HeadingAsParagraph = ({
   </p>
 );
 
-const USER_MD_COMPONENTS = {
+/**
+ * Fenced code block for user bubbles: ONE <pre> (the recessed panel) holding
+ * the <code> text and a hover-revealed copy button. Styling lives in
+ * conversation-view.css (.new-ui-user-code-block).
+ *
+ * react-markdown already wraps block code in its own <pre>, so the `pre`
+ * override in USER_MD_COMPONENTS renders its children only — without that the
+ * result is <pre><pre><code>, i.e. the "box inside a box" this replaces.
+ */
+const UserCodeBlock = ({ text }: { text: string }) => {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    [],
+  );
+
+  const handleCopy = () => {
+    if (typeof navigator === 'undefined' || !navigator.clipboard?.writeText) {
+      return;
+    }
+    navigator.clipboard
+      .writeText(text)
+      .then(() => {
+        setCopied(true);
+        if (timerRef.current) clearTimeout(timerRef.current);
+        timerRef.current = setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => {});
+  };
+
+  return (
+    <pre className="new-ui-user-code-block">
+      <code>{text}</code>
+      {/* Icon-only (the "Copied" label is CSS ::after on [data-copied]) so no
+          button text leaks into innerText when the whole message is copied. */}
+      <button
+        type="button"
+        className="new-ui-user-code-copy"
+        data-copied={copied ? 'true' : undefined}
+        aria-label={copied ? 'Copied' : 'Copy code'}
+        title={copied ? 'Copied' : 'Copy code'}
+        onClick={handleCopy}
+      >
+        {copied ? <IconCheck size={14} /> : <IconCopy size={14} />}
+      </button>
+    </pre>
+  );
+};
+
+export const USER_MD_COMPONENTS = {
   h1: HeadingAsParagraph,
   h2: HeadingAsParagraph,
   h3: HeadingAsParagraph,
@@ -117,31 +171,21 @@ const USER_MD_COMPONENTS = {
   h6: HeadingAsParagraph,
   // Images are not rendered in user bubbles per spec §4.
   img: () => null,
-  // Fenced code blocks and inline code are styled entirely via
-  // conversation-view.css (.new-ui-user-markdown pre, .new-ui-user-inline-code).
-  // The custom className prop makes inline vs block distinguishable by CSS
-  // without needing a custom React renderer here.
+  // Pass-through: the block `code` override below owns the single <pre>.
+  pre: ({ children }: { children?: React.ReactNode }) => <>{children}</>,
   code: ({
     inline,
     children,
-    ...rest
   }: {
     inline?: boolean;
     children?: React.ReactNode;
-    [key: string]: any;
   }) => {
     if (inline) {
-      return (
-        <code className="new-ui-user-inline-code" {...rest}>
-          {children}
-        </code>
-      );
+      return <code className="new-ui-user-inline-code">{children}</code>;
     }
-    return (
-      <pre className="new-ui-user-code-block">
-        <code>{children}</code>
-      </pre>
-    );
+    // Drop the single trailing newline mdast keeps on fenced code.
+    const text = React.Children.toArray(children).join('').replace(/\n$/, '');
+    return <UserCodeBlock text={text} />;
   },
 } as const;
 

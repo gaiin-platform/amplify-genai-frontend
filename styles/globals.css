@@ -22,6 +22,9 @@
   /* Card surface that must stay visibly distinct from --bg-raised (e.g. file
      cards inside a modal, whose panel is already --bg-raised). */
   --bg-card:       #eaeae8;
+  /* Recessed surface that sits ON --bg-raised and reads slightly darker than it
+     (code blocks / inline code inside the user message bubble). */
+  --bg-inset:      #e7e7e4;
   /* Card surface that sits ON --bg-app (settings lists): white in light mode. */
   --bg-elevated:   #ffffff;
   --border-subtle: #e5e5e4;
@@ -80,6 +83,8 @@
   --bg-hover:      #2F2E2C;
   --bg-active:     #3A3A38;
   --bg-card:       #3A3A37;
+  /* Slightly darker than --bg-raised (#30302E) so it reads as recessed. */
+  --bg-inset:      #262624;
   --bg-elevated:   #1d1d1c;
   --border-subtle: #363635;
   /* Composer-specific surfaces (chat input card) */
