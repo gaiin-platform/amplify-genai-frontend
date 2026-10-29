@@ -183,6 +183,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `integrationIcon.tsx` | `integrationIcon(id, size?)` — the `public/logos/integrations/*.svg` logo for an integration id (underscores → hyphens). Used by Settings → Connectors and the assistant editor's drive panel |
 | `GeneratingSpinner.tsx` | Minimal 12px SVG arc spinner (270° dash, no track ring). Place inside a `text-[--text-muted]` container; the SVG uses `currentColor`. CSS animation defined in `globals.css` (`.nui-generating-spinner`). Accepts optional `size` prop. |
 | `SearchInput.tsx` | The 34px toolbar search field (`IconSearch` + input), with `fullWidth` for use inside a card and an optional `onClear`. Extracted from three verbatim copies. Does **not** cover the divergent fields in `ChatsListView`, `NewLibraryView`, `DataSourceLibraryPicker`, `DriveFileBrowser`, `AttachMenu` |
+| `TagChipsInput.tsx` | Removable tag chips + an add field (Enter/comma/Add; Backspace on an empty field removes the last). Duplicates and blanks ignored. Used for a group assistant's analysis categories. Behaviour in React-free `shared/tagList.ts` (`addTags`, `removeTag`) |
 | `EmailChipsInput.tsx` | The one people picker — chips + `amplifyUsers` autocomplete, portalled `position:fixed` dropdown. Used by the assistant editor (Specific people → *Who has access*, Team → *Add members*) and `chat/NewUIShareModal`. Uncontrolled input unless you pass `inputValue`/`onInputChange`; `onError` reports duplicate/malformed addresses. Escape closes only the dropdown (§14) |
 | `SignInRequiredNote.tsx` | One-line muted note "must have signed in to Amplify at least once" placed by the host under every `EmailChipsInput` (`action`: `share` / `access` / `delegate` / `add`). The backend only accepts users already in the Amplify user table: an API-key delegate is rejected, and a share silently drops them. Not rendered inside `EmailChipsInput` because each host owns its hint line. Used by `NewUIShareModal` (chats, assistants, prompt templates), `NewApiKeysSection`, the assistant creation modal and `NewGroupManagementModal` |
 | `emailSuggestions.ts` | React-free vocabulary behind it — `normalizeEmailPool`/`buildEmailPool` (drop raw-UUID values, dedupe case-insensitively, sort), `rankEmailSuggestions` (prefix matches before substring), `resolveUsernameForEmail` (case-insensitive email→username for the share/group APIs), `splitEmailList`, `looksLikeEmail`. No React imports |
@@ -212,8 +213,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `PromptTemplateDialog.tsx` | Orchestrates the fill-in popup: invokes `PromptTemplateFillDialog` (new UI), runs `fillInTemplate` semantics, sends via `amplify_pending_message`. Accepts `onEdit` callback passed through to the fill dialog. Also exports `promptTemplateVariables`. |
 | `promptConversation.ts` | `startConversationWithTemplate` — creates the conversation for a template (promptTemplate, tags, rootPrompt, resolved model) under the `'New Conversation'` name so the AI renames it after the first reply. Takes `homeDispatch` because it must set `isStandalonePromptCreation` in the same batch (§30). No React imports |
 | `PromptTemplateDialogHost.tsx` | Single mount point for the popup above, at the new-UI root in `home.tsx` — a sibling of `NewSettingsModal`, never a descendant. Launch it with the exported `openPromptTemplateDialog(prompt)` and then close your own modal: the popup survives because it isn't in your subtree. Settings has three entry points (collapsed sidebar, expanded sidebar, ⌘,) so per-launcher hosts would have to be triplicated |
-| `LayeredBuilderHost.tsx` | Listens for `openLayeredBuilderTrigger` window events and renders `LayeredAssistantBuilder` in a portalled full-screen dialog. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch. Mounted at the new-UI root in `home.tsx` alongside `PromptTemplateDialogHost` |
-| `AssistantAdminUIHost.tsx` | Listens for `openAstAdminInterfaceTrigger` window events and renders `AssistantAdminUI`. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch so gear icons in `GroupAssistantsTab` open the admin interface. Mounted at the new-UI root in `home.tsx` alongside `LayeredBuilderHost` |
+| `LayeredBuilderHost.tsx` | Listens for `openLayeredBuilderTrigger` window events and renders `LayeredAssistantBuilder` in a portalled full-screen dialog. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch. Mounted at the new-UI root in `home.tsx` alongside `PromptTemplateDialogHost` **No New UI view launches this any more** — the Layered tab and the Teams tab open `views/assistant/layered/NewLayeredAssistantBuilder` directly; it stays mounted in `home.tsx` (not editable) for any stray `openLayeredBuilderTrigger`. |
+| `AssistantAdminUIHost.tsx` | Listens for `openAstAdminInterfaceTrigger` window events and renders `AssistantAdminUI`. The event's only classic-UI listener is `UserMenu`; this host provides the equivalent for the new-UI branch so gear icons in `GroupAssistantsTab` open the admin interface. Mounted at the new-UI root in `home.tsx` alongside `LayeredBuilderHost` **No New UI view launches this any more** — group assistants, layered assistants and their insights all have New UI editors (`NewUIAssistantCreationModal`, `NewLayeredAssistantBuilder`, `NewGroupAssistantInsightsModal`); it stays mounted in `home.tsx`. |
 | `lastViewedChat.ts` | The "refresh puts me back in the chat I was reading" vocabulary — `LAST_CHAT_KEY` (sessionStorage, so it survives a refresh but not a new tab), `nextRecordedChat` (`record`/`clear`/**`keep`** — an unknown message state must never clear a good id) and `findRestorableConversation` (proves content via `messages`, `compressedMessages`, **or** being cloud-stored, and normalizes `messages` to an array on the way out). Both keep *empty* apart from *unknown* per §36. No React imports |
 | `LastChatRestore.tsx` | Mounts once at the new-UI root; renders nothing. Records the conversation being viewed and re-selects it once per load, so reloading inside a chat no longer lands on NewHome. Restore waits for a non-empty `availableModels` (`handleSelectConversation` rewrites `conversation.model` when the model isn't in that map) and gates hydration on `conversationStateId !== 'init'`, **not** `=== 'post-init'` — `useHomeReducer` replaces that string with a uuid on every later `selectedConversation`/`conversations` dispatch. Defers to the `amplify_pending_message` bridge |
 | `LiveHomeStateMirror.tsx` | Mounts once at the new-UI root; renders nothing. Feeds `useSendService`'s module-level mirror of the selected conversation id + conversation list. Needed because the chat view is keyed by conversation id: clicking away unmounts the component that owns an in-flight send, so the hook's render-refreshed refs go stale and its `selectedConversation` guard would let the stream yank the user back. The hook also records WHICH conversation is generating (`useStreamingConversationIds` / `isConversationStreaming`) because `messageIsStreaming` is one global boolean: the sidebar spinner and `ConversationViewShell` (which re-provides `HomeContext` with the flag scoped to the open chat, so old-UI `Chat`/`ChatMessage` show their action buttons on an idle chat) both use it. Empty ids = unknown owner, fall back to the global flag |
@@ -258,6 +259,29 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `SkillsCapabilityPanel.tsx` | Capabilities → Skills. Replaces `Skills/SkillsSection`, dropping its duplicate accordion header and its purple accent. Still launches the old `SkillEditor` for creation, early-returned |
 | `WorkflowTemplatePicker.tsx` | Capabilities → Workflow Template. Replaces `AssistantWorkflows/AssistantWorkflowSelector`; still launches the old `AssistantWorkflowBuilder`, early-returned rather than permanently mounted |
 | `AssistantEmailEventsPanel.tsx` | Advanced Settings → Email Events. New-UI replacement for the old `AssistantEmailEvents` — uses `ToggleSwitch`, design-token text colors, and inline expand/collapse for instructions |
+| `assistantTypeSwitch.ts` | Group <-> regular switch vocabulary for the assistant editor — `crossesGroupBoundary` (private <-> shared is an ordinary edit; user <-> group is not), `copyName` / `copyModalTitle` / `copyKindLabel` ("… (Group copy)", "Make a Group Copy"), `conversionDialogCopy` (wording for the shared `ConfirmDialog`). No React imports |
+| `enforcedEffortModel.ts` | An assistant that enforces a model can also enforce a reasoning level (`data.enforceThinkingLevel` + `data.thinkingLevel`). `readEnforcedEffort` (what the picker shows) and `buildThinkingFields` (what a save writes; both dropped whenever the model isn't enforced — the old modal did the same). Replaces blindly carrying the pair forward, which left a stale level the editor could neither show nor clear. No React imports |
+| `groupAssistantSettingsModel.ts` | Group-only assistant settings — `readGroupSettings`, `setConvAnalysis` / `setTracking` (analysis forces tracking on, and tracking can't be turned off under it), `toggleType`, `hasPendingGroupTypeUploads`, `finalizeGroupTypeData` (mirrors the old `prepAdditionalData`: group id, storage key, `s3://` id, no `documentState`), `buildGroupData`, and `preserveUnmanagedData` (keys the editor doesn't manage: `astIcon`, `scheduledTaskIds`, `sharedAssistant`; plus `emailEvents` for a group assistant, whose editor hides that panel). The enforced reasoning level is *managed* — see `enforcedEffortModel`. No React imports |
+| `GroupAssistantSettingsPanel.tsx` | The "Group settings" card of a group assistant in `NewUIAssistantCreationModal`: publish to read-access members, track / analyze conversations + categories (only when the group is approved), group types (user question; per type: additional instructions or a disabled message, extra files via `AttachFile` + the group id, library picker). Controlled by the modal through `setSettings` |
+| `groupInsightsModel.ts` | Rules behind group insights — `canViewInsights` / `insightsBlockReason` (group approval **and** the assistant's own `supportConvAnalysis`), `distributionToBars`, `normalizeRating`, table columns / `sortConversations` / `filterConversations`, `parseTranscript`. Type-only imports from the old `Dashboard` / `ConversationTable`. No React imports |
+| `NewGroupAssistantInsightsModal.tsx` | Dashboard + Conversations for one group assistant **or group layered assistant** (`layeredAssistant` prop: Routing and "Routed to" show leaf names via `leafNameMap`; replaces the old admin interface's four insights tabs). Opened from the Teams tab's row "Insights" action; each tab loads on first view, requests are sequence-guarded, blocked states explain what to enable |
+| `NewGroupDashboard.tsx` | Stat tiles + plain horizontal-bar distributions (value and share printed on every bar; token colours; transition only for users without reduced-motion) |
+| `NewGroupConversationTable.tsx` | Search, sortable columns (`SortableHeader`), column picker, and an in-place transcript + metadata detail (not a second modal — §5 rule 2) |
+| `RatingStars.tsx` | Five stars + value for a user/system rating; a missing rating reads "No rating", never five empty stars |
+| `layeredTreeModel.ts` | Every rule about the layered-assistant routing tree as pure functions over `RouterNode`/`LeafNode`: `findNode`, `updateNode`, `removeNode`, `insertNode`, `addSubParent` (a parent needs an assistant before it may hold another parent), `addLeaf`/`leafFromAssistant` (leaf id = root `assistantId`, else prompt id), `normalizeDropPosition` + `moveNode` (no self-drop, no parent into its own subtree, leaves take no children, no-op detection), keyboard `moveNodeStep`/`indentNode`/`outdentNode`, `collectWarnings`/`validateForSave`, `routerContextOptions`, `leafNameMap`. No React imports |
+| `layeredAssistantDataModel.ts` | Group layered-assistant settings and the save payload: `readLayeredSettings` (top level, else `data`), `setLayeredAnalysis`/`setLayeredTracking` (tracking off turns analysis off — unlike group assistants), `buildLayeredForSave` — **always sends the full DATA_FIELDS set** because the backend clears any omitted one. No React imports |
+| `layeredAiModel.ts` | "Generate with AI" prompts and parsing for layered assistants: `buildFieldRequest`, `summarizeAssistant`, `buildTreePrompt`, `extractJson`, `parseTree` (gives every generated node a fresh id — the model was free to repeat them). No React imports |
+| `layeredTreeLayout.ts` | Mini-map layout (`buildMapLayout`) for `layered/LayeredTreeMap`. No React imports |
+| `layeredPublishModel.ts` | Publishing a layered assistant at a link: `publishBlocker` (a typed-but-unvalidated link blocks the save with a reason — the old builder silently skipped publishing), `shouldCallAddPath`, `isAccessChanged`. No React imports |
+| `assistantPathRules.ts` | Shape + reserved-word rules for a published assistant path (`validateSlug`, `checkSlugSystemTerms`, `cleanSlug`), shared by the creation modal and the layered publish panel. No React imports |
+| `layered/NewLayeredAssistantBuilder.tsx` | Create/edit personal and group layered assistants (replaces the old `LayeredAssistantBuilder`, `LayeredBuilderHost` and the admin interface's layered tabs). Full-viewport dialog: name/description, tree · node editor · assistant picker, then Group settings and Publish cards. Host supplies `onSave` (personal: `saveLayeredAssistant`; group: `saveGroupLayeredAssistant`) returning the saved record. Save order: new + link → save, register link, save again. Unsaved-changes confirm; "Save anyway" warnings dialog |
+| `layered/LayeredTreeOutline.tsx` | The tree as `role="tree"`: drag a row (handle shown) with drop indicators, arrows to move selection, Alt+arrows to move/indent/outdent (the node editor has the same moves as buttons) |
+| `layered/LayeredTreeMap.tsx` | SVG overview; shape (not hue) distinguishes parent/assistant, accent ring = selected; every node is a named button |
+| `layered/LayeredNodeEditor.tsx` | Edit the selected node: name (leaf read-only), description, decision guide, router context (only what the linked assistant has), members, position buttons, per-field AI draft |
+| `layered/LayeredAssistantPicker.tsx` | Searchable list to add assistants to the selected parent (or its parent when a leaf is selected); "Added" can't be added twice; inline preview replaces the old modal |
+| `layered/LayeredAiGenerator.tsx` | Whole-tree AI generator, shown *instead of* the builder panels (§5 rule 2); stale responses discarded |
+| `layered/LayeredSettingsPanel.tsx` | Group layered assistant settings: publish to read-access members, enforce model (`ModelPicker`), tracking/analysis/categories when the group is approved |
+| `layered/LayeredPublishPanel.tsx` | Link (debounced checks: shape → reserved → appropriate → not taken), who can open it (personal only), icon upload. Controlled by the builder |
 | `NewGroupManagementModal.tsx` | Group management modal opened from the gear icon on a group header in `GroupAssistantsTab`. Members (add/remove/edit-access via `EmailChipsInput`), Group Types, Amplify Groups, System Users, and Delete Group. Uses `CreationModalShell`, `CapabilityCard`, `ConfirmDialog`, `NewUILoadingStatus`. Never opens `AssistantAdminUI` |
 
 ### `views/`
@@ -664,6 +688,51 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     transcript); `shared/__tests__/pdfThumbnail.test.ts` fails if another New UI file embeds one.
     The classic code-interpreter block still embeds `<iframe id="Generated_PDF">`, so
     `conversation-view.css` hides it inside `.chatcontainer`.
+
+41. **A group assistant is owned by the group, so "switch its type" can only mean "make a copy".**
+    Group assistants are written through `/groups/update/assistants` (`updateGroupAssistants`) with
+    the group's system key; plain `createAssistant` makes a *user-owned* assistant that merely looks
+    like a group one until the next reload, and `check_user_can_update_assistant` rejects a member
+    editing the group-owned record that way. So `NewUIAssistantCreationModal` saves any `groupId`
+    through the groups API, and in edit mode a card change that crosses the group boundary
+    (`views/assistant/assistantTypeSwitch#crossesGroupBoundary`) never changes the saved type: it
+    opens `ConfirmDialog` and, on confirm, hands the source to the host (`onRequestCopy`), which
+    swaps the editor for the creation modal in copy mode (`copyTargetAccess`). Pass `onRequestCopy`
+    from every host that opens the editor, or those cards are disabled. Copies carry instructions,
+    attachments, tools and options but not groups, shares or paths; the backend grants a group
+    member read access to the group's files on copy (`object-access/group_grants.py`: a persisted, group-tagged
+    read record that is re-checked on every access check and deleted when the member is removed).
+
+42. **An editor that rebuilds `definition.data` must carry forward every key it doesn't manage.**
+    The old `AssistantModal` edited the stored definition in place, so nothing it didn't touch was
+    ever lost; `NewUIAssistantCreationModal.handleSave` builds `data` from scratch, so any key it
+    doesn't write is silently deleted on the next edit — including `astIcon`, `scheduledTaskIds` and
+    `sharedAssistant`, and for a group assistant `emailEvents`, `isPublished`,
+    `trackConversations`, `supportConvAnalysis`, `analysisCategories`, `groupTypeData` and
+    `groupUserTypeQuestion`. Spread `views/assistant/groupAssistantSettingsModel#preserveUnmanagedData`
+    first, then write the managed keys over it; and when you add a key to the old modal's save, add
+    it to the editor's save *or* to that list. The opposite mistake matters too: a key that depends on
+    another setting (the enforced thinking level exists only while a model is enforced) must be
+    *written* from the editor's state, not carried forward, or it outlives the setting it belonged to
+    (`enforcedEffortModel`). Group-type files are stored as `s3://<key>` with the
+    group id (`finalizeGroupTypeData`), and the backend resets `supportConvAnalysis` itself when the
+    group isn't approved, so don't treat the client gate as the authority.
+
+
+43. **A layered-assistant save must carry the full settings set, and group ones go through the groups API.**
+    `/assistant/layered/create_or_update` clears any of `isPublished`, `model`, `trackConversations`,
+    `supportConvAnalysis`, `analysisCategories`, `astIcon` that the request omits, so a save that only
+    "changes one thing" silently resets the rest. `layeredAssistantDataModel#buildLayeredForSave` sets the
+    group settings on the object's top level **and removes any stale copy from its `data`** — the list
+    endpoint returns them in both places and `saveGroupLayeredAssistant` spreads `data` first, so a stale
+    `data.model` would otherwise outlive turning enforcement off. Group layered assistants (`astgr/`) are
+    written with `saveGroupLayeredAssistant` / removed with `deleteGroupLayeredAssistant` (both
+    `/groups/update/assistants`, which carries the settings); personal ones (`astr/`) with
+    `saveLayeredAssistant`, which persists only `data` (the group-only settings don't apply). A published
+    link needs an id, so a new layered assistant is saved, linked, then saved again — the host's `onSave`
+    must be callable twice in one session with the second call seeing the first (read the latest list from
+    a ref), and the builder must remember the id/link after the first success so a retry updates rather
+    than duplicates.
 
 ---
 

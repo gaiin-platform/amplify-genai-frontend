@@ -35,6 +35,7 @@ import { v4 as uuidv4 } from 'uuid';
 import {
     IconLock,
     IconShare,
+    IconSettings,
     IconUsers,
     IconChevronDown,
     IconChevronRight,
@@ -60,7 +61,7 @@ import { AssistantDefinition, AssistantProviderID } from '@/types/assistant';
 import { Prompt } from '@/types/prompt';
 import { MessageType, newMessage } from '@/types/chat';
 import { DefaultModels } from '@/types/model';
-import { Group, GroupAccessType } from '@/types/groups';
+import { Group, GroupAccessType, GroupUpdateType } from '@/types/groups';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { DriveFilesDataSources } from '@/types/integrations';
@@ -68,7 +69,24 @@ import { SkillReference, SkillSelectionMode } from '@/types/skill';
 import { createAssistant, addAssistantPath, lookupAssistant } from '@/services/assistantService';
 import { getFileDownloadUrl } from '@/services/fileService';
 import { Filter } from 'bad-words';
-import { createAstAdminGroup, updateGroupMembers } from '@/services/groupsService';
+import { createAstAdminGroup, updateGroupMembers, updateGroupAssistants } from '@/services/groupsService';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { checkSlugSystemTerms, cleanSlug, validateSlug } from '@/components/NewUI/views/assistant/assistantPathRules';
+import { buildThinkingFields, readEnforcedEffort } from '@/components/NewUI/views/assistant/enforcedEffortModel';
+import { GroupAssistantSettingsPanel } from '@/components/NewUI/views/assistant/GroupAssistantSettingsPanel';
+import {
+    GroupSettings,
+    buildGroupData,
+    hasPendingGroupTypeUploads,
+    preserveUnmanagedData,
+    readGroupSettings,
+} from '@/components/NewUI/views/assistant/groupAssistantSettingsModel';
+import {
+    conversionDialogCopy,
+    copyModalTitle,
+    copyName,
+    crossesGroupBoundary,
+} from '@/components/NewUI/views/assistant/assistantTypeSwitch';
 import { getAgentTools } from '@/services/agentService';
 import { getOpsForUser } from '@/services/opsService';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
@@ -147,6 +165,23 @@ export interface NewUIAssistantCreationModalProps {
     editingAssistant?: Prompt;
     /** Prefill a new assistant from a received shared assistant; never edits the source. */
     copyingAssistant?: Prompt;
+    /**
+     * Copy mode only: which access card the copy starts on, and what its name/header say
+     * ("… (Group copy)"). Used when an edit crossed the group boundary — see assistantTypeSwitch.ts.
+     */
+    copyTargetAccess?: AccessModel;
+    /**
+     * Edit mode only: the user chose to switch between a group and a regular assistant. The
+     * backend cannot convert one into the other, so the host closes this editor and opens the
+     * creation modal as a copy of `source` on `target`. Without it, the cross-boundary cards are
+     * disabled rather than saving a type change that would not be honored.
+     */
+    onRequestCopy?: (source: Prompt, target: AccessModel) => void;
+    /**
+     * Editing a group assistant: show a "Group settings" button next to the group note. The host closes
+     * this editor and opens the group's settings (one modal at a time). Without it the button is hidden.
+     */
+    onManageGroup?: (group: Group) => void;
     copyProvenance?: {
         sharedBy: string;
         sharedAt?: number;
@@ -230,32 +265,6 @@ const API_OPTION_FLAGS: Flag[] = [
     { label: 'Allow Assistant to Use API Capabilities', key: 'IncludeApiInstr', defaultValue: false },
 ];
 
-// ── Slug validation ────────────────────────────────────────────────────────────
-
-/** System-reserved path terms that users cannot use. */
-const SLUG_SYSTEM_TERMS = [
-    'admin', 'system', 'login', 'signin', 'signup', 'register',
-    'auth', 'authenticate', 'reset', 'password', 'billing', 'payment',
-];
-
-function validateSlug(value: string): string {
-    if (!value.trim()) return 'URL path is required';
-    if (!/^[a-z0-9-]+$/.test(value)) return 'Only lowercase letters, numbers, and hyphens allowed';
-    if (value.length < 3) return 'Minimum 3 characters';
-    if (value.length > 40) return 'Maximum 40 characters';
-    return '';
-}
-
-/** Returns an error string if the slug contains a restricted system term. */
-function checkSlugSystemTerms(value: string): string {
-    const lower = value.toLowerCase();
-    for (const term of SLUG_SYSTEM_TERMS) {
-        if (lower === term || lower.startsWith(term + '-') || lower.endsWith('-' + term)) {
-            return `Path contains a restricted system term: "${term}"`;
-        }
-    }
-    return '';
-}
 
 // ── AccessRadioCard ────────────────────────────────────────────────────────────
 // Individual tile in the horizontal "who can access?" radio group.
@@ -417,6 +426,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     initialGroupId,
     editingAssistant,
     copyingAssistant,
+    copyTargetAccess,
+    onRequestCopy,
+    onManageGroup,
     copyProvenance,
 }) => {
     const isEditMode = !!editingAssistant;
@@ -454,11 +466,46 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             if (def?.astPath || (def?.data?.astPath as string | undefined)) return 'managed';
             return 'private';
         }
-        // Copies always begin as private, recipient-owned assistants.
-        if (isCopyMode) return 'private';
+        // Copies begin as private, recipient-owned assistants unless the caller picked a kind.
+        if (isCopyMode) return copyTargetAccess ?? 'private';
         return initialGroupId ? 'collaborative' : 'private';
     };
     const [accessType, setAccessType] = useState<AccessModel>(deriveInitialAccessType);
+
+    /** Edit mode: a group <-> regular switch the user asked for, awaiting "create a copy instead". */
+    const [pendingConversion, setPendingConversion] = useState<AccessModel | null>(null);
+    // Leaving for the group's settings discards this editor's unsaved changes, so ask first.
+    const [confirmManageGroup, setConfirmManageGroup] = useState(false);
+    const sourceIsGroup = !!sourceAssistant?.groupId;
+    /** Editing an existing group assistant: group, owner and settings are fixed; the group panel shows. */
+    const isGroupEdit = isEditMode && !!editingAssistant?.groupId;
+    const editGroup: Group | undefined = isGroupEdit
+        ? (groups as Group[]).find((g) => g.id === editingAssistant!.groupId)
+        : undefined;
+    const groupContext = {
+        groupTypes: editGroup?.groupTypes ?? [],
+        supportConvAnalysis: !!editGroup?.supportConvAnalysis,
+    };
+    // Group-only settings (publish, tracking/analysis, group types). Seeded once from the stored
+    // definition; see groupAssistantSettingsModel for what the save carries forward.
+    const [groupSettings, setGroupSettings] = useState<GroupSettings>(() =>
+        readGroupSettings(
+            (editingAssistant?.data?.assistant?.definition as AssistantDefinition | undefined)?.data as Record<string, any> | undefined,
+            groupContext,
+        ),
+    );
+    /** True when picking `value` in edit mode would change the assistant's owner (user <-> group). */
+    const switchNeedsCopy = (value: AccessModel): boolean =>
+        isEditMode && crossesGroupBoundary(sourceIsGroup, value);
+    /** The one door for access-card changes (click and arrow keys alike). */
+    const requestAccessChange = (value: AccessModel) => {
+        if (value === accessType) return;
+        if (switchNeedsCopy(value)) {
+            setPendingConversion(value);
+            return;
+        }
+        setAccessType(value);
+    };
 
     // Managed URL sub-state
     const [subOption, setSubOption] = useState<ManagedSubOption>('public');
@@ -604,7 +651,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         if (!def) return;
 
         // Section B — core fields
-        setName(isCopyMode ? `${def.name ?? ''} (Copy)` : (def.name ?? ''));
+        setName(isCopyMode
+            ? (copyTargetAccess ? copyName(def.name, copyTargetAccess) : `${def.name ?? ''} (Copy)`)
+            : (def.name ?? ''));
         setDescription(def.description ?? '');
         setInstructions(def.instructions ?? '');
         setDisclaimer(def.disclaimer ?? '');
@@ -616,6 +665,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
         // Enforce model
         const enforcedModel = (def.data as any)?.model as string | undefined;
+        // The enforced reasoning level is a managed field (see enforcedEffortModel): show what is stored.
+        setEffortLevel(readEnforcedEffort(def.data as Record<string, any> | undefined));
         if (enforcedModel) {
             setEnforceModel(true);
             setEnforcedModelId(enforcedModel);
@@ -627,7 +678,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         if (Array.isArray(def.dataSources)) {
             const existing = def.dataSources as AttachedDocument[];
             // Copy mode keeps file references but never reuses mutable source objects.
-            const copiedSources = existing.map((source) => ({ ...source }));
+            // A file taken from a group assistant is still group-scoped until the copy is saved, so make
+            // sure each one says so (downloads need the group id); saving strips it for a regular assistant.
+            const copiedSources = existing.map((source) => ({
+                ...source,
+                ...(sourceAssistant?.groupId && !(source as any).groupId ? { groupId: sourceAssistant.groupId } : {}),
+            }));
             setDataSources(copiedSources);
             setDocumentState((prev) => {
                 const next = { ...prev };
@@ -783,7 +839,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
     // ── Slug validation on change ─────────────────────────────────────────
     const handleSlugChange = (raw: string) => {
-        const clean = raw.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 40);
+        const clean = cleanSlug(raw);
         // Immediately invalidate in-flight checks so they cannot validate this new value.
         slugCheckRequestSeq.current += 1;
         setSlug(clean);
@@ -923,7 +979,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             return;
         }
         try {
-            const groupId = editingAssistant?.groupId ?? undefined;
+            // A copy of a group assistant still points at group-scoped files until it is saved.
+            // The file's own group id (set on files taken from a group assistant); a file uploaded in this
+            // editor belongs to the user — or to the group when editing a group assistant.
+            const groupId = (ds as any).groupId ?? editingAssistant?.groupId ?? undefined;
             const result = await getFileDownloadUrl(key, groupId);
             if (result.success && result.downloadUrl) {
                 window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
@@ -990,7 +1049,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             featureFlags,
             ragOn,
             uploadDocuments: featureFlags.uploadDocuments,
-            groupId: undefined,
+            // Group assistants own their files; a regular assistant's belong to the user.
+            groupId: editingAssistant?.groupId ?? undefined,
             props: {},
         });
     };
@@ -1101,6 +1161,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const canSave = (): boolean => {
         if (!name.trim()) return false;
         if (accessType === 'collaborative' && !userIdentifier) return false;
+        if (isGroupEdit && hasPendingGroupTypeUploads(groupSettings)) return false;
+        // Group settings are seeded from the group; saving without it would wipe them (group types, question).
+        if (isGroupEdit && !editGroup) return false;
         if (accessType === 'managed') {
             if (!featureFlags.assistantPathPublishing) return false;
             if (subOption === 'specific') {
@@ -1109,7 +1172,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 return false;
             }
         }
-        if (accessType === 'collaborative') {
+        // Editing keeps the assistant's existing group, so there is no group to choose.
+        if (accessType === 'collaborative' && !isGroupEdit) {
             if (teamMode === 'existing') {
                 if (adminGroups.length === 0) return false;
                 if (!adminGroups.some((group) => group.id === selectedGroupId)) return false;
@@ -1205,7 +1269,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         setSaveError('');
 
         // Check uploads
-        if (hasPendingUploads()) {
+        if (hasPendingUploads() || (isGroupEdit && hasPendingGroupTypeUploads(groupSettings))) {
             setSaveError('Please wait for all data sources to finish uploading.');
             return;
         }
@@ -1243,8 +1307,11 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     if (!(ds as any).groupId) (ds as any).groupId = groupId;
                     return { ...ds, id: 's3://' + (ds as any).key };
                 }
-                if ((ds as any).key || (ds.id && ds.id.indexOf('://') > 0)) return ds;
-                return { ...ds, id: 's3://' + ds.id };
+                // A copy of a group assistant carries the old group's id on each file; a regular
+                // assistant isn't scoped to any group, so don't persist it.
+                const { groupId: _staleGroupId, ...regularDs } = ds as any;
+                if (regularDs.key || (ds.id && ds.id.indexOf('://') > 0)) return regularDs;
+                return { ...regularDs, id: 's3://' + ds.id };
             });
 
             // 4. Build the AssistantDefinition
@@ -1278,6 +1345,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 ...(isEditMode && existingDef?.id ? { id: existingDef.id } : {}),
                 ...(isEditMode && existingDef?.assistantId ? { assistantId: existingDef.assistantId } : {}),
                 data: {
+                    // The editor rebuilds `data`, so keys it doesn't edit (icon, scheduled tasks,
+                    // thinking level) must be carried forward or an edit deletes them.
+                    ...preserveUnmanagedData(existingDef?.data as Record<string, any> | undefined, { isGroup: isGroupEdit }),
                     access: { read: true, write: true },
                     ...(copyProvenance ? { sharedAssistant: copyProvenance } : {}),
                     tags: tagList,
@@ -1300,8 +1370,17 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     ...(Object.keys(apiOptions).length > 0 ? { apiOptions } : {}),
                     // Enforce model if the toggle is on
                     ...(enforceModel && enforcedModelId ? { model: enforcedModelId } : {}),
+                    // Reasoning level enforced alongside the model — dropped whenever the model isn't enforced.
+                    ...buildThinkingFields({
+                        enforceModel: !!(enforceModel && enforcedModelId),
+                        effort: effortLevel,
+                        existing: existingDef?.data as Record<string, any> | undefined,
+                    }),
                     // groupId for team assistants
                     ...(groupId ? { groupId } : {}),
+                    ...(isGroupEdit && groupId
+                        ? buildGroupData(groupSettings, groupContext, groupId, existingDef?.data as Record<string, any> | undefined)
+                        : {}),
                     ...(pathAccess ? { astPathData: pathAccess } : {}),
                 } as any,
                 // The restricted path is an internal lookup key; only public access exposes a user-chosen URL.
@@ -1310,8 +1389,34 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     : {}),
             };
 
-            // 5. Call the create service
-            const { id, assistantId, provider, data_sources } = await createAssistant(def);
+            // 5. Call the create service.
+            // Group assistants are owned by the group, not the user: they are written through the
+            // groups API (as the admin interface does), never plain createAssistant — which would
+            // produce a user-owned assistant that only looks like a group one until the next reload.
+            let id: string | null | undefined;
+            let assistantId: string;
+            let provider: any;
+            let data_sources: any;
+            if (groupId) {
+                const updateAstData = {
+                    group_id: groupId,
+                    update_type: isEditMode ? GroupUpdateType.UPDATE : GroupUpdateType.ADD,
+                    assistants: [def],
+                };
+                statsService.updateGroupAssistantsEvent?.(updateAstData);
+                const groupResult = await updateGroupAssistants(updateAstData);
+                const saved = groupResult?.success ? groupResult.assistantData?.[0] : undefined;
+                id = saved?.id ?? null;
+                assistantId = saved?.assistantId ?? '';
+                provider = saved?.provider ?? AssistantProviderID.AMPLIFY;
+                data_sources = def.dataSources;
+            } else {
+                const created = await createAssistant(def);
+                id = created.id;
+                assistantId = created.assistantId as string;
+                provider = created.provider;
+                data_sources = (created as any).data_sources;
+            }
 
             if (!id) {
                 setSaveError('Unable to save the assistant at this time. Please try again.');
@@ -1392,7 +1497,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             }
             if (groupId) {
                 aPrompt.groupId = groupId;
-                aPrompt.folderId = 'assistants';
+                // Group assistants live in their group's folder (utils/app/groups#contructGroupData).
+                aPrompt.folderId = groupId;
             }
 
             await handleUpdateAssistantPrompt(aPrompt, prompts, homeDispatch, selectedAssistant);
@@ -1467,7 +1573,11 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // ── Render ─────────────────────────────────────────────────────────────
     return (
         <CreationModalShell
-            title={isEditMode ? 'Edit Assistant' : isCopyMode ? 'Make a Copy' : 'New Assistant'}
+            title={isEditMode
+                ? 'Edit Assistant'
+                : isCopyMode
+                    ? (copyTargetAccess ? copyModalTitle(copyTargetAccess) : 'Make a Copy')
+                    : 'New Assistant'}
             titleAdornment={!isEditMode && !isCopyMode ? (
                 <InfoTooltip
                     ariaLabel="About assistants"
@@ -1475,7 +1585,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     text="Assistants are reusable AI configurations with instructions, tools, and data sources for specific tasks. Create one here, then select it from the + menu in a chat to have the AI follow its setup."
                 />
             ) : undefined}
-            onClose={onClose}
+            // While the conversion dialog is up, Escape must only dismiss it (the shell's own
+            // document listener is registered first and would otherwise close this editor too).
+            onClose={() => { if (!pendingConversion && !confirmManageGroup) onClose(); }}
             onSave={handleSave}
             saveLabel={isEditMode ? 'Save Changes' : isCopyMode ? 'Create Copy' : 'Create'}
             isSaving={isSaving}
@@ -1485,27 +1597,37 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             {(() => {
                 // ── Build visible cards list (depends on feature flags) ─────────
                 type CardDef = { value: AccessModel; icon: React.ReactNode; title: string; description: string; disabled?: boolean };
+                // Group <-> regular can't be saved in place; without a host that can open a copy,
+                // don't offer a choice that would silently not take effect.
+                const noConvert = (value: AccessModel) => switchNeedsCopy(value) && !onRequestCopy;
+                const NO_CONVERT_NOTE = 'Can’t be converted — make a copy instead';
                 const visibleCards: CardDef[] = [
                     {
                         value: 'private',
                         icon: <IconLock size={18} />,
                         title: 'Just for me',
-                        description: 'Only you can see and use this assistant',
+                        description: noConvert('private') ? NO_CONVERT_NOTE : 'Only you can see and use this assistant',
+                        disabled: noConvert('private'),
                     },
                     {
                         value: 'managed',
                         icon: <IconShare size={18} />,
                         title: 'I manage it, others can use it',
-                        description: featureFlags.assistantPathPublishing
-                            ? 'You control the original. Others can use it or make their own copy, but cannot edit it.'
-                            : 'Requires path publishing to be enabled by admin.',
-                        disabled: !featureFlags.assistantPathPublishing,
+                        description: noConvert('managed')
+                            ? NO_CONVERT_NOTE
+                            : featureFlags.assistantPathPublishing
+                                ? 'You control the original. Others can use it or make their own copy, but cannot edit it.'
+                                : 'Requires path publishing to be enabled by admin.',
+                        disabled: !featureFlags.assistantPathPublishing || noConvert('managed'),
                     },
                     ...(hasGroupAccess ? [{
                         value: 'collaborative' as const,
                         icon: <IconUsers size={18} />,
                         title: 'Group assistant',
-                        description: 'Multiple people can edit and manage this assistant',
+                        description: noConvert('collaborative')
+                            ? NO_CONVERT_NOTE
+                            : 'Multiple people can edit and manage this assistant',
+                        disabled: noConvert('collaborative'),
                     }] : []),
                 ];
 
@@ -1531,7 +1653,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         attempts++;
                     } while (visibleCards[idx].disabled && attempts < numCards);
                     if (!visibleCards[idx].disabled && idx !== activeIdx) {
-                        setAccessType(visibleCards[idx].value);
+                        requestAccessChange(visibleCards[idx].value);
                         cardRefs.current[idx]?.focus();
                     }
                 };
@@ -1566,7 +1688,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                     icon={card.icon}
                                     title={card.title}
                                     description={card.description}
-                                    onSelect={() => !card.disabled && setAccessType(card.value)}
+                                    onSelect={() => !card.disabled && requestAccessChange(card.value)}
                                     panelId="access-config-panel"
                                 />
                             ))}
@@ -1737,8 +1859,36 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                         </div>
                                     )}
 
+                                    {/* ── Editing a group assistant: its group is fixed ─────── */}
+                                    {accessType === 'collaborative' && isGroupEdit && (
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                                            <IconUsers size={16} aria-hidden="true" style={{ color: 'var(--text-muted)' }} />
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <p style={{ margin: 0, fontSize: 13, color: 'var(--text-primary)' }}>
+                                                    Group: <strong>{editGroup?.name ?? 'Unknown group'}</strong>
+                                                </p>
+                                                <p role={editGroup ? undefined : 'alert'} style={{ margin: '2px 0 0', fontSize: 12, color: editGroup ? 'var(--text-muted)' : 'var(--text-error)' }}>
+                                                    {editGroup
+                                                        ? 'Members of this group can edit and manage this assistant. Manage members from the group’s settings.'
+                                                        : 'We couldn’t load this group, so its settings can’t be saved safely. Close this and reopen the assistant.'}
+                                                </p>
+                                            </div>
+                                            {editGroup && onManageGroup && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setConfirmManageGroup(true)}
+                                                    className="flex items-center gap-1.5 flex-shrink-0 h-8 px-3 rounded-lg text-[12.5px] font-medium transition-colors hover:bg-[--bg-active] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+                                                    style={{ border: '1px solid var(--border-subtle)', background: 'var(--bg-raised)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                                                >
+                                                    <IconSettings size={14} aria-hidden="true" />
+                                                    Group settings
+                                                </button>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* ── Team (Collaborative) config ─────────── */}
-                                    {accessType === 'collaborative' && (
+                                    {accessType === 'collaborative' && !isGroupEdit && (
                                         <div>
                                             {/* Mode toggle */}
                                             <div
@@ -2242,7 +2392,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                             >
                                 <AttachFile
                                     id={ATTACH_FILE_INPUT_ID}
-                                    groupId={undefined}
+                                    groupId={editingAssistant?.groupId ?? undefined}
                                     disallowedFileExtensions={COMMON_DISALLOWED_FILE_EXTENSIONS}
                                     onAttach={onAttach}
                                     onSetMetadata={onSetMetadata}
@@ -2330,6 +2480,32 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     )}
 
                 </FileDropZone>
+
+                {/* ── Group settings (group assistants only) ── */}
+                {isGroupEdit && editGroup && (
+                    <>
+                        <SectionDivider label="Group" />
+                        <div style={{ marginBottom: 20 }}>
+                            <CapabilityCard
+                                icon={<IconUsers size={18} />}
+                                title="Group settings"
+                                badge={editGroup.name}
+                                defaultOpen
+                            >
+                                <GroupAssistantSettingsPanel
+                                    settings={groupSettings}
+                                    setSettings={setGroupSettings}
+                                    group={{
+                                        id: editGroup.id,
+                                        name: editGroup.name,
+                                        groupTypes: groupContext.groupTypes,
+                                        supportConvAnalysis: groupContext.supportConvAnalysis,
+                                    }}
+                                />
+                            </CapabilityCard>
+                        </div>
+                    </>
+                )}
 
                 {/* ── Capabilities: Skills · Tools & APIs · Workflow Template ── */}
                 {((featureFlags.skills && !!chatEndpoint) || featureFlags.integrations || featureFlags.assistantWorkflows) && (
@@ -2764,6 +2940,44 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     </div>
                 </div>
             </div>
+
+            {/* Opening the group's settings replaces this editor, so unsaved edits would be lost. */}
+            {isGroupEdit && editGroup && onManageGroup && (
+                <ConfirmDialog
+                    isOpen={confirmManageGroup}
+                    variant="warning"
+                    title="Open group settings?"
+                    message={`This closes the editor and discards any changes you haven’t saved. You can reopen ${editingAssistant?.name ?? 'the assistant'} afterwards.`}
+                    confirmLabel="Open group settings"
+                    cancelLabel="Keep editing"
+                    onCancel={() => setConfirmManageGroup(false)}
+                    onConfirm={() => {
+                        setConfirmManageGroup(false);
+                        onManageGroup(editGroup);
+                    }}
+                />
+            )}
+
+            {/* Group <-> regular can't be saved in place — offer a prefilled copy instead. The card
+                selection is unchanged until the user confirms; cancelling leaves the editor as it was. */}
+            {isEditMode && pendingConversion && onRequestCopy && (() => {
+                const copy = conversionDialogCopy(sourceIsGroup, pendingConversion);
+                return (
+                    <ConfirmDialog
+                        isOpen
+                        variant="neutral"
+                        title={copy.title}
+                        message={copy.message}
+                        confirmLabel={copy.confirmLabel}
+                        onCancel={() => setPendingConversion(null)}
+                        onConfirm={() => {
+                            const target = pendingConversion;
+                            setPendingConversion(null);
+                            onRequestCopy(editingAssistant!, target);
+                        }}
+                    />
+                );
+            })()}
         </CreationModalShell>
     );
 };

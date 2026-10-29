@@ -27,21 +27,21 @@ import {
     IconEyeOff,
     IconCopy,
     IconCopyPlus,
+    IconChartBar,
 } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
 import { useDebouncedSearchTracking, useTrack } from '@/components/NewUI/shared/UiAnalytics';
 import { Prompt } from '@/types/prompt';
-import { Group, GroupAccessType } from '@/types/groups';
-import { LayeredAssistant, createLayeredAssistant } from '@/types/layeredAssistant';
+import { Group, GroupAccessType, GroupUpdateType } from '@/types/groups';
+import { LayeredAssistant } from '@/types/layeredAssistant';
 import { Assistant, AssistantDefinition, AssistantProviderID, DEFAULT_ASSISTANT } from '@/types/assistant';
 import { startConversationWithTemplate } from '@/components/NewUI/shared/promptConversation';
-import { isAssistant, getAssistants, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
+import { isAssistant, getAssistants } from '@/utils/app/assistants';
 import { deleteAssistant, deleteLayeredAssistant, saveLayeredAssistant } from '@/services/assistantService';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { NEW_UI_SETTINGS_EVENT } from '@/components/NewUI/shared/newUISettingsEvents';
 import { writeAmplifyHelperPrefill } from '@/components/NewUI/shared/amplifyHelperPrefill';
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
-import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
 import { getClassifiedSharedItems, invalidateSharedItemsCache, ClassifiedShareItem } from '@/components/NewUI/shared/sharedItemClassifier';
@@ -51,6 +51,7 @@ import { saveFolders } from '@/utils/app/folders';
 import { saveConversations } from '@/utils/app/conversation';
 import { DefaultModels } from '@/types/model';
 import { NewUIAssistantCreationModal } from './NewUIAssistantCreationModal';
+import type { AssistantAccessType } from './assistant/assistantTypeSwitch';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
@@ -69,6 +70,11 @@ import {
 import toast from 'react-hot-toast';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 import { NewGroupManagementModal } from './assistant/NewGroupManagementModal';
+import { NewGroupAssistantInsightsModal } from './assistant/NewGroupAssistantInsightsModal';
+import { canViewInsights } from './assistant/groupInsightsModel';
+import { updateGroupAssistants, saveGroupLayeredAssistant, deleteGroupLayeredAssistant } from '@/services/groupsService';
+import { NewLayeredAssistantBuilder } from './assistant/layered/NewLayeredAssistantBuilder';
+import { readLayeredSettings } from './assistant/layeredAssistantDataModel';
 import AmplifyHelperAssistant from './AmplifyHelperAssistant';
 import {
     AMPLIFY_HELPER_MARKER,
@@ -120,6 +126,8 @@ interface RowProps {
     /** Open the editor prefilled from this (own) assistant to save a variation as a new one. */
     onDuplicate?: (e: React.MouseEvent) => void;
     onHide?: (e: React.MouseEvent) => void;
+    /** Open the group assistant's dashboard + conversations (group admins, analysis enabled). */
+    onInsights?: (e: React.MouseEvent) => void;
 }
 
 const AssistantPromptPreview: React.FC<{
@@ -220,6 +228,7 @@ const AssistantRow: React.FC<RowProps> = ({
     onCopy,
     onDuplicate,
     onHide,
+    onInsights,
     isDeleting,
     accessBadge,
     sharedBy,
@@ -341,6 +350,11 @@ const AssistantRow: React.FC<RowProps> = ({
                 {onDuplicate && (
                     <RowActionButton aria-label={`Duplicate ${name}`} title="Duplicate" onClick={onDuplicate}>
                         <IconCopyPlus size={14} />
+                    </RowActionButton>
+                )}
+                {onInsights && (
+                    <RowActionButton aria-label={`View insights for ${name}`} title="Insights" onClick={onInsights}>
+                        <IconChartBar size={14} />
                     </RowActionButton>
                 )}
                 {onEdit && (
@@ -491,6 +505,9 @@ const MyAssistantsTab: React.FC = () => {
     const [copyingAssistant, setCopyingAssistant] = useState<{ prompt: Prompt; provenance: ShareProvenance } | null>(null);
     // Duplicate: the creation modal in copy mode (no share provenance) for one of the user's own assistants
     const [duplicatingAssistant, setDuplicatingAssistant] = useState<Prompt | null>(null);
+    // Set when the duplicate came from an edit that tried to switch group <-> regular: the kind of
+    // assistant the copy should be (drives its card, header and "(Group copy)" name).
+    const [duplicateTarget, setDuplicateTarget] = useState<AssistantAccessType | undefined>(undefined);
     // Delete confirm dialog
     const [confirmDeleteAssistant, setConfirmDeleteAssistant] = useState<Prompt | null>(null);
     // prompt.id of the row whose backend delete is in flight (null = idle)
@@ -612,7 +629,16 @@ const MyAssistantsTab: React.FC = () => {
 
     const handleDuplicateAssistant = (e: React.MouseEvent, p: Prompt) => {
         e.stopPropagation();
+        setDuplicateTarget(undefined);
         setDuplicatingAssistant(p);
+    };
+
+    // The editor can't turn a group assistant into a regular one (or back); it hands the source
+    // here and we swap the edit modal for the same copy modal Duplicate uses.
+    const handleConvertToCopy = (source: Prompt, target: AssistantAccessType) => {
+        setEditingAssistant(null);
+        setDuplicateTarget(target);
+        setDuplicatingAssistant(source);
     };
 
     const handleShareAssistant = (e: React.MouseEvent, p: Prompt) => {
@@ -772,7 +798,8 @@ const MyAssistantsTab: React.FC = () => {
             {duplicatingAssistant && (
                 <NewUIAssistantCreationModal
                     copyingAssistant={duplicatingAssistant}
-                    onClose={() => setDuplicatingAssistant(null)}
+                    copyTargetAccess={duplicateTarget}
+                    onClose={() => { setDuplicatingAssistant(null); setDuplicateTarget(undefined); }}
                 />
             )}
 
@@ -793,6 +820,7 @@ const MyAssistantsTab: React.FC = () => {
             {editingAssistant && (
                 <NewUIAssistantCreationModal
                     editingAssistant={editingAssistant}
+                    onRequestCopy={handleConvertToCopy}
                     onClose={() => setEditingAssistant(null)}
                 />
             )}
@@ -1382,9 +1410,15 @@ const GroupAssistantsTab: React.FC = () => {
 
     // Unified creation modal for new group assistants
     const [showGroupCreationModal, setShowGroupCreationModal] = useState(false);
-    // AssistantModal still used for the edit path (edit icon → admin interface)
-    const [showGroupAssistantModal, setShowGroupAssistantModal] = useState(false);
-    const [groupAssistantForEdit, setGroupAssistantForEdit] = useState<Prompt | null>(null);
+    // Edit a group assistant in the unified creation modal (edit mode + Group settings)
+    const [editingGroupAssistant, setEditingGroupAssistant] = useState<Prompt | null>(null);
+    // The editor can't turn a group assistant into a regular one: it hands the source here and we
+    // open the same copy modal Duplicate uses, preselected to the kind the user asked for.
+    const [groupAssistantCopy, setGroupAssistantCopy] = useState<{ source: Prompt; target: AssistantAccessType } | null>(null);
+    // Dashboard + conversations for one group assistant
+    const [insightsFor, setInsightsFor] = useState<{ group: Group; assistant: Prompt } | null>(null);
+    const [confirmDeleteGroupAst, setConfirmDeleteGroupAst] = useState<{ group: Group; assistant: Prompt } | null>(null);
+    const [deletingGroupAstId, setDeletingGroupAstId] = useState<string | null>(null);
     // New-UI group management modal (gear icon on group header)
     const [managingGroup, setManagingGroup] = useState<Group | null>(null);
 
@@ -1399,9 +1433,53 @@ const GroupAssistantsTab: React.FC = () => {
         return access === GroupAccessType.ADMIN || access === GroupAccessType.WRITE;
     };
 
-    // EDIT path only — used when admin opens AssistantModal from the admin interface
-    const handleUpdateGroupAssistant = (updatedPrompt: Prompt) => {
-        handleUpdateAssistantPrompt(updatedPrompt, promptsRef.current, homeDispatch, selectedAssistant);
+    /**
+     * Delete a group assistant for real. Like the My Assistants delete, the backend call comes first
+     * and the row only leaves local state once it succeeds (Guide §5 rule 24) — group assistants are
+     * removed through the groups API, which also drops them from the group's list.
+     */
+    const handleDeleteGroupAssistant = async (group: Group, p: Prompt) => {
+        setConfirmDeleteGroupAst(null);
+        const assistantId = getDeletableAssistantId(p);
+        if (!assistantId) {
+            toast.error(`${p.name} can’t be deleted because it has no assistant id.`);
+            return;
+        }
+        setDeletingGroupAstId(p.id);
+        let deleted = false;
+        try {
+            const result = await updateGroupAssistants({
+                group_id: group.id,
+                update_type: GroupUpdateType.REMOVE,
+                assistants: [assistantId],
+            });
+            deleted = !!result?.success;
+        } catch (e) {
+            console.error('Failed to delete group assistant:', e);
+        } finally {
+            setDeletingGroupAstId(null);
+        }
+        if (!deleted) {
+            toast.error(`Failed to delete ${p.name}. Please try again.`);
+            return;
+        }
+
+        statsService.deletePromptEvent(p);
+        homeDispatch({
+            field: 'groups',
+            value: groupsRef.current.map((g: Group) =>
+                g.id === group.id
+                    ? { ...g, assistants: (g.assistants ?? []).filter((a: Prompt) => getDeletableAssistantId(a) !== assistantId) }
+                    : g,
+            ),
+        });
+        const updatedPrompts = promptsAfterAssistantDelete(promptsRef.current, p);
+        homeDispatch({ field: 'prompts', value: updatedPrompts });
+        savePrompts(updatedPrompts);
+        if (isSelectedAssistantDeleted(selectedAssistant, p)) {
+            homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+        }
+        toast.success(`${p.name} deleted`);
     };
 
     const handleStartConversation = (p: Prompt) => {
@@ -1446,18 +1524,72 @@ const GroupAssistantsTab: React.FC = () => {
         homeDispatch({ field: 'page', value: 'chat' });
     };
 
-    const openAdminInterface = (group: Group, assistant?: Prompt, layeredAssistant?: LayeredAssistant) => {
-        // Admins must see/manage ALL assistants (including hidden ones), so pass the
-        // original unfiltered group from context, not the display-filtered copy used
-        // for the list rendering (see filteredGroups below, which strips data.hidden
-        // assistants for non-admin display purposes only).
-        const originalGroup = groups.find((g: Group) => g.id === group.id) ?? group;
-        window.dispatchEvent(new CustomEvent('openAstAdminInterfaceTrigger', {
-            detail: {
-                isOpen: true,
-                data: { group: originalGroup, assistant, layeredAssistant },
-            },
-        }));
+    // ── Layered assistants of a group ───────────────────────────────────────
+    const [layeredBuilder, setLayeredBuilder] = useState<{ group: Group; initial?: LayeredAssistant } | null>(null);
+    const [layeredInsights, setLayeredInsights] = useState<{ group: Group; la: LayeredAssistant } | null>(null);
+    const [confirmDeleteGroupLA, setConfirmDeleteGroupLA] = useState<{ group: Group; la: LayeredAssistant } | null>(null);
+    const [deletingGroupLAId, setDeletingGroupLAId] = useState<string | null>(null);
+
+    // Admins must see/manage ALL of a group's assistants (including hidden ones), so editors get the
+    // unfiltered group from context, not the display-filtered copy the list renders from.
+    const originalGroup = (group: Group): Group => groupsRef.current.find((g: Group) => g.id === group.id) ?? group;
+
+    /** Group layered assistants are written through the groups API; the id and timestamp come back. */
+    const saveGroupLayered = async (group: Group, la: LayeredAssistant): Promise<LayeredAssistant | null> => {
+        try {
+            const withGroup: LayeredAssistant = { ...la, groupId: group.id };
+            const result = await saveGroupLayeredAssistant(group.id, withGroup);
+            if (!(result?.success && result.data?.assistantId)) return null;
+            const saved: LayeredAssistant = {
+                ...withGroup,
+                assistantId: result.data.assistantId,
+                updatedAt: result.data.updatedAt,
+                astPath: la.astPath,
+                astPathData: la.astPathData,
+            };
+            const updatedGroups = groupsRef.current.map((g: Group) => {
+                if (g.id !== group.id) return g;
+                const existing = g.layeredAssistants ?? [];
+                const has = existing.some((x: LayeredAssistant) => x.assistantId === saved.assistantId);
+                return { ...g, layeredAssistants: has ? existing.map((x: LayeredAssistant) => (x.assistantId === saved.assistantId ? saved : x)) : [...existing, saved] };
+            });
+            // The builder may save twice in one session (new + publish link); the second save must see the first.
+            groupsRef.current = updatedGroups;
+            homeDispatch({ field: 'groups', value: updatedGroups });
+            return saved;
+        } catch (e) {
+            console.error('Failed to save group layered assistant:', e);
+            return null;
+        }
+    };
+
+    /** Backend first; the row only leaves local state once the delete persisted (Guide §5 rule 24). */
+    const handleDeleteGroupLayered = async (group: Group, la: LayeredAssistant) => {
+        setConfirmDeleteGroupLA(null);
+        if (!la.assistantId) return;
+        setDeletingGroupLAId(la.assistantId);
+        let deleted = false;
+        try {
+            const result = await deleteGroupLayeredAssistant(group.id, la.assistantId);
+            deleted = !!result?.success;
+        } catch (e) {
+            console.error('Failed to delete group layered assistant:', e);
+        } finally {
+            setDeletingGroupLAId(null);
+        }
+        if (!deleted) {
+            toast.error(`Failed to delete ${la.name}. Please try again.`);
+            return;
+        }
+        const updatedGroups = groupsRef.current.map((g: Group) =>
+            g.id === group.id ? { ...g, layeredAssistants: (g.layeredAssistants ?? []).filter((x: LayeredAssistant) => x.assistantId !== la.assistantId) } : g,
+        );
+        groupsRef.current = updatedGroups;
+        homeDispatch({ field: 'groups', value: updatedGroups });
+        if (selectedAssistant?.definition?.assistantId === la.assistantId) {
+            homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+        }
+        toast.success(`${la.name} deleted`);
     };
 
     // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts/assistants marked
@@ -1563,10 +1695,23 @@ const GroupAssistantsTab: React.FC = () => {
                                         </span>
                                     </div>
                                     {isAdmin && (
+                                      <div className="flex items-center gap-1">
+                                        {featureFlags.assistantAdminInterface && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayeredBuilder({ group: originalGroup(group) })}
+                                                className="flex items-center gap-1 h-[26px] px-2 rounded-[6px] text-[12px] transition-colors hover:bg-[--bg-active] hover:text-[--text-primary] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+                                                style={{ color: 'var(--text-muted)' }}
+                                                title={`Add a layered assistant to ${group.name}`}
+                                                aria-label={`Add a layered assistant to ${group.name}`}
+                                            >
+                                                <IconGitBranch size={13} />
+                                                <IconPlus size={11} />
+                                            </button>
+                                        )}
                                         <button
                                             onClick={() => {
-                                                const originalGroup = groupsRef.current.find((g: Group) => g.id === group.id) ?? group;
-                                                setManagingGroup(originalGroup);
+                                                setManagingGroup(originalGroup(group));
                                             }}
                                             className="flex items-center justify-center h-[26px] w-[26px] rounded-[6px] transition-colors"
                                             style={{ color: 'var(--text-muted)' }}
@@ -1582,6 +1727,7 @@ const GroupAssistantsTab: React.FC = () => {
                                         >
                                             <IconSettings size={14} />
                                         </button>
+                                      </div>
                                     )}
                                 </div>
 
@@ -1595,8 +1741,19 @@ const GroupAssistantsTab: React.FC = () => {
                                             onClick={() => handleStartConversation(a)}
                                             onEdit={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
                                                 e.stopPropagation();
-                                                openAdminInterface(group, a);
+                                                setEditingGroupAssistant(a);
                                             } : undefined}
+                                            onInsights={featureFlags.assistantAdminInterface && isAdmin &&
+                                                canViewInsights(group, (a.data?.assistant?.definition?.data ?? a.data) as { supportConvAnalysis?: boolean })
+                                                ? (e) => {
+                                                    e.stopPropagation();
+                                                    setInsightsFor({ group, assistant: a });
+                                                } : undefined}
+                                            onDelete={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
+                                                e.stopPropagation();
+                                                setConfirmDeleteGroupAst({ group, assistant: a });
+                                            } : undefined}
+                                            isDeleting={deletingGroupAstId === a.id}
                                         />
                                     ))}
                                     {gLAs.map((la: LayeredAssistant) => (
@@ -1608,8 +1765,19 @@ const GroupAssistantsTab: React.FC = () => {
                                             onClick={() => handleStartLayeredConversation(la)}
                                             onEdit={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
                                                 e.stopPropagation();
-                                                openAdminInterface(group, undefined, la);
+                                                setLayeredBuilder({ group: originalGroup(group), initial: la });
                                             } : undefined}
+                                            onInsights={featureFlags.assistantAdminInterface && isAdmin && la.assistantId &&
+                                                canViewInsights(group, readLayeredSettings(la))
+                                                ? (e) => {
+                                                    e.stopPropagation();
+                                                    setLayeredInsights({ group: originalGroup(group), la });
+                                                } : undefined}
+                                            onDelete={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
+                                                e.stopPropagation();
+                                                setConfirmDeleteGroupLA({ group, la });
+                                            } : undefined}
+                                            isDeleting={deletingGroupLAId === la.assistantId}
                                         />
                                     ))}
                                 </div>
@@ -1626,24 +1794,94 @@ const GroupAssistantsTab: React.FC = () => {
                 />
             )}
 
-            {/* AssistantModal — EDIT path (opens from admin interface) */}
-            {showGroupAssistantModal && groupAssistantForEdit && (
-                <AssistantModal
-                    assistant={groupAssistantForEdit}
-                    onCancel={() => {
-                        setShowGroupAssistantModal(false);
-                        setGroupAssistantForEdit(null);
+            {/* Edit a group assistant — unified creation modal in edit mode */}
+            {editingGroupAssistant && (
+                <NewUIAssistantCreationModal
+                    editingAssistant={editingGroupAssistant}
+                    onRequestCopy={(source, target) => {
+                        setEditingGroupAssistant(null);
+                        setGroupAssistantCopy({ source, target });
                     }}
-                    onSave={() => {
-                        setShowGroupAssistantModal(false);
-                        setGroupAssistantForEdit(null);
+                    onManageGroup={(group) => {
+                        // One modal at a time: swap the editor for the group's settings (unfiltered group, as the gear does).
+                        setEditingGroupAssistant(null);
+                        setManagingGroup(originalGroup(group));
                     }}
-                    onUpdateAssistant={handleUpdateGroupAssistant}
-                    loadingMessage="Saving assistant…"
-                    loc=""
-                    disableEdit={false}
+                    onClose={() => setEditingGroupAssistant(null)}
                 />
             )}
+
+            {/* "Make a copy as a regular assistant" — same modal Duplicate uses */}
+            {groupAssistantCopy && (
+                <NewUIAssistantCreationModal
+                    copyingAssistant={groupAssistantCopy.source}
+                    copyTargetAccess={groupAssistantCopy.target}
+                    onClose={() => setGroupAssistantCopy(null)}
+                />
+            )}
+
+            {layeredBuilder && (
+                <NewLayeredAssistantBuilder
+                    group={layeredBuilder.group}
+                    initialData={layeredBuilder.initial}
+                    onSave={(la) => saveGroupLayered(layeredBuilder.group, la)}
+                    onClose={() => setLayeredBuilder(null)}
+                />
+            )}
+
+            {layeredInsights && (
+                <NewGroupAssistantInsightsModal
+                    group={layeredInsights.group}
+                    layeredAssistant={layeredInsights.la}
+                    onClose={() => setLayeredInsights(null)}
+                />
+            )}
+
+            <ConfirmDialog
+                isOpen={!!confirmDeleteGroupLA}
+                title="Delete layered assistant?"
+                message={
+                    <>
+                        <strong style={{ color: 'var(--text-primary)' }}>{confirmDeleteGroupLA?.la.name}</strong>{' '}
+                        will be removed for everyone in{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>{confirmDeleteGroupLA?.group.name}</strong>. This cannot be undone.
+                    </>
+                }
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    const target = confirmDeleteGroupLA;
+                    if (target) handleDeleteGroupLayered(target.group, target.la);
+                    else setConfirmDeleteGroupLA(null);
+                }}
+                onCancel={() => setConfirmDeleteGroupLA(null)}
+            />
+
+            {insightsFor && (
+                <NewGroupAssistantInsightsModal
+                    group={insightsFor.group}
+                    assistant={insightsFor.assistant}
+                    onClose={() => setInsightsFor(null)}
+                />
+            )}
+
+            <ConfirmDialog
+                isOpen={!!confirmDeleteGroupAst}
+                title="Delete group assistant?"
+                message={
+                    <>
+                        <strong style={{ color: 'var(--text-primary)' }}>{confirmDeleteGroupAst?.assistant.name}</strong>{' '}
+                        will be removed for everyone in{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>{confirmDeleteGroupAst?.group.name}</strong>. This cannot be undone.
+                    </>
+                }
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    const target = confirmDeleteGroupAst;
+                    if (target) handleDeleteGroupAssistant(target.group, target.assistant);
+                    else setConfirmDeleteGroupAst(null);
+                }}
+                onCancel={() => setConfirmDeleteGroupAst(null)}
+            />
 
             {/* New-UI group management modal (gear icon) */}
             {managingGroup && (
@@ -1665,12 +1903,16 @@ const LayeredAssistantsTab: React.FC = () => {
         state: { layeredAssistants, syncingLayeredAssistants },
         dispatch: homeDispatch,
         handleNewConversation,
-        setLoadingMessage,
     } = useContext(HomeContext);
 
     const [search, setSearch] = useState('');
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [confirmDeleteLA, setConfirmDeleteLA] = useState<LayeredAssistant | null>(null);
+    // The New UI layered-assistant builder: `{}` = create, `{ initial }` = edit.
+    const [builder, setBuilder] = useState<{ initial?: LayeredAssistant } | null>(null);
+    // The builder can save twice in one session (new + publish link), so read the latest list.
+    const layeredRef = useRef(layeredAssistants);
+    useEffect(() => { layeredRef.current = layeredAssistants; }, [layeredAssistants]);
 
     const filtered = useMemo(() => {
         if (!search.trim()) return layeredAssistants;
@@ -1681,21 +1923,22 @@ const LayeredAssistantsTab: React.FC = () => {
         );
     }, [layeredAssistants, search]);
 
-    const handleSave = async (la: LayeredAssistant) => {
-        setLoadingMessage('Saving layered assistant…');
+    /** Persist a personal layered assistant; returns the saved record (with its id) or null on failure. */
+    const handleSave = async (la: LayeredAssistant): Promise<LayeredAssistant | null> => {
         try {
             const result = await saveLayeredAssistant(la);
-            if (result?.success && result.data?.assistantId) {
-                const saved: LayeredAssistant = { ...la, assistantId: result.data.assistantId };
-                const updated = layeredAssistants.some((x: LayeredAssistant) => x.assistantId === saved.assistantId)
-                    ? layeredAssistants.map((x: LayeredAssistant) => x.assistantId === saved.assistantId ? saved : x)
-                    : [...layeredAssistants, saved];
-                homeDispatch({ field: 'layeredAssistants', value: updated });
-            }
+            if (!(result?.success && result.data?.assistantId)) return null;
+            const saved: LayeredAssistant = { ...la, assistantId: result.data.assistantId };
+            const current: LayeredAssistant[] = layeredRef.current;
+            const updated = current.some((x) => x.assistantId === saved.assistantId)
+                ? current.map((x) => (x.assistantId === saved.assistantId ? saved : x))
+                : [...current, saved];
+            layeredRef.current = updated;
+            homeDispatch({ field: 'layeredAssistants', value: updated });
+            return saved;
         } catch (e) {
             console.error('Failed to save layered assistant:', e);
-        } finally {
-            setLoadingMessage('');
+            return null;
         }
     };
 
@@ -1723,32 +1966,9 @@ const LayeredAssistantsTab: React.FC = () => {
         homeDispatch({ field: 'page', value: 'chat' });
     };
 
-    const handleEdit = (la: LayeredAssistant) => {
-        window.dispatchEvent(new CustomEvent('openLayeredBuilderTrigger', {
-            detail: {
-                isOpen: true,
-                data: {
-                    title: 'Layered Assistant Builder',
-                    initialData: la,
-                    onSave: handleSave,
-                },
-            },
-        }));
-    };
+    const handleEdit = (la: LayeredAssistant) => setBuilder({ initial: la });
 
-    const handleCreateNew = () => {
-        const newLA = createLayeredAssistant('New Layered Assistant');
-        window.dispatchEvent(new CustomEvent('openLayeredBuilderTrigger', {
-            detail: {
-                isOpen: true,
-                data: {
-                    title: 'Layered Assistant Builder',
-                    initialData: newLA,
-                    onSave: handleSave,
-                },
-            },
-        }));
-    };
+    const handleCreateNew = () => setBuilder({});
 
     const handleDelete = async (la: LayeredAssistant) => {
         if (!la.assistantId) return;
@@ -1828,6 +2048,14 @@ const LayeredAssistantsTab: React.FC = () => {
                     ))
                 )}
             </div>
+
+            {builder && (
+                <NewLayeredAssistantBuilder
+                    initialData={builder.initial}
+                    onSave={handleSave}
+                    onClose={() => setBuilder(null)}
+                />
+            )}
 
             {/* Delete confirmation dialog for layered assistants */}
             <ConfirmDialog
