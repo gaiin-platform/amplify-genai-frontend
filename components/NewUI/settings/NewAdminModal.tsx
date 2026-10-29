@@ -1377,6 +1377,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
             config={deploymentFeatures}
             setConfig={setDeploymentFeatures}
             updateUnsavedConfigs={updateUnsavedConfigs}
+            availableModels={availableModels}
           />
         );
       default:

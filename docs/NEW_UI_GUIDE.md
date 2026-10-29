@@ -137,7 +137,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `admin/AdminsCard.tsx` | Admin section wrapper card; removing an admin uses the shared `ConfirmDialog` (its open state feeds the modal's Escape guard) |
 | `admin/ConfigurationsTab.tsx` | Admin → Configurations tab content |
 | `admin/SystemPromptsTab.tsx` | Admin → System Prompts tab — editors for ordinary-chat base, web-search, artifact, code-interpreter, and feature-gated Amplify-helper prompts |
-| `admin/DeploymentFeaturesTab.tsx` | Admin → Deployment tab — toggles for deployment-wide feature availability (highlighter, artifacts, web search, code interpreter, memory) and classic-UI switch control |
+| `admin/DeploymentFeaturesTab.tsx` | Admin → Deployment tab — toggles for deployment-wide feature availability (highlighter, artifacts, web search, code interpreter, memory), classic-UI switch control, and automatic routing with its **Routing model** select (`deploymentFeatures.routingModelId`; empty = backend default Haiku 4.5; takes the full Supported Models catalog as `availableModels`) |
+| `admin/routingModelOptions.ts` | React-free option list behind the Routing model select — `buildRoutingModelGroups` (catalog models grouped by provider; drops embedding / image-generation / providers the backend classifier can't call; keeps a saved-but-missing or unusable id visible instead of showing "Default"), `isRoutingCapable`, `routingModelSelectValue`. Mirrors the backend's `isUsableRoutingModel`. No React imports |
 | `admin/AnnouncementCard.tsx` | Admin → Deployment → Announcement Banner: on/off, message (500 chars), and expiry (until turned off / for N hours-days / until a date). Edits `deploymentFeatures.announcement` through the tab's normal `setConfig` + Save; includes a live preview |
 
 ### `shared/`

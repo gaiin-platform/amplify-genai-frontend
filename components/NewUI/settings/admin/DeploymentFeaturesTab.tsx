@@ -1,8 +1,16 @@
 import React, { FC } from 'react';
 import { AdminConfigTypes, DeploymentFeaturesConfig } from '@/types/admin';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { SelectControl } from '@/components/NewUI/shared/FormControls';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { DeploymentConfigWithAnnouncement } from '@/components/NewUI/shared/announcement';
 import { AnnouncementCard } from './AnnouncementCard';
+import {
+  buildRoutingModelGroups,
+  DEFAULT_ROUTING_MODEL_NAME,
+  RoutingModelCandidate,
+  routingModelSelectValue,
+} from './routingModelOptions';
 
 interface ToggleRowProps {
   id: string;
@@ -83,12 +91,21 @@ interface DeploymentFeaturesTabProps {
   config: DeploymentConfigWithAnnouncement;
   setConfig: (c: DeploymentConfigWithAnnouncement) => void;
   updateUnsavedConfigs: (type: AdminConfigTypes) => void;
+  /** The full model catalog (Supported Models), including models users cannot chat with. */
+  availableModels?: Record<string, RoutingModelCandidate>;
 }
+
+const ROUTING_MODEL_INFO =
+  'The model that reads each message and decides whether web search, artifacts or code interpreter ' +
+  'should be used. It runs on every eligible message, so a fast, inexpensive model works best; a slow ' +
+  'one can exceed the 5-second limit, in which case no optional tools are added. The model does not ' +
+  'need to be available for chat. Its usage is billed like any other model.';
 
 export const DeploymentFeaturesTab: FC<DeploymentFeaturesTabProps> = ({
   config,
   setConfig,
   updateUnsavedConfigs,
+  availableModels,
 }) => {
   const setAvailability = (key: keyof DeploymentFeaturesConfig['availability'], value: boolean) => {
     setConfig({
@@ -106,7 +123,13 @@ export const DeploymentFeaturesTab: FC<DeploymentFeaturesTabProps> = ({
     updateUnsavedConfigs(AdminConfigTypes.DEPLOYMENT_FEATURES);
   };
 
+  const setRoutingModel = (modelId: string) => {
+    setConfig({ ...config, routingModelId: modelId });
+    updateUnsavedConfigs(AdminConfigTypes.DEPLOYMENT_FEATURES);
+  };
+
   const av = config.availability ?? {};
+  const routingGroups = buildRoutingModelGroups(availableModels, config.routingModelId);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -181,6 +204,37 @@ export const DeploymentFeaturesTab: FC<DeploymentFeaturesTabProps> = ({
           checked={config.routingEnabled ?? false}
           onChange={(v) => setTopLevel('routingEnabled', v)}
         />
+        <div style={{ padding: '14px 0 2px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
+            <label
+              htmlFor="dep-feat-routing-model"
+              style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-primary)' }}
+            >
+              Routing model
+            </label>
+            <InfoTooltip text={ROUTING_MODEL_INFO} ariaLabel="About the routing model" />
+          </div>
+          <SelectControl
+            id="dep-feat-routing-model"
+            value={routingModelSelectValue(config.routingModelId)}
+            disabled={!(config.routingEnabled ?? false)}
+            onChange={(e) => setRoutingModel(e.target.value)}
+          >
+            <option value="">Default ({DEFAULT_ROUTING_MODEL_NAME})</option>
+            {routingGroups.map((group) => (
+              <optgroup key={group.provider} label={group.provider}>
+                {group.options.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </SelectControl>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '6px 0 0', lineHeight: 1.5 }}>
+            Used only while automatic routing is on. If the chosen model is missing or fails, the default is used.
+          </p>
+        </div>
       </SectionCard>
 
       <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.5 }}>

@@ -27,9 +27,13 @@ export interface Announcement {
   expiresAt: string | null;
 }
 
-/** `DeploymentFeaturesConfig` plus the optional announcement (types/ is read-only). */
+/**
+ * `DeploymentFeaturesConfig` plus fields it doesn't declare (types/ is read-only): the optional
+ * announcement and `routingModelId` (the admin-chosen routing model; empty/absent = backend default).
+ */
 export type DeploymentConfigWithAnnouncement = DeploymentFeaturesConfig & {
   announcement?: Announcement;
+  routingModelId?: string;
 };
 
 export type ExpiryMode = 'indefinite' | 'duration' | 'date';
