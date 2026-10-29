@@ -67,7 +67,10 @@ import { AttachedDocument } from '@/types/attacheddocument';
 import { DriveFilesDataSources } from '@/types/integrations';
 import { SkillReference, SkillSelectionMode } from '@/types/skill';
 import { createAssistant, addAssistantPath, lookupAssistant } from '@/services/assistantService';
-import { getFileDownloadUrl } from '@/services/fileService';
+import { deleteFile, getFileDownloadUrl } from '@/services/fileService';
+import { deleteScheduledTask, getScheduledTask } from '@/services/scheduledTasksService';
+import { cronToDriveRescanSchedule, determineDriveScanCron, determineWebsiteScanCron, manageScheduledTasks } from '@/utils/app/scheduledTasks';
+import type { DriveRescanSchedule } from '@/components/Promptbar/components/AssistantModalComponents/AssistantDriveDataSources';
 import { Filter } from 'bad-words';
 import { createAstAdminGroup, updateGroupMembers, updateGroupAssistants } from '@/services/groupsService';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
@@ -127,6 +130,16 @@ import { processDragDropFiles } from '@/utils/fileHandler';
 import { totalSelectionCount, asDriveSelection } from '@/components/NewUI/views/assistant/driveBrowserModel';
 import { SkillsCapabilityPanel } from './assistant/SkillsCapabilityPanel';
 import { CapabilityCard } from './assistant/CapabilityCard';
+import { AssistantIconField } from './assistant/AssistantIconField';
+import { iconKeysToDelete, readIconRef, toStoredIcon, withAstIcon } from './assistant/assistantIconModel';
+import { RefreshSchedulePanel } from './assistant/RefreshSchedulePanel';
+import {
+    DEFAULT_DRIVE_SCHEDULE,
+    setWebsiteScanFrequency,
+    websiteScheduleRows,
+    withDriveDefaults,
+} from './assistant/refreshScheduleModel';
+import { RescanTaskIds, sameTaskIds, syncRescanTasks, withScheduledTaskIds } from './assistant/rescanTaskSync';
 import { ToolsCapabilityPanel } from './assistant/ToolsCapabilityPanel';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -573,6 +586,17 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
      */
     const initIntegrationDataSources = useRef<DriveFilesDataSources | undefined>(undefined);
 
+    // ── Refresh schedules (website + drive sources) ───────────────────────
+    /** The drive refresh schedule. `null` until the saved one has loaded; saving leaves the task alone while null. */
+    const [driveSchedule, setDriveSchedule] = useState<DriveRescanSchedule | null>(null);
+    const [driveScheduleLoadFailed, setDriveScheduleLoadFailed] = useState(false);
+
+    // ── Assistant icon ────────────────────────────────────────────────────
+    const [astIcon, setAstIcon] = useState<AttachedDocument | undefined>(undefined);
+    const [iconUploading, setIconUploading] = useState(false);
+    /** Icon files the user replaced or removed. Deleted only after a successful save. */
+    const queuedIconDeletes = useRef<string[]>([]);
+
     // ── Skills state ──────────────────────────────────────────────────────
     const [selectedSkills, setSelectedSkills] = useState<SkillReference[]>([]);
     const [skillSelectionMode, setSkillSelectionMode] = useState<SkillSelectionMode>('auto');
@@ -712,6 +736,11 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         const wUrls = (def.data as any)?.websiteUrls;
         if (Array.isArray(wUrls)) setWebsiteUrls(wUrls);
 
+        // Icon. Only an edit keeps the file: deleting the original assistant deletes its icon file,
+        // so a copy that pointed at the same key would lose its icon with it.
+        const storedIcon = (def.data as any)?.astIcon;
+        if (isEditMode && readIconRef(storedIcon)) setAstIcon(storedIcon as AttachedDocument);
+
         // Skills
         const skills = (def.data as any)?.skills;
         if (Array.isArray(skills)) setSelectedSkills(skills);
@@ -796,6 +825,34 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []); // run once on mount — source assistant is stable for this modal instance
+
+    // ── Saved drive refresh schedule ──────────────────────────────────────
+    // The schedule lives in a scheduled task (its cron expression), not on the assistant, so it is read
+    // back from there. Until it has loaded, saving leaves that task alone rather than deleting it.
+    useEffect(() => {
+        const savedTaskId = isEditMode
+            ? ((sourceAssistant?.data?.assistant?.definition as AssistantDefinition | undefined)?.data as any)?.scheduledTaskIds?.driveFiles as string | undefined
+            : undefined;
+        if (!savedTaskId) {
+            setDriveSchedule(withDriveDefaults(DEFAULT_DRIVE_SCHEDULE));
+            return;
+        }
+        let current = true;
+        getScheduledTask(savedTaskId)
+            .then((result) => {
+                if (!current) return;
+                const task = result?.success ? result.data?.task : undefined;
+                if (!task) { setDriveScheduleLoadFailed(true); return; }
+                setDriveSchedule(withDriveDefaults(
+                    task.cronExpression && task.active
+                        ? cronToDriveRescanSchedule(task.cronExpression)
+                        : { enabled: false, frequency: 'none' },
+                ));
+            })
+            .catch(() => { if (current) setDriveScheduleLoadFailed(true); });
+        return () => { current = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     // ── Lazy load APIs and agent tools ────────────────────────────────────
     const refreshAvailableApis = useCallback(async () => {
@@ -1187,7 +1244,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             }
         }
         // Prevent save while files are uploading
-        if (hasPendingUploads()) return false;
+        if (hasPendingUploads() || iconUploading) return false;
         return true;
     };
 
@@ -1395,6 +1452,36 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     : {}),
             };
 
+            // 4b. Icon. `data` is rebuilt above, so the icon is written explicitly — and absent once removed.
+            const storedIcon = astIcon ? toStoredIcon(astIcon, groupId ?? undefined) : undefined;
+            def.data = withAstIcon(def.data as Record<string, any>, storedIcon) as any;
+
+            // 4c. Refresh schedules for website / drive sources. They are scheduled tasks that name the
+            // assistant by id, so an edit (id known) writes them now and they ride on the save below; a
+            // new assistant gets its id from that save, so its tasks are made right after (see 5b).
+            const schedulesEnabled = !!featureFlags.scheduledTasks;
+            const schedulesBeforeSave = schedulesEnabled && isEditMode && !!existingDef?.assistantId;
+            let scheduleFailures: string[] = [];
+            const syncSchedules = (assistantIdForTasks: string) =>
+                syncRescanTasks(
+                    {
+                        existing: (def.data as any)?.scheduledTaskIds as RescanTaskIds | undefined,
+                        dataSources,
+                        websiteUrls,
+                        driveSchedule,
+                        hasDriveFiles: totalSelectionCount(asDriveSelection(integrationDataSources)) > 0,
+                        driveAllowed: accessType !== 'collaborative' && !groupId,
+                        assistantInfo: { name: def.name, assistantId: assistantIdForTasks },
+                    },
+                    { manageTask: manageScheduledTasks, websiteCron: determineWebsiteScanCron, driveCron: determineDriveScanCron },
+                );
+            if (schedulesBeforeSave) {
+                setLoadingMessage('Updating refresh schedules…');
+                const synced = await syncSchedules(existingDef!.assistantId!);
+                scheduleFailures = synced.failed;
+                def.data = withScheduledTaskIds(def.data as Record<string, any>, synced.ids) as any;
+            }
+
             // 5. Call the create service.
             // Group assistants are owned by the group, not the user: they are written through the
             // groups API (as the admin interface does), never plain createAssistant — which would
@@ -1403,6 +1490,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             let assistantId: string;
             let provider: any;
             let data_sources: any;
+            let serverAstData: any;
             if (groupId) {
                 const updateAstData = {
                     group_id: groupId,
@@ -1422,6 +1510,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 assistantId = created.assistantId as string;
                 provider = created.provider;
                 data_sources = (created as any).data_sources;
+                serverAstData = (created as any).ast_data;
             }
 
             if (!id) {
@@ -1441,6 +1530,43 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             def.provider = provider;
             def.assistantId = assistantId;
             if (data_sources) def.dataSources = data_sources;
+
+            // Icon files the user replaced or removed are only safe to delete now that the save went through.
+            const staleIconKeys = iconKeysToDelete(queuedIconDeletes.current, storedIcon?.key);
+            queuedIconDeletes.current = [];
+            if (staleIconKeys.length > 0) {
+                void Promise.allSettled(staleIconKeys.map((key) => deleteFile(key)));
+            }
+
+            // 5b. A new assistant's refresh tasks, now that it has an id. Their ids belong on the
+            // assistant, so it is saved once more — only when there is something to record.
+            if (schedulesEnabled && !schedulesBeforeSave && assistantId) {
+                setLoadingMessage('Setting up refresh schedules…');
+                const synced = await syncSchedules(assistantId);
+                scheduleFailures = synced.failed;
+                if (!sameTaskIds(synced.ids, (def.data as any)?.scheduledTaskIds)) {
+                    // Keep what the server just recorded (scan times, drive pointers) instead of overwriting it.
+                    const refreshed: Record<string, any> = { ...(def.data as Record<string, any>) };
+                    if (serverAstData?.websiteUrls) refreshed.websiteUrls = serverAstData.websiteUrls;
+                    if (serverAstData?.integrationDriveData) refreshed.integrationDriveData = serverAstData.integrationDriveData;
+                    def.data = withScheduledTaskIds(refreshed, synced.ids) as any;
+                    try {
+                        if (groupId) {
+                            const again = await updateGroupAssistants({ group_id: groupId, update_type: GroupUpdateType.UPDATE, assistants: [def] });
+                            if (!again?.success) throw new Error('group update failed');
+                        } else {
+                            const again = await createAssistant(def);
+                            if (!again.id) throw new Error('assistant update failed');
+                        }
+                    } catch (scheduleSaveErr) {
+                        // The tasks would be orphans nobody can find to edit, so take them back.
+                        console.error('Error recording refresh schedules on the assistant:', scheduleSaveErr);
+                        await Promise.allSettled(Object.values(synced.ids).map((taskId) => deleteScheduledTask(taskId as string)));
+                        def.data = withScheduledTaskIds(def.data as Record<string, any>, {}) as any;
+                        scheduleFailures = [...scheduleFailures, 'websites'];
+                    }
+                }
+            }
 
             // 6a. Register email event template if enabled (requires assistantId)
             if (enableEmailEvents && featureFlags.assistantEmailEvents && accessType !== 'collaborative') {
@@ -1564,6 +1690,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             }
 
             setLoadingMessage('');
+            if (scheduleFailures.length > 0) {
+                toast.error('The assistant was saved, but its refresh schedule couldn’t be set up. Open it and save again to retry.', { duration: 8000 });
+            }
             onClose();
         } catch (err) {
             console.error(isEditMode ? 'Error updating assistant:' : 'Error creating assistant:', err);
@@ -2485,7 +2614,41 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         />
                     )}
 
+                    {/* Refresh schedules for website and OneDrive / SharePoint sources */}
+                    {featureFlags.scheduledTasks && (() => {
+                        const scheduleRows = websiteScheduleRows(websiteUrls);
+                        const showDrive = !!featureFlags.integrations && accessType !== 'collaborative' && driveSelectionCount > 0;
+                        if (scheduleRows.length === 0 && !showDrive) return null;
+                        return (
+                            <RefreshSchedulePanel
+                                websiteRows={scheduleRows}
+                                onWebsiteFrequencyChange={(sourceUrl, days) => {
+                                    setWebsiteUrls((prev) => setWebsiteScanFrequency(prev, [], sourceUrl, days).websiteUrls);
+                                    setDataSources((prev) => setWebsiteScanFrequency(websiteUrls, prev, sourceUrl, days).dataSources);
+                                }}
+                                showDrive={showDrive}
+                                driveSchedule={driveSchedule}
+                                driveLoadFailed={driveScheduleLoadFailed}
+                                onDriveScheduleChange={setDriveSchedule}
+                            />
+                        );
+                    })()}
+
                 </FileDropZone>
+
+                {/* Icon — shown on the assistant's page and in the assistants list */}
+                <div style={fieldGroupStyle} role="group" aria-labelledby="ast-creation-icon-label">
+                    <span id="ast-creation-icon-label" style={{ ...labelStyle, display: 'block' }}>
+                        Icon
+                    </span>
+                    <AssistantIconField
+                        value={astIcon}
+                        onChange={setAstIcon}
+                        onQueueDelete={(key) => { queuedIconDeletes.current.push(key); }}
+                        onUploadingChange={setIconUploading}
+                        groupId={editingAssistant?.groupId ?? undefined}
+                    />
+                </div>
 
                 {/* ── Group settings (group assistants only) ── */}
                 {isGroupEdit && editGroup && (

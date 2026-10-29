@@ -76,6 +76,8 @@ import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus
 import { NewGroupManagementModal } from './assistant/NewGroupManagementModal';
 import { NewGroupAssistantInsightsModal } from './assistant/NewGroupAssistantInsightsModal';
 import { canViewInsights } from './assistant/groupInsightsModel';
+import { AssistantIconImage } from '@/components/NewUI/shared/AssistantIconImage';
+import { AssistantIconRef, layeredIconRef, promptIconRef } from './assistant/assistantIconModel';
 import { updateGroupAssistants, saveGroupLayeredAssistant, deleteGroupLayeredAssistant } from '@/services/groupsService';
 import { NewLayeredAssistantBuilder } from './assistant/layered/NewLayeredAssistantBuilder';
 import { readLayeredSettings } from './assistant/layeredAssistantDataModel';
@@ -114,6 +116,8 @@ const shareProvenance = (prompt: Prompt): ShareProvenance | undefined => {
 
 interface RowProps {
     icon?: React.ReactNode;
+    /** The assistant's uploaded icon. Replaces `icon` (or the robot) once it loads; until then, and on any failure, `icon` shows. */
+    customIcon?: AssistantIconRef;
     name: string;
     description?: string;
     onClick: () => void;
@@ -242,6 +246,7 @@ const AssistantPromptPreview: React.FC<{
 
 const AssistantRow: React.FC<RowProps> = ({
     icon,
+    customIcon,
     name,
     description,
     onClick,
@@ -282,7 +287,16 @@ const AssistantRow: React.FC<RowProps> = ({
                 className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-[8px]"
                 style={{ backgroundColor: 'var(--bg-raised)' }}
             >
-                {icon || <IconRobot size={18} style={{ color: 'var(--text-muted)' }} />}
+                {customIcon ? (
+                    <div className="w-full h-full overflow-hidden rounded-[8px] flex items-center justify-center">
+                        <AssistantIconImage
+                            icon={customIcon}
+                            fallback={icon || <IconRobot size={18} style={{ color: 'var(--text-muted)' }} />}
+                        />
+                    </div>
+                ) : (
+                    icon || <IconRobot size={18} style={{ color: 'var(--text-muted)' }} />
+                )}
             </div>
 
             {/* Name + description */}
@@ -774,6 +788,7 @@ const MyAssistantsTab: React.FC = () => {
                     filtered.map((p: Prompt) => (
                         <AssistantRow
                             key={p.id}
+                            customIcon={promptIconRef(p)}
                             name={p.name}
                             description={p.description}
                             accessBadge={getAccessBadge(p)}
@@ -1760,6 +1775,7 @@ const GroupAssistantsTab: React.FC = () => {
                                     {gAssistants.map((a: Prompt) => (
                                         <AssistantRow
                                             key={a.id}
+                                            customIcon={promptIconRef(a)}
                                             name={a.name}
                                             description={a.description}
                                             onClick={() => handleStartConversation(a)}
@@ -1783,6 +1799,7 @@ const GroupAssistantsTab: React.FC = () => {
                                     {gLAs.map((la: LayeredAssistant) => (
                                         <AssistantRow
                                             key={la.assistantId ?? la.name}
+                                            customIcon={layeredIconRef(la)}
                                             icon={<IconGitBranch size={18} style={{ color: 'var(--text-muted)' }} />}
                                             name={la.name}
                                             description={la.description}
@@ -2055,6 +2072,7 @@ const LayeredAssistantsTab: React.FC = () => {
                     filtered.map((la: LayeredAssistant) => (
                         <AssistantRow
                             key={la.assistantId ?? la.name}
+                            customIcon={layeredIconRef(la)}
                             icon={<IconGitBranch size={18} style={{ color: 'var(--text-muted)' }} />}
                             name={la.name}
                             description={la.description}

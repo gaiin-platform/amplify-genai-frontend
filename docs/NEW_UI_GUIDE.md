@@ -183,6 +183,8 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `FeatureFlagsSelfHeal.tsx` | Mounts once at the new-UI root; renders nothing. home.tsx fetches `/feature_flags` once, so a failed request leaves `state.featureFlags` `{}` all session (and nothing cached on a first visit/new browser). While no full flag set is present it retries the de-duplicated request with backoff, on refocus and on `online`, then dispatches the result. Stops when any writer supplies a full set |
 | `featureFlagRetry.ts` | React-free retry rules: `FLAG_RETRY_DELAYS_MS`, `FLAG_RETRY_STEADY_MS`, `nextFlagRetryDelay` (backoff, then a 5-min steady cadence — never gives up), `mergeRetriedFlags` (rejects untrusted payloads; keeps the `PATCH_ONLY_FLAG_KEYS` values already in state). No React imports |
 | `integrationIcon.tsx` | `integrationIcon(id, size?)` — the `public/logos/integrations/*.svg` logo for an integration id (underscores → hyphens). Used by Settings → Connectors and the assistant editor's drive panel |
+| `AssistantIconImage.tsx` | An assistant's uploaded icon (`data.astIcon`) filling its box, or `fallback` while loading and on any failure (no icon, no read access — a Shared-with-me icon is often unreadable —, deleted). Used by the assistants list rows and the editor's icon field. Loading is `shared/assistantIconLoader` |
+| `assistantIconLoader.ts` | `loadAssistantIconUrl(icon)` — download URL → base64 payload → object URL, cached per `groupId::key` for the session; a failure is remembered for 60s. Re-does `utils/app/files#fetchImageFromPresignedUrl` without its `alert()`, which is wrong in a list. No React imports |
 | `GeneratingSpinner.tsx` | Minimal 12px SVG arc spinner (270° dash, no track ring). Place inside a `text-[--text-muted]` container; the SVG uses `currentColor`. CSS animation defined in `globals.css` (`.nui-generating-spinner`). Accepts optional `size` prop. |
 | `SearchInput.tsx` | The 34px toolbar search field (`IconSearch` + input), with `fullWidth` for use inside a card and an optional `onClear`. Extracted from three verbatim copies. Does **not** cover the divergent fields in `ChatsListView`, `NewLibraryView`, `DataSourceLibraryPicker`, `DriveFileBrowser`, `AttachMenu` |
 | `TagChipsInput.tsx` | Removable tag chips + an add field (Enter/comma/Add; Backspace on an empty field removes the last). Duplicates and blanks ignored. Used for a group assistant's analysis categories. Behaviour in React-free `shared/tagList.ts` (`addTags`, `removeTag`) |
@@ -285,6 +287,11 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `layered/LayeredAiGenerator.tsx` | Whole-tree AI generator, shown *instead of* the builder panels (§5 rule 2); stale responses discarded |
 | `layered/LayeredSettingsPanel.tsx` | Group layered assistant settings: publish to read-access members, enforce model (`ModelPicker`), tracking/analysis/categories when the group is approved |
 | `layered/LayeredPublishPanel.tsx` | Link (debounced checks: shape → reserved → appropriate → not taken), who can open it (personal only), icon upload. Controlled by the builder |
+| `assistantIconModel.ts` | The assistant icon vocabulary — `readIconRef` (defensive; accepts `key` or `metadata.contentKey`), `promptIconRef` / `layeredIconRef` (where each list row keeps it), `toStoredIcon` (drops the `File` and its bytes), `withAstIcon` (a cleared icon must be *absent* — the editor rebuilds `data`, §5 rule 42), `iconKeysToDelete`. No React imports |
+| `AssistantIconField.tsx` | Editor control for the icon: preview tile, Add/Replace/Remove, upload progress. Uploads eagerly (`AttachFile`, `type:'assistant-icon'`) but never deletes: a replaced or removed file goes to `onQueueDelete` and the host deletes it after a successful save. Host must block save while `onUploadingChange(true)` |
+| `refreshScheduleModel.ts` | Refresh-schedule vocabulary. Websites: per-URL `scanFrequency` in days — `websiteScheduleRows`, `setWebsiteScanFrequency` (sets the `websiteUrls` entry **and** the matching data sources' metadata, which the cron is derived from; a sitemap fans out by `fromSitemap`), `describeLastScanned`. Drive: one `DriveRescanSchedule` — `withDriveDefaults`, `toggleDriveSchedule`, `describeDriveSchedule`. `scheduleBadge`. No React imports |
+| `rescanTaskSync.ts` | Create/update/delete of the two rescan scheduled tasks at save (`syncRescanTasks`, with `utils/app/scheduledTasks` injected). A drive schedule that never loaded (`null`) leaves its task alone — the old modal read "not loaded" as "off" and deleted it; a wanted task that couldn't be made is returned in `failed`. `withScheduledTaskIds`, `sameTaskIds`. No React imports |
+| `RefreshSchedulePanel.tsx` | "Keep sources up to date" card in the editor's Data Sources section: a frequency per website, and one toggle + frequency/day/time for the selected drive files. Replaces the two alarm-clock popovers (`WebsiteScanScheduler`, drive `SchedulerPanel`). Controlled; only offered with `featureFlags.scheduledTasks`, and drive only for non-group assistants |
 | `NewGroupManagementModal.tsx` | Group management modal opened from the gear icon on a group header in `GroupAssistantsTab`. Members (add/remove/edit-access via `EmailChipsInput`), Group Types, Amplify Groups, System Users, and Delete Group. Uses `CreationModalShell`, `CapabilityCard`, `ConfirmDialog`, `NewUILoadingStatus`. Never opens `AssistantAdminUI` |
 
 ### `views/`
@@ -736,6 +743,15 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     must be callable twice in one session with the second call seeing the first (read the latest list from
     a ref), and the builder must remember the id/link after the first success so a retry updates rather
     than duplicates.
+44. **A setting that lives somewhere other than the assistant must not be saved from a guess.** The drive
+    refresh schedule is a scheduled task's cron expression, read back asynchronously; the old modal saved
+    "not loaded yet" as "off", which *deletes* the task. Keep "unknown" (`null`) distinct from "off" and make
+    the save leave the thing alone. Related: a new assistant has no `assistantId` until its first save, and
+    the rescan tasks name the assistant by id, so its tasks are created after that save and the ids written
+    back with a second save (rolling the tasks back if that second save fails); an edit already has the id and
+    writes them first. And an uploaded file that a save replaces (the icon) is deleted only after the save
+    succeeds — deleting on click leaves the assistant pointing at nothing if the editor is cancelled.
+
 
 ---
 
