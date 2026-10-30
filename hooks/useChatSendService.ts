@@ -691,6 +691,15 @@ export function useSendService() {
                         }
                     }
 
+                    // Skills the user explicitly picked in the classic composer (SkillsToggle)
+                    if (featureFlags.skills) {
+                        const selectedSkills = message.data?.skills;
+                        if (Array.isArray(selectedSkills) && selectedSkills.length > 0) {
+                            chatBody.skills = selectedSkills;
+                            chatBody.skillSelectionMode = message.data?.skillSelectionMode || 'manual';
+                        }
+                    }
+
                     console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
 
                     if (isArtifactsOn && selectedConversation.artifacts) {
