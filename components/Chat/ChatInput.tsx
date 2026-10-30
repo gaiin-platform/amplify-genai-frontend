@@ -92,6 +92,7 @@ import { AttachmentDisplay } from '@/components/Chat/AttachmentDisplay';
 import { useLargeTextManager } from '@/hooks/useLargeTextManager';
 import { useTextBlockEditor } from '@/hooks/useTextBlockEditor';
 import toast from 'react-hot-toast';
+import { SkillsToggle } from '@/components/Skills';
 
 
 
@@ -300,6 +301,11 @@ export const ChatInput = ({
     const [workflowViewerOpened, setWorkflowViewerOpened] = useState(false);
     useEffect(() => { if (showWorkflowSelector) setWorkflowViewerOpened(true); }, [showWorkflowSelector]);
     const [selectedWorkflow, setSelectedWorkflow] = useState<AstWorkflow | null>(null);
+
+    // Skills picked for this conversation. Reset when the conversation changes so one
+    // chat's skills are never silently sent with another chat's messages.
+    const [selectedSkillIds, setSelectedSkillIds] = useState<string[]>([]);
+    useEffect(() => { setSelectedSkillIds([]); }, [selectedConversation?.id]);
     const workflowSelectorRef = useRef<HTMLDivElement | null>(null);
 
     // Block modal state — shown when user tries an incompatible action/workflow combo
@@ -666,6 +672,8 @@ export const ChatInput = ({
         let messageContent = content || '';
         let messageLabel = content || '';
         let messageData: any = {
+            // Explicitly picked skills; useChatSendService forwards them to the backend
+            ...(selectedSkillIds.length > 0 ? { skills: selectedSkillIds, skillSelectionMode: 'manual' } : {}),
             // Include selected workflow template ID if any
             ...(selectedWorkflow ? { workflowTemplateId: selectedWorkflow.templateId } : {})
         };
@@ -2117,6 +2125,16 @@ export const ChatInput = ({
                              pendingArtifacts={pendingArtifacts}
                              onAddPendingArtifact={handleAddPendingArtifact}
                          />
+                        }
+
+                        {/* Skills picker — the plugin selector that used to gate this is gone, so the
+                            feature flag + chat endpoint are the only requirements */}
+                        { featureFlags.skills && chatEndpoint &&
+                            <SkillsToggle
+                                chatEndpoint={chatEndpoint}
+                                selectedSkillIds={selectedSkillIds}
+                                onSelectionChange={setSelectedSkillIds}
+                            />
                         }
 
                         <div className='flex flex-row gap-2'>
