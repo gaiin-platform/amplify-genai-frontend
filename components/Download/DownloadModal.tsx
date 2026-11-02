@@ -4,7 +4,7 @@ import React, {FC, useContext, useEffect, useRef, useState} from "react";
 import {IconDownload} from '@tabler/icons-react';
 import styled, {keyframes} from "styled-components";
 import {FiCommand} from "react-icons/fi";
-import {ConversionOptions, convert} from "@/services/downloadService";
+import {ConversionOptions, convert, waitForConvertedFile} from "@/services/downloadService";
 import { LatestExportFormat } from "@/types/export";
 import { isRemoteConversation } from "@/utils/app/conversation";
 import { fetchMultipleRemoteConversations } from "@/services/remoteConversationService";
@@ -28,13 +28,6 @@ const LoadingIcon = styled(FiCommand)`
   font-size: 4rem;
   animation: ${animate} 2s infinite;
 `;
-
-// Converter errors can contain pandoc internals and temp paths; show a short, readable line.
-const friendlyConversionError = (raw: string): string => {
-    const firstLine = (raw || "").trim().split("\n")[0] || "";
-    const cleaned = firstLine.replace(/(\/[\w.\-]+){2,}/g, "").replace(/\s+/g, " ").trim();
-    return cleaned.length > 200 ? cleaned.slice(0, 200) + "…" : cleaned;
-};
 
 export const DownloadModal: FC<DownloadModalProps> = (
     {
@@ -185,53 +178,32 @@ export const DownloadModal: FC<DownloadModalProps> = (
             statsService.downloadItemEvent(conversionOptions, downloadData);
 
             stopPollingRef.current = false;
-            let resultArrived = false;
-            let triesLeft = 90;
 
-            const checkReady = async (url:string, errorUrl?:string) => {
-                if (stopPollingRef.current) return; // modal was closed
-                try {
-                    triesLeft = triesLeft - 1;
-                    const result = await fetch(url);
-                    if(result.ok){
-                        resultArrived = true;
+            if (result.success) {
+                const url = result.data.url;
+                const outcome = await waitForConvertedFile(url, result.data.errorUrl, {
+                    shouldStop: () => stopPollingRef.current, // modal was closed
+                });
+                switch (outcome.status) {
+                    case 'ready':
                         setDownloadUrl(url);
                         setIsDownloading(false);
-                        return;
-                    }
-
-                    // The converter writes a small marker when it fails so we can show the
-                    // real reason instead of waiting for the timeout.
-                    if (errorUrl) {
-                        try {
-                            const errorResult = await fetch(errorUrl);
-                            if (errorResult.ok) {
-                                const reason = friendlyConversionError(await errorResult.text());
-                                alert(`Unable to create the ${format === 'pptx' ? 'PowerPoint' : 'Word'} file. ${reason}`);
-                                setIsDownloading(false);
-                                return;
-                            }
-                        } catch (e) {
-                            // marker not readable yet - keep polling for the output
-                        }
-                    }
-
-                    if(triesLeft > 0){
-                        setTimeout(()=>checkReady(url, errorUrl), 1000);
-                    }
-                    else {
+                        break;
+                    case 'failed':
+                        alert(`Unable to create the ${format === 'pptx' ? 'PowerPoint' : 'Word'} file. ${outcome.reason}`);
+                        setIsDownloading(false);
+                        break;
+                    case 'timeout':
                         alert("The file is taking too long to prepare. Please try again, or try a different template or fewer slides.");
                         setIsDownloading(false);
-                    }
-                } catch (e) {
-                    alert("Failed to reach the download service. Please check your Internet connection and try again.");
-                    setIsDownloading(false);
+                        break;
+                    case 'unreachable':
+                        alert("Failed to reach the download service. Please check your Internet connection and try again.");
+                        setIsDownloading(false);
+                        break;
+                    case 'stopped':
+                        break;
                 }
-            }
-            if (result.success) {
-                
-                const downloadUrl = result.data.url;
-                checkReady(downloadUrl, result.data.errorUrl);
             } else {
                 alert("Failed to reach the download service. Please check your Internet connection and try again.");
                 setIsDownloading(false);

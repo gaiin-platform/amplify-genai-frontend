@@ -92,6 +92,12 @@ import {
 } from '@/components/NewUI/shared/messageProvenance';
 import { NewUIMessageInfoButton } from '@/components/NewUI/chat/NewUIMessageInfoButton';
 import { getAgentLog } from '@/utils/app/agent';
+import {
+  canExportAsWord,
+  exportMessageAsWord,
+  triggerFileDownload,
+} from '@/components/NewUI/shared/messageWordExport';
+import toast from 'react-hot-toast';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -322,6 +328,9 @@ interface ActionRowProps {
   onRate: (slot: Slot, rating: 'good' | 'bad' | null) => void;
   /** Builds the "response details" popover content for an assistant slot (called only while open). */
   getProvenance: (slot: Slot) => MessageProvenance;
+  /** Offer "Download as Word" in the ⋯ popover (false while streaming / for empty replies). */
+  canDownloadWord: boolean;
+  onDownloadWord: (slot: Slot) => void;
 }
 
 const ActionRow: React.FC<ActionRowProps> = ({
@@ -337,6 +346,8 @@ const ActionRow: React.FC<ActionRowProps> = ({
   isSpeaking,
   onRate,
   getProvenance,
+  canDownloadWord,
+  onDownloadWord,
 }) => {
   const [copied, setCopied] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -503,6 +514,7 @@ const ActionRow: React.FC<ActionRowProps> = ({
             <NewUIMessageInfoButton
               getProvenance={() => getProvenance(slot)}
               onOpenChange={setInfoOpen}
+              onDownloadWord={canDownloadWord ? () => onDownloadWord(slot) : undefined}
             />
           </div>
           {timestampNode}
@@ -517,7 +529,7 @@ const ActionRow: React.FC<ActionRowProps> = ({
 
 export const NewUIMessageActionsLayer: React.FC = () => {
   const {
-    state: { messageIsStreaming, selectedConversation },
+    state: { messageIsStreaming, selectedConversation, statsService },
     handleUpdateSelectedConversation,
   } = useContext(HomeContext);
   const track = useTrack();
@@ -1030,6 +1042,30 @@ export const NewUIMessageActionsLayer: React.FC = () => {
     return getMessageProvenance({ message, userMessage, readAgentLog: getAgentLog });
   }, []);
 
+  // Download one reply as a .docx. Reads the live conversation (slot.message is a stale
+  // scan snapshot). Progress / failure surface as a toast because the ⋯ popover has
+  // already closed by the time the converter finishes.
+  const statsServiceRef = useRef(statsService);
+  statsServiceRef.current = statsService;
+  const handleDownloadWord = useCallback(async (slot: Slot) => {
+    const conversation = conversationRef.current;
+    const message = conversation?.messages?.[slot.rawIndex] ?? slot.message;
+    if (!conversation || !canExportAsWord(message)) return;
+
+    const toastId = toast.loading('Preparing Word document…');
+    const result = await exportMessageAsWord({
+      conversation,
+      message,
+      onConverted: (options, payload) => statsServiceRef.current?.downloadItemEvent(options, payload),
+    });
+    if (result.ok) {
+      toast.dismiss(toastId);
+      triggerFileDownload(result.url);
+    } else {
+      toast.error(result.message, { id: toastId });
+    }
+  }, []);
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   if (!overlayEl || !slots.length) return null;
@@ -1073,6 +1109,11 @@ export const NewUIMessageActionsLayer: React.FC = () => {
             isSpeaking={isSpeaking && speakingKeyRef.current === slot.key}
             onRate={handleRate}
             getProvenance={getProvenance}
+            canDownloadWord={
+              canExportAsWord(liveMsg) &&
+              !(messageIsStreaming && slot.key === slots[slots.length - 1]?.key)
+            }
+            onDownloadWord={handleDownloadWord}
           />
         );
       })}

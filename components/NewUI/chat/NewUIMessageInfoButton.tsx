@@ -7,11 +7,14 @@
  * popover is open (so a transcript of hundreds of replies pays nothing). The data
  * model lives in `shared/messageProvenance.ts`.
  *
+ * When the host passes `onDownloadWord`, a footer row offers "Download as Word"; the
+ * popover closes first so the host's progress / error toast is not hidden behind it.
+ *
  * The panel is portalled to `document.body`, so it opts in to
  * `data-new-ui-shell="true"` (NEW_UI_GUIDE §29) for token-correct scrollbars.
  */
 import React, { useId, useState } from 'react';
-import { IconDots } from '@tabler/icons-react';
+import { IconDots, IconFileTypeDocx } from '@tabler/icons-react';
 import {
   autoUpdate,
   flip,
@@ -37,6 +40,8 @@ interface Props {
   getProvenance: () => MessageProvenance;
   /** Lets the host keep its hover-only action row visible while the panel is open. */
   onOpenChange?: (open: boolean) => void;
+  /** Present => show "Download as Word". Omit it for replies that can't be exported. */
+  onDownloadWord?: () => void;
 }
 
 const labelStyle: React.CSSProperties = {
@@ -82,7 +87,7 @@ const Chips: React.FC<{ items: string[] }> = ({ items }) => (
   </div>
 );
 
-export const NewUIMessageInfoButton: React.FC<Props> = ({ getProvenance, onOpenChange }) => {
+export const NewUIMessageInfoButton: React.FC<Props> = ({ getProvenance, onOpenChange, onDownloadWord }) => {
   const [open, setOpenState] = useState(false);
   const titleId = useId();
 
@@ -178,6 +183,44 @@ export const NewUIMessageInfoButton: React.FC<Props> = ({ getProvenance, onOpenC
               <Row label="Files attached">
                 <Chips items={capList(info.files)} />
               </Row>
+            )}
+
+            {onDownloadWord && (
+              <div
+                style={{
+                  marginTop: 12,
+                  paddingTop: 8,
+                  borderTop: '1px solid var(--border-subtle)',
+                }}
+              >
+                <button
+                  type="button"
+                  className="new-ui-popover-action"
+                  onClick={() => {
+                    setOpen(false);
+                    onDownloadWord();
+                  }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    width: '100%',
+                    padding: '6px 8px',
+                    border: 'none',
+                    borderRadius: 6,
+                    background: 'transparent',
+                    color: 'var(--text-primary)',
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--bg-hover)')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <IconFileTypeDocx size={16} />
+                  Download as Word
+                </button>
+              </div>
             )}
           </div>
         </FloatingPortal>
