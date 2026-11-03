@@ -17,4 +17,5 @@ export const useMediaQuery = (query: string): boolean => {
 };
 
 /** True on devices without hover (phones/tablets): hover-revealed UI must be shown outright. */
-export const useIsTouch = (): boolean => useMediaQuery('(hover: none)');
+/** Same query as the Tailwind `touch:` variant and the touch block in globals.css. */
+export const useIsTouch = (): boolean => useMediaQuery('(hover: none) and (pointer: coarse)');

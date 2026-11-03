@@ -347,7 +347,7 @@ const InstructionRow: React.FC<InstructionRowProps> = ({
       </label>
 
       {instruction && (
-        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 touch:opacity-100">
           {onEdit && (
             <ActionButton onClick={onEdit} label="Edit" title="Edit">
               <IconPencil size={15} stroke={1.5} />

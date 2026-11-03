@@ -424,7 +424,7 @@ const FileRow: React.FC<FileRowProps> = ({
                                 setRenameValue(editableName);
                                 setIsRenaming(true);
                             }}
-                            className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-[4px] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                            className="flex-shrink-0 flex items-center justify-center h-5 w-5 touch:h-8 touch:w-8 rounded-[4px] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto touch:opacity-100 touch:pointer-events-auto"
                             style={{ color: 'var(--text-muted)' }}
                         >
                             <IconPencil size={13} />
@@ -668,7 +668,7 @@ const ArtifactLibraryRow: React.FC<{
                             aria-label={'Rename ' + item.name}
                             title="Rename (applies to all versions)"
                             onClick={() => { setDraft(item.name); setIsRenaming(true); }}
-                            className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-[4px] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto"
+                            className="flex-shrink-0 flex items-center justify-center h-5 w-5 touch:h-8 touch:w-8 rounded-[4px] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto touch:opacity-100 touch:pointer-events-auto"
                             style={{ color: 'var(--text-muted)' }}
                         >
                             <IconPencil size={13} />

@@ -381,11 +381,11 @@ export const NewWorkflowsView: React.FC = () => {
 
               {/* Reserved action rail: stays mounted so text never reflows on hover. */}
               <div
-                className={`flex w-[60px] flex-shrink-0 items-center justify-end gap-1 self-center transition-opacity ${
+                className={`flex w-[60px] touch:w-[80px] flex-shrink-0 items-center justify-end gap-1 self-center transition-opacity ${
                   isDeleting
                     ? 'opacity-100'
                     : canEdit
-                    ? 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100'
+                    ? 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 touch:pointer-events-auto touch:opacity-100'
                     : 'pointer-events-none opacity-0'
                 }`}
                 onClick={(e) => e.stopPropagation()}

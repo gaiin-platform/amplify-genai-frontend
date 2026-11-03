@@ -51,6 +51,7 @@ import { SidebarSection } from './SidebarSection';
 import { ConversationRow } from './ConversationRow';
 import { FolderRow } from './FolderRow';
 import { AccountMenu } from './AccountMenu';
+import { useIsTouch } from '@/components/NewUI/shared/useMediaQuery';
 import { getUserChatFolders } from '@/components/NewUI/shared/chatFolderHelpers';
 import NoticeDialog from '@/components/NewUI/shared/NoticeDialog';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
@@ -218,6 +219,16 @@ function groupConversationsByTime(
   return { today, yesterday, previous };
 }
 
+/** The user's saved desktop open/closed preference (defaults to open). */
+const readStoredSidebarOpen = (): boolean => {
+  try {
+    const stored = localStorage.getItem('showChatbar');
+    return stored !== null ? stored === 'true' : true;
+  } catch {
+    return true;
+  }
+};
+
 export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username }) => {
   const {
     state: {
@@ -254,14 +265,17 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
   const [isOpen, setIsOpen] = useState(() => {
     if (typeof window === 'undefined') return true;
-    const stored = localStorage.getItem('showChatbar');
-    return stored !== null ? stored === 'true' : true;
+    // Narrow (mobile drawer) always starts closed — otherwise the first paint
+    // shows the drawer open until the mount effect collapses it.
+    if (window.innerWidth < SIDEBAR_AUTO_COLLAPSE_THRESHOLD) return false;
+    return readStoredSidebarOpen();
   });
   // settingsSection: null = closed, 'general' = open to General, 'skills' = open to Customize
   const [settingsSection, setSettingsSection] = useState<string | null>(null);
 
   // Mobile (< SIDEBAR_AUTO_COLLAPSE_THRESHOLD): the rail is replaced by a top bar and the
   // expanded sidebar becomes an overlay drawer. isOpen still drives open/closed.
+  const isTouch = useIsTouch();
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== 'undefined' && window.innerWidth < SIDEBAR_AUTO_COLLAPSE_THRESHOLD,
   );
@@ -364,10 +378,6 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // Tracks the current isOpen value without creating a stale closure in the resize effect.
   const isOpenRef = useRef(isOpen);
   useEffect(() => { isOpenRef.current = isOpen; }, [isOpen]);
-
-  // True when the sidebar was collapsed automatically (not by user action).
-  // Used to distinguish "auto-collapse → auto-expand" from "user collapsed → should stay closed".
-  const wasAutoCollapsedRef = useRef(false);
 
   // ── Recents scrollbar idle-timer ─────────────────────────────────────────
   // Sets data-scrolling="true" on the recents div while the user is actively
@@ -494,18 +504,18 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       if (isNarrow === wasNarrow) return;
       wasNarrow = isNarrow;
 
-      if (isNarrow && isOpenRef.current) {
-        // Window became too narrow — auto-collapse.
-        wasAutoCollapsedRef.current = true;
-        setIsOpen(false);
+      // Neither branch writes localStorage: narrow-mode open/close is transient.
+      if (isNarrow) {
+        // Too narrow — collapse (on mobile: close the drawer).
+        if (isOpenRef.current) setIsOpen(false);
         dispatch({ field: 'showChatbar', value: false });
-        // Deliberately NOT writing to localStorage — this is transient, not a user preference change.
-      } else if (!isNarrow && !isOpenRef.current && wasAutoCollapsedRef.current) {
-        // Window is wide enough again AND we were the ones who collapsed it — auto-expand.
-        wasAutoCollapsedRef.current = false;
-        setIsOpen(true);
-        dispatch({ field: 'showChatbar', value: true });
-        // Deliberately NOT writing to localStorage — restoring to the user's prior preference.
+      } else {
+        // Wide again — restore the user's saved desktop preference. Restoring (rather
+        // than keeping whatever isOpen was) stops a drawer opened on a phone from
+        // turning into an expanded sidebar after rotating to landscape.
+        const preferred = readStoredSidebarOpen();
+        setIsOpen(preferred);
+        dispatch({ field: 'showChatbar', value: preferred });
       }
     };
 
@@ -519,7 +529,6 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // and the collapse/expand logic only fires when crossing the threshold.
 
   const handleToggle = () => {
-    wasAutoCollapsedRef.current = false; // user-initiated toggle — clear the auto-collapse flag
     const next = !isOpen;
     setIsOpen(next);
     dispatch({ field: 'showChatbar', value: next });
@@ -545,7 +554,11 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   // Escape closes the drawer.
   useEffect(() => {
     if (!isMobile || !isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileDrawerOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      // Nested handlers (row ⋯ menu, account menu, rename inputs) preventDefault
+      // when they consume Escape; only an unhandled Escape closes the drawer.
+      if (e.key === 'Escape' && !e.defaultPrevented) setMobileDrawerOpen(false);
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isMobile, isOpen, setMobileDrawerOpen]);
@@ -864,12 +877,12 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       <>
         {mobileTopBar}
         {settingsSection !== null && (
-          <NewSettingsModal
+          <NewSettingsModal key="settings-modal"
             openToSection={settingsSection}
             onClose={() => setSettingsSection(null)}
           />
         )}
-        <NoticeDialog
+        <NoticeDialog key="inaccessible-notice"
           open={showInaccessibleConversationNotice}
           title="Conversation unavailable"
           message={INACCESSIBLE_CONVERSATION_MESSAGE}
@@ -944,12 +957,12 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
         {/* Settings modal still renders outside the rail */}
         {settingsSection !== null && (
-          <NewSettingsModal
+          <NewSettingsModal key="settings-modal"
             openToSection={settingsSection}
             onClose={() => setSettingsSection(null)}
           />
         )}
-        <NoticeDialog
+        <NoticeDialog key="inaccessible-notice"
           open={showInaccessibleConversationNotice}
           title="Conversation unavailable"
           message={INACCESSIBLE_CONVERSATION_MESSAGE}
@@ -1105,7 +1118,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
                   size="sm"
                   title="New folder"
                   onClick={handleCreateNewFolder}
-                  className={`transition-opacity duration-100 ${isRecentsHeaderHovered || isMobile ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  className={`transition-opacity duration-100 ${isRecentsHeaderHovered || isMobile || isTouch ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 >
                   <IconFolderPlus size={13} />
                 </IconButton>
@@ -1214,12 +1227,12 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
       {/* New Settings Modal — two-column per spec */}
       {settingsSection !== null && (
-        <NewSettingsModal
+        <NewSettingsModal key="settings-modal"
           openToSection={settingsSection}
           onClose={() => setSettingsSection(null)}
         />
       )}
-      <NoticeDialog
+      <NoticeDialog key="inaccessible-notice"
         open={showInaccessibleConversationNotice}
         title="Conversation unavailable"
         message={INACCESSIBLE_CONVERSATION_MESSAGE}

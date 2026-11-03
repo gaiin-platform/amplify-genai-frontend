@@ -128,7 +128,7 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ message, onDis
           <span style={{ whiteSpace: 'nowrap' }}>{oneLine}</span>
         )}
       </div>
-      <span style={{ width: '24px', flexShrink: 0, display: 'inline-flex', justifyContent: 'flex-end' }}>
+      <span className="w-6 touch:w-10" style={{ flexShrink: 0, display: 'inline-flex', justifyContent: 'flex-end' }}>
         {onDismiss && (
           <button
             type="button"

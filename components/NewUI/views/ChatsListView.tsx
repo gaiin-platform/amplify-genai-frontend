@@ -427,7 +427,7 @@ export const ChatsListView: React.FC = () => {
 
                 <div className="flex items-center gap-2 max-md:w-full">
                     {/* Search */}
-                    <div className="relative min-w-0 max-md:flex-1">
+                    <div className="relative max-md:min-w-0 max-md:flex-1">
                         <IconSearch
                             size={15}
                             className="absolute left-3 top-1/2 -translate-y-1/2 text-[--text-muted] pointer-events-none"

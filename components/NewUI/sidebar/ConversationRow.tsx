@@ -146,6 +146,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
     if (!isMenuOpen) return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        e.preventDefault(); // handled — don't also close the mobile drawer
         closeMenu();
         dotsButtonRef.current?.focus();
       }

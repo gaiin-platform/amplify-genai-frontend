@@ -898,6 +898,17 @@ pre:has(div.codeblock) {
     width: 36px !important;
     height: 36px !important;
   }
+  /* ...and reserve room for the taller row below each message (desktop sizes these
+     for a 24px row in conversation-view.css), so it doesn't overlap the next turn. */
+  [data-new-ui="true"] .enhanced-chat-message.assistant-message {
+    padding-bottom: 40px !important; /* GAP 4 + 36 */
+  }
+  [data-new-ui="true"] .enhanced-chat-message.assistant-message:has(.mt-3.pointer-events-none > .pointer-events-auto.max-w-full.overflow-hidden) {
+    padding-bottom: calc(var(--nui-agentlog-gap, 0.75rem) + 36px) !important;
+  }
+  [data-new-ui="true"] .enhanced-chat-message.user-message {
+    padding-bottom: 40px !important; /* GAP 2 + 36, rounded up */
+  }
 
   input:not([type='checkbox']):not([type='radio']):not([type='range']),
   textarea,

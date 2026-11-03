@@ -51,7 +51,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
     return (
         <div
             // Mobile: shrink to fit the toolbar instead of a fixed 200px that overflows.
-            className={fullWidth ? 'relative' : 'relative min-w-0 max-md:flex-1'}
+            className={fullWidth ? 'relative' : 'relative max-md:min-w-0 max-md:flex-1'}
             style={fullWidth ? { width: '100%' } : undefined}
         >
             <IconSearch
