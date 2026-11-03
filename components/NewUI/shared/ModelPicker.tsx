@@ -50,6 +50,7 @@ import {
   FloatingPortal,
   offset,
   shift,
+  size,
   useClick,
   useDismiss,
   useFloating,
@@ -639,10 +640,10 @@ const MoreModelsMenu: React.FC<{
         borderRadius: 12,
         boxShadow: '0 12px 32px rgba(0,0,0,.5)',
         overflow: 'hidden',
-        maxHeight: 'min(420px, 60dvh)',
+        maxHeight: 'min(420px, 60dvh, var(--submenu-max-h, 9999px))',
       }}
     >
-      <div style={{ overflowY: 'auto', maxHeight: 'min(420px, 60dvh)', padding: '6px 0' }}>
+      <div style={{ overflowY: 'auto', maxHeight: 'min(420px, 60dvh, var(--submenu-max-h, 9999px))', padding: '6px 0' }}>
         {sorted.map((model) => {
           const isSelected = model.id === selectedId;
           return (
@@ -951,7 +952,19 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
   const modelsFloating = useFloating({
     open: submenu === 'models',
     placement: SUBMENU_PLACEMENT,
-    middleware: submenuMiddleware(),
+    // On phones there is no room beside the primary panel, so flip drops the list
+    // above/below it, where shift() only slides horizontally and the 420px list ran
+    // off the top of the screen. size() caps it to the space actually available
+    // (the list scrolls inside), via --submenu-max-h read by MoreModelsMenu.
+    middleware: [
+      ...submenuMiddleware(),
+      size({
+        padding: 8,
+        apply({ availableHeight, elements }) {
+          elements.floating.style.setProperty('--submenu-max-h', `${Math.max(120, Math.floor(availableHeight))}px`);
+        },
+      }),
+    ],
     whileElementsMounted: autoUpdate,
   } as any);
 
