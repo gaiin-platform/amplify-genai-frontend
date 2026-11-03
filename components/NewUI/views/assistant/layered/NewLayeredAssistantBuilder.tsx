@@ -22,7 +22,7 @@
 
 import React, { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { IconAlertTriangle, IconLoader2, IconPlus, IconSparkles, IconUsers, IconWorld, IconX, IconSettings } from '@tabler/icons-react';
+import { IconAlertTriangle, IconLoader2, IconPlus, IconRobot, IconRoute, IconSparkles, IconUsers, IconWorld, IconX, IconSettings } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
 import { Group } from '@/types/groups';
 import { Prompt } from '@/types/prompt';
@@ -76,6 +76,7 @@ import {
 import { PUBLIC_ACCESS, PublishState, publishBlocker, shouldCallAddPath } from '../layeredPublishModel';
 import { LayeredTreeOutline, KeyboardMove } from './LayeredTreeOutline';
 import { LayeredTreeMap } from './LayeredTreeMap';
+import { depthColor } from '../layeredTreeStyle';
 import { LayeredNodeEditor } from './LayeredNodeEditor';
 import { LayeredAssistantPicker } from './LayeredAssistantPicker';
 import { LayeredAiGenerator } from './LayeredAiGenerator';
@@ -518,7 +519,7 @@ export const NewLayeredAssistantBuilder: React.FC<NewLayeredAssistantBuilderProp
                             <div className="nui-la-panels">
                                 <section className="nui-la-panel" style={card} aria-label="Tree">
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
-                                        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 600 }}>Tree</h3>
+                                        <h3 style={{ margin: 0, fontSize: 11, fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Structure</h3>
                                         <button type="button" onClick={handleAddSubParent} disabled={!addTarget} title={addTarget ? `Add a sub-parent to “${addTarget.name.trim() || 'Unnamed parent'}”` : 'Select a parent first'} className={`${FOCUS} disabled:opacity-40 disabled:cursor-not-allowed hover:bg-[--bg-active]`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, height: 28, padding: '0 10px', border: '1px solid var(--border-subtle)', borderRadius: 7, background: 'var(--bg-raised)', color: 'var(--text-primary)', fontSize: 12, cursor: 'pointer' }}>
                                             <IconPlus size={13} aria-hidden="true" /> Sub-parent
                                         </button>
@@ -526,9 +527,17 @@ export const NewLayeredAssistantBuilder: React.FC<NewLayeredAssistantBuilderProp
                                     <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
                                         <LayeredTreeOutline root={root} selectedId={selectedNode.id} onSelect={setSelectedId} onMove={handleMoveByDrop} onKeyboardMove={handleKeyboardMove} />
                                     </div>
-                                    <p role="status" style={{ margin: '8px 0 6px', fontSize: 11.5, color: missing.length ? 'var(--text-error)' : 'var(--text-muted)' }}>
-                                        {routerCount} parent{routerCount === 1 ? '' : 's'} · {leafCount} assistant{leafCount === 1 ? '' : 's'}
-                                        {missing.length > 0 && ` · ${missing.length} can’t be found`}
+                                    <p role="status" style={{ margin: '8px 0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap', gap: '2px 10px', fontSize: 11.5, color: 'var(--text-muted)' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                            <IconRoute size={12} aria-hidden="true" style={{ color: depthColor(0) }} />
+                                            {routerCount} parent{routerCount === 1 ? '' : 's'}
+                                        </span>
+                                        <span aria-hidden="true" style={{ opacity: 0.4 }}>·</span>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                                            <IconRobot size={12} aria-hidden="true" style={{ color: depthColor(1) }} />
+                                            {leafCount} assistant{leafCount === 1 ? '' : 's'}
+                                        </span>
+                                        {missing.length > 0 && <span style={{ color: 'var(--text-error)' }}>· {missing.length} can’t be found</span>}
                                     </p>
                                     <LayeredTreeMap root={root} selectedId={selectedNode.id} onSelect={setSelectedId} />
                                 </section>

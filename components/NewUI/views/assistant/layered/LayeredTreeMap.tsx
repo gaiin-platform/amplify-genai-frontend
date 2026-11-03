@@ -1,14 +1,17 @@
 /**
  * LayeredTreeMap — a small SVG overview of the whole routing tree, for orientation and quick
- * selection. Shape carries the meaning (parents are solid discs, assistants are rings with a dot) and
- * the selected node gets an accent ring, so nothing depends on hue. Every node is a keyboard-focusable
- * button named after the node. Layout comes from `layeredTreeLayout`.
+ * selection. Nodes take the same per-level colour as the outline (`layeredTreeStyle`) and the selected
+ * node is amber with a glow ring. Colour is a second cue: shape carries the meaning (parents are larger
+ * discs, assistants smaller discs with a centre dot) and the selection also gets a ring, so nothing
+ * depends on hue. Every node is a keyboard-focusable button named after the node. Layout comes from
+ * `layeredTreeLayout`.
  */
 
 import React, { useMemo } from 'react';
 import { RouterNode } from '@/types/layeredAssistant';
 import { findNode } from '../layeredTreeModel';
 import { buildMapLayout } from '../layeredTreeLayout';
+import { SELECTED_COLOR, depthColor } from '../layeredTreeStyle';
 
 export interface LayeredTreeMapProps {
     root: RouterNode;
@@ -44,6 +47,7 @@ export const LayeredTreeMap: React.FC<LayeredTreeMapProps> = ({ root, selectedId
                 {layout.nodes.map((n) => {
                     const selected = n.id === selectedId;
                     const r = n.isParent ? 7 : 5;
+                    const color = selected ? SELECTED_COLOR : depthColor(n.depth);
                     const name = findNode(root, n.id)?.node.name || (n.isParent ? 'Unnamed parent' : 'Unnamed assistant');
                     return (
                         <g
@@ -63,16 +67,14 @@ export const LayeredTreeMap: React.FC<LayeredTreeMapProps> = ({ root, selectedId
                                 }
                             }}
                         >
-                            {selected && <circle cx={n.x} cy={n.y} r={r + 5} fill="none" stroke="var(--accent)" strokeWidth={2} opacity={0.55} />}
-                            <circle
-                                cx={n.x}
-                                cy={n.y}
-                                r={r}
-                                fill={n.isParent ? (selected ? 'var(--accent)' : 'var(--text-secondary)') : 'var(--bg-raised)'}
-                                stroke={selected ? 'var(--accent)' : 'var(--text-secondary)'}
-                                strokeWidth={1.5}
-                            />
-                            {!n.isParent && <circle cx={n.x} cy={n.y} r={1.8} fill={selected ? 'var(--accent)' : 'var(--text-secondary)'} />}
+                            {selected && (
+                                <>
+                                    <circle cx={n.x} cy={n.y} r={r + 8} fill="none" stroke={SELECTED_COLOR} strokeWidth={1.5} opacity={0.3} />
+                                    <circle cx={n.x} cy={n.y} r={r + 4} fill="none" stroke={SELECTED_COLOR} strokeWidth={2} opacity={0.65} />
+                                </>
+                            )}
+                            <circle cx={n.x} cy={n.y} r={r} fill={color} stroke={selected ? 'var(--text-primary)' : 'var(--bg-raised)'} strokeWidth={selected ? 1.5 : 1} />
+                            {!n.isParent && <circle cx={n.x} cy={n.y} r={1.8} fill="#fff" />}
                             <title>{name}</title>
                         </g>
                     );
@@ -89,10 +91,20 @@ export const LayeredTreeMap: React.FC<LayeredTreeMapProps> = ({ root, selectedId
                     color: 'var(--text-muted)',
                 }}
             >
-                <span>● Parent</span>
-                <span>◎ Assistant</span>
-                <span style={{ color: 'var(--accent)' }}>◯ Selected</span>
+                <LegendItem label="Parent" color={depthColor(0)} r={5.5} />
+                <LegendItem label="Assistant" color={depthColor(1)} r={4} dot />
+                <LegendItem label="Selected" color={SELECTED_COLOR} r={5.5} />
             </figcaption>
         </figure>
     );
 };
+
+const LegendItem: React.FC<{ label: string; color: string; r: number; dot?: boolean }> = ({ label, color, r, dot }) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+        <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden="true">
+            <circle cx={7} cy={7} r={r} fill={color} />
+            {dot && <circle cx={7} cy={7} r={1.5} fill="#fff" />}
+        </svg>
+        {label}
+    </span>
+);
