@@ -95,6 +95,10 @@ import {
   withConversationConnectorActions,
 } from '@/components/NewUI/shared/conversationConnectorActions';
 import {
+  getAssistantConfiguredTools,
+  mergeConfiguredTools,
+} from '@/components/NewUI/shared/assistantConfiguredTools';
+import {
   getConversationSkillSelection,
   skillSelectionOptions,
   withConversationSkillSelection,
@@ -634,11 +638,15 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     richComposerRef.current?.clear();
     setRichHasContent(false);
 
-    // Build configuredTools from selected connector actions
-    const configuredTools =
+    // configuredTools = the assistant's own tools + the connector actions picked in
+    // this chat. The backend never reads definition.tools, so an assistant's tools
+    // only run if they ride on the message (ChatInput does the same on PATH B).
+    const configuredTools = mergeConfiguredTools(
+      getAssistantConfiguredTools(activeAssistant),
       selectedActions.length > 0
         ? getConfiguredToolsForActions(selectedActions)
-        : undefined;
+        : undefined,
+    );
 
     // Merge current-turn docs with prior-message dataSources (dedup by key) so
     // the model retains access to previously uploaded files on every follow-up.

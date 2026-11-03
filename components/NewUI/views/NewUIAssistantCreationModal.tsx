@@ -141,6 +141,12 @@ import {
 } from './assistant/refreshScheduleModel';
 import { RescanTaskIds, sameTaskIds, syncRescanTasks, withScheduledTaskIds } from './assistant/rescanTaskSync';
 import { ToolsCapabilityPanel } from './assistant/ToolsCapabilityPanel';
+import {
+    buildStoredOperations,
+    describeToolSelection,
+    httpApisFromStoredOperations,
+    integrationOpsFromStoredOperations,
+} from './assistant/toolSelectionModel';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -747,11 +753,17 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         const skillMode = (def.data as any)?.skillSelectionMode;
         if (skillMode) setSkillSelectionMode(skillMode);
 
-        // Tools / APIs are usable configuration; integration-owned selections may
-        // be unavailable to the recipient, so those stay opt-in via a fresh copy.
-        if (Array.isArray(def.tools)) setSelectedApis(def.tools);
-        const opInfo = (def.data as any)?.operations;
-        if (Array.isArray(opInfo)) setApiInfo(opInfo);
+        // Restore the selection from data.operations — it is what chat runs and what every
+        // save has always stored. `def.tools` is only the fallback: backends that predate the
+        // fix drop it on save, so it is empty on anything they return. Integration ops run on
+        // the *user's own* connection, so a copied or shared assistant keeps them; a user who
+        // hasn't connected the integration sees it as "Not connected" in the panel.
+        const storedIntegrationOps = integrationOpsFromStoredOperations((def.data as any)?.operations);
+        if (storedIntegrationOps.length > 0) setSelectedApis(storedIntegrationOps);
+        else if (Array.isArray(def.tools)) setSelectedApis(def.tools);
+        // `data.operations` also holds the integration ops (mirrored from `tools` on save), so only
+        // the custom HTTP APIs belong in `apiInfo`; hydrating the rest would write stale copies back.
+        setApiInfo(httpApisFromStoredOperations((def.data as any)?.operations));
         const builtIn = (def.data as any)?.builtInOperations;
         if (Array.isArray(builtIn)) setBuiltInAgentTools(builtIn);
 
@@ -1398,6 +1410,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         : { isPublic: false, accessTo: { amplifyGroups: [], users: emailList } }
                     : undefined;
 
+            const storedOperations = buildStoredOperations(selectedApis || [], apiInfo);
+
             const def: AssistantDefinition = {
                 name: name.trim(),
                 description: description.trim(),
@@ -1424,7 +1438,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     ...(integrationDataSources ? { integrationDriveData: integrationDataSources } : {}),
                     ...(selectedSkills.length > 0 ? { skills: selectedSkills, skillSelectionMode } : {}),
                     ...(builtInAgentTools.length > 0 ? { builtInOperations: builtInAgentTools } : {}),
-                    ...(apiInfo.length > 0 ? { operations: apiInfo } : {}),
+                    // Chat reads tools from data.operations, never from definition.tools (see
+                    // buildStoredOperations), so the selected integration ops must be mirrored here.
+                    ...(storedOperations.length > 0 ? { operations: storedOperations } : {}),
                     // Workflow template — forces v4 ops language; overrides opsLanguageVersion
                     ...(baseWorkflowTemplateId ? {
                         baseWorkflowTemplateId,
@@ -2712,11 +2728,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                     icon={<IconPlugConnected size={18} />}
                                     title="Tools & APIs"
                                     onFirstActive={activateToolsCard}
-                                    badge={
-                                        selectedApis.length + builtInAgentTools.length > 0
-                                            ? `${selectedApis.length + builtInAgentTools.length} configured`
-                                            : undefined
-                                    }
+                                    badge={describeToolSelection(selectedApis, availableApis, builtInAgentTools.length)}
                                 >
                                     {/*
                                      * `apiInfo` is intentionally NOT passed: the old panel declared

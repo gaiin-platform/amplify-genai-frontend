@@ -54,7 +54,15 @@ import { getActivePlugins } from '@/utils/app/plugin';
 import { getSettings } from '@/utils/app/settings';
 import { setAssistant as setAssistantInMsg } from '@/utils/app/assistants';
 import { DEFAULT_ASSISTANT } from '@/types/assistant';
-import { isRealAssistant } from '@/components/NewUI/shared/useConversationAssistant';
+import {
+  isRealAssistant,
+  useConversationAssistant,
+} from '@/components/NewUI/shared/useConversationAssistant';
+import {
+  getAssistantConfiguredTools,
+  mergeConfiguredTools,
+  type ConfiguredToolEntry,
+} from '@/components/NewUI/shared/assistantConfiguredTools';
 import type { SelectedAction } from '@/components/NewUI/shared/AttachMenu';
 import {
   nextOpenAtLatestTop,
@@ -155,7 +163,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
   stopConversationRef,
 }) => {
   const {
-    state: { messageIsStreaming, selectedConversation, featureFlags, selectedAssistant, status },
+    state: { messageIsStreaming, selectedConversation, featureFlags, status },
     handleUpdateConversation,
   } = useContext(HomeContext);
 
@@ -189,6 +197,16 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
   // which would otherwise keep reading the mount-time value.
   const conversationRef = useRef(selectedConversation);
   conversationRef.current = selectedConversation;
+
+  // The assistant this conversation is using — an explicit pick, else the one its
+  // template/transcript names. tryInject is a [] -deps closure, so reading
+  // `selectedAssistant` there returns the value from the shell's FIRST render. For a
+  // "Chat with …" conversation that is still the default assistant: the hook only
+  // restores the real one a render later. The first message then went out with no
+  // assistantId and no tools — a plain chat. Read this ref instead.
+  const { assistant: resolvedAssistant } = useConversationAssistant();
+  const resolvedAssistantRef = useRef(resolvedAssistant);
+  resolvedAssistantRef.current = resolvedAssistant;
 
   /**
    * Set when we send a message that was ALREADY in the transcript (the optimistic
@@ -715,14 +733,6 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
               },
             });
 
-        // Attach connector tools to the message so the backend can execute them.
-        // Both the optimistic copy (already seeded) and a freshly-built message
-        // need this — the optimistic path replaces the seeded message (deleteCount:1),
-        // so the copy here is what the backend actually receives.
-        if (pendingConfiguredTools) {
-          msg = { ...msg, configuredTools: pendingConfiguredTools };
-        }
-
         // Apply the active assistant to the message (mirrors ChatInput.tsx:758).
         // `isRealAssistant`, not an id comparison: a placeholder look-alike
         // ("default" / old-UI "Standard Conversation") has an id that is not
@@ -730,10 +740,24 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
         // DEFAULT_ASSISTANT *by reference* — so passing it through would stamp a
         // phantom assistant onto the transcript permanently and send a bogus
         // `options.assistantId` the backend cannot resolve.
-        const sendAssistant = isRealAssistant(selectedAssistant)
-          ? selectedAssistant
+        const sendAssistant = isRealAssistant(resolvedAssistantRef.current)
+          ? resolvedAssistantRef.current
           : DEFAULT_ASSISTANT;
         msg = setAssistantInMsg(msg, sendAssistant);
+
+        // Attach tools to the message so the backend can execute them: the assistant's
+        // own (the backend never reads definition.tools, and ChatInput on PATH B is the
+        // only other place that merges them in) with the chat-selected connector actions
+        // layered on top. Both the optimistic copy (already seeded) and a freshly-built
+        // message need this — the optimistic path replaces the seeded message
+        // (deleteCount:1), so the copy here is what the backend actually receives.
+        const messageConfiguredTools = mergeConfiguredTools(
+          getAssistantConfiguredTools(sendAssistant),
+          pendingConfiguredTools ?? (msg.configuredTools as ConfiguredToolEntry[] | undefined),
+        );
+        if (messageConfiguredTools) {
+          msg = { ...msg, configuredTools: messageConfiguredTools };
+        }
 
         // Build assistant options for the ChatRequest (mirrors Chat.tsx routeMessage)
         let assistantOptions: Record<string, unknown> | undefined;

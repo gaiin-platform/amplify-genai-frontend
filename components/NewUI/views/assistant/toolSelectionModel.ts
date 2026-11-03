@@ -388,3 +388,87 @@ export const capabilityCounts = (
     agentTools: state.builtInOperations.length,
     total: state.tools.length + state.builtInOperations.length,
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Persisted shape — `definition.tools` vs `definition.data.operations`
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** A custom HTTP API entry as stored in `data.operations`. */
+export type StoredHttpOperation = Record<string, any> & { type: 'http' };
+
+/**
+ * The integration ops an assistant was saved with are stored in TWO places:
+ * `definition.tools` (what the editors reload from) and `definition.data.operations`.
+ * Chat reads only the latter — `ChatInput` and `assistantConfiguredTools` turn
+ * `data.operations` into the message's `configuredTools`, and the backend's
+ * non-agent path reads `assistant.data.operations` directly. `definition.tools` is
+ * never consulted at chat time. The classic editor therefore writes both; an editor
+ * that writes only `tools` saves an assistant that looks configured and has no tools
+ * in a chat.
+ *
+ * Custom HTTP APIs share the `data.operations` list, distinguished by `type: 'http'`.
+ */
+export const buildStoredOperations = (
+    tools: OpDef[],
+    httpApis: Array<Record<string, any>>,
+): Array<OpDef | StoredHttpOperation> => [
+    ...tools,
+    ...httpApis.map((api) => ({ ...api, type: 'http' as const })),
+];
+
+/** The custom HTTP APIs among a saved `data.operations` list; integration ops are excluded. */
+export const httpApisFromStoredOperations = (operations: unknown): Array<Record<string, any>> =>
+    Array.isArray(operations)
+        ? operations.filter((op): op is Record<string, any> => !!op && typeof op === 'object' && op.type === 'http')
+        : [];
+
+/**
+ * The integration ops among a saved `data.operations` list — the editor's `tools` state.
+ *
+ * `data.operations` is the source on reload, not `definition.tools`: backends that predate
+ * the fix hash `tools` in `save_assistant` but never store them, so anything they return from
+ * `/assistant/list` has no `tools`. `data.operations` is the one place the selection has
+ * always survived. `tools` remains a fallback for newer backends and just-saved definitions.
+ */
+export const integrationOpsFromStoredOperations = (operations: unknown): OpDef[] =>
+    Array.isArray(operations)
+        ? operations.filter((op): op is OpDef => !!op && typeof op === 'object' && op.type !== 'http')
+        : [];
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Summary label
+// ─────────────────────────────────────────────────────────────────────────────
+
+const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
+
+/**
+ * Text for the "Tools & APIs" card badge.
+ *
+ * Counting `tools` directly reported "2 configured" for the single task "Read Email",
+ * because a task is several ops (list messages + get message details). Once the live op
+ * catalogue is known the ops are folded back into the tasks they came from, so the badge
+ * says what the panel below shows; ops that no task explains are counted on their own.
+ * Before the catalogue loads only the op count is known, so it says "tools", not "configured".
+ */
+export const describeToolSelection = (
+    tools: OpDef[],
+    availableOps: OpDef[] | null,
+    agentToolCount: number,
+): string | undefined => {
+    const parts: string[] = [];
+
+    if (availableOps && availableOps.length > 0) {
+        const taskIds = inferSelectedComposites(tools, availableOps);
+        const covered = new Set(
+            taskIds.flatMap((id) => compositeById(id)?.operations ?? []),
+        );
+        const loose = tools.filter((tool) => !covered.has(tool.name)).length;
+        if (taskIds.length > 0) parts.push(plural(taskIds.length, 'task', 'tasks'));
+        if (loose > 0) parts.push(plural(loose, 'individual tool', 'individual tools'));
+    } else if (tools.length > 0) {
+        parts.push(plural(tools.length, 'tool', 'tools'));
+    }
+
+    if (agentToolCount > 0) parts.push(plural(agentToolCount, 'agent tool', 'agent tools'));
+    return parts.length > 0 ? parts.join(' · ') : undefined;
+};
