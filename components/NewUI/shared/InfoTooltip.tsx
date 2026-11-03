@@ -47,7 +47,7 @@ export const InfoTooltip: React.FC<InfoTooltipProps> = ({
         onMouseLeave={() => setIsHovered(false)}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}
-        className="inline-flex items-center justify-center rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
+        className="inline-flex items-center justify-center rounded touch:!p-[10px] touch:-m-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2"
         style={{
           padding: 2,
           border: 0,

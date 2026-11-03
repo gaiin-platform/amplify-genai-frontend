@@ -892,6 +892,13 @@ pre:has(div.codeblock) {
 /* iOS Safari zooms the page when focusing a field whose font-size is < 16px,
    and doesn't zoom back out. Touch devices only, so desktop sizing is unchanged. */
 @media (hover: none) and (pointer: coarse) {
+  /* Message action buttons (copy / edit / retry / rate / …) are always visible on
+     touch, so give them a finger-sized target. */
+  .new-ui-action-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
+
   input:not([type='checkbox']):not([type='radio']):not([type='range']),
   textarea,
   select,

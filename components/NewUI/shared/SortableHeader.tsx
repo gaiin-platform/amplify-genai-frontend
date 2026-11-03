@@ -39,7 +39,7 @@ export function SortableHeader<K extends string = string>({
         <button
             type="button"
             onClick={() => onSort(sortKey)}
-            className={`inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-wider transition-colors hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary] rounded-[4px] ${className}`}
+            className={`inline-flex items-center gap-1 touch:min-h-[36px] text-[11px] font-semibold uppercase tracking-wider transition-colors hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary] rounded-[4px] ${className}`}
             style={{ color: isActive ? 'var(--text-secondary)' : 'var(--text-muted)' }}
             aria-label={
                 `Sort by ${label}` +

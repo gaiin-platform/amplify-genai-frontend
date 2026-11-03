@@ -1342,8 +1342,8 @@ export const NewLibraryView: React.FC = () => {
                 {/* Right: search + actions */}
                 <div className="flex flex-wrap items-center gap-2 max-md:w-full">
                     <div className="flex items-center rounded-[8px] border p-0.5" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }} role="tablist" aria-label="Library content">
-                        <button type="button" role="tab" aria-selected={libraryMode === 'files'} onClick={() => setLibraryMode('files')} className="h-[28px] px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'files' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Files</button>
-                        <button type="button" role="tab" aria-selected={libraryMode === 'artifacts'} onClick={() => setLibraryMode('artifacts')} className="h-[28px] px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'artifacts' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Artifacts</button>
+                        <button type="button" role="tab" aria-selected={libraryMode === 'files'} onClick={() => setLibraryMode('files')} className="h-[28px] touch:h-9 px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'files' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Files</button>
+                        <button type="button" role="tab" aria-selected={libraryMode === 'artifacts'} onClick={() => setLibraryMode('artifacts')} className="h-[28px] touch:h-9 px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'artifacts' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Artifacts</button>
                     </div>
                     {/* Search */}
                     <div className="relative max-md:order-last max-md:w-full">

@@ -58,7 +58,7 @@ export const SegmentedControl: React.FC<SegmentedControlProps> = ({
   'aria-label': ariaLabel,
 }) => {
   const activeIndex = items.findIndex((i) => i.id === value);
-  const trackH = size === 'sm' ? 'h-[34px]' : 'h-[28px]';
+  const trackH = size === 'sm' ? 'h-[34px] touch:h-[42px]' : 'h-[28px] touch:h-[36px]';
   const labelSize = size === 'sm' ? 'text-[13px]' : 'text-[12px]';
   const defaultLabel = items.map((i) => i.label).join(' / ');
 

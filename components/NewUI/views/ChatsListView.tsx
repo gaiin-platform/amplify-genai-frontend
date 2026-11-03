@@ -496,7 +496,7 @@ export const ChatsListView: React.FC = () => {
                         <button
                             onClick={handleLoadOlderChats}
                             disabled={loadingOlder}
-                            className="inline-flex items-center gap-2 font-medium text-[--accent] hover:opacity-80 transition-opacity disabled:opacity-60 flex-shrink-0"
+                            className="inline-flex items-center gap-2 touch:min-h-[36px] font-medium text-[--accent] hover:opacity-80 transition-opacity disabled:opacity-60 flex-shrink-0"
                         >
                             {loadingOlder && <IconLoader2 size={14} className="animate-spin" />}
                             {loadingOlder ? 'Loading older chats…' : 'Load older chats'}

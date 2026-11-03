@@ -271,7 +271,7 @@ export const FilterMenu: React.FC<FilterMenuProps> = ({
                     aria-expanded={open}
                     aria-label={triggerAriaLabel}
                     className={`
-            relative w-7 h-7 flex items-center justify-center rounded-full flex-shrink-0
+            relative w-7 h-7 touch:w-10 touch:h-10 flex items-center justify-center rounded-full flex-shrink-0
             hover:bg-[--bg-hover] transition-colors duration-100
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary] focus-visible:ring-offset-2
             ${activeCount > 0 ? 'text-[--accent]' : 'text-[--text-muted] hover:text-[--text-primary]'}

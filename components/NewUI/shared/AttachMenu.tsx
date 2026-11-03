@@ -1832,7 +1832,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
           aria-haspopup="menu"
           aria-expanded={primaryOpen}
           aria-label={`Add to chat${anyToggleActive ? '. Tools active.' : ''}`}
-          className="w-[30px] h-[30px] flex items-center justify-center rounded-[8px] transition-all duration-[140ms] focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+          className="w-[30px] h-[30px] touch:w-10 touch:h-10 flex items-center justify-center rounded-[8px] transition-all duration-[140ms] focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
           style={{
             background: primaryOpen ? 'var(--bg-active)' : 'transparent',
             color: primaryOpen ? 'var(--text-primary)' : 'var(--text-muted)',

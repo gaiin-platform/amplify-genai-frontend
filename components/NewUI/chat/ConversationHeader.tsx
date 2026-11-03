@@ -151,7 +151,7 @@ export const ConversationHeader: React.FC = () => {
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((o) => !o)}
-            className="flex items-center gap-1 rounded-[8px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+            className="flex items-center gap-1 rounded-[8px] touch:min-h-[36px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
             style={{
               padding: '3px 8px',
               margin: '0 -8px',
@@ -207,7 +207,7 @@ export const ConversationHeader: React.FC = () => {
           onClick={handleShare}
           title="Share this conversation"
           aria-label="Share this conversation"
-          className="flex items-center justify-center rounded-[8px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+          className="flex items-center justify-center rounded-[8px] touch:!h-9 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
           style={{
             height: 30,
             padding: '0 14px',

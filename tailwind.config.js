@@ -81,5 +81,13 @@ module.exports = {
       visibility: ['group-hover'],
     },
   },
-  plugins: [require('@tailwindcss/typography')],
+  plugins: [
+    require('@tailwindcss/typography'),
+    // `touch:` — applies only on touch-first devices (phones/tablets), so tap-target
+    // enlargements never change the desktop layout. Kept as a variant rather than a
+    // `screens` entry: a raw-media screen would disable the max-* breakpoint variants.
+    require('tailwindcss/plugin')(({ addVariant }) => {
+      addVariant('touch', '@media (hover: none) and (pointer: coarse)');
+    }),
+  ],
 };

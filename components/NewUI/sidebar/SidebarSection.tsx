@@ -74,7 +74,7 @@ export const SidebarSection: React.FC<SidebarSectionProps> = ({
             onClick={handleToggle}
             aria-expanded={!isCollapsed}
             aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${label} section`}
-            className="flex items-center gap-1 min-w-0 rounded-[4px] text-[--text-muted] hover:text-[--text-primary] transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+            className="flex items-center gap-1 min-w-0 rounded-[4px] touch:min-h-[36px] text-[--text-muted] hover:text-[--text-primary] transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
           >
             <span className="text-[12px] font-normal leading-tight select-none truncate">
               {label}

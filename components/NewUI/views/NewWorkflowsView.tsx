@@ -401,7 +401,7 @@ export const NewWorkflowsView: React.FC = () => {
                         setEditorTemplate(t);
                         setShowEditor(true);
                       }}
-                      className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors"
+                      className="flex h-7 w-7 touch:h-9 touch:w-9 touch:min-w-9 touch:shrink-0 items-center justify-center rounded-[6px] transition-colors"
                       style={{ color: 'var(--text-muted)' }}
                       onMouseEnter={(e) =>
                         (e.currentTarget.style.background = 'var(--bg-active)')
@@ -419,7 +419,7 @@ export const NewWorkflowsView: React.FC = () => {
                         e.stopPropagation();
                         setConfirmDeleteId(t.templateId);
                       }}
-                      className="flex h-7 w-7 items-center justify-center rounded-[6px] transition-colors"
+                      className="flex h-7 w-7 touch:h-9 touch:w-9 touch:min-w-9 touch:shrink-0 items-center justify-center rounded-[6px] transition-colors"
                       style={{ color: 'var(--text-muted)' }}
                       onMouseEnter={(e) => {
                         e.currentTarget.style.background = 'var(--bg-active)';

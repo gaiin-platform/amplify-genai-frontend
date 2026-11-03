@@ -134,7 +134,7 @@ export const AnnouncementBar: React.FC<AnnouncementBarProps> = ({ message, onDis
             type="button"
             onClick={onDismiss}
             aria-label="Dismiss announcement"
-            className="hover:bg-black/15 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[--accent-fg]"
+            className="hover:bg-black/15 touch:!w-10 touch:!min-w-[40px] touch:!h-10 touch:shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[--accent-fg]"
             style={{
               display: 'inline-flex',
               alignItems: 'center',

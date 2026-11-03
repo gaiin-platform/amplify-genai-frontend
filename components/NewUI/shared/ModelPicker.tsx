@@ -1053,7 +1053,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
               ? 'Model Router active — Amplify selects the best model automatically. Change model'
               : `Model: ${modelName}${showEffort ? `, effort ${effortLabel}` : ''}. Change model`
         }
-        className="flex items-center gap-[6px] h-[30px] px-[8px] rounded-[8px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+        className="flex items-center gap-[6px] h-[30px] touch:h-10 px-[8px] rounded-[8px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
         style={{
           background: primaryOpen ? 'var(--bg-active)' : 'transparent',
           color: primaryOpen ? 'var(--text-primary)' : 'var(--text-secondary)',

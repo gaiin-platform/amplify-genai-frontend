@@ -30,7 +30,7 @@ export const IconButton: React.FC<IconButtonProps> = ({
   disabled,
   type = 'button',
 }) => {
-  const dim = size === 'md' ? 'w-8 h-8' : 'w-7 h-7';
+  const dim = size === 'md' ? 'w-8 h-8 touch:w-10 touch:h-10' : 'w-7 h-7 touch:w-10 touch:h-10';
   return (
     <button
       onClick={onClick}
