@@ -65,6 +65,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { useIsTouch } from '@/components/NewUI/shared/useMediaQuery';
 import { createPortal } from 'react-dom';
 import {
   IconCheck,
@@ -540,14 +541,7 @@ export const NewUIMessageActionsLayer: React.FC = () => {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   // Touch screens can't hover, so hover-revealed rows were effectively unreachable
   // on phones (no copy/edit/retry). On devices without hover, show every row.
-  const [isTouch, setIsTouch] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(hover: none)');
-    const sync = () => setIsTouch(mq.matches);
-    sync();
-    mq.addEventListener('change', sync);
-    return () => mq.removeEventListener('change', sync);
-  }, []);
+  const isTouch = useIsTouch();
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [overlayEl, setOverlayEl] = useState<HTMLElement | null>(null);
   const speakingKeyRef = useRef<string | null>(null);

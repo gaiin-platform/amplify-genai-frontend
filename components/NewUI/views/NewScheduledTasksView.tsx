@@ -23,6 +23,7 @@
  */
 
 import React, { useContext, useState, useEffect, useRef, useMemo } from 'react';
+import { useMediaQuery } from '@/components/NewUI/shared/useMediaQuery';
 import cloneDeep from 'lodash/cloneDeep';
 import toast from 'react-hot-toast';
 import {
@@ -366,14 +367,7 @@ export const NewScheduledTasksView: React.FC = () => {
 
     // Mobile (<768px): the side-by-side list + detail panes don't fit, so show one
     // at a time. Picking a task or "New Task" opens the detail; "Tasks" goes back.
-    const [isNarrow, setIsNarrow] = useState(false);
-    useEffect(() => {
-        const mq = window.matchMedia('(max-width: 767px)');
-        const sync = () => setIsNarrow(mq.matches);
-        sync();
-        mq.addEventListener('change', sync);
-        return () => mq.removeEventListener('change', sync);
-    }, []);
+    const isNarrow = useMediaQuery('(max-width: 767px)');
     const [mobilePane, setMobilePane] = useState<'list' | 'detail'>(initTask ? 'detail' : 'list');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);

@@ -21,6 +21,7 @@ import {
   IconPinnedOff,
   IconPinFilled,
 } from '@tabler/icons-react';
+import { useIsTouch } from '@/components/NewUI/shared/useMediaQuery';
 import { Conversation } from '@/types/chat';
 import { FolderInterface } from '@/types/folder';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
@@ -61,6 +62,9 @@ export const FolderRow: React.FC<FolderRowProps> = ({
   isGenerating,
 }) => {
   const [isHovered, setIsHovered] = useState(false);
+  // Touch has no hover: keep pin / rename / delete visible.
+  const isTouch = useIsTouch();
+  const showActions = isHovered || isTouch;
   const [isRenaming, setIsRenaming] = useState(!!startInRename);
   const [renameValue, setRenameValue] = useState(startInRename ? folder.name : '');
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
@@ -117,7 +121,7 @@ export const FolderRow: React.FC<FolderRowProps> = ({
             title={isOpen ? 'Collapse folder' : 'Expand folder'}
             className={`
               w-full flex items-center gap-[8px] h-[32px] pl-[6px] rounded-[8px] text-left
-              ${isHovered ? 'pr-[82px]' : 'pr-[8px]'}
+              ${isTouch ? 'pr-[110px]' : isHovered ? 'pr-[82px]' : 'pr-[8px]'}
               text-[--text-secondary] hover:text-[--text-primary]
               focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]
             `}
@@ -129,7 +133,7 @@ export const FolderRow: React.FC<FolderRowProps> = ({
             <span className="flex-1 min-w-0 text-[14px] font-normal leading-[20px] truncate">
               {folder.name}
             </span>
-            {folder.pinned && !isHovered && (
+            {folder.pinned && !showActions && (
               <IconPinFilled size={12} className="flex-shrink-0 text-[--accent]" />
             )}
             <span className="flex-shrink-0 text-[12px] text-[--text-muted]">
@@ -138,13 +142,13 @@ export const FolderRow: React.FC<FolderRowProps> = ({
           </button>
         )}
 
-        {!isRenaming && isHovered && (
+        {!isRenaming && showActions && (
           <div className="absolute right-[4px] top-0 h-full flex items-center gap-[2px]">
             <button
               onClick={(e) => { e.stopPropagation(); onPinFolder(folder.id); }}
               title={folder.pinned ? 'Unpin folder' : 'Pin folder'}
               aria-label={folder.pinned ? 'Unpin folder' : 'Pin folder'}
-              className="w-6 h-6 flex items-center justify-center rounded-[6px] text-[--text-muted] hover:text-[--text-primary] hover:bg-[--bg-active] transition-colors"
+              className="w-6 h-6 touch:w-8 touch:h-8 flex items-center justify-center rounded-[6px] text-[--text-muted] hover:text-[--text-primary] hover:bg-[--bg-active] transition-colors"
             >
               {folder.pinned ? <IconPinnedOff size={13} /> : <IconPin size={13} />}
             </button>
@@ -152,7 +156,7 @@ export const FolderRow: React.FC<FolderRowProps> = ({
               onClick={startRename}
               title="Rename folder"
               aria-label="Rename folder"
-              className="w-6 h-6 flex items-center justify-center rounded-[6px] text-[--text-muted] hover:text-[--text-primary] hover:bg-[--bg-active] transition-colors"
+              className="w-6 h-6 touch:w-8 touch:h-8 flex items-center justify-center rounded-[6px] text-[--text-muted] hover:text-[--text-primary] hover:bg-[--bg-active] transition-colors"
             >
               <IconPencil size={13} />
             </button>
@@ -160,7 +164,7 @@ export const FolderRow: React.FC<FolderRowProps> = ({
               onClick={(e) => { e.stopPropagation(); setConfirmDeleteOpen(true); }}
               title="Delete folder"
               aria-label="Delete folder"
-              className="w-6 h-6 flex items-center justify-center rounded-[6px] text-[--text-muted] hover:text-red-400 hover:bg-[--bg-active] transition-colors"
+              className="w-6 h-6 touch:w-8 touch:h-8 flex items-center justify-center rounded-[6px] text-[--text-muted] hover:text-red-400 hover:bg-[--bg-active] transition-colors"
             >
               <IconTrash size={13} />
             </button>

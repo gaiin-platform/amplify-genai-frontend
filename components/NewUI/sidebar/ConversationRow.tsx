@@ -32,6 +32,7 @@ import {
   IconFolderMinus,
   IconChevronLeft,
 } from '@tabler/icons-react';
+import { useIsTouch } from '@/components/NewUI/shared/useMediaQuery';
 import HomeContext from '@/components/Home/home.context';
 import { Conversation } from '@/types/chat';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
@@ -70,6 +71,9 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
 }) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  // Touch has no hover: keep the ⋯ menu visible (except while the generating spinner shows).
+  const isTouch = useIsTouch();
+  const showActions = isHovered || isMenuOpen || (isTouch && !isGenerating);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [downloadBusy, setDownloadBusy] = useState(false);
@@ -462,8 +466,8 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
           onClick={onSelect}
           title={conversation.name}
           className={`
-            w-full flex items-center gap-[8px] h-[32px] pl-[10px] rounded-[8px] text-left
-            ${(isHovered || isMenuOpen || isGenerating) ? 'pr-[34px]' : 'pr-[8px]'}
+            w-full flex items-center gap-[8px] h-[32px] touch:h-10 pl-[10px] rounded-[8px] text-left
+            ${(showActions || isGenerating) ? 'pr-[34px]' : 'pr-[8px]'}
             focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]
             ${isSelected || isHovered || isMenuOpen ? 'text-[--text-primary]' : 'text-[--text-secondary]'}
           `}
@@ -478,7 +482,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
       )}
 
       {/* ── Hover action: ⋯ menu button with gradient fade — hidden while renaming ── */}
-      {!isRenaming && (isHovered || isMenuOpen) && (
+      {!isRenaming && showActions && (
         <div
           className={`
             absolute right-0 top-0 h-full flex items-center pr-[6px]
@@ -495,7 +499,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
             onClick={handleMenuClick}
             aria-haspopup="menu"
             aria-expanded={isMenuOpen}
-            className="relative z-10 w-6 h-6 flex items-center justify-center rounded-[6px] text-[--text-muted] hover:text-[--text-primary] transition-colors duration-100"
+            className="relative z-10 w-6 h-6 touch:w-8 touch:h-8 flex items-center justify-center rounded-[6px] text-[--text-muted] hover:text-[--text-primary] transition-colors duration-100"
             title="More options"
           >
             <IconDots size={14} />
@@ -509,7 +513,7 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
           conditional pr-[34px], so the row title never shifts when it
           appears or disappears. The gradient fade mirrors the ⋯ button's fade
           so long titles truncate cleanly at the same visual edge. */}
-      {isGenerating && !isRenaming && !(isHovered || isMenuOpen) && (
+      {isGenerating && !isRenaming && !showActions && (
         <div
           className={`
             absolute right-0 top-0 h-full flex items-center pr-[6px] text-[--text-muted]
