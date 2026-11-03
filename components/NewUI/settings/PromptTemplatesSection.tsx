@@ -464,11 +464,11 @@ const PromptTemplatesSection: React.FC = () => {
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div
-        className="flex items-center justify-between pb-4 mb-2 flex-shrink-0 border-b"
+        className="flex items-center justify-between gap-2 pb-4 mb-2 flex-shrink-0 border-b"
         style={{ borderColor: 'var(--border-subtle)' }}
       >
         {/* Search */}
-        <div className="relative">
+        <div className="relative min-w-0 max-md:flex-1">
           <IconSearch
             size={15}
             className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -479,7 +479,7 @@ const PromptTemplatesSection: React.FC = () => {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={activeTab === 'mine' ? 'Search templates…' : 'Search shared…'}
-            className="h-[34px] pl-9 pr-3 rounded-[8px] text-[13px] border focus:outline-none w-[200px] transition-colors"
+            className="h-[34px] pl-9 pr-3 rounded-[8px] text-[13px] border focus:outline-none w-full md:w-[200px] transition-colors"
             style={{
               backgroundColor: 'var(--bg-raised)',
               borderColor: 'var(--border-subtle)',
@@ -491,7 +491,7 @@ const PromptTemplatesSection: React.FC = () => {
         {activeTab === 'mine' && (
           <button
             onClick={handleCreateTemplate}
-            className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium transition-opacity hover:opacity-90"
+            className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium transition-opacity hover:opacity-90 whitespace-nowrap flex-shrink-0"
             style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}
           >
             <IconPlus size={14} />
