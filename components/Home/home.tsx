@@ -1725,7 +1725,7 @@ const Home = ({
                             <div className="flex h-full w-full flex-col overflow-hidden">
                             {/* Admin announcement banner — in flow above the sidebar/content row. */}
                             <AnnouncementBanner />
-                            <div className="flex min-h-0 w-full flex-1 overflow-hidden" style={{ fontFamily: 'Inter, sans-serif' }} data-new-ui-shell="true">
+                            <div className="flex min-h-0 w-full flex-1 overflow-hidden max-md:flex-col" style={{ fontFamily: 'Inter, sans-serif' }} data-new-ui-shell="true">
                                 {/* Renders nothing — prunes leftover empty placeholder chats
                                     once after load so refreshing never grows Recents. */}
                                 <BlankConversationCleanup />
@@ -1758,7 +1758,7 @@ const Home = ({
                                 />
 
                                 {/* Main content area */}
-                                <div id="main-content" tabIndex={-1} className="flex flex-1 overflow-hidden">
+                                <div id="main-content" tabIndex={-1} className="flex min-h-0 min-w-0 flex-1 overflow-hidden">
                                     {/* Bug fix (Phase 27): `messageIsStreaming || loading` keeps the chat
                                         view showing even in the brief window where a brand-new
                                         conversation has messages.length===0 but a send is already in

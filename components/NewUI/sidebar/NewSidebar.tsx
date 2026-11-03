@@ -11,9 +11,9 @@
  *   4. Footer (flex-shrink:0) — account row
  *
  * Responsive:
- *   ≥1100px: fixed 310px
- *   760-1099px: collapsed icon rail (60px)  [TODO: Phase 4]
- *   <760px: off-canvas drawer               [TODO: Phase 4]
+ *   ≥768px: resizable sidebar, or the 52px icon rail when collapsed
+ *   <768px: mobile — a top bar (menu / title / new chat) in place of the rail,
+ *           and the sidebar opens as an off-canvas drawer over the content
  */
 import React, { useContext, useState, useEffect, useLayoutEffect, useMemo, useRef, useCallback } from 'react';
 import {
@@ -29,6 +29,7 @@ import {
   IconLayoutSidebarLeftExpand,
   IconPuzzle,
   IconFolderPlus,
+  IconMenu2,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/components/Home/home.context';
@@ -258,6 +259,19 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   });
   // settingsSection: null = closed, 'general' = open to General, 'skills' = open to Customize
   const [settingsSection, setSettingsSection] = useState<string | null>(null);
+
+  // Mobile (< SIDEBAR_AUTO_COLLAPSE_THRESHOLD): the rail is replaced by a top bar and the
+  // expanded sidebar becomes an overlay drawer. isOpen still drives open/closed.
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== 'undefined' && window.innerWidth < SIDEBAR_AUTO_COLLAPSE_THRESHOLD,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${SIDEBAR_AUTO_COLLAPSE_THRESHOLD - 1}px)`);
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
   const [searchTerm, setSearchTerm] = useState('');
   useDebouncedSearchTracking(searchTerm, 'Conversations Searched', { 'Source': 'sidebar' });
   const [showInaccessibleConversationNotice, setShowInaccessibleConversationNotice] = useState(false);
@@ -469,16 +483,24 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
+    // Only act when the width crosses the threshold. Mobile browsers fire resize
+    // constantly (address bar show/hide, keyboard), which would otherwise slam the
+    // mobile drawer shut the moment the user scrolls inside it.
+    let wasNarrow: boolean | null = null;
+
     const handleResize = () => {
       const w = window.innerWidth;
+      const isNarrow = w < SIDEBAR_AUTO_COLLAPSE_THRESHOLD;
+      if (isNarrow === wasNarrow) return;
+      wasNarrow = isNarrow;
 
-      if (w < SIDEBAR_AUTO_COLLAPSE_THRESHOLD && isOpenRef.current) {
+      if (isNarrow && isOpenRef.current) {
         // Window became too narrow — auto-collapse.
         wasAutoCollapsedRef.current = true;
         setIsOpen(false);
         dispatch({ field: 'showChatbar', value: false });
         // Deliberately NOT writing to localStorage — this is transient, not a user preference change.
-      } else if (w >= SIDEBAR_AUTO_COLLAPSE_THRESHOLD && !isOpenRef.current && wasAutoCollapsedRef.current) {
+      } else if (!isNarrow && !isOpenRef.current && wasAutoCollapsedRef.current) {
         // Window is wide enough again AND we were the ones who collapsed it — auto-expand.
         wasAutoCollapsedRef.current = false;
         setIsOpen(true);
@@ -502,6 +524,35 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     setIsOpen(next);
     dispatch({ field: 'showChatbar', value: next });
     localStorage.setItem('showChatbar', JSON.stringify(next));
+  };
+
+  // Mobile drawer open/close. Not persisted: the drawer is transient and must not
+  // overwrite the user's desktop sidebar preference.
+  const setMobileDrawerOpen = useCallback((next: boolean) => {
+    setIsOpen(next);
+    dispatch({ field: 'showChatbar', value: next });
+  }, [dispatch]);
+
+  // Close the drawer once the user navigates (picks a chat, a page, new chat, settings).
+  const navSignature = `${page}|${selectedConversation?.id ?? ''}|${settingsSection ?? ''}`;
+  const lastNavSignatureRef = useRef(navSignature);
+  useEffect(() => {
+    if (lastNavSignatureRef.current === navSignature) return;
+    lastNavSignatureRef.current = navSignature;
+    if (isMobile && isOpenRef.current) setMobileDrawerOpen(false);
+  }, [navSignature, isMobile, setMobileDrawerOpen]);
+
+  // Escape closes the drawer.
+  useEffect(() => {
+    if (!isMobile || !isOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMobileDrawerOpen(false); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [isMobile, isOpen, setMobileDrawerOpen]);
+
+  const startNewChat = () => {
+    window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
+    handleNewConversation({ prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT) });
   };
 
   const handleDeleteConversation = useCallback((conversation: Conversation) => {
@@ -777,6 +828,57 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     );
   };
 
+  // Mobile top bar — replaces the icon rail below the breakpoint. It stays mounted
+  // while the drawer is open so the content underneath doesn't jump.
+  const mobileTitle =
+    (currentNavId && navItems.find((item) => item.id === currentNavId)?.label) || 'Amplify';
+  const mobileTopBar = (
+    <div
+      className="flex items-center gap-1 h-12 px-1 w-full flex-shrink-0 bg-[--bg-sidebar] border-b border-[--border-subtle]"
+      style={{ fontFamily: 'Inter, sans-serif' }}
+    >
+      <button
+        onClick={() => setMobileDrawerOpen(true)}
+        aria-label="Open menu"
+        aria-expanded={isOpen}
+        className="w-11 h-11 flex items-center justify-center rounded-[8px] text-[--text-secondary] active:bg-[--bg-hover]"
+      >
+        <IconMenu2 size={22} />
+      </button>
+      <div className="flex-1 min-w-0 truncate text-center text-[15px] font-medium text-[--text-primary]">
+        {mobileTitle}
+      </div>
+      <button
+        onClick={startNewChat}
+        aria-label="New chat"
+        className="w-11 h-11 flex items-center justify-center rounded-[8px] text-[--text-secondary] active:bg-[--bg-hover]"
+      >
+        <IconPlus size={22} />
+      </button>
+    </div>
+  );
+
+  // Mobile, drawer closed — just the top bar (plus dialogs, which must stay mounted).
+  if (isMobile && !isOpen) {
+    return (
+      <>
+        {mobileTopBar}
+        {settingsSection !== null && (
+          <NewSettingsModal
+            openToSection={settingsSection}
+            onClose={() => setSettingsSection(null)}
+          />
+        )}
+        <NoticeDialog
+          open={showInaccessibleConversationNotice}
+          title="Conversation unavailable"
+          message={INACCESSIBLE_CONVERSATION_MESSAGE}
+          onClose={() => setShowInaccessibleConversationNotice(false)}
+        />
+      </>
+    );
+  }
+
   // Collapsed state — icon rail with the specified buttons
   if (!isOpen) {
     const iconBtn = (
@@ -859,14 +961,32 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
 
   return (
     <>
+      {isMobile && mobileTopBar}
+      {isMobile && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40"
+          onClick={() => setMobileDrawerOpen(false)}
+          aria-hidden="true"
+        />
+      )}
       <div
         ref={sidebarRef}
-        className="relative flex flex-col flex-shrink-0 bg-[--bg-sidebar] border-r border-[--border-subtle] self-stretch transition-colors duration-200"
-        style={{ fontFamily: 'Inter, sans-serif', width: displayWidthRef.current + 'px' }}
+        {...(isMobile ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Navigation' } : {})}
+        className={isMobile
+          ? 'fixed inset-y-0 left-0 z-50 flex flex-col w-[min(85vw,320px)] bg-[--bg-sidebar] shadow-xl'
+          : 'relative flex flex-col flex-shrink-0 bg-[--bg-sidebar] border-r border-[--border-subtle] self-stretch transition-colors duration-200'}
+        style={isMobile
+          ? {
+              fontFamily: 'Inter, sans-serif',
+              paddingTop: 'env(safe-area-inset-top)',
+              paddingBottom: 'env(safe-area-inset-bottom)',
+              paddingLeft: 'env(safe-area-inset-left)',
+            }
+          : { fontFamily: 'Inter, sans-serif', width: displayWidthRef.current + 'px' }}
       >
         {/* 1. Header */}
         <SidebarHeader
-          onCollapse={handleToggle}
+          onCollapse={isMobile ? () => setMobileDrawerOpen(false) : handleToggle}
           onSearch={() => dispatch({ field: 'page', value: 'chats' as any })}
           onLogoClick={() => {
             window.dispatchEvent(new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }));
@@ -985,7 +1105,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
                   size="sm"
                   title="New folder"
                   onClick={handleCreateNewFolder}
-                  className={`transition-opacity duration-100 ${isRecentsHeaderHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                  className={`transition-opacity duration-100 ${isRecentsHeaderHovered || isMobile ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
                 >
                   <IconFolderPlus size={13} />
                 </IconButton>
@@ -1073,7 +1193,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             is a completely separate render path — this handle is never in that tree.
             Uses direct DOM updates during drag (no React state per pixel); commits
             to state + localStorage on mouseup only. */}
-        <div
+        {!isMobile && <div
           onMouseDown={handleDragMouseDown}
           onMouseEnter={() => setIsHandleHovered(true)}
           onMouseLeave={() => setIsHandleHovered(false)}
@@ -1089,7 +1209,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
             backgroundColor: isHandleHovered ? 'var(--border-subtle)' : 'transparent',
             transition: 'background-color 150ms ease',
           }}
-        />
+        />}
       </div>
 
       {/* New Settings Modal — two-column per spec */}
