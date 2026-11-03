@@ -727,7 +727,13 @@ const SubmenuRow = React.forwardRef<
     onMouseLeave: () => void;
     onClick: () => void;
   }
->(({ label, value, isOpen, onMouseEnter, onMouseLeave, onClick }, ref) => (
+>(({ label, value, isOpen, onMouseEnter, onMouseLeave, onClick }, ref) => {
+  // Hover-intent and focus-open are for mouse and keyboard only. On touch, a tap
+  // fires an emulated hover + focus (starting the 150ms open timer) and then a
+  // click that toggled the just-opened submenu shut — it flashed and vanished.
+  // Touch therefore relies on the click toggle alone.
+  const keyboardFocusRef = React.useRef(false);
+  return (
   <button
     ref={ref}
     type="button"
@@ -735,10 +741,17 @@ const SubmenuRow = React.forwardRef<
     aria-haspopup="menu"
     aria-expanded={isOpen}
     onClick={onClick}
-    onMouseEnter={onMouseEnter}
-    onMouseLeave={onMouseLeave}
-    onFocus={onMouseEnter}
-    onBlur={onMouseLeave}
+    onPointerEnter={(e) => { if (e.pointerType === 'mouse') onMouseEnter(); }}
+    onPointerLeave={(e) => { if (e.pointerType === 'mouse') onMouseLeave(); }}
+    onFocus={(e) => {
+      // :focus-visible is false when focus came from a pointer/touch press.
+      keyboardFocusRef.current = e.currentTarget.matches(':focus-visible');
+      if (keyboardFocusRef.current) onMouseEnter();
+    }}
+    onBlur={() => {
+      if (keyboardFocusRef.current) onMouseLeave();
+      keyboardFocusRef.current = false;
+    }}
     className="w-full flex items-center text-left transition-colors"
     style={{
       height: 38,
@@ -757,7 +770,8 @@ const SubmenuRow = React.forwardRef<
     )}
     <IconChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
   </button>
-));
+  );
+});
 SubmenuRow.displayName = 'SubmenuRow';
 
 // ─────────────────────────────────────────────────────────────────────────────

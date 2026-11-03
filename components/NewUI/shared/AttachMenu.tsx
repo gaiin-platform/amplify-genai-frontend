@@ -297,7 +297,11 @@ const SubmenuRowEl = React.forwardRef<
     onMouseLeave: () => void;
     onClick: () => void;
   }
->(({ icon, label, isOpen, disabled, onMouseEnter, onMouseLeave, onClick }, ref) => (
+>(({ icon, label, isOpen, disabled, onMouseEnter, onMouseLeave, onClick }, ref) => {
+  // Hover-intent / focus-open are for mouse and keyboard only; on touch the tap's
+  // emulated hover + focus raced the click (see ModelPicker's SubmenuRow).
+  const keyboardFocusRef = React.useRef(false);
+  return (
   <button
     ref={ref}
     type="button"
@@ -306,8 +310,8 @@ const SubmenuRowEl = React.forwardRef<
     aria-expanded={isOpen}
     disabled={disabled}
     onClick={onClick}
-    onMouseEnter={onMouseEnter}
-    onMouseLeave={onMouseLeave}
+    onPointerEnter={(e) => { if (e.pointerType === 'mouse') onMouseEnter(); }}
+    onPointerLeave={(e) => { if (e.pointerType === 'mouse') onMouseLeave(); }}
     className="w-full flex items-center gap-3 px-[10px] h-[35px] rounded-[8px] text-left transition-colors"
     style={{
       background: isOpen ? 'var(--bg-active)' : 'transparent',
@@ -315,8 +319,14 @@ const SubmenuRowEl = React.forwardRef<
       fontSize: 14,
       cursor: disabled ? 'default' : 'pointer',
     }}
-    onFocus={onMouseEnter}
-    onBlur={onMouseLeave}
+    onFocus={(e) => {
+      keyboardFocusRef.current = e.currentTarget.matches(':focus-visible');
+      if (keyboardFocusRef.current) onMouseEnter();
+    }}
+    onBlur={() => {
+      if (keyboardFocusRef.current) onMouseLeave();
+      keyboardFocusRef.current = false;
+    }}
   >
     <span
       style={{
@@ -333,7 +343,8 @@ const SubmenuRowEl = React.forwardRef<
     <span style={{ flex: 1 }}>{label}</span>
     <IconChevronRight size={14} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
   </button>
-));
+  );
+});
 SubmenuRowEl.displayName = 'SubmenuRowEl';
 
 // ─────────────────────────────────────────────────────────────────────────────
