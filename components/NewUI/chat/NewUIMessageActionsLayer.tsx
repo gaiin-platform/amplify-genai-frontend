@@ -44,6 +44,8 @@
  *    `:focus-within` when a user tabs onto one of its buttons. There is NO
  *    always-visible last-assistant row (Phase 33 §2: removed per user request —
  *    rows appear on hover only, for every message including the last).
+ *    Exception: on touch devices (`(hover: none)`) every row is always visible,
+ *    since there is no hover to reveal them.
  *  - Retry ("Try again" only) is achieved via the edit-and-resubmit DOM bridge:
  *    click the hidden `#editPrompt` button on the relevant user message, wait for
  *    `UserMessageEditor` to mount its `#editResponse` textarea, toggle a trailing
@@ -536,6 +538,16 @@ export const NewUIMessageActionsLayer: React.FC = () => {
 
   const [slots, setSlots] = useState<Slot[]>([]);
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  // Touch screens can't hover, so hover-revealed rows were effectively unreachable
+  // on phones (no copy/edit/retry). On devices without hover, show every row.
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(hover: none)');
+    const sync = () => setIsTouch(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [overlayEl, setOverlayEl] = useState<HTMLElement | null>(null);
   const speakingKeyRef = useRef<string | null>(null);
@@ -1100,7 +1112,11 @@ export const NewUIMessageActionsLayer: React.FC = () => {
             slot={slot}
             currentRating={currentRating}
             hovered={hoveredKey === slot.key}
-            alwaysVisible={alwaysVisibleKey !== null && slot.key === alwaysVisibleKey}
+            alwaysVisible={
+              (alwaysVisibleKey !== null && slot.key === alwaysVisibleKey) ||
+              // Touch: every row, except the assistant reply still being written.
+              (isTouch && !(isLastSlotStreamingAssistant && slot.key === lastAssistantSlot!.key))
+            }
             onHoverChange={handleRowHoverChange}
             onCopy={handleCopy}
             onEdit={handleEdit}
