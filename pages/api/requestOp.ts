@@ -171,13 +171,20 @@ const constructUrl = (data: any): string | null => {
 
     // Server-side local service routing — the URL is built entirely from the
     // server's own env var, never from anything the client sent.
+    const queryParams: { [key: string]: string } | undefined = data.queryParams;
+    const queryString = queryParams && Object.keys(queryParams).length > 0
+      ? Object.keys(queryParams)
+          .map(key => `${encodeURIComponent(key)}=${encodeURIComponent( transformPayload.decode(queryParams[key]) )}`)
+          .join('&')
+      : '';
+
     const localServicesConfig = process.env.NEXT_PUBLIC_LOCAL_SERVICES || '';
     if (localServicesConfig && data.service) {
         const serviceConfigs = localServicesConfig.split(',').map((s: string) => s.trim());
         for (const config of serviceConfigs) {
             const [service, port, stage] = config.split(':');
             if (service?.trim() === data.service && port) {
-                const localUrl = `http://localhost:${port.trim()}/${(stage || 'dev').trim()}${path}${op}`;
+                const localUrl = `http://localhost:${port.trim()}/${(stage || 'dev').trim()}${path}${op}${queryString ? `?${queryString}` : ''}`;
                 console.log(`[LOCAL] Routing service "${data.service}" to: ${localUrl}`);
                 return localUrl;
             }
@@ -188,12 +195,7 @@ const constructUrl = (data: any): string | null => {
 
     let apiUrl = baseUrl + path + op;
 
-    const queryParams: { [key: string]: string } | undefined = data.queryParams;
-
-    if (queryParams && Object.keys(queryParams).length > 0) {
-      const queryString = Object.keys(queryParams)
-        .map(key => `${encodeURIComponent(key)}=${encodeURIComponent( transformPayload.decode(queryParams[key]) )}`)
-        .join('&');
+    if (queryString) {
       apiUrl += `?${queryString}`;
     }
 
