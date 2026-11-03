@@ -116,11 +116,17 @@ import { isWebsiteDs } from '@/components/DataSources/WebsiteURLInput';
 import { NewWebsiteSourceInput } from '@/components/NewUI/views/assistant/NewWebsiteSourceInput';
 import { DriveSourcesPanel } from '@/components/NewUI/views/assistant/DriveSourcesPanel';
 import { AttachFile } from '@/components/Chat/AttachFile';
+import { DataSourceCardStatus } from '@/components/NewUI/shared/DataSourceCard';
+import { AttachedDataSources } from '@/components/NewUI/views/assistant/AttachedDataSources';
 import {
-    DataSourceCard,
-    DataSourceCardGrid,
-    DataSourceCardStatus,
-} from '@/components/NewUI/shared/DataSourceCard';
+    SitemapEditResult,
+    applySitemapEdit,
+    mergeSitemapExclusions,
+    scrapedFileKey,
+    scrapedFilesToDelete,
+    websiteUrlsAfterRemoval,
+    withSitemapExclusions,
+} from '@/components/NewUI/views/assistant/dataSourceGroupingModel';
 import {
     DataSourceLibraryPicker,
     PickedLibraryFile,
@@ -579,6 +585,16 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     /** Which data-source input panel is open: null = none. 'library' browses already-uploaded files. */
     const [activeDataSourceMethod, setActiveDataSourceMethod] = useState<'upload' | 'library' | 'website' | 'drive' | null>(null);
     const [websiteUrls, setWebsiteUrls] = useState<any[]>([]);
+    /**
+     * Ids of the sources the server already has (loaded with the assistant). Only these have an
+     * embedding status to show; anything added in this editing session is not embedded until saved.
+     */
+    const savedSourceIds = useRef<ReadonlySet<string>>(new Set());
+    /**
+     * Stored files of scraped website pages the user removed. They belong to this assistant alone,
+     * so they are deleted once a save succeeds (never before — cancelling must leave them intact).
+     */
+    const queuedScrapedDeletes = useRef<string[]>([]);
     /** id → failure reason. Drives the card's error state (icon + subtitle only). */
     const [dataSourceErrors, setDataSourceErrors] = useState<{ [key: string]: string }>({});
     /** id → cancel closure handed back by AttachFile for in-flight uploads. */
@@ -708,6 +724,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         // Data sources (existing S3 keys — pre-loaded; new uploads handled by upload UI).
         // Already-saved sources are complete, so seed them at 100 or their cards
         // would spin forever waiting on an upload that already happened.
+        savedSourceIds.current = new Set();
+        queuedScrapedDeletes.current = [];
         if (Array.isArray(def.dataSources)) {
             const existing = def.dataSources as AttachedDocument[];
             // Copy mode keeps file references but never reuses mutable source objects.
@@ -717,6 +735,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 ...source,
                 ...(sourceAssistant?.groupId && !(source as any).groupId ? { groupId: sourceAssistant.groupId } : {}),
             }));
+            savedSourceIds.current = new Set(copiedSources.map((ds) => ds.id));
             setDataSources(copiedSources);
             setDocumentState((prev) => {
                 const next = { ...prev };
@@ -1181,23 +1200,60 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             (ds) => (documentState[ds.id] ?? 0) < 100 && !dataSourceErrors[ds.id]
         );
 
-    const removeDataSource = (ds: AttachedDocument) => {
-        abortUploadRef.current[ds.id]?.();
-        delete abortUploadRef.current[ds.id];
-        setDataSources((prev) => prev.filter((x) => x.id !== ds.id));
+    /**
+     * Remove sources from the editor. Takes a list so removing a whole sitemap does its
+     * `websiteUrls` bookkeeping once: a removed sitemap page is recorded as excluded (or a
+     * rescan would bring it back), and a sitemap left with no pages is dropped.
+     */
+    const removeDataSources = (removed: AttachedDocument[]) => {
+        if (removed.length === 0) return;
+        const ids = new Set(removed.map((ds) => ds.id));
+        removed.forEach((ds) => {
+            abortUploadRef.current[ds.id]?.();
+            delete abortUploadRef.current[ds.id];
+        });
+        const remaining = dataSources.filter((ds) => !ids.has(ds.id));
+        // Only when editing: a copy's sources still point at the ORIGINAL assistant's files, which
+        // must survive. (A page that was never saved has no file, so scrapedFileKey is null for it.)
+        if (isEditMode) {
+            removed.forEach((ds) => {
+                const key = scrapedFileKey(ds);
+                if (key) queuedScrapedDeletes.current.push(key);
+            });
+        }
+        setDataSources((prev) => prev.filter((x) => !ids.has(x.id)));
         setDocumentState((prev) => {
             const next = { ...prev };
-            delete next[ds.id];
+            ids.forEach((id) => { delete next[id]; });
             return next;
         });
         setDataSourceErrors((prev) => {
             const next = { ...prev };
-            delete next[ds.id];
+            ids.forEach((id) => { delete next[id]; });
             return next;
         });
-        if (isWebsiteDs(ds)) {
-            setWebsiteUrls((prev: any[]) => prev.filter((u: any) => u.url !== ds.id));
+        if (removed.some(isWebsiteDs)) {
+            setWebsiteUrls((prev: any[]) => websiteUrlsAfterRemoval(prev, removed, remaining));
         }
+    };
+
+    const removeDataSource = (ds: AttachedDocument) => removeDataSources([ds]);
+
+    /**
+     * The sitemap include/exclude manager was saved: drop the pages switched off, add the ones
+     * switched on (they are scraped by the save, like any newly added website), and record the
+     * rules on the sitemap's entry so a rescan honours them.
+     */
+    const handleSitemapEdit = (sitemapUrl: string, edit: SitemapEditResult) => {
+        setDataSources((prev) => applySitemapEdit(prev, sitemapUrl, edit, editingAssistant?.groupId ?? undefined));
+        setDocumentState((prev) => {
+            const next = { ...prev };
+            edit.urlsToRemove.forEach((url) => { delete next[url]; });
+            // A page added here has no upload to wait for; without this the save is blocked on it.
+            edit.urlsToAdd.forEach((url) => { next[url] = 100; });
+            return next;
+        });
+        setWebsiteUrls((prev) => withSitemapExclusions(prev, sitemapUrl, edit.exclusions));
     };
 
     /** Drop the failed source and reopen the file picker so it can be re-added. */
@@ -1558,6 +1614,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             queuedIconDeletes.current = [];
             if (staleIconKeys.length > 0) {
                 void Promise.allSettled(staleIconKeys.map((key) => deleteFile(key)));
+            }
+
+            // Scraped pages the user removed are orphans now that the save went through. Skip any file the
+            // saved assistant still uses; a failed delete only leaves an orphan, so it never blocks the save.
+            const staleScrapedKeys = scrapedFilesToDelete(queuedScrapedDeletes.current, (def.dataSources ?? []) as AttachedDocument[]);
+            queuedScrapedDeletes.current = [];
+            if (staleScrapedKeys.length > 0) {
+                void Promise.allSettled(staleScrapedKeys.map((key) => deleteFile(key)));
             }
 
             // 5b. A new assistant's refresh tasks, now that it has an id. Their ids belong on the
@@ -2413,37 +2477,27 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         a stable grid slot from selection through ready, so state
                         changes never reflow the list. */}
                     {dataSources.length > 0 && (
-                        <div style={{ marginBottom: 14 }}>
-                            {/* 12px clearance: the card's × overlaps 8px above its top edge */}
-                            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Attached ({dataSources.length})
-                            </p>
-                            <DataSourceCardGrid label="Attached data sources">
-                                {dataSources.map((ds) => {
-                                    const status = dataSourceStatus(ds);
-                                    const progress = documentState[ds.id];
-                                    return (
-                                        <DataSourceCard
-                                            key={ds.id}
-                                            name={ds.name}
-                                            type={ds.type}
-                                            status={status}
-                                            progress={
-                                                status === 'uploading' && typeof progress === 'number'
-                                                    ? progress
-                                                    : undefined
-                                            }
-                                            error={dataSourceErrors[ds.id]}
-                                            onRemove={() => removeDataSource(ds)}
-                                            onCancelUpload={() => removeDataSource(ds)}
-                                            onRetry={isWebsiteDs(ds) ? undefined : () => retryDataSource(ds)}
-                                            onClick={status === 'ready' && !downloadingId ? () => handleDataSourceDownload(ds) : undefined}
-                                            downloading={downloadingId === ds.id}
-                                        />
-                                    );
-                                })}
-                            </DataSourceCardGrid>
-                        </div>
+                        <AttachedDataSources
+                            sources={dataSources}
+                            statusOf={dataSourceStatus}
+                            progressOf={(ds) => documentState[ds.id]}
+                            errorOf={(ds) => dataSourceErrors[ds.id]}
+                            savedIds={savedSourceIds.current}
+                            groupId={editingAssistant?.groupId ?? undefined}
+                            downloadingId={downloadingId}
+                            onRemove={removeDataSource}
+                            onRemoveMany={removeDataSources}
+                            onRetry={retryDataSource}
+                            onOpen={handleDataSourceDownload}
+                            exclusionsFor={(sitemapUrl) =>
+                                mergeSitemapExclusions(
+                                    websiteUrls,
+                                    sitemapUrl,
+                                    dataSources.filter((ds) => ds.metadata?.fromSitemap === sitemapUrl),
+                                )
+                            }
+                            onSitemapEdit={handleSitemapEdit}
+                        />
                     )}
 
                     {/* ── Method selector row ──────────────────────────────── */}
