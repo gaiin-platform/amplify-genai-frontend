@@ -26,11 +26,16 @@ import {
     conversationWithUncompressedMessages,
     isRemoteConversation,
     deleteConversationCleanUp,
+    blockConversationHistoryWrites,
+    condenseForConversationHistory,
+    remoteForConversationHistory,
+    upsertConversationEntry,
+    onConversationHistoryChangedInOtherTab,
 } from '@/utils/app/conversation';
 import { getArchiveNumOfDays, getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings, saveSettings } from '@/utils/app/settings';
-import { storageGet, storageSet } from '@/utils/app/storage';
+import { storageGet, storageGetStrict, storageSet } from '@/utils/app/storage';
 import { getAccounts } from "@/services/accountService";
 
 import { Conversation, Message, newMessage } from '@/types/chat';
@@ -71,7 +76,7 @@ import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { deleteAssistant, listAssistants, listLayeredAssistants } from '@/services/assistantService';
 import { LayeredAssistant } from '@/types/layeredAssistant';
 import { filterAstsByFeatureFlags, getAssistant, isAssistant, syncAssistants } from '@/utils/app/assistants';
-import { fetchAllRemoteConversations, fetchRemoteConversation, uploadConversation } from '@/services/remoteConversationService';
+import { CONVERSATION_SAVE_CONFLICT_EVENT, fetchAllRemoteConversations, fetchRemoteConversation, replayPendingConversationSync, setConversationSyncUser, uploadConversation } from '@/services/remoteConversationService';
 import {killRequest as killReq} from "@/services/chatService";
 import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
@@ -117,6 +122,7 @@ import { NewScheduledTasksView } from '@/components/NewUI/views/NewScheduledTask
 import { NewWorkflowsView } from '@/components/NewUI/views/NewWorkflowsView';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 import { BlankConversationCleanup } from '@/components/NewUI/shared/BlankConversationCleanup';
+import { LocalChatsNotice } from '@/components/NewUI/shared/LocalChatsNotice';
 import { UserPrefsSync } from '@/components/NewUI/shared/UserPrefsSync';
 import { LastChatRestore } from '@/components/NewUI/shared/LastChatRestore';
 import { FeatureFlagsSelfHeal } from '@/components/NewUI/shared/FeatureFlagsSelfHeal';
@@ -149,6 +155,14 @@ const Home = ({
 }: Props) => {
     const { t } = useTranslation('chat');
     const [initialRender, setInitialRender] = useState<boolean>(true);
+    // resolves when the stored conversation history has been loaded into state; the cloud sync waits for it,
+    // otherwise it would merge into (and persist) an empty list
+    const historyLoadedRef = useRef<{ promise: Promise<void>; resolve: () => void } | null>(null);
+    if (historyLoadedRef.current === null) {
+        let resolve: () => void = () => undefined;
+        const promise = new Promise<void>((r) => { resolve = r; });
+        historyLoadedRef.current = { promise, resolve };
+    }
     // const [loadingSelectedConv, setLoadingSelectedConv] = useState<boolean>(false);
     const [loadingMessage, setLoadingMessage] = useState<string>('');
 
@@ -258,6 +272,12 @@ const Home = ({
         foldersRef.current = folders;
     }, [folders]);
 
+    const selectedConversationRef = useRef(selectedConversation);
+
+    useEffect(() => {
+        selectedConversationRef.current = selectedConversation;
+    }, [selectedConversation]);
+
     const stopConversationRef = useRef<boolean>(false);
 
     const featureFlagsRef = useRef(featureFlags);
@@ -288,15 +308,21 @@ const Home = ({
     // This is where tabs will be sync'd
     useEffect(() => {
         const handleStorageChange = (event: any) => {
-            if (event.key === "conversationHistory") {
-                const conversations = JSON.parse(event.newValue);
-                dispatch({ field: 'conversations', value: conversations });
-            } else if (event.key === "folders") {
-                const folders = JSON.parse(event.newValue);
-                dispatch({ field: 'folders', value: folders });
-            } else if (event.key === "prompts") {
-                const prompts = JSON.parse(event.newValue);
-                dispatch({ field: 'prompts', value: prompts });
+            // a removed key (newValue === null) is storage housekeeping, not new data
+            if (event.newValue === null || event.newValue === undefined) return;
+            try {
+                if (event.key === "conversationHistory") {
+                    const conversations = JSON.parse(event.newValue);
+                    if (Array.isArray(conversations)) dispatch({ field: 'conversations', value: conversations });
+                } else if (event.key === "folders") {
+                    const folders = JSON.parse(event.newValue);
+                    if (Array.isArray(folders)) dispatch({ field: 'folders', value: folders });
+                } else if (event.key === "prompts") {
+                    const prompts = JSON.parse(event.newValue);
+                    if (Array.isArray(prompts)) dispatch({ field: 'prompts', value: prompts });
+                }
+            } catch (e) {
+                console.error('Could not apply a storage change from another tab', e);
             }
         };
 
@@ -308,6 +334,41 @@ const Home = ({
         };
     }, []);
 
+
+    // Another tab saved the conversation list. `storage` events do not fire for IndexedDB, so without
+    // this each tab kept its own copy and the last one to save overwrote the others' new chats.
+    useEffect(() => {
+        return onConversationHistoryChangedInOtherTab(async () => {
+            try {
+                const raw = await storageGet('conversationHistory');
+                if (!raw) return;
+                let list: Conversation[] = JSON.parse(raw);
+                const open = selectedConversationRef.current;
+                // the chat open in THIS tab must never vanish because of what another tab did
+                if (open && !list.some((c: Conversation) => c.id === open.id)) {
+                    list = upsertConversationEntry(list, condenseForConversationHistory(open));
+                }
+                conversationsRef.current = list;
+                dispatch({ field: 'conversations', value: list });
+            } catch (e) {
+                console.error('Failed to refresh conversations changed in another tab', e);
+            }
+        });
+    }, []);
+
+    // A cloud save found the chat changed elsewhere and kept this tab's version as a separate chat
+    useEffect(() => {
+        const handleConflictCopy = (event: any) => {
+            const copy: Conversation | undefined = event?.detail?.copy;
+            if (!copy) return;
+            const updated = upsertConversationEntry(conversationsRef.current, remoteForConversationHistory(copy));
+            conversationsRef.current = updated;
+            dispatch({ field: 'conversations', value: updated });
+            saveConversations(updated);
+        };
+        window.addEventListener(CONVERSATION_SAVE_CONFLICT_EVENT, handleConflictCopy);
+        return () => window.removeEventListener(CONVERSATION_SAVE_CONFLICT_EVENT, handleConflictCopy);
+    }, []);
 
     useEffect(() => {
         if (chatEndpoint) dispatch({ field: 'chatEndpoint', value: chatEndpoint });
@@ -343,7 +404,7 @@ const Home = ({
         let newSelectedConv = null;
         // check if it isLocal? if not get the conversation from s3
         if (isRemoteConversation(conversation)) { 
-            const remoteConversation = await fetchRemoteConversation(conversation.id, conversationsRef.current, dispatch);
+            const remoteConversation = await fetchRemoteConversation(conversation.id, () => conversationsRef.current, dispatch);
             if (remoteConversation) {
                 newSelectedConv = {...remoteConversation, folderId: conversation.folderId || null}; 
             }
@@ -561,6 +622,7 @@ const Home = ({
             promptTemplate: null,
             isLocal: getIsLocalStorageSelection(storageSelection),
             date: getFullTimestamp(),
+            messageCount: 0, // known blank: its cloud object is only created by the first message
             ...conversationParams
         };
         if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
@@ -590,7 +652,8 @@ const Home = ({
                 if (isRemoteConversation(newConversation)) await uploadConversation(newConversation, foldersRef.current);
                 statsService.newConversationEvent();
     
-                const updatedConversations = [...conversations, newConversation];
+                const updatedConversations = [...conversationsRef.current, newConversation];
+                conversationsRef.current = updatedConversations;
                 dispatch({ field: 'conversations', value: updatedConversations });
                 saveConversations(updatedConversations);
                 setLoadingMessage("");
@@ -633,10 +696,13 @@ const Home = ({
             ...completeConversation,
             [data.key]: data.value,
         };
+        // the list as it is NOW: fetching a cloud chat above can take seconds, and the copy captured when this
+        // function started would drop (and persist the loss of) chats created or synced meanwhile
         const { single, all } = updateConversation(
             updatedConversation,
-            conversations, 
+            [...conversationsRef.current],
         );
+        conversationsRef.current = all;
 
         if (selectedConversation && (conversation.id === selectedConversation.id)) dispatch({field: 'selectedConversation', value: single});
         if (isRemoteConversation(conversation)) uploadConversation(single, foldersRef.current);
@@ -1109,9 +1175,18 @@ const Home = ({
 
         const syncConversations = async (conversations: Conversation[], folders: FolderInterface[]) => {
             try {
+                // Saves/deletes that never reached the cloud in an earlier session are re-sent first
+                // (bounded wait) so the list below cannot resurrect or shadow them.
+                await Promise.race([
+                    replayPendingConversationSync().catch((e) => console.log("Pending conversation sync failed: ", e)),
+                    new Promise((resolve) => setTimeout(resolve, 15000)),
+                ]);
                 const days = getArchiveNumOfDays();
                 const allRemoteConvs = await fetchAllRemoteConversations(days === 0 ? undefined : days);
-                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch);
+                // do not merge before the stored history is in state (it would be written over an empty list)
+                await Promise.race([historyLoadedRef.current?.promise, new Promise((resolve) => setTimeout(resolve, 30000))]);
+                // merge into the live list at apply time, not the snapshot from before the download
+                if (allRemoteConvs) return updateWithRemoteConversations(allRemoteConvs, conversations, folders, dispatch, () => conversationsRef.current);
             } catch (e) {
                 console.log("Failed to sync cloud conversations: ", e);
             }
@@ -1291,6 +1366,8 @@ const Home = ({
             handleOnLoadData(flags);
         }
 
+        if (user && user.email) setConversationSyncUser(user.email);
+
         if (user && user.email && initialRender) {
             setInitialRender(false);
             
@@ -1404,8 +1481,24 @@ const Home = ({
             // Create a string for the current date like Oct-18-2021
             const dateName = getDateName();
 
-            const conversationHistory = await storageGet('conversationHistory');
-            let conversations: Conversation[] = JSON.parse(conversationHistory ? conversationHistory : '[]');
+            let conversationHistory: string | null = null;
+            try {
+                conversationHistory = await storageGetStrict('conversationHistory');
+            } catch (e) {
+                // Could not read the stored chats. Starting with an empty list is fine, but saving that list would
+                // overwrite the real history, so writes are blocked until the page is reloaded.
+                console.error('Failed to read the stored conversation history', e);
+                blockConversationHistoryWrites();
+                alert("Your saved conversations could not be loaded from this browser's storage. Please reload the page. Your conversations have not been changed.");
+            }
+            let conversations: Conversation[] = [];
+            try {
+                conversations = JSON.parse(conversationHistory ? conversationHistory : '[]');
+            } catch (e) {
+                console.error('The stored conversation history is not valid JSON', e);
+                blockConversationHistoryWrites();
+                alert("Your saved conversations are damaged and could not be read. They were not overwritten. Please contact support before continuing.");
+            }
             //ensure all conversation messagea are compressed and folder exists
             conversations = compressAllConversationMessages(conversations).map((c: Conversation) => 
                                                 !c.folderId || folderIds.includes(c.folderId) ? c : {...c, folderId: null});
@@ -1416,8 +1509,28 @@ const Home = ({
 
             let selectedConversation: Conversation | null = lastConversation ? { ...lastConversation } : null;
 
-            if (!lastConversation || lastConversation.name !== 'New Conversation' ||
-                (lastConversationFolder && lastConversationFolder.name !== dateName)) {
+            // Reuse the last chat only if it is today's untouched "New Conversation". It must be the FULL
+            // conversation: the history holds cloud chats as metadata stubs and local chats compressed,
+            // and sending a message on top of such a stub overwrote the real chat with just the new message.
+            let reuseLast = !!lastConversation && lastConversation.name === 'New Conversation' &&
+                !(lastConversationFolder && lastConversationFolder.name !== dateName);
+            if (reuseLast && lastConversation) {
+                if (isRemoteConversation(lastConversation)) {
+                    const full = await Promise.race([
+                        fetchRemoteConversation(lastConversation.id, undefined, undefined, true),
+                        new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+                    ]).catch(() => null);
+                    if (full) {
+                        selectedConversation = { ...full, folderId: lastConversation.folderId ?? full.folderId ?? null, isLocal: false };
+                    } else {
+                        reuseLast = false; // could not load it: start a fresh chat rather than risk overwriting it
+                    }
+                } else {
+                    selectedConversation = conversationWithUncompressedMessages({ ...lastConversation });
+                }
+            }
+
+            if (!reuseLast) {
 
                 // See if there is a folder with the same name as the date
                 let folder = foldersParsed.find((f: FolderInterface) => f.name === dateName);
@@ -1449,7 +1562,8 @@ const Home = ({
                     temperature: lastConversation?.temperature ?? DEFAULT_TEMPERATURE,
                     folderId: folder.id,
                     promptTemplate: null,
-                    isLocal: getIsLocalStorageSelection(storageSelection)
+                    isLocal: getIsLocalStorageSelection(storageSelection),
+                    messageCount: 0, // known blank: its cloud object is only created by the first message
                 };
 
                 if (isRemoteConversation(newConversation)) uploadConversation(newConversation, foldersRef.current);
@@ -1465,6 +1579,8 @@ const Home = ({
             if (conversationHistory) {
                 const cleanedConversationHistory = cleanConversationHistory(conversations, getDefaultModel(DefaultModels.DEFAULT));
 
+                // the ref is normally refreshed after a render; set it now so the cloud sync merges into this list
+                conversationsRef.current = cleanedConversationHistory;
                 dispatch({ field: 'conversations', value: cleanedConversationHistory });
                 saveConversations(cleanedConversationHistory)
             }
@@ -1473,9 +1589,11 @@ const Home = ({
                 field: 'conversationStateId',
                 value: 'post-init',
             });
+            // let the state settle so the sync merges into the loaded list
+            historyLoadedRef.current?.resolve();
         };
 
-        initializeData();
+        initializeData().catch((e) => { console.error('initializeData failed', e); historyLoadedRef.current?.resolve(); });
     }, [initialRender]);
 
     const [preProcessingCallbacks, setPreProcessingCallbacks] = useState([]);
@@ -1729,6 +1847,9 @@ const Home = ({
                                 {/* Renders nothing — prunes leftover empty placeholder chats
                                     once after load so refreshing never grows Recents. */}
                                 <BlankConversationCleanup />
+                                {/* Renders nothing — one-time toast for chats stored only in this browser,
+                                    with a button that moves them to the user's account. */}
+                                <LocalChatsNotice />
                                 {/* Renders nothing — tags all Mixpanel events with UI Version=new
                                     and emits UI Loaded / Page Viewed. */}
                                 <UiAnalytics variant="new" />

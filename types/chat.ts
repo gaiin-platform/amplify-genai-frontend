@@ -181,6 +181,10 @@ export interface Conversation {
   data?: {[key:string]:any}
   codeInterpreterRecordId?: string;
   isLocal?: boolean;
+  /** Cloud list responses only: number of messages in the stored chat (0 = empty). Lets a metadata stub be told apart from a blank placeholder. */
+  messageCount?: number;
+  /** Set when the stored compressed messages could not be decoded; the raw blob is kept so it is never overwritten. */
+  corruptCompressedMessages?: number[];
   groupType?: string;
   artifacts?:  { [key: string]: Artifact[]};
   projectId?: string;

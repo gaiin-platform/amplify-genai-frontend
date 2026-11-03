@@ -35,7 +35,7 @@ import { UserCostBreakdownContent } from '@/components/Layout/UserCostBreakdownM
 import { getSettings, saveSettings } from '@/utils/app/settings';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
-import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
+import { handleStorageSelection, reconcileSelectedAfterStorageChange, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from '@/types/conversationStorage';
 import { saveConversations } from '@/utils/app/conversation';
 import toast from 'react-hot-toast';
@@ -384,12 +384,13 @@ const GeneralSection: FC = () => {
         foldersRef.current,
         statsService,
         (current, total) => homeDispatch({ field: 'storageProcessing', value: { isProcessing: true, message: selection === 'local-only' ? 'Moving conversations to local storage…' : 'Moving conversations to cloud…', progress: current, total } }),
+        () => conversationsRef.current, // the live list: chats created while this runs must survive
       );
       if (updated) {
         homeDispatch({ field: 'conversations', value: updated });
         saveConversations(updated);
         if (selectedConversation) {
-          homeDispatch({ field: 'selectedConversation', value: updated.find((c) => c.id === selectedConversation.id) });
+          homeDispatch({ field: 'selectedConversation', value: reconcileSelectedAfterStorageChange(selectedConversation, updated) });
         }
       }
       toast('Storage settings saved');

@@ -70,6 +70,19 @@ class IndexedStorage {
     });
   }
 
+  async keys(prefix: string): Promise<string[]> {
+    await this.ensureInit();
+
+    return new Promise((resolve, reject) => {
+      const tx = this.db!.transaction([this.storeName], 'readonly');
+      const request = tx.objectStore(this.storeName).getAllKeys();
+      request.onsuccess = () => {
+        resolve((request.result as IDBValidKey[]).filter((k): k is string => typeof k === 'string' && k.startsWith(prefix)));
+      };
+      request.onerror = () => reject(request.error);
+    });
+  }
+
   async removeItem(key: string): Promise<void> {
     await this.ensureInit();
 
@@ -128,42 +141,71 @@ class IndexedStorage {
     });
   }
 
-  // Migrate single key from localStorage to IndexedDB
+  // Migrate single key from localStorage to IndexedDB.
+  // Compare-and-set: a value that IndexedDB already holds is never replaced by the (older) localStorage
+  // copy, unless a write that had to fall back to localStorage left a "newer" marker (see storageSet).
   async migrateKey(key: string): Promise<string | null> {
     const localValue = localStorage.getItem(key);
     if (localValue !== null) {
+      const fallbackIsNewer = localStorage.getItem(LS_NEWER_PREFIX + key) !== null;
+      const existing = await this.getItem(key);
+      if (existing !== null && !fallbackIsNewer) {
+        // IndexedDB wins; the localStorage copy is a stale leftover
+        await this.markMigrated(key);
+        localStorage.removeItem(key);
+        return existing;
+      }
       await this.setItem(key, localValue);
       await this.markMigrated(key);
-      
+
       // Clean up localStorage after successful migration to save space
       localStorage.removeItem(key);
+      localStorage.removeItem(LS_NEWER_PREFIX + key);
       console.log(`Migrated and cleaned up '${key}' from localStorage to IndexedDB`);
     }
     return localValue;
   }
 }
 
+// Set when an IndexedDB write failed and the value was written to localStorage instead: that copy is
+// then the NEWER one, even though the key is flagged as migrated.
+const LS_NEWER_PREFIX = '__ls_newer__:';
+
 // Global instance
 const indexedStorage = new IndexedStorage();
 
 // Enhanced storage functions with automatic migration
+const readThroughIndexedDb = async (key: string): Promise<string | null> => {
+  // Check if already migrated to IndexedDB
+  const isMigrated = await indexedStorage.isMigrated(key);
+
+  if (isMigrated) {
+    const localCopy = localStorage.getItem(key);
+    if (localCopy !== null) {
+      if (localStorage.getItem(LS_NEWER_PREFIX + key) !== null) {
+        // an earlier IndexedDB write failed and landed here: this is the newest value, move it back
+        try {
+          await indexedStorage.setItem(key, localCopy);
+          localStorage.removeItem(key);
+          localStorage.removeItem(LS_NEWER_PREFIX + key);
+        } catch {
+          // IndexedDB still failing: keep serving the localStorage copy
+        }
+        return localCopy;
+      }
+      // Clean up stale localStorage data from previous sessions
+      console.log(`Cleaning up stale localStorage data for '${key}'`);
+      localStorage.removeItem(key);
+    }
+    return await indexedStorage.getItem(key);
+  }
+  console.log(`Migrating '${key}' from localStorage to IndexedDB`);
+  return await indexedStorage.migrateKey(key);
+};
+
 export const storageGet = async (key: string): Promise<string | null> => {
   try {
-    // Check if already migrated to IndexedDB
-    const isMigrated = await indexedStorage.isMigrated(key);
-    
-    if (isMigrated) {
-      // Clean up any leftover localStorage data from previous sessions
-      if (localStorage.getItem(key) !== null) {
-        console.log(`Cleaning up stale localStorage data for '${key}'`);
-        localStorage.removeItem(key);
-      }
-      
-      return await indexedStorage.getItem(key);
-    } else {
-      console.log(`Migrating '${key}' from localStorage to IndexedDB`);
-      return await indexedStorage.migrateKey(key);
-    }
+    return await readThroughIndexedDb(key);
   } catch (error) {
     console.warn('IndexedDB error, falling back to localStorage:', error);
     // Fallback to localStorage if IndexedDB fails
@@ -171,14 +213,44 @@ export const storageGet = async (key: string): Promise<string | null> => {
   }
 };
 
+/**
+ * Like storageGet, but a failing IndexedDB read is reported (throws) instead of looking like "no value".
+ * Use it where "nothing stored" would make the caller overwrite real data (e.g. the conversation history).
+ */
+export const storageGetStrict = async (key: string): Promise<string | null> => {
+  try {
+    return await readThroughIndexedDb(key);
+  } catch (error) {
+    const fallback = localStorage.getItem(key);
+    if (fallback !== null) return fallback;
+    throw error;
+  }
+};
+
 export const storageSet = async (key: string, value: string): Promise<void> => {
   try {
     await indexedStorage.setItem(key, value);
     await indexedStorage.markMigrated(key);
+    // a successful IndexedDB write supersedes any earlier localStorage fallback copy
+    localStorage.removeItem(LS_NEWER_PREFIX + key);
+    if (localStorage.getItem(key) !== null) localStorage.removeItem(key);
   } catch (error) {
     console.warn('IndexedDB error, falling back to localStorage:', error);
-    // Fallback to localStorage if IndexedDB fails
+    // Fallback to localStorage if IndexedDB fails. Throws (quota) if that fails as well, so callers can tell.
     localStorage.setItem(key, value);
+    try { localStorage.setItem(LS_NEWER_PREFIX + key, '1'); } catch { /* best effort */ }
+  }
+};
+
+// All stored keys starting with a prefix (IndexedDB plus, as a fallback, localStorage)
+export const storageKeys = async (prefix: string): Promise<string[]> => {
+  const fromLocal = () => Object.keys(localStorage).filter((k) => k.startsWith(prefix));
+  try {
+    const fromIndexed = await indexedStorage.keys(prefix);
+    return Array.from(new Set([...fromIndexed, ...fromLocal()]));
+  } catch (error) {
+    console.warn('IndexedDB error, falling back to localStorage:', error);
+    return fromLocal();
   }
 };
 

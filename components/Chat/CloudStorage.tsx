@@ -7,7 +7,7 @@ import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 
 import HomeContext from '@/components/Home/home.context';
-import { handleSelectedConversationStorageChange} from '@/utils/app/conversationStorage';
+import { finishMoveToLocal, handleSelectedConversationStorageChange} from '@/utils/app/conversationStorage';
 import { isRemoteConversation, isLocalConversation } from '@/utils/app/conversation';
 import { Conversation } from '@/types/chat';
 
@@ -63,10 +63,16 @@ const title = () => {
 
 const handleConversationLockChange = async () => {
     if (selectedConversation) { // should always be true
+      // captured first: the storage change mutates selectedConversation in place
+      const wasInCloud = isRemoteConversation(selectedConversation);
       const updatedConversation = await handleSelectedConversationStorageChange(selectedConversation, foldersRef.current, statsService);
       // in case failure happens, update isLocked. it should match isLocked otherwise.         
       setInCloud(!!isLocalConversation(updatedConversation)); 
       handleUpdateSelectedConversation(updatedConversation);
+      // moving to private: only now that the local copy is being persisted is the cloud copy removed
+      if (wasInCloud && isLocalConversation(updatedConversation)) {
+        finishMoveToLocal(updatedConversation.id);
+      }
     }
 }
 

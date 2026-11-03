@@ -441,7 +441,7 @@ interface Props {
         try {
             const allRemoteConvs = await fetchAllRemoteConversations(days);
             if (allRemoteConvs) {
-                const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch);
+                const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch, () => conversationsRef.current);
                 const updatedFolders = [...folders, ...newCloudFolders.newfolders];
                 homeDispatch({ field: 'folders', value: updatedFolders });
                 saveFolders(updatedFolders);

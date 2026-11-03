@@ -173,6 +173,7 @@ export const ChatsListView: React.FC = () => {
                 conversationsRef.current,
                 foldersRef.current,
                 dispatch,
+                () => conversationsRef.current,
             );
             if (result.newfolders.length > 0) {
                 const updatedFolders = [...foldersRef.current, ...result.newfolders];
@@ -352,7 +353,10 @@ export const ChatsListView: React.FC = () => {
             savePrompts(merged.prompts);
 
             if (sharedData.history && sharedData.history.length > 0) {
-                handleSelectConversation(sharedData.history[0]);
+                // open the copy that is actually in the list: when the id already existed the earlier copy was kept,
+                // and opening the incoming one would let the next message overwrite it
+                const incoming = sharedData.history[0];
+                handleSelectConversation(merged.history.find((c) => c.id === incoming.id) ?? incoming);
                 dispatch({ field: 'page', value: 'chat' });
             }
         } catch {
@@ -380,12 +384,13 @@ export const ChatsListView: React.FC = () => {
             // Keep at least one conversation (same as sidebar logic)
             // Let handleNewConversation handle the empty state when navigating
         } else if (selectedConversationRef.current?.id === conversation.id) {
-            dispatch({ field: 'selectedConversation', value: updated[updated.length - 1] });
+            // the list holds stubs / compressed copies; open the real chat (a stub here is overwritten by the next message)
+            handleSelectConversation(updated[updated.length - 1]);
         }
 
         saveConversations(updated);
         dispatch({ field: 'conversations', value: updated });
-    }, [dispatch, statsService]);
+    }, [dispatch, statsService, handleSelectConversation]);
 
     // ── Pin / unpin (identical write to ConversationRow.handlePin) ─────────
     const handleTogglePin = useCallback((conversation: Conversation) => {
