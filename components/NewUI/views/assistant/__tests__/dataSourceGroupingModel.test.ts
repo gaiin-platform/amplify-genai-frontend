@@ -8,6 +8,8 @@ import {
     scrapedFileKey,
     scrapedFilesToDelete,
     embeddingBadge,
+    filterEntries,
+    tallyEmbeddingStatuses,
     summarizeEmbeddingStatuses,
     websiteUrlsAfterRemoval,
     withSitemapExclusions,
@@ -310,5 +312,33 @@ describe('scrapedFilesToDelete', () => {
 
     it('ignores empty keys', () => {
         expect(scrapedFilesToDelete(['', 'a'], [])).toEqual(['a']);
+    });
+});
+
+describe('filterEntries', () => {
+    const good = page('https://a.test/ok', SITEMAP);
+    const bad = page('https://a.test/bad', SITEMAP);
+    const f = file('f1', 'a.csv');
+    const entries = buildDataSourceEntries([good, bad, f]);
+
+    it('keeps only matching pages of a sitemap, and matching standalone sources', () => {
+        const out = filterEntries(entries, (ds) => ds === bad);
+        expect(out).toHaveLength(1);
+        expect((out[0] as any).pages).toEqual([bad]);
+    });
+
+    it('drops a sitemap with no matching page', () => {
+        const out = filterEntries(entries, (ds) => ds === f);
+        expect(out.map((e) => e.kind)).toEqual(['source']);
+    });
+});
+
+describe('tallyEmbeddingStatuses', () => {
+    it('counts what is known and ignores what is not', () => {
+        expect(tallyEmbeddingStatuses(['completed', 'completed', 'processing', 'starting', 'failed', 'terminated', 'not_found', undefined]))
+            .toEqual({ completed: 2, working: 2, failed: 2 });
+    });
+    it('is all zeros for nothing', () => {
+        expect(tallyEmbeddingStatuses([])).toEqual({ completed: 0, working: 0, failed: 0 });
     });
 });

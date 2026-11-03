@@ -96,6 +96,14 @@ describe('SitemapDataSourceGroup', () => {
         expect((html.match(/aria-label="Regenerate/g) ?? []).length).toBe(1);
     });
 
+    it('scrolls a long page list inside the row, and only makes it a tab stop when it can scroll', () => {
+        const long = render({ expanded: true, pages: Array.from({ length: 40 }, (_, i) => page(`https://pages.github.com/p${i}`)) });
+        expect(long).toContain('max-height:320px');
+        expect(long).toContain('overflow-y:auto');
+        expect(long).toContain('tabindex="0"');
+        expect(render({ expanded: true })).not.toContain('tabindex="0"');
+    });
+
     it('gives every icon-only control an accessible name', () => {
         const html = render({ expanded: true });
         expect(html).toContain('aria-label="Remove page https://pages.github.com/themes/"');

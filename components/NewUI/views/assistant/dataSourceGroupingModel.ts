@@ -111,6 +111,19 @@ export function buildDataSourceEntries(sources: AttachedDocument[], query = ''):
     });
 }
 
+/**
+ * Keep only the sources `keep` accepts — a sitemap keeps just its matching pages and drops
+ * out when it has none. This is the "show only problems" view: with hundreds of sources, the
+ * two that failed must not be buried among the ones that did not.
+ */
+export function filterEntries(entries: DataSourceEntry[], keep: (ds: AttachedDocument) => boolean): DataSourceEntry[] {
+    return entries.flatMap((entry): DataSourceEntry[] => {
+        if (entry.kind === 'source') return keep(entry.ds) ? [entry] : [];
+        const pages = entry.pages.filter(keep);
+        return pages.length > 0 ? [{ ...entry, pages }] : [];
+    });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Sitemap include / exclude manager
 // ─────────────────────────────────────────────────────────────────────────────
@@ -344,6 +357,33 @@ export function embeddingBadge(status: string | null | undefined, metadata?: Emb
         if (!Number.isNaN(when.getTime())) details.push(`Updated: ${when.toLocaleString()}`);
     }
     return { label, tone, busy, title: [`Embedding status: ${label}`, ...details].join('\n') };
+}
+
+export interface EmbeddingTally {
+    completed: number;
+    /** Starting or processing. */
+    working: number;
+    /** Failed or terminated. */
+    failed: number;
+}
+
+/** True for the two statuses that mean the file did not get indexed. */
+export const isFailedStatus = (status: string | null | undefined): boolean =>
+    status === 'failed' || status === 'terminated';
+
+/**
+ * Roll a pile of statuses up into three numbers for the recap line. Statuses that carry no
+ * information (`not_found`, unknown, still loading) are not counted at all, so the line only
+ * ever states what is known.
+ */
+export function tallyEmbeddingStatuses(statuses: Array<string | null | undefined>): EmbeddingTally {
+    const tally: EmbeddingTally = { completed: 0, working: 0, failed: 0 };
+    statuses.forEach((status) => {
+        if (status === 'completed') tally.completed += 1;
+        else if (status === 'starting' || status === 'processing') tally.working += 1;
+        else if (isFailedStatus(status)) tally.failed += 1;
+    });
+    return tally;
 }
 
 /**

@@ -2476,7 +2476,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         Sits above the add-source controls and keeps each card in
                         a stable grid slot from selection through ready, so state
                         changes never reflow the list. */}
-                    {dataSources.length > 0 && (
+                    {(dataSources.length > 0 || driveSelectionCount > 0) && (
                         <AttachedDataSources
                             sources={dataSources}
                             statusOf={dataSourceStatus}
@@ -2497,6 +2497,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                 )
                             }
                             onSitemapEdit={handleSitemapEdit}
+                            drive={{
+                                // Passed through as-is (not `?? {}`) so an unchanged selection keeps its identity.
+                                selection: integrationDataSources ? asDriveSelection(integrationDataSources) : undefined,
+                                loaded: initIntegrationDataSources.current ? asDriveSelection(initIntegrationDataSources.current) : undefined,
+                                onManage: featureFlags.integrations && accessType !== 'collaborative'
+                                    ? () => setActiveDataSourceMethod('drive')
+                                    : undefined,
+                            }}
                         />
                     )}
 
@@ -2511,9 +2519,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                 ...(featureFlags.websiteUrls
                                     ? [{ key: 'website', label: 'Website URL', icon: <IconWorldWww size={15} /> }]
                                     : []),
-                                // The count keeps drive picks visible once the
-                                // panel is collapsed — they are the one kind of
-                                // attachment that gets no card in the grid above.
+                                // The count keeps the number of drive picks visible
+                                // while the panel is collapsed; the "Attached" list
+                                // above carries the full recap of what they became.
                                 ...(featureFlags.integrations && accessType !== 'collaborative'
                                     ? [{
                                         key: 'drive',

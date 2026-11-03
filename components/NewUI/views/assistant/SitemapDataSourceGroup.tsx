@@ -48,6 +48,11 @@ export interface SitemapDataSourceGroupProps {
     managing?: boolean;
 }
 
+/** Tallest a sitemap's page list gets before it scrolls (about seven rows). */
+const PAGE_LIST_MAX_HEIGHT = 320;
+/** A list this short never scrolls, so it needs no tab stop. */
+const PAGE_LIST_FOCUSABLE_FROM = 7;
+
 const rowDivider = '1px solid color-mix(in srgb, var(--border-subtle) 55%, transparent)';
 
 export const SitemapDataSourceGroup: React.FC<SitemapDataSourceGroupProps> = ({
@@ -182,7 +187,14 @@ export const SitemapDataSourceGroup: React.FC<SitemapDataSourceGroupProps> = ({
 
                 {/* ── Pages ──────────────────────────────────────────────── */}
                 {expanded && (
-                    <ul id={listId} aria-label={`Pages from ${sitemapUrl}`} style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+                    <ul
+                        id={listId}
+                        // A sitemap can have hundreds of pages: scroll inside the row rather than
+                        // pushing the rest of the editor down. Focusable so the keyboard can scroll it.
+                        tabIndex={pages.length > PAGE_LIST_FOCUSABLE_FROM ? 0 : undefined}
+                        aria-label={`Pages from ${sitemapUrl}`}
+                        style={{ listStyle: 'none', margin: 0, padding: 0, maxHeight: PAGE_LIST_MAX_HEIGHT, overflowY: 'auto' }}
+                    >
                         {pages.map((page) => {
                             const label = dataSourceLabel(page);
                             const status = pageStatus(page);
