@@ -1703,7 +1703,7 @@ const Home = ({
                     <meta name="description" content="ChatGPT but better." />
                     <meta
                         name="viewport"
-                        content="height=device-height, width=device-width, initial-scale=1"
+                        content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
                     />
                     <link rel="icon" href="/favicon.ico" />
                 </Head>
@@ -1716,7 +1716,7 @@ const Home = ({
                 />
                 {selectedConversation && (
                     <main
-                        className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                        className={`app-safe-area flex h-screen supports-[height:100dvh]:h-[100dvh] w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                     >
                         {/* ── NEW UI LAYOUT ── gated: New UI renders only while the New UI rollout
                             flag is confirmed enabled (see NewUiRolloutGate); 'pending' renders nothing. */}
