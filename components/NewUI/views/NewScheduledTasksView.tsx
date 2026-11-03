@@ -40,6 +40,7 @@ import {
     IconAlarm,
     IconChevronDown,
     IconChevronRight,
+    IconChevronLeft,
     IconChevronUp,
     IconExclamationCircle,
     IconDeviceFloppy,
@@ -362,6 +363,18 @@ export const NewScheduledTasksView: React.FC = () => {
     }, []);
 
     const [selectedTask, setSelectedTask] = useState<ScheduledTask>(initTask ?? emptyTask());
+
+    // Mobile (<768px): the side-by-side list + detail panes don't fit, so show one
+    // at a time. Picking a task or "New Task" opens the detail; "Tasks" goes back.
+    const [isNarrow, setIsNarrow] = useState(false);
+    useEffect(() => {
+        const mq = window.matchMedia('(max-width: 767px)');
+        const sync = () => setIsNarrow(mq.matches);
+        sync();
+        mq.addEventListener('change', sync);
+        return () => mq.removeEventListener('change', sync);
+    }, []);
+    const [mobilePane, setMobilePane] = useState<'list' | 'detail'>(initTask ? 'detail' : 'list');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -471,6 +484,7 @@ export const NewScheduledTasksView: React.FC = () => {
     // ── Handlers ──
 
     const handleNewTask = () => {
+        setMobilePane('detail');
         setSelectedTask(emptyTask());
         setShowActionSelector(false);
         setIsViewingLogs(false);
@@ -478,6 +492,7 @@ export const NewScheduledTasksView: React.FC = () => {
     };
 
     const handleLoadTask = async (taskId: string) => {
+        setMobilePane('detail');
         setIsLoadingTask(true);
         const result = await getScheduledTask(taskId);
         if (result.success && result.data?.task) {
@@ -1475,7 +1490,10 @@ export const NewScheduledTasksView: React.FC = () => {
             {/* Body: list + detail */}
             <div ref={paneContainerRef} className="flex flex-1 overflow-hidden" data-scheduled-task-resizing={isResizingPanes ? 'true' : undefined}>
                 {/* List pane */}
-                <div className="flex flex-col flex-shrink-0 overflow-hidden" style={{ width: taskListWidth }}>
+                <div
+                    className={`flex flex-col flex-shrink-0 overflow-hidden ${isNarrow && mobilePane === 'detail' ? 'hidden' : ''}`}
+                    style={{ width: isNarrow ? '100%' : taskListWidth }}
+                >
                     <div className="flex flex-col gap-2 px-4 py-3 flex-shrink-0">
                         <div className="flex items-center justify-between gap-2">
                             <SearchInput value={search} onChange={setSearch} placeholder="Search tasks…" fullWidth aria-label="Search scheduled tasks" onClear={() => setSearch('')} />
@@ -1540,7 +1558,7 @@ export const NewScheduledTasksView: React.FC = () => {
                     </div>
                 </div>
 
-                <div
+                {!isNarrow && <div
                     ref={splitterRef}
                     role="separator"
                     aria-orientation="vertical"
@@ -1562,10 +1580,21 @@ export const NewScheduledTasksView: React.FC = () => {
                     style={{ flex: `0 0 ${TASK_SPLITTER_WIDTH}px` }}
                 >
                     <div className="new-ui-scheduled-task-splitter-line" />
-                </div>
+                </div>}
 
                 {/* Detail pane */}
-                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                <div className={`flex flex-col flex-1 min-w-0 overflow-hidden ${isNarrow && mobilePane === 'list' ? 'hidden' : ''}`}>
+                    {isNarrow && (
+                        <button
+                            type="button"
+                            onClick={() => setMobilePane('list')}
+                            className="flex items-center gap-1 h-11 px-3 flex-shrink-0 text-[14px] border-b"
+                            style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-subtle)' }}
+                        >
+                            <IconChevronLeft size={18} />
+                            Tasks
+                        </button>
+                    )}
                     {isViewingLogs ? renderLogsPanel() : renderEditorPanel()}
                 </div>
             </div>

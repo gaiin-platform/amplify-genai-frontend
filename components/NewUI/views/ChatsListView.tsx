@@ -417,17 +417,17 @@ export const ChatsListView: React.FC = () => {
             style={{ fontFamily: 'Inter, sans-serif' }}
         >
             {/* Page header */}
-            <div className="flex items-center justify-between px-8 pt-10 pb-6 flex-shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-y-3 px-4 pt-5 pb-4 md:px-8 md:pt-10 md:pb-6 flex-shrink-0">
                 <h1
-                    className="text-[28px] text-[--text-primary] font-normal leading-none tracking-[-0.01em]"
+                    className="text-[24px] md:text-[28px] text-[--text-primary] font-normal leading-none tracking-[-0.01em] max-md:w-full"
                     style={{ fontFamily: '"Newsreader", "Georgia", serif' }}
                 >
                     Chats and tasks
                 </h1>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 max-md:w-full">
                     {/* Search */}
-                    <div className="relative">
+                    <div className="relative min-w-0 max-md:flex-1">
                         <IconSearch
                             size={15}
                             className="absolute left-3 top-1/2 -translate-y-1/2 text-[--text-muted] pointer-events-none"
@@ -443,7 +443,7 @@ export const ChatsListView: React.FC = () => {
                 bg-[--bg-raised] border border-[--border-subtle]
                 text-[--text-primary] placeholder:text-[--text-muted]
                 focus:outline-none focus:border-[--bg-active]
-                transition-colors w-[200px]
+                transition-colors w-full md:w-[200px]
               `}
                         />
                     </div>
@@ -461,7 +461,7 @@ export const ChatsListView: React.FC = () => {
                     {/* New chat */}
                     <button
                         onClick={() => handleNewConversation({ prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT) })}
-                        className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium bg-[--text-primary] text-[--bg-app] hover:opacity-90 transition-opacity"
+                        className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium bg-[--text-primary] text-[--bg-app] hover:opacity-90 transition-opacity whitespace-nowrap flex-shrink-0"
                     >
                         <IconPlus size={14} />
                         New
@@ -470,7 +470,7 @@ export const ChatsListView: React.FC = () => {
             </div>
 
             {/* Tab strip */}
-            <div className="px-8 pb-4 flex-shrink-0">
+            <div className="px-4 md:px-8 pb-4 flex-shrink-0">
                 <SegmentedControl
                     items={TAB_ITEMS}
                     value={activeTab}
@@ -485,7 +485,7 @@ export const ChatsListView: React.FC = () => {
 
             {/* ── Older chats notice (outside the scroll area so it is always visible) ── */}
             {activeTab === 'mine' && canLoadOlder && (
-                <div className="px-8 pb-3 flex-shrink-0">
+                <div className="px-4 md:px-8 pb-3 flex-shrink-0">
                     <div
                         className="flex items-center justify-between gap-3 px-3 py-2 rounded-[8px] border text-[13px]"
                         style={{ borderColor: 'var(--border-subtle)', background: 'var(--bg-raised)' }}
@@ -507,7 +507,7 @@ export const ChatsListView: React.FC = () => {
 
             {/* ── My Chats: sortable column headers ─────────────────────────── */}
             {activeTab === 'mine' && conversations.length > 0 && (
-                <div className="px-8 flex-shrink-0">
+                <div className="px-4 md:px-8 flex-shrink-0">
                     <div
                         className="flex items-center gap-3 px-3 py-2 border-b"
                         style={{ borderColor: 'var(--border-subtle)' }}
@@ -551,7 +551,7 @@ export const ChatsListView: React.FC = () => {
 
             {/* ── My Chats tab ──────────────────────────────────────────────── */}
             {activeTab === 'mine' && (
-                <div className="flex-1 overflow-y-auto px-8 pb-8">
+                <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8">
                     {filteredMine.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-24 text-[--text-muted]">
                             <IconMessage2 size={32} className="mb-3 opacity-40" />
@@ -589,7 +589,7 @@ export const ChatsListView: React.FC = () => {
 
             {/* ── Shared with Me tab ────────────────────────────────────────── */}
             {activeTab === 'shared' && (
-                <div className="flex-1 overflow-y-auto px-8 pb-8">
+                <div className="flex-1 overflow-y-auto px-4 md:px-8 pb-8">
                     {/* Error state */}
                     {sharedError && (
                         <div className="flex items-center gap-2 px-4 py-3 mb-4 rounded-[8px] bg-[--bg-raised] border border-[--border-subtle]">

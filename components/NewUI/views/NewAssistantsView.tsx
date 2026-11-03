@@ -503,7 +503,7 @@ const SearchInput: React.FC<{ value: string; onChange: (v: string) => void; plac
     onChange,
     placeholder = 'Search…',
 }) => (
-    <div className="relative">
+    <div className="relative min-w-0 max-md:flex-1">
         <IconSearch
             size={15}
             className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -514,7 +514,7 @@ const SearchInput: React.FC<{ value: string; onChange: (v: string) => void; plac
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
-            className="h-[34px] pl-9 pr-3 rounded-[8px] text-[13px] border focus:outline-none w-[200px] transition-colors"
+            className="h-[34px] pl-9 pr-3 rounded-[8px] text-[13px] border focus:outline-none w-full md:w-[200px] transition-colors"
             style={{
                 backgroundColor: 'var(--bg-raised)',
                 borderColor: 'var(--border-subtle)',
@@ -774,13 +774,13 @@ const MyAssistantsTab: React.FC = () => {
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header row */}
             <div
-                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
+                className="flex items-center justify-between gap-2 px-4 md:px-6 py-3 flex-shrink-0 border-b"
                 style={{ borderColor: 'var(--border-subtle)' }}
             >
                 <SearchInput value={search} onChange={setSearch} placeholder="Search assistants…" />
                 <button
                     onClick={handleNewAssistantClick}
-                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium whitespace-nowrap flex-shrink-0 text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: 'var(--accent)' }}
                 >
                     <IconPlus size={14} />
@@ -1297,7 +1297,7 @@ const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) 
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header row */}
             <div
-                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
+                className="flex items-center justify-between gap-2 px-4 md:px-6 py-3 flex-shrink-0 border-b"
                 style={{ borderColor: 'var(--border-subtle)' }}
             >
                 <SearchInput
@@ -1698,13 +1698,13 @@ const GroupAssistantsTab: React.FC = () => {
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
             <div
-                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
+                className="flex items-center justify-between gap-2 px-4 md:px-6 py-3 flex-shrink-0 border-b"
                 style={{ borderColor: 'var(--border-subtle)' }}
             >
                 <SearchInput value={search} onChange={setSearch} placeholder="Search groups…" />
                 <button
                     onClick={() => setShowGroupCreationModal(true)}
-                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium whitespace-nowrap flex-shrink-0 text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: 'var(--accent)' }}
                 >
                     <IconPlus size={14} />
@@ -2069,13 +2069,13 @@ const LayeredAssistantsTab: React.FC = () => {
         <div className="flex flex-col h-full overflow-hidden">
             {/* Header */}
             <div
-                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
+                className="flex items-center justify-between gap-2 px-4 md:px-6 py-3 flex-shrink-0 border-b"
                 style={{ borderColor: 'var(--border-subtle)' }}
             >
                 <SearchInput value={search} onChange={setSearch} placeholder="Search layered assistants…" />
                 <button
                     onClick={handleCreateNew}
-                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium whitespace-nowrap flex-shrink-0 text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: 'var(--accent)' }}
                 >
                     <IconPlus size={14} />
@@ -2297,8 +2297,8 @@ export const NewAssistantsView: React.FC = () => {
                     <IconX size={16} />
                 </button>
 
-                {/* Tabs */}
-                <div className="flex items-center h-full gap-1">
+                {/* Tabs — scroll sideways on narrow screens instead of overflowing */}
+                <div className="flex items-center h-full gap-1 min-w-0 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                     {tabs
                         .filter((t) => t.visible)
                         .map((tab) => {
@@ -2307,7 +2307,7 @@ export const NewAssistantsView: React.FC = () => {
                                 <button
                                     key={tab.id}
                                     onClick={() => changeTab(tab.id)}
-                                    className="relative flex items-center gap-1.5 h-full px-3 text-[13px] transition-colors"
+                                    className="relative flex items-center gap-1.5 h-full px-3 text-[13px] transition-colors whitespace-nowrap flex-shrink-0"
                                     style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-muted)' }}
                                     onMouseEnter={(e) => {
                                         if (!isActive) {

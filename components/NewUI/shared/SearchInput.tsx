@@ -49,7 +49,11 @@ export const SearchInput: React.FC<SearchInputProps> = ({
     const showClear = Boolean(onClear) && value.length > 0;
 
     return (
-        <div className="relative" style={fullWidth ? { width: '100%' } : undefined}>
+        <div
+            // Mobile: shrink to fit the toolbar instead of a fixed 200px that overflows.
+            className={fullWidth ? 'relative' : 'relative min-w-0 max-md:flex-1'}
+            style={fullWidth ? { width: '100%' } : undefined}
+        >
             <IconSearch
                 size={15}
                 aria-hidden="true"
@@ -75,7 +79,7 @@ export const SearchInput: React.FC<SearchInputProps> = ({
                 }}
                 placeholder={placeholder}
                 className={`h-[34px] pl-9 rounded-[8px] text-[13px] border focus:outline-none transition-colors ${
-                    fullWidth ? 'w-full' : 'w-[200px]'
+                    fullWidth ? 'w-full' : 'w-full md:w-[200px]'
                 } ${showClear ? 'pr-9' : 'pr-3'}`}
                 style={{
                     backgroundColor: 'var(--bg-raised)',

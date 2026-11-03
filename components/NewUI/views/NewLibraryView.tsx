@@ -1301,11 +1301,11 @@ export const NewLibraryView: React.FC = () => {
         >
             {/* ── Top bar ───────────────────────────────────────────────────── */}
             <div
-                className="flex-shrink-0 flex items-center justify-between px-6 border-b"
+                // Wraps on mobile: title row, then tabs + actions, then a full-width search.
+                className="flex-shrink-0 flex flex-wrap items-center justify-between gap-y-2 px-4 md:px-6 py-2 md:py-0 min-h-[56px] border-b"
                 style={{
                     backgroundColor: 'var(--bg-sidebar)',
                     borderColor: 'var(--border-subtle)',
-                    height: 56,
                 }}
             >
                 {/* Left: close + title */}
@@ -1340,13 +1340,13 @@ export const NewLibraryView: React.FC = () => {
                 </div>
 
                 {/* Right: search + actions */}
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 max-md:w-full">
                     <div className="flex items-center rounded-[8px] border p-0.5" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }} role="tablist" aria-label="Library content">
                         <button type="button" role="tab" aria-selected={libraryMode === 'files'} onClick={() => setLibraryMode('files')} className="h-[28px] px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'files' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Files</button>
                         <button type="button" role="tab" aria-selected={libraryMode === 'artifacts'} onClick={() => setLibraryMode('artifacts')} className="h-[28px] px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'artifacts' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Artifacts</button>
                     </div>
                     {/* Search */}
-                    <div className="relative">
+                    <div className="relative max-md:order-last max-md:w-full">
                         <IconSearch
                             size={14}
                             className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
@@ -1359,7 +1359,7 @@ export const NewLibraryView: React.FC = () => {
                             onChange={(e) => setSearch(e.target.value)}
                             onKeyDown={handleSearchKeyDown}
                             placeholder="Search files… (Enter)"
-                            className="h-[32px] pl-8 pr-3 rounded-[8px] text-[12px] border focus:outline-none w-[200px] transition-colors"
+                            className="h-[32px] pl-8 pr-3 rounded-[8px] text-[12px] border focus:outline-none w-full md:w-[200px] transition-colors"
                             style={{
                                 backgroundColor: 'var(--bg-raised)',
                                 borderColor: 'var(--border-subtle)',
@@ -1418,7 +1418,7 @@ export const NewLibraryView: React.FC = () => {
                     {featureFlags.uploadDocuments && (
                         <button
                             onClick={() => fileInputRef.current?.click()}
-                            className="flex items-center gap-1.5 h-[32px] px-3 rounded-[8px] text-[12px] font-medium text-white transition-opacity hover:opacity-90"
+                            className="flex items-center gap-1.5 h-[32px] px-3 rounded-[8px] text-[12px] font-medium text-white transition-opacity hover:opacity-90 whitespace-nowrap max-md:ml-auto"
                             style={{ backgroundColor: 'var(--accent)' }}
                             disabled={uploading}
                         >
