@@ -644,7 +644,7 @@ interface Props {
                                     if (isRemoteConversation(item)) {
                                         try {
                                             const fullConv = await fetchRemoteConversation(item.id);
-                                            if (fullConv) uploadConversation({...fullConv, tags: item.tags}, foldersRef.current);
+                                            if (fullConv) uploadConversation({...fullConv, tags: item.tags, folderId: item.folderId ?? null}, foldersRef.current);
                                         } catch {
                                             console.log("Failed to update remote conversation with new tags")
                                         } 
@@ -657,7 +657,7 @@ interface Props {
                             if (isRemoteConversation(item)) {
                                 try {
                                     const fullConv = await fetchRemoteConversation(item.id);
-                                    if (fullConv) uploadConversation({...fullConv, tags: item.tags}, foldersRef.current);
+                                    if (fullConv) uploadConversation({...fullConv, tags: item.tags, folderId: item.folderId ?? null}, foldersRef.current);
                                 } catch {
                                     console.log("Failed to update remote conversation with updated tags")
                                 }

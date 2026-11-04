@@ -716,7 +716,7 @@ const Home = ({
         const isSelected = selectedConversation && (conversation.id === selectedConversation.id);
 
         return isSelected ? selectedConversation :
-                 isRemote ? await fetchRemoteConversation(conversation.id) 
+                 isRemote ? await fetchRemoteConversation(conversation.id).then(full => full ? { ...full, folderId: conversation.folderId ?? null } : full)
                           : conversationWithUncompressedMessages(conversation);
     }
 

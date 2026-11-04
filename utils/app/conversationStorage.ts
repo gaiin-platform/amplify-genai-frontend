@@ -1,6 +1,6 @@
 import { ConversationStorage, DEFAULT_CONVERSATION_STORAGE } from "@/types/conversationStorage";
 import { Conversation } from "@/types/chat";
-import { cancelPendingUpload, getHeldBlankConversationIds, releaseHeldBlankConversations, deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, fetchRemoteConversation, getKnownRemoteVersion, getPendingDeleteIds, getUnsavedConversations, hasPendingUpload, uploadConversation } from "@/services/remoteConversationService";
+import { cancelPendingUpload, getHeldBlankConversationIds, releaseHeldBlankConversations, deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, getPendingDeleteIds, getUnsavedConversations, uploadConversation } from "@/services/remoteConversationService";
 import { storageGet } from "./storage";
 import cloneDeep from 'lodash/cloneDeep';
 import { conversationWithCompressedMessages, conversationWithUncompressedMessages, isConversationDeleted, isLocalConversation, isRemoteConversation, remoteForConversationHistory, saveConversations, saveConversationsAsync } from "./conversation";
@@ -250,30 +250,6 @@ export const saveStorageSettings = (storage: ConversationStorage) => {
 
 
 
-// These repairs are background housekeeping and each one downloads and re-uploads a whole
-// conversation. A sync that finds many conversations to repair used to start all of them at
-// once; running them one at a time keeps that from becoming a startup request burst.
-let remoteConversationUpdateQueue: Promise<void> = Promise.resolve();
-
-const updateRemoteConversation = (conversationId: string, attributes: any, folders:FolderInterface[]): Promise<void> => {
-    remoteConversationUpdateQueue = remoteConversationUpdateQueue.then(async () => {
-        const fullConv = await fetchRemoteConversation(conversationId);
-        if (fullConv) {
-            // The chat may have been saved by the user since it was downloaded; a repair built from the older
-            // copy must not replace those newer messages.
-            const versionAtFetch = getKnownRemoteVersion(conversationId);
-            await new Promise((resolve) => setTimeout(resolve, 0));
-            if (hasPendingUpload(conversationId) || getKnownRemoteVersion(conversationId) !== versionAtFetch) return;
-            const updatedConv = {...fullConv, ...attributes};
-            // console.log("Update data on remote conversation: ", attributes);
-            await uploadConversation(updatedConv, folders);
-        }
-    }).catch((error) => {
-        console.error("Failed to update remote conversation:", conversationId, error);
-    });
-    return remoteConversationUpdateQueue;
-}
-
 export interface remoteConvData {
     conversation: Conversation;
     folder: FolderInterface | null;
@@ -319,6 +295,7 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
             }
         }
 
+        let remappedFolderCount = 0;
         remoteList.forEach((cd: remoteConvData)=> {
             const remoteConv = cd.conversation;
             // NOTE: conversations with no `model` are intentionally NOT backfilled here. Doing so cost a
@@ -341,9 +318,12 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
                         updatedFolders = [...updatedFolders,  cd.folder];
                         newFolders.push(cd.folder);
                     } else {
+                        // Re-point the chat at this browser's folder of the same name. This is applied to the copy merged
+                        // into the local list below and is NOT written back to the cloud: doing so downloaded and
+                        // re-uploaded every affected chat on each sync (a get + upload burst at startup). Every place
+                        // that loads a full cloud chat for editing keeps the local folderId instead of the cloud one.
                         remoteConv.folderId = similarFolderExists.id;
-                        // update the folder id in the remote conversation, this will ensure we are fully in sync in this browser 
-                        updateRemoteConversation(remoteConv.id, {folderId: similarFolderExists.id}, updatedFolders);
+                        remappedFolderCount++;
                     }
                 }
             }   else if  (existsLocally && folderExists && existsLocally.folderId !== folderExists?.id) {
@@ -360,6 +340,7 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
             currentConversationsMap.set(remoteConv.id, merged);
         });
         
+        if (remappedFolderCount > 0) console.log(`[folder-remap] ${remappedFolderCount} cloud chat(s) point at a folder id this browser lacks; remapped to same-named local folder (not re-uploaded)`);
         const updatedConversations = Array.from(currentConversationsMap.values());
         // console.log("updated conv len: ", updatedConversations.length);
 
