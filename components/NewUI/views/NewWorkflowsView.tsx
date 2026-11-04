@@ -155,7 +155,8 @@ export const NewWorkflowsView: React.FC = () => {
     setLoadFailedId((prev) => (prev === templateId ? null : prev));
     try {
       const res = await getAstWorkflowTemplate(templateId);
-      if (!(res?.success && res.data)) throw new Error('template not returned');
+      // Log the backend's reason: the on-screen text is deliberately generic.
+      if (!(res?.success && res.data)) throw new Error(res?.message || 'template not returned');
       const merged = mergeFullTemplate(
         templatesRef.current.find((t) => t.templateId === templateId),
         res.data as AstWorkflow,
