@@ -769,6 +769,15 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     admin-editable prompts are not chrome and stay as they are. Colors: use the design tokens in §3 only;
     the classic `--color-primary-*` variables do not reach the New UI.
 
+46. **A workflow template is two ids, and the editor must save the assistant's own copy.**
+    `data.baseWorkflowTemplateId` is the shared template the user picked; `data.workflowTemplateId` is
+    the assistant's configured copy (disabled segments, filled-in parameters), and the backend runs that
+    one, falling back to the base only when it is missing. `NewUIAssistantCreationModal` renders the
+    classic `AssistantWorkflowDisplay` under the picker, registers whatever it reports on save
+    (`registerAstWorkflowTemplate`), and decides what to store in `assistant/workflowTemplateSave`.
+    Never write `workflowTemplateId: baseWorkflowTemplateId`: it runs the unconfigured template and
+    overwrites the saved copy on every edit. Switching the base template must clear the copy.
+
 
 ---
 

@@ -53,6 +53,10 @@ import {
     IconCopy,
 } from '@tabler/icons-react';
 import { WorkflowTemplatePicker } from './assistant/WorkflowTemplatePicker';
+import { decideWorkflowTemplateSave } from './assistant/workflowTemplateSave';
+import { AssistantWorkflowDisplay } from '@/components/Promptbar/components/AssistantModalComponents/AssistantWorkflowDisplay';
+import { registerAstWorkflowTemplate } from '@/services/assistantWorkflowService';
+import type { AstWorkflow } from '@/types/assistantWorkflows';
 import { useSession } from 'next-auth/react';
 import HomeContext from '@/components/Home/home.context';
 import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
@@ -637,6 +641,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     /** Display name of that template, saved with the assistant so a viewer who cannot read the
      *  template (private, owned by someone else) can still be told which workflow it runs. */
     const [workflowTemplateName, setWorkflowTemplateName] = useState<string | undefined>(undefined);
+    /** The assistant's OWN configured copy of the base template (`data.workflowTemplateId`).
+     *  Cleared when the base template changes. See assistant/workflowTemplateSave. */
+    const [astWorkflowTemplateId, setAstWorkflowTemplateId] = useState<string | undefined>(undefined);
+    /** `workflowTemplateId` as loaded into the editor (edit OR copy), to tell "unchanged" from
+     *  "base template switched". Not `existingDef`: that is undefined when copying. */
+    const [loadedWorkflowTemplateId, setLoadedWorkflowTemplateId] = useState<string | undefined>(undefined);
+    /** The configured template AssistantWorkflowDisplay last reported; null while only viewing. */
+    const [currentWorkflowTemplate, setCurrentWorkflowTemplate] = useState<AstWorkflow | null>(null);
 
     // ── Advanced section state ────────────────────────────────────────────
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -792,7 +804,15 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         // opsLanguageVersion 'v4' (which IS hydrated, just below) with no template
         // — silently dropping the workflow. AssistantModal.tsx:378 hydrates it too.
         const workflowTemplate = (def.data as any)?.baseWorkflowTemplateId as string | undefined;
-        if (workflowTemplate) setBaseWorkflowTemplateId(workflowTemplate);
+        if (workflowTemplate) {
+            setBaseWorkflowTemplateId(workflowTemplate);
+            // The configured copy of the base template, if the assistant has one. Hydrating it is
+            // what stops an edit from overwriting the copy with the base id on save.
+            const loadedWorkflowId = (def.data as any)?.workflowTemplateId as string | undefined;
+            setAstWorkflowTemplateId(loadedWorkflowId);
+            setLoadedWorkflowTemplateId(loadedWorkflowId);
+            setCurrentWorkflowTemplate(null);
+        }
         const workflowName = (def.data as any)?.workflowTemplateName as string | undefined;
         if (workflowTemplate && workflowName) setWorkflowTemplateName(workflowName);
 
@@ -1468,6 +1488,43 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
             const storedOperations = buildStoredOperations(selectedApis || [], apiInfo);
 
+            // Workflow template: store the assistant's own configured copy, not the base template
+            // (see assistant/workflowTemplateSave). `workflowTemplateIdToSave` stays undefined when
+            // no template is selected.
+            let workflowTemplateIdToSave: string | undefined;
+            if (baseWorkflowTemplateId) {
+                const decision = decideWorkflowTemplateSave({
+                    baseWorkflowTemplateId,
+                    astWorkflowTemplateId,
+                    savedWorkflowTemplateId: loadedWorkflowTemplateId,
+                    currentWorkflowTemplate,
+                });
+                if (decision.kind === 'blocked') {
+                    setSaveError(decision.message);
+                    setIsSaving(false);
+                    setLoadingMessage('');
+                    return;
+                }
+                if (decision.kind === 'register') {
+                    setLoadingMessage('Registering workflow template…');
+                    const registered = await registerAstWorkflowTemplate(
+                        decision.workflow.template as any,
+                        decision.workflow.name,
+                        decision.workflow.description,
+                    );
+                    if (!(registered?.success && registered.data?.templateId)) {
+                        setSaveError('Unable to register the workflow template. Please try again.');
+                        setIsSaving(false);
+                        setLoadingMessage('');
+                        return;
+                    }
+                    workflowTemplateIdToSave = registered.data.templateId;
+                    setLoadingMessage(isEditMode ? 'Saving assistant…' : 'Creating assistant…');
+                } else {
+                    workflowTemplateIdToSave = decision.workflowTemplateId;
+                }
+            }
+
             const def: AssistantDefinition = {
                 name: name.trim(),
                 description: description.trim(),
@@ -1500,7 +1557,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     // Workflow template — forces v4 ops language; overrides opsLanguageVersion
                     ...(baseWorkflowTemplateId ? {
                         baseWorkflowTemplateId,
-                        workflowTemplateId: baseWorkflowTemplateId,
+                        workflowTemplateId: workflowTemplateIdToSave ?? baseWorkflowTemplateId,
                         ...(workflowTemplateName ? { workflowTemplateName } : {}),
                         opsLanguageVersion: 'v4',
                     } : { opsLanguageVersion }),
@@ -2830,9 +2887,32 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                             setBaseWorkflowTemplateId(id || undefined);
                                             // The old name belongs to the old template; the picker reports the new one.
                                             setWorkflowTemplateName(undefined);
+                                            // A configured copy belongs to the old base template.
+                                            setAstWorkflowTemplateId(undefined);
+                                            setCurrentWorkflowTemplate(null);
                                         }}
                                         onTemplateNameResolved={setWorkflowTemplateName}
                                     />
+
+                                    {/*
+                                     * Where the user configures the template: customizable steps and
+                                     * parameters on first setup, a read-only view plus "Edit Template" for a
+                                     * saved one. It reports the configured template through
+                                     * onWorkflowTemplateUpdate, and handleSave registers it as the assistant's
+                                     * own copy. Without this the base template was saved unconfigured.
+                                     * Classic component (guide §1); the wrapper supplies the inherited text colour.
+                                     */}
+                                    {baseWorkflowTemplateId && (
+                                        <div style={{ marginTop: 12, color: 'var(--text-primary)' }}>
+                                            <AssistantWorkflowDisplay
+                                                baseWorkflowTemplateId={baseWorkflowTemplateId}
+                                                astWorkflowTemplateId={astWorkflowTemplateId}
+                                                onWorkflowTemplateUpdate={(workflowTemplate) => {
+                                                    setCurrentWorkflowTemplate(workflowTemplate);
+                                                }}
+                                            />
+                                        </div>
+                                    )}
                                 </CapabilityCard>
                             )}
 
