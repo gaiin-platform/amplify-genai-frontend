@@ -3332,6 +3332,14 @@
    Panel fades in and slides up 8px over 150ms. Skipped when the user prefers
    reduced motion (wiki §9 rule 17 — every animation needs a reduced-motion gate).
    Used by: CreationModalShell.tsx (class "new-ui-creation-modal-panel").
+
+   Fill-mode is `backwards`, NOT `both`/`forwards`. Those keep the last keyframe
+   (`transform: translateY(0)`) applied after the animation ends, and any transform
+   other than `none` makes the panel the containing block for `position: fixed`
+   descendants. Classic full-screen modals launched from inside a creation modal
+   (e.g. AssistantWorkflowBuilder's Modal, sized from window.innerWidth) were then
+   laid out against this 1100px, overflow:hidden panel instead of the viewport, so
+   their edges were clipped. `backwards` still applies the `from` keyframe up front.
    ═══════════════════════════════════════════════════════════════════════════════ */
 
 @keyframes creationModalIn {
@@ -3347,7 +3355,7 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .new-ui-creation-modal-panel {
-    animation: creationModalIn 150ms ease-out both;
+    animation: creationModalIn 150ms ease-out backwards;
   }
 }
 
