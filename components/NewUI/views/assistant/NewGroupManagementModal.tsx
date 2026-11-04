@@ -45,6 +45,7 @@ import {
 } from '@/services/groupsService';
 import { getUserAmplifyGroups } from '@/services/adminService';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
+import { toAmplifyGroupNames, toSystemUserIds } from './groupAccessLists';
 import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
@@ -128,15 +129,12 @@ export const NewGroupManagementModal: React.FC<Props> = ({ group, onClose }) => 
         Promise.all([getUserAmplifyGroups(), fetchAllSystemIds()]).then(
             ([agResult, suResult]) => {
                 if (!alive) return;
-                const ags: string[] = agResult?.success
-                    ? agResult.data ?? []
-                    : agResult ?? [];
-                // Also include any groups already on the saved group (in case the
-                // admin added system users outside the current account's pool).
-                const extraSu: string[] = group.systemUsers ?? [];
-                const merged = Array.from(new Set([...(suResult ?? []), ...extraSu]));
-                setAmplifyGroups(ags);
-                setSystemUsers(merged);
+                // fetchAllSystemIds returns API-key records ({ systemId, ... }), not ids,
+                // and rendering one as a React child crashes the page; normalize both lists.
+                // Ids already saved on the group are included too, in case the admin added
+                // system users outside the current account's pool.
+                setAmplifyGroups(toAmplifyGroupNames(agResult));
+                setSystemUsers(toSystemUserIds(suResult, group.systemUsers));
                 setLoadingInit(false);
             }
         );
@@ -300,11 +298,11 @@ export const NewGroupManagementModal: React.FC<Props> = ({ group, onClose }) => 
         liveGroup.systemUsers ?? []
     );
     const ampDirty = useMemo(
-        () => JSON.stringify(localAmpGroups.sort()) !== JSON.stringify([...(liveGroup.amplifyGroups ?? [])].sort()),
+        () => JSON.stringify([...localAmpGroups].sort()) !== JSON.stringify([...(liveGroup.amplifyGroups ?? [])].sort()),
         [localAmpGroups, liveGroup.amplifyGroups]
     );
     const sysDirty = useMemo(
-        () => JSON.stringify(localSysUsers.sort()) !== JSON.stringify([...(liveGroup.systemUsers ?? [])].sort()),
+        () => JSON.stringify([...localSysUsers].sort()) !== JSON.stringify([...(liveGroup.systemUsers ?? [])].sort()),
         [localSysUsers, liveGroup.systemUsers]
     );
 
