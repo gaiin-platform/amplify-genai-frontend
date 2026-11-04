@@ -86,6 +86,7 @@ import {
     AMPLIFY_HELPER_MARKER,
     createAmplifyHelperAssistant,
 } from '@/components/NewUI/shared/amplifyHelperGuide';
+import { getBrandName } from '@/utils/whiteLabel/branding';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { useNotebookFeatureFlag } from '@/components/NewUI/shared/notebookFeatureFlag';
 import {
@@ -2257,7 +2258,7 @@ export const NewAssistantsView: React.FC = () => {
         },
         {
             id: 'amplifyHelper',
-            label: 'Amplify Helper',
+            label: `${getBrandName()} Helper`,
             icon: <IconSparkles size={15} />,
             visible: helperEnabled,
         },

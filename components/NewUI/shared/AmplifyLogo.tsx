@@ -1,5 +1,14 @@
 /**
- * AmplifyLogo — the one place the Amplify mark is rendered in the New UI.
+ * AmplifyLogo — the one place the product mark is rendered in the New UI.
+ *
+ * White labeling: the mark is `NEXT_PUBLIC_CUSTOM_LOGO` (a file in `public/logos/`) when one
+ * is configured, otherwise the stock Amplify mark, and the alt text / fallback tile use
+ * `NEXT_PUBLIC_BRAND_NAME`. See `utils/whiteLabel/branding` and docs/WHITE_LABEL.md. The
+ * slot is square, so a square or icon-style logo looks best; a wide logo is scaled to fit
+ * (`object-fit: contain`), never stretched.
+ *
+ * Fallback order: custom logo → stock mark → one-letter tile. A broken-image icon can
+ * never show.
  *
  * Two guarantees the bare `<Image src="/amplify-logo.png">` calls did not give:
  *
@@ -9,15 +18,21 @@
  *     (sharp, its on-disk cache, a CDN/proxy that doesn't forward `/_next/image`), and
  *     when it failed both the sidebar and the new-chat heading lost their logo at once.
  *
- *  2. A broken-image icon can never show. If the file fails to load, a neutral "A" tile
- *     of the same size and shape is rendered instead. `onError` alone is not enough:
- *     an image that fails before React hydrates never fires it, so the already-failed
- *     case (`complete && naturalWidth === 0`) is checked on mount too.
+ *  2. A failed image is replaced by the next source, ending in a neutral tile of the same
+ *     size and shape. `onError` alone is not enough: an image that fails before React
+ *     hydrates never fires it, so the already-failed case (`complete && naturalWidth === 0`)
+ *     is checked on mount too.
  */
 import React, { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import {
+  DEFAULT_LOGO_SRC,
+  getBrandInitial,
+  getBrandName,
+  getLogoSources,
+} from '@/utils/whiteLabel/branding';
 
-export const AMPLIFY_LOGO_SRC = '/amplify-logo.png';
+export const AMPLIFY_LOGO_SRC = DEFAULT_LOGO_SRC;
 
 interface AmplifyLogoProps {
   /** Rendered width and height in px (the mark is square). */
@@ -35,22 +50,27 @@ export const AmplifyLogo: React.FC<AmplifyLogoProps> = ({
   className,
   priority,
 }) => {
-  const [failed, setFailed] = useState(false);
+  const sources = getLogoSources();
+  const brandName = getBrandName();
+  // Index of the source being tried; `sources.length` means every image failed.
+  const [attempt, setAttempt] = useState(0);
   const imgRef = useRef<HTMLImageElement>(null);
+
+  const src = sources[attempt];
 
   useEffect(() => {
     const el = imgRef.current;
-    if (el && el.complete && el.naturalWidth === 0) setFailed(true);
-  }, []);
+    if (el && el.complete && el.naturalWidth === 0) setAttempt((n) => n + 1);
+  }, [attempt]);
 
   const style: React.CSSProperties | undefined =
     radius !== undefined ? { borderRadius: radius } : undefined;
 
-  if (failed) {
+  if (src === undefined) {
     return (
       <span
         role="img"
-        aria-label="Amplify"
+        aria-label={brandName}
         className={`inline-flex flex-shrink-0 items-center justify-center bg-[--accent] text-[--accent-fg] select-none ${className ?? ''}`}
         style={{
           width: size,
@@ -61,23 +81,24 @@ export const AmplifyLogo: React.FC<AmplifyLogoProps> = ({
           ...style,
         }}
       >
-        A
+        {getBrandInitial(brandName)}
       </span>
     );
   }
 
   return (
     <Image
+      key={src}
       ref={imgRef}
-      src={AMPLIFY_LOGO_SRC}
-      alt="Amplify"
+      src={src}
+      alt={brandName}
       width={size}
       height={size}
       unoptimized
       priority={priority}
       className={className}
-      style={style}
-      onError={() => setFailed(true)}
+      style={{ objectFit: 'contain', ...style }}
+      onError={() => setAttempt((n) => n + 1)}
     />
   );
 };

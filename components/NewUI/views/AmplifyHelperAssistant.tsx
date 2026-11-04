@@ -14,6 +14,7 @@ import {
   AMPLIFY_HELPER_SUPPORT_EMAIL,
   type AmplifyHelperGuideSection,
 } from '@/components/NewUI/shared/amplifyHelperGuide';
+import { getBrandName, isCustomOrganization } from '@/utils/whiteLabel/branding';
 
 export type AmplifyHelperDestination =
   | { kind: 'settings'; value: string }
@@ -168,7 +169,7 @@ const GuideSection: React.FC<{
             onClick={onAsk}
             className="mt-4 rounded-[6px] px-1 py-1 text-[12px] font-medium text-[--accent] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
           >
-            Ask Amplify Helper about this
+            Ask {getBrandName()} Helper about this
           </button>
         </div>
       )}
@@ -185,8 +186,12 @@ export const AmplifyHelperAssistant: React.FC<AmplifyHelperAssistantProps> = ({
 }) => {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState('');
-  const support = supportEmail?.trim() || AMPLIFY_HELPER_SUPPORT_EMAIL;
-  const docs = documentationUrl?.trim() || AMPLIFY_HELPER_RESOURCES_URL;
+  // A white-labeled deployment (NEXT_PUBLIC_ORGANIZATION_NAME) must not fall back to the
+  // Vanderbilt contact and links: it shows only what its admin configured.
+  const custom = isCustomOrganization();
+  const brandName = getBrandName();
+  const support = supportEmail?.trim() || (custom ? '' : AMPLIFY_HELPER_SUPPORT_EMAIL);
+  const docs = documentationUrl?.trim() || (custom ? '' : AMPLIFY_HELPER_RESOURCES_URL);
   const filteredSections = useMemo(
     () => filterAmplifyHelperSections(AMPLIFY_HELPER_GUIDE_SECTIONS, query),
     [query],
@@ -234,9 +239,9 @@ export const AmplifyHelperAssistant: React.FC<AmplifyHelperAssistantProps> = ({
               <IconSparkles size={20} />
             </div>
             <div className="min-w-0">
-              <h2 id="amplify-helper-title" className="m-0 text-[15px] font-semibold">Amplify Helper</h2>
+              <h2 id="amplify-helper-title" className="m-0 text-[15px] font-semibold">{brandName} Helper</h2>
               <p className="mt-1 max-w-[640px] text-[12px] leading-[1.6]" style={{ color: 'var(--text-secondary)' }}>
-                A shared, administrator-controlled guide to using Amplify. Ask how to navigate a feature, configure a capability, or choose the right workflow.
+                A shared, administrator-controlled guide to using {brandName}. Ask how to navigate a feature, configure a capability, or choose the right workflow.
               </p>
             </div>
           </div>
@@ -247,24 +252,30 @@ export const AmplifyHelperAssistant: React.FC<AmplifyHelperAssistantProps> = ({
             style={{ background: 'var(--accent)', color: 'var(--accent-fg)' }}
           >
             <IconSparkles size={15} />
-            Chat with Amplify Helper
+            Chat with {brandName} Helper
           </button>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          <span className="mr-1 inline-flex items-center gap-1 px-1 py-1" title="Guide for all Vanderbilt Amplify users">
+          <span className="mr-1 inline-flex items-center gap-1 px-1 py-1" title={custom ? `Guide for all ${brandName} users` : 'Guide for all Vanderbilt Amplify users'}>
             <IconBook size={13} aria-hidden="true" />
-            Guide for all Vanderbilt Amplify users
+            {custom ? `Guide for all ${brandName} users` : 'Guide for all Vanderbilt Amplify users'}
           </span>
-          <a className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 hover:bg-[--bg-hover] hover:text-[--text-primary] hover:underline hover:underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]" href={docs} target="_blank" rel="noreferrer">
-            Resources <IconExternalLink size={12} aria-hidden="true" />
-          </a>
-          <a className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 hover:bg-[--bg-hover] hover:text-[--text-primary] hover:underline hover:underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]" href={AMPLIFY_HELPER_DATA_CLASSIFICATION_URL} target="_blank" rel="noreferrer">
-            Data classification <IconExternalLink size={12} aria-hidden="true" />
-          </a>
-          <a className="inline-flex items-center rounded-[6px] px-2 py-1 hover:bg-[--bg-hover] hover:text-[--text-primary] hover:underline hover:underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]" href={`mailto:${support}`}>
-            {support}
-          </a>
+          {docs && (
+            <a className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 hover:bg-[--bg-hover] hover:text-[--text-primary] hover:underline hover:underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]" href={docs} target="_blank" rel="noreferrer">
+              Resources <IconExternalLink size={12} aria-hidden="true" />
+            </a>
+          )}
+          {!custom && (
+            <a className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 hover:bg-[--bg-hover] hover:text-[--text-primary] hover:underline hover:underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]" href={AMPLIFY_HELPER_DATA_CLASSIFICATION_URL} target="_blank" rel="noreferrer">
+              Data classification <IconExternalLink size={12} aria-hidden="true" />
+            </a>
+          )}
+          {support && (
+            <a className="inline-flex items-center rounded-[6px] px-2 py-1 hover:bg-[--bg-hover] hover:text-[--text-primary] hover:underline hover:underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]" href={`mailto:${support}`}>
+              {support}
+            </a>
+          )}
         </div>
 
         <div className="relative mt-5">
@@ -274,7 +285,7 @@ export const AmplifyHelperAssistant: React.FC<AmplifyHelperAssistantProps> = ({
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search the guide…"
-            aria-label="Search the Amplify Helper guide"
+            aria-label={`Search the ${brandName} Helper guide`}
             className="h-9 w-full rounded-[8px] border bg-[--bg-raised] pl-9 pr-9 text-[12px] outline-none placeholder:text-[--text-muted] focus-visible:ring-2 focus-visible:ring-[--accent]"
             style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
           />

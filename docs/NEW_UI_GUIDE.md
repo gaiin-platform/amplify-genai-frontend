@@ -231,7 +231,7 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | `toolSteps.ts` | Structured tool-step model — `ToolStep {tool, status, args, resultSummary?, errorDetail?}`. `parseLegacyToolStatus` recovers `{tool, args}` from the "Calling: X" string `utils/app/agent#handleAgentRun` writes; `advanceLiveSteps` accumulates distinct calls (the poll only carries the latest, and no result/error); `stepsFromAgentLog` rebuilds authoritative steps from a saved log; `groupTitle`, `plainErrorMessage`, `formatParamRows`, and `stepsFromInterpreterRuns` (one `exec_code` step per sandbox run from `state.codeInterpreter.runs` — the backend's `buildRunRecord`: `{id, ok, code, description?, stdout?, error?, files?, truncated?}`; skips malformed records). `ToolStep.title` / `ToolStep.detail` carry a run's description and body. MCP: `ToolStep.mcp` plus `stepsFromMcpRuns` (backend `buildMcpRunRecord` records: `{id, ok, tool, serverName?, args?, result?, error?, media?, ms?, truncated?}`), `stepsFromMcpToolResults` (browser-run calls: `data.mcpToolResults` paired with `tool_calls` by position), `describeStep` (server-aware labels), `withRunningMcpSteps`, `mcpServersUsed`, `summarizeMcpResult` (a count only for a clear JSON list); `groupTitle` names servers. No React imports |
 | `scheduledTaskLogDetails.ts` | Makes a `/get-task-execution-details` record safe to render for Scheduled Tasks → Run Logs: `normalizeExecutionRecord` (details may be an object, a JSON string, a bare message list, or — for runs archived out of the active log store — a still-LZW-compressed `number[]`; also carries the backend's `detailsError`), `parseDetailsPayload`, `formatRunStatus`. The run's "Reasoning / Actions" is `AgentLogBlock` inside a `data-nui-agentlog="true"` wrapper, which opts it into the same `conversation-view.css` restyle as in chat. No React imports |
 | `DisclosureChevron.tsx` | The one expand/collapse glyph (right → down). Glyph only — the parent must be a `<button aria-expanded>`. Rotation transition lives in `conversation-view.css` with a reduced-motion override |
-| `AmplifyLogo.tsx` | The one Amplify mark (sidebar, new-chat heading, login). Bypasses the `/_next/image` optimizer (`unoptimized`) and swaps to an "A" tile on load failure, so a broken-image icon never shows. Use it instead of a bare `<Image src="/amplify-logo.png">` |
+| `AmplifyLogo.tsx` | The one product mark (sidebar, new-chat heading, login). White-labeled: tries `NEXT_PUBLIC_CUSTOM_LOGO`, then the stock Amplify mark, then a one-letter tile of the brand name. Bypasses the `/_next/image` optimizer (`unoptimized`), so a broken-image icon never shows. Use it instead of a bare `<Image src="/amplify-logo.png">` |
 | `AnnouncementBanner.tsx` | Mounted in `home.tsx`'s New UI layout above the sidebar/content row. Shows the admin announcement until the user closes it (close lasts the tab session, cleared on sign-out, so it returns next login). Also exports `AnnouncementBar` (the presentational bar, used for the admin preview). The message is centred on one line; if it doesn't fit it scrolls as a looping ticker (pauses on hover; reduced-motion users get a static, manually scrollable line) |
 
 ### `sidebar/`
@@ -759,6 +759,15 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     back with a second save (rolling the tasks back if that second save fails); an edit already has the id and
     writes them first. And an uploaded file that a save replaces (the icon) is deleted only after the save
     succeeds — deleting on click leaves the assistant pointing at nothing if the editor is cancelled.
+
+45. **Brand strings and institution content come from `utils/whiteLabel/branding`, never from literals.**
+    Deployments are white-labeled at build time (`docs/WHITE_LABEL.md`). In chrome that names the product
+    (logo, wordmark, login heading, loading text, tab titles, alt text) use `getBrandName()` and
+    `AmplifyLogo`; do not write "Amplify" or import `/amplify-logo.png` directly. Anything that states
+    Vanderbilt policy, links or contacts (the Amplify Helper guide is the only place today) must be dropped
+    when `isCustomOrganization()` is true, not reworded. Product terms ("Amplify Groups") and
+    admin-editable prompts are not chrome and stay as they are. Colors: use the design tokens in §3 only;
+    the classic `--color-primary-*` variables do not reach the New UI.
 
 
 ---

@@ -115,6 +115,7 @@ import { UIPreferenceBanner, getUIPreference, setUIPreference, type UIPreference
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { NotebookFeatureGate } from '@/components/NewUI/shared/NotebookFeatureGate';
 import { NewUiRolloutGate } from '@/components/NewUI/shared/NewUiRolloutGate';
+import { getBrandName } from '@/utils/whiteLabel/branding';
 import { UiAnalytics } from '@/components/NewUI/shared/UiAnalytics';
 import { isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
@@ -2033,7 +2034,7 @@ const Home = ({
                         {uiPreference === 'classic' ? (
                             <LoadingDialog open={loadingAmplify} message={"Setting Up Amplify..."}/>
                         ) : (
-                            <NewUILoadingStatus open={loadingAmplify} message="Setting up Amplify…" />
+                            <NewUILoadingStatus open={loadingAmplify} message={`Setting up ${getBrandName()}…`} />
                         )}
                     </main>
                 )}

@@ -6,6 +6,7 @@ import React from 'react';
 import { IconLayoutSidebarLeftCollapse, IconSearch } from '@tabler/icons-react';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
 import { AmplifyLogo } from '@/components/NewUI/shared/AmplifyLogo';
+import { getBrandName } from '@/utils/whiteLabel/branding';
 
 interface SidebarHeaderProps {
   onCollapse: () => void;
@@ -33,7 +34,7 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
           className="text-[20px] text-[--text-primary] tracking-[-0.01em]"
           style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
         >
-          Amplify
+          {getBrandName()}
         </span>
       </button>
 
