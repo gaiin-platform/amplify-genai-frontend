@@ -1836,6 +1836,10 @@ const Home = ({
                 {selectedConversation && (
                     <main
                         className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                        // 100dvh tracks the *visible* viewport on mobile (URL bar / toolbars),
+                        // so the composer cap isn't taller than what's on screen. Browsers
+                        // without dvh drop this declaration and keep h-screen (100vh).
+                        style={{ height: '100dvh' }}
                     >
                         {/* ── NEW UI LAYOUT ── gated: New UI renders only while the New UI rollout
                             flag is confirmed enabled (see NewUiRolloutGate); 'pending' renders nothing. */}

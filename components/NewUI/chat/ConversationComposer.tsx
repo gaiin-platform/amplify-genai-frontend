@@ -70,7 +70,7 @@ import {
   type SelectedAction,
 } from '@/components/NewUI/shared/AttachMenu';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
-import { AttachmentRail } from '@/components/NewUI/shared/AttachmentRail';
+import { AttachmentRail, attachmentRailHeight } from '@/components/NewUI/shared/AttachmentRail';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import {
   type EffortLevel,
@@ -138,6 +138,9 @@ function setNativeValue(el: HTMLTextAreaElement, value: string) {
  * document is not failed while the backend is still processing it.
  */
 const UPLOAD_STALL_TIMEOUT_MS = 150_000;
+
+/** Height of ConversationHeader (HEADER_H in ConversationViewShell) — the dock must not cover it. */
+const COMPOSER_HEADER_H = 52;
 
 export interface ConversationComposerProps {
   /**
@@ -383,6 +386,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   // ── Attachment rail state (declared here so handleSend can read uiAttachments) ──
   const [uiAttachments, setUIAttachments] = useState<UIAttachment[]>([]);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  // True while the text area is scrolled — shows the attachment row's divider.
+  const [textScrolled, setTextScrolled] = useState(false);
   const [previewOriginRect, setPreviewOriginRect] = useState<
     DOMRect | undefined
   >(undefined);
@@ -1199,14 +1204,28 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         background:
           'linear-gradient(to bottom, transparent, var(--bg-app) 32px)',
         pointerEvents: 'none',
+        // Cap the dock to the shell (which already excludes the announcement
+        // banner) minus the 52px conversation header, so a tall composer grows
+        // up to — never past — the header. Overflow is absorbed by the rail and
+        // text area below; the toolbar stays visible.
+        maxHeight: `calc(100% - ${COMPOSER_HEADER_H}px)`,
+        // Safety net: in a very short window the (never-squeezed) attachment row +
+        // 3-line text area + toolbar can exceed the cap; scroll instead of clipping.
+        overflowY: 'auto',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {/* Centered dock column — matches --dock-w (column-w + 2 × 24px pad) */}
       <div
         style={{
           maxWidth: 'calc(min(74ch, calc(100% - 48px)) + 48px)',
+          width: '100%',
           margin: '0 auto',
           pointerEvents: 'auto',
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: 0,
         }}
       >
         {/* Composer card — 3-band grid: rail | textarea | toolbar */}
@@ -1217,10 +1236,15 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             border: '1px solid var(--border-subtle)',
             borderRadius: 14,
             padding: '16px 24px 12px',
-            display: 'grid',
-            gridTemplateRows: 'auto 1fr auto',
+            // Flex column (was a 3-row grid): rail and text area can shrink
+            // under the dock's max-height; the toolbar never does.
+            display: 'flex',
+            flexDirection: 'column',
+            flex: '0 1 auto',
             gap: 0,
-            minHeight: 88,
+            // With attachments: chrome + full-height attachment row + ~3 lines +
+            // toolbar, so the parts can never be squeezed into overlapping.
+            minHeight: uiAttachments.length > 0 ? attachmentRailHeight(uiAttachments) + 152 : 88,
             transition: 'border-color 0.15s',
           }}
           onClick={() => richComposerRef.current?.focus()}
@@ -1243,6 +1267,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
 
           {/* ── Band 1: Attachment rail (collapses to 0 when empty) ── */}
           <AttachmentRail
+            showDivider={textScrolled}
             attachments={uiAttachments}
             onRemove={handleRemoveAttachment}
             onEdit={handleEditPastedAttachment}
@@ -1267,7 +1292,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             onImagePaste={addFileToRail}
             placeholder="Write a message…"
             hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
-            editorClassName="max-h-[288px] overflow-y-auto"
+            editorClassName={`max-h-[288px] overflow-y-auto${uiAttachments.length > 0 ? ' min-h-[4.5em]' : ''}`}
+            rootClassName={uiAttachments.length > 0 ? 'min-h-[4.5em]' : ''}
+            onScrolledChange={setTextScrolled}
           />
 
           {/* ── Band 3: Toolbar (36px) ── */}
@@ -1277,6 +1304,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
               alignItems: 'center',
               justifyContent: 'space-between',
               height: 36,
+              flexShrink: 0,
               marginTop: 10,
             }}
           >
