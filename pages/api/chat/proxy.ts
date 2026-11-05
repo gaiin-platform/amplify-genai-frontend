@@ -1,6 +1,7 @@
 import { NextApiRequest, NextApiResponse } from "next";
 import { getServerAccessToken } from "@/utils/server/accessToken";
 import { validateUrlForSSRF } from "@/utils/app/urlValidation";
+import { decodeProxyRequestBody } from "@/utils/server/chatProxyBody";
 
 export const config = {
     api: {
@@ -61,7 +62,16 @@ const chatProxy = async (req: NextApiRequest, res: NextApiResponse) => {
         return res.status(401).json({ error: 'Unauthorized' });
     }
 
-    const { endpoint, body } = req.body || {};
+    // The browser sends the payload gzip+base64 encoded so the WAF in front of the app does not mistake HTML/JS
+    // inside chat content for an XSS attempt. Plain `{endpoint, body}` is still accepted.
+    let decoded: any;
+    try {
+        decoded = decodeProxyRequestBody(req.body);
+    } catch (e) {
+        console.warn('Rejected chat proxy request: undecodable body', e instanceof Error ? e.message : e);
+        return res.status(400).json({ error: 'Invalid request body' });
+    }
+    const { endpoint, body } = decoded || {};
 
     const targetEndpoint = resolveTargetEndpoint(endpoint);
     if (!targetEndpoint) {
