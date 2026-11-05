@@ -836,7 +836,10 @@ const Home = ({
     useEffect(() => {
         // @ts-ignore
         if (["RefreshAccessTokenError", "SessionExpiredError"].includes(session?.error)) {
-            signOut({ callbackUrl: '/' });
+            // @ts-ignore
+            console.warn(`[Auth] Signing out due to ${session?.error}`);
+            // @ts-ignore
+            signOut({ callbackUrl: `/?reason=${session?.error === 'RefreshAccessTokenError' ? 'refresh-failed' : 'session-expired'}` });
             setUser(null);
         }
     }, [session]);

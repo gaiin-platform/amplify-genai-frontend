@@ -7,8 +7,6 @@ import { NextApiRequest } from "next";
 import { getToken } from "next-auth/jwt";
 import { refreshAccessToken } from "@/pages/api/auth/[...nextauth]";
 
-const SESSION_MAX_AGE_MS = 3 * 60 * 60 * 1000; // keep in sync with authOptions.session.maxAge
-
 export async function getServerAccessToken(req: NextApiRequest): Promise<string | null> {
     const token: any = await getToken({ req });
 
@@ -16,9 +14,9 @@ export async function getServerAccessToken(req: NextApiRequest): Promise<string 
         return null;
     }
 
-    // getToken() decodes the cookie without running the jwt callback, so re-apply
-    // the absolute session lifetime the callback normally enforces.
-    if (token.sessionIssuedAt && (Date.now() - token.sessionIssuedAt) > SESSION_MAX_AGE_MS) {
+    // getToken() decodes the cookie without running the jwt callback, so surface a
+    // refresh failure the callback has already recorded.
+    if (token.error) {
         return null;
     }
 
