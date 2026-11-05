@@ -1,5 +1,9 @@
 # amplify-genai-frontend
 
+> ## :new: v0.9.5 (New UI release)
+>
+> Version 0.9.5 adds the Amplify **New UI**. It is **off by default** and is switched on by an admin with the `newUi` feature flag. **Deploy the [backend](https://github.com/gaiin-platform/amplify-genai-backend) v0.9.5 first**, then rebuild and deploy this frontend. This release moves Next.js from 14 to 15 and needs Node.js 20 or newer. Read [RELEASE_NOTES_NEW_UI.md](./RELEASE_NOTES_NEW_UI.md) before upgrading. For white labeling a Docker build, see [docs/WHITE_LABEL.md](./docs/WHITE_LABEL.md).
+
 > ## :warning: v0.9.0 Breaking Change
 >
 > **Version 0.9.0 requires the backend v0.9.0 to be deployed first.** The backend has migrated all shared environment variables to AWS Parameter Store.
