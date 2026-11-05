@@ -133,7 +133,7 @@ export const ScopePicker: FC<{
       </div>
       <p style={{ ...note, margin: '0 0 14px' }}>
         {sites.length > 0 ? `Sites and drives: ${sites.slice(0, 6).map(([site, n]) => `${site} (${fmt(n)})`).join(', ')}. ` : ''}
-        Read from each file's record: scraped pages carry their web address, synced files carry their drive id.
+        Read from each file&apos;s record: scraped pages carry their web address, synced files carry their drive id.
       </p>
 
       <div style={label}>Only documents that were…</div>

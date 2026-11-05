@@ -197,7 +197,7 @@ export const OrphanPanel: FC<{ onChanged: () => void }> = ({ onChanged }) => {
       <div>
         <p style={{ fontSize: 13, ...text.secondary, margin: 0, lineHeight: 1.6 }}>
           Files that were made for assistants (synced drive files, scraped web pages, group files) and that no assistant uses any more.
-          Ordinary files in someone's library are never listed here, and nothing is deleted until you confirm.
+          Ordinary files in someone&apos;s library are never listed here, and nothing is deleted until you confirm.
         </p>
         <button
           onClick={() => setRules(!rules)} aria-expanded={rules}
@@ -209,7 +209,7 @@ export const OrphanPanel: FC<{ onChanged: () => void }> = ({ onChanged }) => {
           <ul style={{ fontSize: 12, ...text.secondary, lineHeight: 1.7, margin: '6px 0 0', paddingLeft: 18 }}>
             <li>A file counts as used if its key, its content or its hash appears anywhere in any version of any assistant, layered assistant or group.</li>
             <li>Files added or changed in the last 14 days, used in a chat lately, or being migrated are left alone.</li>
-            <li>Deleting removes that upload's record, its pointer and its stored copy. The shared text goes only if it is the last copy and has no embeddings.</li>
+            <li>Deleting removes that upload&apos;s record, its pointer and its stored copy. The shared text goes only if it is the last copy and has no embeddings.</li>
             <li>Embeddings are never deleted from here, and images and videos are not covered.</li>
             <li>The server checks every file again at the moment you delete.</li>
           </ul>

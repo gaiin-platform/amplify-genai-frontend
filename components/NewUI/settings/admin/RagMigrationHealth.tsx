@@ -102,7 +102,7 @@ export const HealthCard: FC<{ health?: MigrationHealth }> = ({ health }) => {
               </>
             )}
             {ns === 'preHash' && (
-              <p style={{ ...muted, margin: '8px 0 0' }}>Records that are not under a global/ or global2/ key: uploads from before files were de-duplicated by content hash (stored under the user's own file path) and old assistant-level records (ast/…). The migration cannot move them and does not touch them, and they are not counted as problems. The bar above shows their state.</p>
+              <p style={{ ...muted, margin: '8px 0 0' }}>Records that are not under a global/ or global2/ key: uploads from before files were de-duplicated by content hash (stored under the user&apos;s own file path) and old assistant-level records (ast/…). The migration cannot move them and does not touch them, and they are not counted as problems. The bar above shows their state.</p>
             )}
           </div>
         );
