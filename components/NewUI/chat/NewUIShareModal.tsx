@@ -39,6 +39,7 @@ import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
 import { SignInRequiredNote } from '@/components/NewUI/shared/SignInRequiredNote';
 import {
     looksLikeEmail,
+    recipientsForDisplay,
     resolveUsernameForEmail,
 } from '@/components/NewUI/shared/emailSuggestions';
 import {
@@ -158,7 +159,8 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                     type: r.contentType as ShareHistoryItemType || itemType,
                     sourceId: sourceId,
                     sourceName: r.sourceName || sourceName,
-                    sharedWith: r.recipients,
+                    // The server stores usernames (Cognito ids); show addresses.
+                    sharedWith: recipientsForDisplay(r.recipients, amplifyUsers),
                     note: r.note,
                     sharedAt: r.sharedAt,
                 }));
@@ -173,7 +175,7 @@ export const NewUIShareModal: React.FC<NewUIShareModalProps> = ({
                 setExistingShares(combined);
             })
             .catch(() => { /* best-effort */ });
-    }, [sourceId, sharedBy]);
+    }, [sourceId, sharedBy, amplifyUsers]);
 
     // ── Form state ──────────────────────────────────────────────────────────
     const [recipientInput, setRecipientInput] = useState('');

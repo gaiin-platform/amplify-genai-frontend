@@ -124,6 +124,61 @@ export function resolveUsernameForEmail(
 }
 
 /**
+ * The reverse of `resolveUsernameForEmail`: the address to *show* for a stored
+ * username. The server keeps usernames (Cognito ids), never addresses, so
+ * anything read back from it must be mapped before it reaches the screen.
+ * Returns '' when nothing displayable is known (an unmapped id): a raw UUID
+ * must never be shown.
+ */
+export function resolveEmailForUsername(
+    username: string,
+    amplifyUsers: AmplifyUsers,
+): string {
+    if (typeof username !== 'string') return '';
+    const value = username.trim();
+    if (!value) return '';
+
+    if (amplifyUsers) {
+        const lower = value.toLowerCase();
+        const key =
+            value in amplifyUsers
+                ? value
+                : Object.keys(amplifyUsers).find((k) => k.toLowerCase() === lower);
+        const mapped = key !== undefined ? amplifyUsers[key] : undefined;
+        if (typeof mapped === 'string' && mapped.trim() && !isRawUUID(mapped)) {
+            return mapped.trim();
+        }
+    }
+
+    // Some records already hold an address (the share API falls back to the
+    // typed address when no username is known).
+    return looksLikeEmail(value) ? value : '';
+}
+
+/**
+ * Display strings for a list of stored recipients. Addresses we can resolve are
+ * listed by name; the rest are counted ("2 more", or "1 person" when none could
+ * be resolved) so an internal id is never shown.
+ */
+export function recipientsForDisplay(
+    recipients: readonly string[] | null | undefined,
+    amplifyUsers: AmplifyUsers,
+): string[] {
+    const names: string[] = [];
+    let unresolved = 0;
+
+    for (const recipient of recipients ?? []) {
+        const email = resolveEmailForUsername(recipient, amplifyUsers);
+        if (email) names.push(email);
+        else unresolved++;
+    }
+
+    if (unresolved === 0) return names;
+    if (names.length === 0) return [`${unresolved} ${unresolved === 1 ? 'person' : 'people'}`];
+    return [...names, `${unresolved} more`];
+}
+
+/**
  * Split pasted text (or a typed run of addresses) on commas, semicolons and
  * whitespace. Pasting a mail-client recipient list is the common case.
  */
