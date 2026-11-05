@@ -143,17 +143,18 @@ npm start
 
 **For Docker Deployment:**
 ```bash
-docker build \
+docker build --no-cache \
   --build-arg NEXT_PUBLIC_CUSTOM_LOGO="my-company-logo.svg" \
   --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
   --build-arg NEXT_PUBLIC_BRAND_NAME="My Company" \
+  --build-arg NEXT_PUBLIC_ORGANIZATION_NAME="My Company" \
   -t my-app:latest \
   .
 
 docker run -p 3000:3000 my-app:latest
 ```
 
-**Note:** Environment variables must be passed as build arguments for Docker builds since they are baked into the application at build time.
+**Note:** Environment variables must be passed as build arguments for Docker builds since they are baked into the application at build time. A **build argument** is a value you give `docker build` with `--build-arg NAME=value`. The `Dockerfile` accepts exactly these four: `NEXT_PUBLIC_CUSTOM_LOGO`, `NEXT_PUBLIC_DEFAULT_THEME`, `NEXT_PUBLIC_BRAND_NAME` and `NEXT_PUBLIC_ORGANIZATION_NAME`. Values in `.env.local` do not reach a Docker build (`.dockerignore` excludes it), and values given at `docker run` come too late. Put the logo file in `public/logos/` **before** you build. If the result does not look branded, see [Docker builds: branding does not show up](#docker-builds-branding-does-not-show-up).
 
 ### Logo Examples
 
@@ -446,6 +447,29 @@ echo $NEXT_PUBLIC_CUSTOM_LOGO
 npm run build 2>&1 | grep -i logo
 ```
 
+### Docker builds: branding does not show up
+
+**Problem:** You built a Docker image with white-label settings, but the running app still shows the default logo, name or theme.
+
+This is usually a stale image or an old container, not a code problem. Work through these in order:
+
+1. **Rebuild with `--no-cache`.** Docker reuses cached build layers, which keeps the old values.
+2. **Pass every value with `--build-arg`.** The values are compiled into the JavaScript at build time. `.env.local` is excluded from the image by `.dockerignore`, and variables given to `docker run` do not change compiled code. A build argument you did not pass is empty.
+3. **Put the logo in `public/logos/` before building**, and set `NEXT_PUBLIC_CUSTOM_LOGO` to the filename only (case-sensitive, no folder).
+4. **Use a new image tag** (for example `acme-ai:2026-11-06`) so your host cannot keep using the old image.
+5. **Stop and remove the old container**, then start one from the new image:
+   ```bash
+   docker ps
+   docker stop <container> && docker rm <container>
+   ```
+6. **Check the image itself.** This lists compiled files that contain your brand name, and prints nothing if the value was not baked in:
+   ```bash
+   docker run --rm --entrypoint sh <image> -c 'grep -rl "<brand>" .next/static | head'
+   ```
+7. **Hard refresh the browser** (Cmd+Shift+R or Ctrl+Shift+R).
+
+(We have not tested this Docker path end to end.)
+
 ### Theme Not Applying
 
 **Problem:** Default theme configuration is ignored.
@@ -616,10 +640,11 @@ project/
 
 3. **Build with Docker:**
    ```bash
-   docker build \
+   docker build --no-cache \
      --build-arg NEXT_PUBLIC_CUSTOM_LOGO="acme-logo.svg" \
      --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
      --build-arg NEXT_PUBLIC_BRAND_NAME="Acme AI Assistant" \
+     --build-arg NEXT_PUBLIC_ORGANIZATION_NAME="Acme Corporation" \
      -t acme-ai:latest \
      .
    ```
@@ -670,5 +695,5 @@ If you encounter issues not covered in this guide:
 
 ---
 
-**Last Updated:** December 2, 2025
+**Last Updated:** November 5, 2026 (v0.9.5)
 **Version:** 1.0.0

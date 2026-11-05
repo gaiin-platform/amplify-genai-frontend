@@ -1,86 +1,269 @@
-# Release Notes: New UI (Frontend)
+# Release Notes: v0.9.5 (New UI) - Frontend
 
-**Status**: DRAFT. Scope is "must-knows and requirements outside a normal service deployment".
-**Compared against**: `origin/main` (`babb17e1`) → `dev`
-**Requires**: the matching backend release (see `amplify-genai-backend/RELEASE_NOTES_NEW_UI.md`). Deploy the backend first.
-
----
-
-## TL;DR
-
-1. The New UI ships **dark**. It is controlled by the `newUi` feature flag, which is **off by default**. Deploying this frontend does not change what anyone sees until an admin turns the flag on.
-2. The flag is served by the backend (`GET /amplifymin/feature_flags`), so the backend must be deployed first.
-3. There are **no new frontend environment variables** and no change to `.env.local.example`.
+**Release Date**: 2026-11-06 (planned)
+**Previous Version**: v0.9.4 (September 10, 2026)
+**Branch**: `dev` (merges to `main` at release)
+**Requires**: backend v0.9.5 - see [`amplify-genai-backend/RELEASE_NOTES_NEW_UI.md`](https://github.com/gaiin-platform/amplify-genai-backend/blob/main/RELEASE_NOTES_NEW_UI.md). **Deploy the backend first.**
 
 ---
 
-## Enabling the New UI (admin steps)
+## Summary
 
-1. Deploy the backend, then this frontend.
-2. In the admin panel, open **Feature Flags**, and make sure `newUi` exists. A current backend adds it as *disabled* the first time `/feature_flags` is read. If it is missing, use **Add Feature** and type `New UI`. The name normalizes to exactly `newUi` (a flag named `newUI` is dead, and the UI prevents creating it).
-3. Turn it on for everyone, or for a pilot group:
-   - Leave the flag **off** and add the pilot users or Amplify groups as **exceptions**. An exception *inverts* the flag for that user, so the client only ever sees a final true/false.
-   - Or turn it **on**, and use exceptions to keep specific users on Classic.
-4. Users need a page reload. Open tabs re-check on refocus (at most every 30 s) and when an admin saves flags.
+Version 0.9.5 adds the **New UI**, a redesigned interface for Amplify. Compared with `v0.9.4` it contains **309 commits** and **636 changed files**. The New UI ships **switched off**: it is controlled by a feature flag named `newUi`, and deploying this release changes nothing for users until an admin turns the flag on. The Classic UI is still in the product.
 
-### How a user's UI is decided
-- `newUi` is the **only** authority for whether the New UI may appear. Nothing else (local storage, saved preference, cookie) can turn it on.
-- Flag on and no saved choice → **New UI**.
-- Flag on and the user previously chose Classic → stays on Classic, **unless** the admin has set `allowClassicUiSwitch: false` (then everyone is forced to New).
-- Flag off → Classic for everyone. Saved choices are kept, so turning the flag back on restores them.
-- If `/feature_flags` fails or takes longer than 6 s, the app uses that user's last known server answer, otherwise it shows **Classic** (fails closed). A late answer re-resolves.
-- To retest a first run on one browser, open the app with `?uiPreference=reset`.
+This document keeps two kinds of content apart:
+
+- **[Part 1 - Before you upgrade](#part-1---before-you-upgrade)**: what an operator or admin must know or do beyond a normal rebuild and deploy. Read this first.
+- **[Part 2 - What's new](#part-2---whats-new)**: what users get in this release, by area.
+
+### Highlights at a Glance
+- :warning: **Requires backend v0.9.5.** The New UI reads its on/off flag from `GET /amplifymin/feature_flags` and calls routes that are new in the backend.
+- :warning: **The New UI is off by default.** An admin enables the `newUi` feature flag (exact name, case-sensitive).
+- :warning: **Build changes** - Next.js 14 to 15, Node 20 or newer, `console.log/info/debug` removed from production builds.
+- :art: **White labeling** - the New UI honors `NEXT_PUBLIC_CUSTOM_LOGO`, `NEXT_PUBLIC_BRAND_NAME`, `NEXT_PUBLIC_DEFAULT_THEME` and the new `NEXT_PUBLIC_ORGANIZATION_NAME`. These are **build-time** values and must be passed as Docker build arguments.
+- :package: **No data migration** is needed in the browser or on the server.
+
+### Terms used in this document
+- **Feature flag**: an on/off switch in the Admin panel, with optional per-user and per-group exceptions.
+- **Build argument** (`docker build --build-arg NAME=value`): a value supplied when the image is built. `NEXT_PUBLIC_*` variables are copied into the compiled JavaScript at that moment, so changing them later, at `docker run`, has no effect.
+- **Classic UI / New UI**: the previous and the redesigned interface.
 
 ---
 
-## Flags and admin settings the New UI reads
+# Part 1 - Before you upgrade
 
-| Setting | Where it lives | Default | Notes |
+## 1. Deploy order
+
+1. Deploy the backend (all services; see its release notes). Without it the `newUi` flag cannot be read and some New UI features call routes that do not exist.
+2. Rebuild the frontend image, then push it and update your service (ECS, or your own hosting).
+3. In the Admin panel, turn on the `newUi` flag (next section).
+
+## 2. Turn on the New UI (admin steps)
+
+The New UI is off until `newUi` is on. The backend serves the flag, so the backend must already be deployed.
+
+1. Sign in as an admin and open the **Admin Panel** (from the account menu in the sidebar). In the New UI the tabs are: Configurations, System Prompts, Deployment, Supported Models, Application Variables, **Feature Flags**, Feature Data, User Costs. In the Classic UI use the gear icon, then **Admin Interface**, then the **Feature Flags** tab.
+2. Find `newUi` in the list. A current backend creates it as **disabled** the first time flags are read, so it should already be there. If it is missing, click the **+** button next to the "Feature Flags" heading (**Add Feature**) and type `New UI`. The form converts that to the exact name **`newUi`** (it also converts `newUI` and `new ui`). The name must be exactly `newUi`; a flag spelled any other way is ignored.
+3. Choose who gets it:
+   - **Everyone**: switch `newUi` on and save.
+   - **A pilot group**: leave `newUi` **off** and add the pilot users (email) or Amplify groups as **exceptions**. An exception **inverts** the flag for that person, so they see the New UI while everyone else does not.
+   - **Everyone except some people**: switch `newUi` on and add the people who should stay on Classic as exceptions.
+4. Click **Save** in the admin modal. Nothing is stored until you save.
+5. Users get the change on their next page load. Open tabs re-check when the tab regains focus (at most every 30 seconds) and the admin's own tab re-checks as soon as the flags are saved.
+
+### What a user sees
+
+`allowClassicUiSwitch` is a setting on the Deployment tab (default on). A user's "saved preference" is the last UI they picked (stored in their browser and in their server-side user settings).
+
+| `newUi` flag (after exceptions) | Saved preference | `allowClassicUiSwitch` | User sees |
+|---|---|---|---|
+| off | any | any | **Classic UI** |
+| on | none (first visit) | any | **New UI** |
+| on | New | any | **New UI** |
+| on | Classic | on | **Classic UI** |
+| on | Classic | off | **New UI** (the Classic choice is overridden) |
+
+- `newUi` is the **only** thing that can turn the New UI on. A saved preference, local storage or a cookie cannot.
+- With the flag off, saved preferences are kept, so turning the flag back on restores each user's choice.
+- When the flag is on, the New UI account menu has **Switch to Classic UI**, and the Classic user menu has **Switch to New UI**. The Classic switch is hidden when `allowClassicUiSwitch` is off. The server also refuses to save a Classic preference in that case.
+- **If the flag cannot be read** (request fails or returns an unusable answer), the app uses that user's last known answer from their browser. If there is none, it shows **Classic**. If the request hangs, the app decides after 6 seconds. A late answer is applied when it arrives.
+- To test a first run in one browser, open the app with `?uiPreference=reset`. It clears that browser's saved choice and the server-side one, then reloads.
+
+## 3. Other flags and admin settings the New UI reads
+
+| Setting | Where | Default | Notes |
 |---|---|---|---|
 | `newUi` | Feature Flags | **off** | Gate for the whole New UI. |
-| `amplifyHelper` | Feature Flags | off | Shows the Amplify Helper tab under Assistants. Guide: `docs/AMPLIFY_HELPER_GUIDE.md`. |
-| `notebook` | Feature Flags | off | Must be **added manually** (not in backend base flags). Strict: missing, false or malformed means off. |
-| `halloween` | Feature Flags | off | Must be **added manually**. Seasonal theme. |
-| `mcp`, `skills`, `webSearch` | Feature Flags | per backend | The New UI honors these flags. |
-| `deploymentFeatures` | Admin → deployment settings | see below | Deployment-wide availability and UI policy. |
+| `amplifyHelper` | Feature Flags | off | A base flag. Shows the Amplify Helper tab under Assistants. See `docs/AMPLIFY_HELPER_GUIDE.md`. |
+| `notebook` | Feature Flags | not present | **Not** a backend base flag: an admin must create it with **Add Feature**. Only an explicit `true` turns it on. |
+| `halloween` | Feature Flags | not present | **Not** a base flag: create it with **Add Feature**. Seasonal theme. Only an explicit `true` turns it on. |
+| `mcp`, `skills`, `webSearch`, `artifacts`, `scheduledTasks`, `createAssistantWorkflows` and other existing flags | Feature Flags | per backend | The New UI honors them. For example, the Workflows sidebar item appears only with `createAssistantWorkflows`, and Scheduled tasks need `scheduledTasks`. |
+| `deploymentFeatures` | Admin, Deployment tab | see below | Deployment-wide availability and UI policy (new). |
+| `systemPrompts` | Admin, System Prompts tab | built-in prompts | Editable system prompts (new). |
 
-`deploymentFeatures` fields: `availability` (`promptHighlighter`, `artifacts`, `webSearch`, `codeInterpreter`, `memory`), `allowClassicUiSwitch`, `routingEnabled`, `routingModelId`, `announcement`.
+**`deploymentFeatures`** fields:
 
-### Behavior changes admins will notice
-- **Prompt highlighter and memory default to OFF** when no `deploymentFeatures` record exists (new or legacy configs). Artifacts, web search and code interpreter default to ON. Enable highlighter or memory explicitly if you want them.
-- **Site-wide announcement banner**: admins can publish a message (optional expiry). Users can dismiss it. A removed announcement disappears on next load.
-- **AI model routing** (`routingEnabled`, `routingModelId`): off by default. This is the ordinary-chat model router, not network routing.
+| Field | Default | Meaning |
+|---|---|---|
+| `availability.promptHighlighter` | **off** | Prompt highlighter. |
+| `availability.memory` | **off** | Memory. |
+| `availability.artifacts` | on | Artifacts. |
+| `availability.webSearch` | on | Web search. |
+| `availability.codeInterpreter` | on | Code interpreter. |
+| `allowClassicUiSwitch` | on | Whether users may use the Classic UI. |
+| `routingEnabled` | off | Automatic model routing for ordinary chat (not network routing). |
+| `routingModelId` | empty | Model the router uses; empty uses the built-in default. |
+| `announcement` | none | Site-wide banner (message up to 500 characters in the Admin UI, optional expiry, users can dismiss it). |
+
+**Behavior changes admins will notice**
+- **Prompt highlighter and memory default to OFF** when no `deploymentFeatures` record exists, including on existing deployments. Turn them on in Admin, Deployment if you want them.
+- **System prompts**: Admin, System Prompts can override the built-in prompts. An empty text keeps the built-in one. A save replaces the whole set, so open the tab, check every prompt, then save. If your own admin account does not see the Amplify Helper card (because `amplifyHelper` is off for you), saving will drop a stored Amplify Helper prompt.
+- **Announcement banner**: a removed announcement disappears on the next load.
+
+## 4. Build and runtime requirements
+
+| Item | Change |
+|---|---|
+| Next.js | **14 to 15** (`next ^15.5.27`, resolved 15.5.29). Vitest 4 and `@types/node` 22 for tests. Run a clean `npm ci`. |
+| Node.js | Use **Node 20 or newer**. `amplify.yml` runs `nvm install 20`. The `Dockerfile` uses `node:lts-alpine3.20`. `package.json` has no `engines` field. |
+| Console output | Production builds **remove `console.log`, `console.info` and `console.debug`**. `console.error` and `console.warn` are kept. Plan your production debugging around that. |
+| Environment variables | **No new runtime variables.** `.env.local.example` is unchanged. The only new variable is the build-time `NEXT_PUBLIC_ORGANIZATION_NAME` (next section). |
+| CI | In `.github/workflows/ecr-build-push.yml`, AWS credentials and ECR login are skipped on pull-request runs. The workflow passes **no build arguments**, so the image it publishes is unbranded. |
+| Sessions | The 3-hour absolute session limit was removed. Sessions still expire after 3 hours of inactivity (rolling). Token refresh retries twice, then signs the user out after 3 consecutive temporary failures, or at once on a permanent error. |
+| Browser data | **No migration.** IndexedDB (version 1) is unchanged. New per-user settings (chat font, default model, reasoning effort, storage choice) are saved in the server-side user settings. Local chats are not moved to the cloud automatically. |
+
+## 5. White labeling the New UI
+
+White-label settings are `NEXT_PUBLIC_*` variables. Next.js copies them into the JavaScript during `npm run build`, so they are **fixed when the image is built**, not read when the container starts. In Docker they must be passed as **build arguments**. The `Dockerfile` accepts these four, and no others:
+
+| Build argument | Effect in the New UI |
+|---|---|
+| `NEXT_PUBLIC_CUSTOM_LOGO` | A **filename** (no folder, no `/`) of a file in `public/logos/`. Used in the sidebar, the home greeting and the login page. Falls back to the stock Amplify mark, then to a one-letter tile. Square or icon-style logos look best (24 px sidebar, 40 px home, about 58 px login); wide logos are scaled, not stretched. |
+| `NEXT_PUBLIC_BRAND_NAME` | Sidebar wordmark, login heading ("Welcome to ..."), startup message, logo alt text, iOS home-screen title and the "... Helper" names. Default in the New UI: `Amplify` (the Classic UI default is `Amplify GenAI`). |
+| `NEXT_PUBLIC_DEFAULT_THEME` | First-visit theme (`light` or `dark`). A user's saved choice wins. |
+| `NEXT_PUBLIC_ORGANIZATION_NAME` | **New.** Set it on any deployment that is not run by Vanderbilt. It removes Vanderbilt policy text, links and contact details from the Amplify Helper's in-app guide. |
+
+Must know:
+- **Colors are different in the New UI.** The `--color-primary-*` variables from the Classic UI do nothing here. Edit `--accent`, `--accent-fg`, the `--bg-*` and `--text-*` tokens at the top of `styles/globals.css`, once in `:root` (light) and once in `.dark`. Details: `docs/WHITE_LABEL.md`.
+- **Amplify Helper prompt.** If you enable the `amplifyHelper` flag on a white-labeled deployment, replace the default prompt in **Admin, System Prompts, Amplify Helper**. The backend's built-in default names Vanderbilt and `amplify@vanderbilt.edu`, and the text box in the Admin panel starts with that default.
+- **Not rebranded**: product terms such as "Amplify Groups", messages saying users must have "signed in to Amplify", and the default chat system prompt ("You are Amplify..."). You can change the chat prompt in System Prompts.
+- With none of these set, the output is the same as before.
+
+### Build and run a branded image
+
+> The steps below follow the `Dockerfile` and `docs/WHITE_LABEL.md`. We have **not** tested this Docker path end to end.
+
+1. Copy your logo to `public/logos/` **before** building (for example `public/logos/acme-logo.svg`). The `Dockerfile` copies `public/` into the build.
+2. Build, passing every value as a build argument. `--no-cache` makes sure no earlier layer is reused:
+   ```bash
+   docker build --no-cache \
+     --build-arg NEXT_PUBLIC_CUSTOM_LOGO="acme-logo.svg" \
+     --build-arg NEXT_PUBLIC_BRAND_NAME="Acme AI" \
+     --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
+     --build-arg NEXT_PUBLIC_ORGANIZATION_NAME="Acme Corporation" \
+     -t acme-amplify:v0.9.5 .
+   ```
+3. Run it with your usual runtime environment file (see `README.md` and `.env.local.example`; these are runtime values such as `API_BASE_URL` and the auth settings):
+   ```bash
+   docker run --env-file ./.env.local -p 3000:3000 acme-amplify:v0.9.5
+   ```
+
+### Troubleshooting: branding does not show up
+
+The most common cause is a **stale image or an old container**, not a code problem. Work through this list:
+
+1. **Rebuild with `--no-cache`.** Docker reuses cached layers, and a cached build step keeps the old values.
+2. **Pass each value with `--build-arg`.** Setting a variable in `.env.local`, or at `docker run`, does not affect the compiled code, and `.dockerignore` excludes `.env` and `.env.local` from the build, so a Docker build never sees them. A build argument that is not passed is empty.
+3. **Put the logo in `public/logos/` before building**, and use only the filename (no path) as the value. Names are case-sensitive.
+4. **Use a new image tag** (for example the version) so your host cannot keep pulling the old one.
+5. **Stop and remove the old container**, then start a new one from the new image. `docker run` on a running name or port keeps serving the old container:
+   ```bash
+   docker ps
+   docker stop <container> && docker rm <container>
+   ```
+6. **Check that your brand is inside the image** before blaming the app. This prints the compiled files that contain your brand name, and prints nothing if the value was not baked in:
+   ```bash
+   docker run --rm --entrypoint sh acme-amplify:v0.9.5 -c 'grep -rl "Acme AI" .next/static | head'
+   ```
+7. **Hard refresh the browser** (Cmd+Shift+R / Ctrl+Shift+R). Users who chose a theme keep their choice.
+8. If you host with AWS Amplify instead of Docker, the build runs `env | grep NEXT_PUBLIC_` into `.env.production`, so set the variables in the Amplify build environment.
+
+## 6. Load-balancer cookie (check with your infra owner)
+
+When a user is on the New UI the app sets a cookie `X-Amplify-UI=new` (one year), and it clears the cookie when the flag is off. A code comment says it exists for a load-balancer rule that sends that cookie to a separate "new UI" target group. **No load-balancer configuration for it exists in either repo.** If you serve both UIs from one build, which is the default for this repo, you need nothing. If your environment runs separate New UI and Classic targets, that rule must exist before you turn the flag on.
 
 ---
 
-## Requirements outside a normal deployment
+# Part 2 - What's new
 
-- **Next.js upgraded 14 → 15** (`next@^15.5`), plus Vitest 4 and `@types/node` 22. Run a clean `npm ci`. Use Node 20+ (`amplify.yml` uses `nvm install 20`; the Dockerfile uses `node:lts-alpine`).
-- **Production builds strip `console.log/info/debug`** (errors and warnings are kept). If you debug production with logs, expect less output.
-- **CI**: AWS credentials and ECR login in `ecr-build-push.yml` are skipped on pull-request runs.
-- **No data migration** is needed in the browser. New per-user display prefs (chat font, default model, reasoning effort, storage selection) sync to the server's user settings. Seeding the storage default does not move existing conversations.
+These descriptions come from the commit history and the code. Items behind a feature flag say so.
 
-## White labeling
+### Chat
+- Pasted text and image attachments, drag-and-drop, a PDF preview, "Thinking..." and "Stopped Before Completing" indicators, chat download (including Word), and a notice that blocks concurrent sends in a busy chat.
+- Tool steps, reasoning and action dropdowns, code-interpreter and MCP status messages, and model cost in the model cards.
+- The speech-to-text mic button was removed.
 
-The New UI honors the build-time white-label settings (`docs/WHITE_LABEL.md`). They are `NEXT_PUBLIC_*` variables, so they are baked in when the image is **built**: pass them as Docker build args (the Dockerfile accepts them) or set them in the build environment. The stock GitHub workflow passes none, so the standard image is unbranded.
+### Artifacts
+- Artifacts save to the Library with versions, can be resized, renamed and edited into new versions, and a cut-off artifact shows a Continue button. Generation runs on the server (fewer 403 errors).
 
-| Variable | Effect in the New UI |
-|---|---|
-| `NEXT_PUBLIC_CUSTOM_LOGO` | Filename in `public/logos/`. Sidebar, home greeting and login. Falls back to the Amplify mark, then a letter tile. Square or icon-style logos look best. |
-| `NEXT_PUBLIC_BRAND_NAME` | Sidebar wordmark, login heading, startup message, logo alt text, iOS home-screen title, "... Helper" names. Default `Amplify`. |
-| `NEXT_PUBLIC_DEFAULT_THEME` | First-visit light/dark. |
-| `NEXT_PUBLIC_ORGANIZATION_NAME` | **New.** Set it on any non-Vanderbilt deployment. It removes Vanderbilt policy text, links and contact details from the Amplify Helper. |
+### Library
+- A Library view with pagination, rename and PDF preview. Each artifact is one row with its versions.
 
-Must know:
-- **Colors are different in the New UI.** The `--color-primary-*` variables documented for the classic UI do not affect it. Change `--accent` and the `--bg-*` / `--text-*` tokens at the top of `styles/globals.css` (both `:root` and `.dark`).
-- **Amplify Helper prompt.** If you enable the `amplifyHelper` flag on a white-labeled deployment, replace the default `amplifyHelper.base` prompt in **Admin → System Prompts**. The backend's built-in default names Vanderbilt and `amplify@vanderbilt.edu`.
-- **Not rebranded:** product terms such as "Amplify Groups", "signed in to Amplify" messages, and the default chat system prompt ("You are Amplify...", editable in System Prompts).
-- Nothing changes for an unbranded build: with none of these set the output is identical to before.
+### Assistants
+- Tabs for My, Shared with Me, Groups, Layered and the Helper. Duplicate assistants, group management, layered assistants, icons, attachment management, and sharing with provenance and dismissal.
 
-## Load-balancer / routing cookie (verify with your infra owner)
+### Workflows and scheduled tasks
+- A Workflows view (needs `createAssistantWorkflows`) and a Scheduled view with a schedule builder, run logs and a resizable list/detail pane (needs `scheduledTasks`). Their builders still use the Classic styling.
 
-The app sets a cookie `X-Amplify-UI=new` when a user is on the New UI, and clears it when the flag is off. The source comment says it is for a load-balancer rule that sends that cookie to a separate "new UI" target group. **No infrastructure config for this is in either repo.** If your environment runs separate New UI and Classic targets, that rule must exist before the flag is enabled. If you serve both UIs from the same build (the default for this repo), nothing is needed.
+### Notebook
+- Behind the `notebook` flag, which an admin must add by hand.
 
-## Known gaps to confirm before release
-- Whether any environment uses the cookie-based target-group routing above.
-- Versioning: this draft has no version number or release date.
+### Amplify Helper
+- Behind the `amplifyHelper` flag. An all-users guide with an admin-managed prompt. See `docs/AMPLIFY_HELPER_GUIDE.md`.
+
+### Sharing
+- Share history, a classifier for incoming shares, a clear message when a recipient has never signed in, and a viewer for shared chats.
+
+### Settings and customization
+- Custom Instructions, Prompt Templates with a model selector, Sidebar Items, and synced defaults for chat font, model and reasoning effort.
+
+### Admin
+- A redesigned admin modal with User Costs, System Prompts, Deployment, a site-wide announcement banner, model rate limits and an AI router model setting.
+
+### Rollout, themes and mobile
+- The `newUi` flag, a first-run UI choice, and switches between the two UIs (see Part 1).
+- Dark, light and system appearance; a seasonal Halloween theme behind the `halloween` flag.
+- The sidebar collapses below 768 px. There is no installable-app (PWA) manifest or service worker.
+
+### Reliability
+- Feature flags retry and fall back safely, older chats load on demand, fewer startup requests, token refresh retries, and a queued cloud save for conversations that detects conflicts (`expectedVersion`). The cloud-save change also carries the fix for how non-ASCII text (emoji, Cyrillic, Greek and similar) is compressed. Deploy it with the matching backend release.
+
+### Not finished
+- The sidebar has TODOs for the 760-1099 px icon rail and the narrow-screen drawer. The Scheduled and Workflows builders use the Classic styling.
+
+---
+
+## Stats
+
+Measured with `git diff origin/main...dev` on 2026-11-05; commits keep landing, so re-run before publishing.
+
+| Metric | Count |
+|--------|-------|
+| Commits | 309 |
+| Files changed | 636 |
+| Insertions | +114,214 |
+| Deletions | -6,459 |
+| Merged pull requests | 9 |
+
+## Contributors
+
+- **Max Moundas** - New UI implementation, rollout, admin, white-label (committed under two git names, `Max Moundas` and `maxmoundas`)
+- **Harsha Raj Kumar** - Artifact library, preview and edit fixes, PowerPoint generation
+- **Jagadeesh Reddy Vanga** - Halloween theme, Download as Word, Classic skills picker, security fixes
+- **Karely Rodriguez** - Admin User Costs, model rate limits
+- **prestonmhorne** - Notebook components moved to the New UI design tokens
+
+## Deployment instructions
+
+1. **Deploy backend v0.9.5 first.** See the [backend release notes](https://github.com/gaiin-platform/amplify-genai-backend/blob/main/RELEASE_NOTES_NEW_UI.md).
+2. Rebuild the frontend image (with `--no-cache` and any white-label `--build-arg` values), push it to ECR and update the ECS service.
+3. In the Admin panel, enable the `newUi` flag for the users you want.
+
+See the full [deployment guide](https://github.com/gaiin-platform/.github/blob/main/profile/README.md).
+
+## Links
+
+- Backend release notes: `amplify-genai-backend/RELEASE_NOTES_NEW_UI.md`
+- White labeling: `docs/WHITE_LABEL.md`
+- New UI developer guide: `docs/NEW_UI_GUIDE.md`
+- Amplify Helper: `docs/AMPLIFY_HELPER_GUIDE.md`
+- Previous release: `RELEASE_NOTES_v0.9.0.md`
+
+---
+
+## Draft status (delete this section before publishing)
+
+1. **Contributor lines are taken from commit subjects**; confirm names and wording (prestonmhorne has one commit and no full name in git).
+2. **`GET /state/share/sent`**: the backend route was added (uncommitted) so the share dialog can load share history saved on the server. Without it the dialog silently falls back to the browser's own history. Confirm it is committed and deployed with the backend before publishing (see the backend draft-status section).
+3. **Not tested by us:** the Docker build and troubleshooting steps above, a deployed flag rollout, and the load-balancer cookie behaviour.
+4. **Versions:** `package.json` still says `0.9.0`.
