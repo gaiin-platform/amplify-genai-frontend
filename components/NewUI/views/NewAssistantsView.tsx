@@ -28,6 +28,14 @@ import {
     IconCopy,
     IconCopyPlus,
     IconChartBar,
+    IconMailFast,
+    IconApi,
+    IconClock,
+    IconWorld,
+    IconFiles,
+    IconBrandGoogleDrive,
+    IconBolt,
+    IconTemplate,
 } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
 import { useDebouncedSearchTracking, useTrack } from '@/components/NewUI/shared/UiAnalytics';
@@ -63,6 +71,8 @@ import { RowActionButton } from '@/components/NewUI/shared/RowActionButton';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import ReactDOM from 'react-dom';
 import { savePrompts } from '@/utils/app/prompts';
+import { AssistantCapability, AssistantCapabilityKind, getAssistantCapabilities } from '@/utils/app/assistantCapabilities';
+import { alphaGroupKey } from '@/utils/app/alphaGroups';
 import { saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
 import {
     getSharedAssistantIdentity,
@@ -154,7 +164,45 @@ interface RowProps {
     onHide?: (e: React.MouseEvent) => void;
     /** Open the group assistant's dashboard + conversations (group admins, analysis enabled). */
     onInsights?: (e: React.MouseEvent) => void;
+    /** What the assistant has configured (files, drive, tools, workflow…), shown as quiet icons by the name. */
+    capabilities?: AssistantCapability[];
 }
+
+const CAPABILITY_ICON: Record<AssistantCapabilityKind, React.ComponentType<{ size?: number; stroke?: number }>> = {
+    agent: IconBolt,
+    email: IconMailFast,
+    api: IconApi,
+    scheduled: IconClock,
+    website: IconWorld,
+    drive: IconBrandGoogleDrive,
+    workflow: IconTemplate,
+    files: IconFiles,
+};
+
+/** Quiet, muted indicators — present for scanning, never competing with the name. */
+const CapabilityIcons: React.FC<{ items: AssistantCapability[] }> = ({ items }) => (
+    <span className="flex items-center gap-2.5 mt-1" style={{ color: 'var(--text-muted)', opacity: 0.75 }}>
+        {items.map((item) => {
+            const Icon = CAPABILITY_ICON[item.kind];
+            // agent/workflow already say what they are; the others show a count when they have one
+            const text = item.kind === 'agent' || item.kind === 'workflow' ? undefined : item.label;
+            return (
+                <span key={item.kind} title={item.tooltip} aria-label={item.tooltip} className="inline-flex items-center gap-0.5 text-[11px] leading-none">
+                    <Icon size={13} stroke={1.75} />
+                    {text}
+                </span>
+            );
+        })}
+    </span>
+);
+
+/** Hairline letter divider between A–Z groups; deliberately faint. */
+const LetterDivider: React.FC<{ letter: string }> = ({ letter }) => (
+    <div className="flex items-center gap-2 px-3 pt-3 pb-1" role="presentation" aria-hidden="true">
+        <span className="text-[10px] font-semibold tracking-wider" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{letter}</span>
+        <span className="flex-1 h-px" style={{ backgroundColor: 'var(--border-subtle)', opacity: 0.6 }} />
+    </div>
+);
 
 const AssistantPromptPreview: React.FC<{
     prompt: Prompt;
@@ -279,6 +327,7 @@ const AssistantRow: React.FC<RowProps> = ({
     isDeleting,
     accessBadge,
     sharedBy,
+    capabilities,
 }) => {
     const [hovered, setHovered] = useState(false);
 
@@ -352,6 +401,7 @@ const AssistantRow: React.FC<RowProps> = ({
                         {description}
                     </p>
                 )}
+                {capabilities && capabilities.length > 0 && <CapabilityIcons items={capabilities} />}
                 {sharedBy && (
                     <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
                         {sharedBy}
@@ -803,9 +853,11 @@ const MyAssistantsTab: React.FC = () => {
                         <EmptyState message="No assistants match your search" />
                     )
                 ) : (
-                    filtered.map((p: Prompt) => (
+                    filtered.map((p: Prompt, i: number) => (
+                        <React.Fragment key={p.id}>
+                        {(i === 0 || alphaGroupKey(p.name) !== alphaGroupKey(filtered[i - 1].name)) && <LetterDivider letter={alphaGroupKey(p.name)} />}
                         <AssistantRow
-                            key={p.id}
+                            capabilities={getAssistantCapabilities(p)}
                             customIcon={promptIconRef(p)}
                             name={p.name}
                             description={p.description}
@@ -830,6 +882,7 @@ const MyAssistantsTab: React.FC = () => {
                             }}
                             isDeleting={deletingPromptId === p.id}
                         />
+                        </React.Fragment>
                     ))
                 )}
             </div>

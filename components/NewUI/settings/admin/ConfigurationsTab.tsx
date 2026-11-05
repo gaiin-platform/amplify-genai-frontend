@@ -1,7 +1,8 @@
+import { DocumentRetentionCard } from "@/components/Admin/AdminComponents/DocumentRetentionCard";
 import { FC, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "@/components/Admin/AdminUI";
-import { AdminConfigTypes, FeatureFlagConfig } from "@/types/admin";
+import { AdminConfigTypes, DocumentRetention, FeatureFlagConfig } from "@/types/admin";
 import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport, IconUsers } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -66,6 +67,9 @@ interface Props {
     emailSupport: EmailSupport;
     setEmailSupport: (e :EmailSupport) => void;
 
+    documentRetention: DocumentRetention;
+    setDocumentRetention: (d: DocumentRetention) => void;
+
     aiEmailDomain: string;
     setAiEmailDomain?: (d: string) => void;
 
@@ -88,7 +92,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                               rateLimits, setRateLimits, honorPersonalRateLimit, setHonorPersonalRateLimit,
                                               promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
-                                              emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
+                                              emailSupport, setEmailSupport, documentRetention, setDocumentRetention, aiEmailDomain, setAiEmailDomain,
                                               defaultTimezone, setDefaultTimezone,
                                               smartMessagesEnabled, setSmartMessagesEnabled, features, availableModels,
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
@@ -253,6 +257,11 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const handleUpdateEmailSupport = (updatedEmailSupport: EmailSupport) => {
         setEmailSupport(updatedEmailSupport);
         updateUnsavedConfigs(AdminConfigTypes.EMAIL_SUPPORT);
+    }
+
+    const handleUpdateDocumentRetention = (updated: DocumentRetention) => {
+        setDocumentRetention(updated);
+        updateUnsavedConfigs(AdminConfigTypes.DOCUMENT_RETENTION);
     }
 
     const handleUpdateAiEmailDomain = (updatedAiEmailDomain: string) => {
@@ -763,7 +772,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 </div>
             </div>
 
-            
+            <DocumentRetentionCard value={documentRetention} onChange={handleUpdateDocumentRetention} newUi />
 
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header nui-config-card-header">
@@ -820,6 +829,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 </div>
                 </div>
             </div>
+
+           
 
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header nui-config-card-header">

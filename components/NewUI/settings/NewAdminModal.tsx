@@ -22,6 +22,7 @@ import {
   IconCpu,
   IconCurrencyDollar,
   IconDatabase,
+  IconDatabaseImport,
   IconDeviceFloppy,
   IconFileText,
   IconFlag,
@@ -57,11 +58,15 @@ import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
 import {
   AdminConfigTypes,
   AdminTab,
+  DOCUMENT_RETENTION_MAX_DAYS,
+  DOCUMENT_RETENTION_MIN_DAYS,
   DefaultModelsConfig,
+  DocumentRetention,
   FeatureFlagConfig,
   SupportedModel,
   SupportedModelsConfig,
   SystemPromptsConfig,
+  documentRetentionDaysAreValid,
 } from '@/types/admin';
 import { ConversationStorage } from '@/types/conversationStorage';
 import {
@@ -104,6 +109,7 @@ import {
 import { UserCostsModal } from '@/components/Admin/UserCostModal';
 import { REVALIDATE_ROLLOUT_EVENT } from '@/components/NewUI/UIPreferenceBanner';
 import { AdminsCard } from '@/components/NewUI/settings/admin/AdminsCard';
+import { RagMigrationTab } from '@/components/NewUI/settings/admin/RagMigrationTab';
 import { ConfigurationsTab } from '@/components/NewUI/settings/admin/ConfigurationsTab';
 import { DeploymentFeaturesTab } from '@/components/NewUI/settings/admin/DeploymentFeaturesTab';
 import { SystemPromptsTab } from '@/components/NewUI/settings/admin/SystemPromptsTab';
@@ -146,6 +152,7 @@ const BASE_ADMIN_TABS: AdminNavItem[] = [
   { id: 'Feature Flags', label: 'Feature Flags', Icon: IconFlag },
   { id: 'Feature Data', label: 'Feature Data', Icon: IconDatabase },
   { id: 'User Costs', label: 'User Costs', Icon: IconCurrencyDollar },
+  { id: 'RAG Migration', label: 'RAG Migration', Icon: IconDatabaseImport },
 ];
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -268,6 +275,10 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
   const [emailSupport, setEmailSupport] = useState<EmailSupport>({
     isActive: false,
     email: '',
+  });
+  const [documentRetention, setDocumentRetention] = useState<DocumentRetention>({
+    isActive: false,
+    days: 90,
   });
   const [criticalErrorsConfig, setCriticalErrorsConfig] =
     useState<CriticalErrorsConfig>({ isActive: false, email: '' });
@@ -485,6 +496,9 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
           ),
         );
         setEmailSupport(d[AdminConfigTypes.EMAIL_SUPPORT] || emailSupport);
+        setDocumentRetention(
+          d[AdminConfigTypes.DOCUMENT_RETENTION] || documentRetention,
+        );
         setCriticalErrorsConfig(
           d[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig,
         );
@@ -634,6 +648,11 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
         return defaultConversationStorage;
       case AdminConfigTypes.EMAIL_SUPPORT:
         return emailSupport;
+      case AdminConfigTypes.DOCUMENT_RETENTION:
+        return {
+          isActive: Boolean(documentRetention.isActive),
+          days: Number(documentRetention.days),
+        };
       case AdminConfigTypes.CRITICAL_ERRORS: {
         const isActive = Boolean(criticalErrorsConfig.isActive);
         return {
@@ -811,6 +830,15 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
       );
       return false;
     }
+    if (
+      unsavedConfigs.has(AdminConfigTypes.DOCUMENT_RETENTION) &&
+      !documentRetentionDaysAreValid(Number(documentRetention.days))
+    ) {
+      alert(
+        `Document Retention needs a whole number of days from ${DOCUMENT_RETENTION_MIN_DAYS} to ${DOCUMENT_RETENTION_MAX_DAYS}.`,
+      );
+      return false;
+    }
     if (criticalErrorsConfig.isActive && !criticalErrorsConfig.email) {
       alert(
         'Critical Error Notifications require an email address. Please add one or disable the feature.',
@@ -878,6 +906,13 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
     });
     act([AdminConfigTypes.EMAIL_SUPPORT], () =>
       homeDispatch({ field: 'supportEmail', value: emailSupport.email }),
+    );
+    // The server stamps when counting started; show it right away instead of waiting for a reload.
+    act([AdminConfigTypes.DOCUMENT_RETENTION], () =>
+      setDocumentRetention((prev) => ({
+        ...prev,
+        enabledAt: prev.isActive ? prev.enabledAt ?? Math.floor(Date.now() / 1000) : undefined,
+      })),
     );
     act([AdminConfigTypes.AI_EMAIL_DOMAIN], () =>
       homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain }),
@@ -1062,6 +1097,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
               setDefaultConversationStorage={setDefaultConversationStorage}
               emailSupport={emailSupport}
               setEmailSupport={setEmailSupport}
+              documentRetention={documentRetention}
+              setDocumentRetention={setDocumentRetention}
               aiEmailDomain={aiEmailDomain}
               setAiEmailDomain={
                 featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined
@@ -1392,6 +1429,8 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
             Select a section from the left rail.
           </div>
         );
+      case 'RAG Migration':
+        return <RagMigrationTab />;
       case 'User Costs':
         return (
           <UserCostsModal

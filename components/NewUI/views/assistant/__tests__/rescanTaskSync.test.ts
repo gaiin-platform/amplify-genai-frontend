@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { sameTaskIds, syncRescanTasks, withScheduledTaskIds, RescanSyncInput, RescanTaskDeps } from '../rescanTaskSync';
+import { hasRescanWork, rescanSignature, rescanSignatureChanged, sameTaskIds, syncRescanTasks, withScheduledTaskIds, RescanSyncInput, RescanTaskDeps } from '../rescanTaskSync';
 
 const baseInput = (over: Partial<RescanSyncInput> = {}): RescanSyncInput => ({
     existing: undefined,
@@ -105,5 +105,47 @@ describe('task id helpers', () => {
 
     it('keeps task kinds it does not manage', () => {
         expect(withScheduledTaskIds({ scheduledTaskIds: { other: 'o', websites: 'w' } }, {})).toEqual({ scheduledTaskIds: { other: 'o' } });
+    });
+});
+
+describe('schedule change detection', () => {
+    const base = { websiteUrls: [] as any[], driveSchedule: null, hasDriveFiles: false, driveAllowed: true };
+    const weekly = { enabled: true, frequency: 'weekly' as const, time: '09:00', dayOfWeek: 1, dayOfMonth: 1 };
+
+    it('sees no change when nothing about the schedules was touched', () => {
+        const urls = [{ sourceUrl: 'https://a.test', scanFrequency: 7 }, { sourceUrl: 'https://b.test' }];
+        expect(rescanSignatureChanged(rescanSignature({ ...base, websiteUrls: urls }), rescanSignature({ ...base, websiteUrls: [...urls].reverse() }))).toBe(false);
+    });
+
+    it('sees a website schedule attached, changed and removed', () => {
+        const none = rescanSignature({ ...base, websiteUrls: [{ sourceUrl: 'https://a.test' }] });
+        const w7 = rescanSignature({ ...base, websiteUrls: [{ sourceUrl: 'https://a.test', scanFrequency: 7 }] });
+        const w30 = rescanSignature({ ...base, websiteUrls: [{ sourceUrl: 'https://a.test', scanFrequency: 30 }] });
+        expect(rescanSignatureChanged(none, w7)).toBe(true);
+        expect(rescanSignatureChanged(w7, w30)).toBe(true);
+        expect(rescanSignatureChanged(w7, none)).toBe(true);
+    });
+
+    it('sees a drive schedule change only with drive files', () => {
+        const off = rescanSignature({ ...base, driveSchedule: { enabled: false, frequency: 'none' }, hasDriveFiles: true });
+        const on = rescanSignature({ ...base, driveSchedule: weekly, hasDriveFiles: true });
+        const noFiles = rescanSignature({ ...base, driveSchedule: weekly, hasDriveFiles: false });
+        expect(rescanSignatureChanged(off, on)).toBe(true);
+        expect(rescanSignatureChanged(off, noFiles)).toBe(false);
+    });
+
+    it('ignores a drive schedule that has not loaded', () => {
+        const saved = rescanSignature({ ...base, driveSchedule: weekly, hasDriveFiles: true });
+        const unloaded = rescanSignature({ ...base, driveSchedule: null, hasDriveFiles: true });
+        expect(rescanSignatureChanged(saved, unloaded)).toBe(false);
+    });
+
+    it('has no work only when nothing is wanted and no task exists', () => {
+        const none = rescanSignature(base);
+        expect(hasRescanWork(none, undefined)).toBe(false);
+        expect(hasRescanWork(none, { websites: 'w' })).toBe(true);
+        expect(hasRescanWork(none, { driveFiles: 'd' })).toBe(false); // drive not loaded: left alone
+        expect(hasRescanWork(rescanSignature({ ...base, driveSchedule: { enabled: false, frequency: 'none' } }), { driveFiles: 'd' })).toBe(true);
+        expect(hasRescanWork(rescanSignature({ ...base, websiteUrls: [{ sourceUrl: 'https://a.test', scanFrequency: 1 }] }), undefined)).toBe(true);
     });
 });

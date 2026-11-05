@@ -1,4 +1,19 @@
 // Provider Types
+/** Automatic deletion of chat attachments nobody has opened for `days` (see the Document Retention card). Off by default. */
+export interface DocumentRetention {
+  isActive: boolean;
+  days: number;
+  /** Set by the server (epoch seconds) when the setting was turned on. Never sent back when saving. */
+  enabledAt?: number;
+}
+
+export const DOCUMENT_RETENTION_MIN_DAYS = 1;
+export const DOCUMENT_RETENTION_MAX_DAYS = 3650;
+
+/** The days entered must be a whole number in range. Checked before saving, because a number box can hold anything. */
+export const documentRetentionDaysAreValid = (days: unknown): boolean =>
+  typeof days === 'number' && Number.isInteger(days) && days >= DOCUMENT_RETENTION_MIN_DAYS && days <= DOCUMENT_RETENTION_MAX_DAYS;
+
 export const ModelProviders = ['Azure', 'OpenAI', 'Bedrock', 'Gemini'];
 
 // Used for updating data in the backend
@@ -28,12 +43,13 @@ export enum AdminConfigTypes {
     DEFAULT_SMART_MESSAGES = 'defaultSmartMessages',
     SYSTEM_PROMPTS = 'systemPrompts',
     DEPLOYMENT_FEATURES = 'deploymentFeatures',
+    DOCUMENT_RETENTION = 'documentRetention',
   }
 
   // As tabs get added please keep track of where each config data lives
 export type AdminTab = 'Configurations' | 'Feature Flags' | 'Feature Data' | 'Embeddings' | 'Supported Models' |
                         'Application Variables' | 'OpenAi Endpoints' | 'Ops' | 'Integrations' | 'Critical Errors' |
-                        'System Prompts' | 'Deployment';
+                        'System Prompts' | 'Deployment' | 'RAG Migration';
 
   //////////////////// Keep track of admin changes and the tabs they belong to ////////////////////
 
@@ -49,6 +65,7 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
       AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE,
       AdminConfigTypes.DEFAULT_TIMEZONE,
       AdminConfigTypes.DEFAULT_SMART_MESSAGES,
+      AdminConfigTypes.DOCUMENT_RETENTION,
     ],
 
     'Feature Flags' : [
@@ -103,6 +120,9 @@ export const adminDataTabMap: Record<AdminTab, string[]> = {
     'Deployment': [
       AdminConfigTypes.DEPLOYMENT_FEATURES,
     ],
+
+    // Acts immediately through its own API; nothing to save from the modal.
+    'RAG Migration': [],
 
   };
   

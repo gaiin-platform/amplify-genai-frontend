@@ -71,6 +71,21 @@ export const getAvailableModels = async () => {
     return await doRequestOp(op);
 }
 
+/**
+ * Starts the embeddings for documents that were uploaded with RAG off and have none yet (a no-op for documents
+ * already embedded or in progress). Takes the saved content ids (global/ or global2/).
+ */
+export const startMissingEmbeddings = async (dataSources: string[]) => {
+    const op = {
+        data: { dataSources },
+        method: 'POST',
+        path: EMBEDDINGS_URL_PATH,
+        op: '/check-completion',
+        service: EMBEDDINGS_SERVICE_NAME
+    };
+    return await doRequestOp(op);
+}
+
 export const embeddingDocumentStatus = async (dataSources: {key: string, type: string}[]) => {
     const CACHE_KEY_PREFIX = 'embedding_status_';
     

@@ -291,7 +291,7 @@ export const getDocumentStatusConfig = (status: string) => {
         case 'not_found':
             return { 
                 color: 'px-2 text-gray-500', 
-                text: '-----',
+                text: 'Chat Only',
                 indicator: '',
                 indicatorColor: 'text-gray-500',
                 showIndicatorWhenNotHovered: true
