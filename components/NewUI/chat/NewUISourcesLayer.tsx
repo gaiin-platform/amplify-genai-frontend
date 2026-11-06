@@ -258,7 +258,7 @@ const SourceCard: React.FC<SourceCardProps> = ({ item }) => {
       </span>
 
       {/* Where in the document this came from */}
-      {location && <span className="nui-src-location">{location}</span>}
+      {location && <span className="nui-src-location" title={location}>{location}</span>}
 
       {/* Show / hide the retrieved text */}
       {excerpt && (
