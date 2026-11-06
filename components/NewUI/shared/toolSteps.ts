@@ -45,6 +45,8 @@ export interface ToolStep {
   resultSummary?: string;
   /** Raw failure text — shown only inside the expandable details. */
   errorDetail?: string;
+  /** What the tool returned (a reference into the saved agent log — nothing is copied or recorded anew). */
+  result?: unknown;
   /** The model's own short summary of what the step did ("Calculated monthly revenue"); replaces the generic done label. */
   title?: string;
   /** What a code run did: when present, the expanded row shows this instead of raw parameters. */
@@ -198,6 +200,9 @@ const findList = (value: unknown, depth = 0): unknown[] | null => {
   return null;
 };
 
+/** The list a tool result holds (see `findList`), or null. */
+export const listItems = (result: unknown): unknown[] | null => findList(result);
+
 /**
  * "12 messages" — only for tools whose config names a unit AND whose result
  * holds a list. Anything uncertain returns undefined: no summary beats a wrong one.
@@ -269,6 +274,7 @@ export const stepsFromAgentLog = (agentLog: unknown): ToolStep[] => {
         if (detail) pending.errorDetail = detail;
       } else {
         pending.resultSummary = summarizeResult(pending.tool, content.result);
+        if (content.result !== undefined && content.result !== null) pending.result = content.result;
       }
       pending = null;
     }

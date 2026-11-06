@@ -295,7 +295,8 @@ const FileRow: React.FC<FileRowProps> = ({
     const status = embeddingStatus?.[key];
     const isPolling = pollingFiles.has(file.id);
     const hasFetched = fetchedKeys.has(key);
-    const action = hasFetched && status ? getFileAction(file.createdAt, status, embeddingStatus?.metadata?.[key]) : null;
+    // "Chat Only" (not_found) files were never meant to be embedded, so there is nothing to refresh or regenerate.
+    const action = hasFetched && status && status !== 'not_found' ? getFileAction(file.createdAt, status, embeddingStatus?.metadata?.[key]) : null;
     const canReprocess = !disableSupportReprocess(file.type);
 
     useEffect(() => {
@@ -1193,7 +1194,9 @@ export const NewLibraryView: React.FC = () => {
         setDeleteTarget(null);
         setIsDeleting(true);
         try {
-            const result = await deleteDatasourceFile({ id: file.id, name: file.name });
+            // showToast=false: this view reports the outcome itself below, so the
+            // helper's own toast/alert would show a duplicate message.
+            const result = await deleteDatasourceFile({ id: file.id, name: file.name }, false);
             if (result.success) {
                 // Remove the row in place. Cursors stay valid because a page
                 // key only records a position in the index, so there is no need

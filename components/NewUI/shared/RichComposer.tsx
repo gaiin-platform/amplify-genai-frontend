@@ -26,10 +26,10 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from 'react';
+import { EDITOR_LINE_PX } from './composerLayout';
 import { PHONE_MEDIA_QUERY } from '@/components/NewUI/shared/useMediaQuery';
 
 // ── Constants ──────────────────────────────────────────────────────────────
-
 const CODE_BLOCK_CLS = 'rich-code-block';
 const ZWS = '​'; // zero-width space used to anchor cursor inside empty blocks
 
@@ -72,13 +72,21 @@ interface RichComposerProps {
   placeholder?: string;
   /** Additional className for the editable div */
   editorClassName?: string;
-  /**
-   * Additional className for the wrapper around the editor. Use it to give the
-   * wrapper the same min-height as the editor (e.g. `min-h-[4.5em]`) so a
-   * height-capped parent can't shrink the wrapper below its child and let the
-   * text paint outside its box.
-   */
+  /** Additional className for the wrapper around the editor. */
   rootClassName?: string;
+  /**
+   * Keep up to this many lines visible when a height-capped parent squeezes the
+   * composer (the editor then scrolls). The floor is `min(lines, actual lines)`,
+   * so an empty or short editor stays exactly as tall as its text — it never
+   * reserves empty space. Omit for no floor.
+   */
+  minVisibleLines?: number;
+  /**
+   * Reports the editor's full content height (px) whenever the text or its
+   * width changes — whether or not the editor is currently squeezed. Parents
+   * use it to size a card-level floor that matches {@link minVisibleLines}.
+   */
+  onContentHeightChange?: (px: number) => void;
   /** Fires when the editor's scroll position leaves/returns to the top (drives the attachment-row divider). */
   onScrolledChange?: (scrolled: boolean) => void;
   autoFocus?: boolean;
@@ -228,7 +236,7 @@ function insertTextInBlock(range: Range, sel: Selection, text: string) {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
-  ({ onSend, onChange, onLargePaste, onImagePaste, placeholder = 'Ask anything…', editorClassName = '', rootClassName = '', onScrolledChange, autoFocus = false, hasExternalContent = false }, ref) => {
+  ({ onSend, onChange, onLargePaste, onImagePaste, placeholder = 'Ask anything…', editorClassName = '', rootClassName = '', minVisibleLines, onContentHeightChange, onScrolledChange, autoFocus = false, hasExternalContent = false }, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const scrolledRef = useRef(false);
     const handleScroll = useCallback(
@@ -241,6 +249,33 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       [onScrolledChange],
     );
     const [hasContent, setHasContent] = useState(false);
+
+    // Full content height of the editor (scrollHeight is the unsqueezed height).
+    const [contentHeight, setContentHeight] = useState(EDITOR_LINE_PX);
+    const onContentHeightChangeRef = useRef(onContentHeightChange);
+    onContentHeightChangeRef.current = onContentHeightChange;
+    useEffect(() => {
+      const editor = editorRef.current;
+      if (!editor) return;
+      const measure = () => {
+        const h = editor.scrollHeight;
+        setContentHeight((prev) => (prev === h ? prev : h));
+      };
+      measure();
+      // Text edits (typing, paste, code blocks, imperative setHTML/clear) and
+      // width changes (re-wrapping) both alter the content height.
+      const mo = new MutationObserver(measure);
+      mo.observe(editor, { childList: true, subtree: true, characterData: true });
+      const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+      ro?.observe(editor);
+      return () => {
+        mo.disconnect();
+        ro?.disconnect();
+      };
+    }, []);
+    useEffect(() => {
+      onContentHeightChangeRef.current?.(contentHeight);
+    }, [contentHeight]);
 
     // Keep imperative updates on the same state/change path as user input. This
     // deliberate insertion does not dispatch a paste event or run paste thresholds.
@@ -626,7 +661,14 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
     return (
       // Flex column with min-h-0 so a height-capped parent can shrink the editor
       // (which then scrolls internally) instead of the card growing past the viewport.
-      <div className={`relative flex flex-col min-h-[1.5em] ${rootClassName}`}>
+      <div
+        className={`relative flex flex-col min-h-[1.5em] ${rootClassName}`}
+        style={
+          minVisibleLines
+            ? { minHeight: Math.min(contentHeight, minVisibleLines * EDITOR_LINE_PX) }
+            : undefined
+        }
+      >
         {/* Placeholder — shown when editor is empty */}
         {!hasContent && (
           <div

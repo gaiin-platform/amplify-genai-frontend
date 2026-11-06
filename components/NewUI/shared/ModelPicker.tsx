@@ -385,8 +385,11 @@ const ModelRouterRow: React.FC<{
       onClick={isDisabledByAssistant ? undefined : onToggle}
       className="w-full flex items-center gap-2 text-left"
       style={{
-        height: 44,
-        padding: '8px 10px',
+        // Height is content-driven: the old fixed 44px was shorter than the
+        // two-line content + 16px padding, so the centered content overflowed
+        // and the title sat ~3px too close to the menu's top edge. Top padding
+        // now matches the other rows (8px); bottom stays at its effective ~5px.
+        padding: '8px 10px 5px',
         borderRadius: 8,
         background: isActive ? 'var(--bg-hover)' : 'transparent',
         cursor: isDisabledByAssistant ? 'not-allowed' : 'pointer',

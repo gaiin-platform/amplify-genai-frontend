@@ -17,6 +17,34 @@ import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import { AgentFileList, AgentFile } from '@/components/Chat/ChatContentBlocks/AgentFilesBlock';
 import { getAgentLog } from '@/utils/app/agent';
+// Markdown tables in a connector result sit inside a narrow, indented column. Without help the browser
+// squeezes short columns (a time like "9:01 AM") down to a character wide while long ones wrap, so:
+// the table scrolls sideways instead of shrinking, and short cell values never break mid-word.
+const flattenText = (children: React.ReactNode): string =>
+  React.Children.toArray(children).map((c) => (typeof c === 'string' || typeof c === 'number') ? String(c) : '').join('');
+
+const ResultTableCell = ({ tag: Tag, node, children, ...props }: any) => {
+  const short = flattenText(children).trim().length <= 14;
+  return (
+    <Tag
+      {...props}
+      style={{ ...props.style, overflowWrap: 'normal', wordBreak: 'normal', ...(short ? { whiteSpace: 'nowrap' } : { minWidth: '8rem' }) }}
+    >
+      {children}
+    </Tag>
+  );
+};
+
+const ResultTable = ({ node, children, ...props }: any) => (
+  <div className="w-full overflow-x-auto">
+    <table {...props}>{children}</table>
+  </div>
+);
+const ResultTd = (props: any) => <ResultTableCell tag="td" {...props} />;
+const ResultTh = (props: any) => <ResultTableCell tag="th" {...props} />;
+
+const resultTableComponents = { table: ResultTable, td: ResultTd, th: ResultTh };
+
 // Response type from the server
 interface AgentLogData {
   session: string;
@@ -157,6 +185,7 @@ const EnvironmentResultBlock: React.FC<{ msg: any; hasError: boolean }> = ({ msg
                 ? <MemoizedReactMarkdown
                     className="prose dark:prose-invert text-sm max-w-full"
                     remarkPlugins={[remarkGfm, remarkMath]}
+                    components={resultTableComponents}
                   >{value}</MemoizedReactMarkdown>
                 : renderValue(value)
               }
@@ -227,6 +256,7 @@ const AssistantActionBlock: React.FC<{ msg: any }> = ({ msg }) => {
                 ? <MemoizedReactMarkdown
                     className="prose dark:prose-invert text-sm max-w-full"
                     remarkPlugins={[remarkGfm, remarkMath]}
+                    components={resultTableComponents}
                   >{value}</MemoizedReactMarkdown>
                 : <span className="text-gray-800 dark:text-gray-200 break-words">
                     {typeof value === 'object' ? JSON.stringify(value) : String(value)}

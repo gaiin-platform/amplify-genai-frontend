@@ -14,6 +14,7 @@ import {
   groupTitle,
   isAwaitingAnswer,
   isMcpStep,
+  listItems,
   mcpServersUsed,
   stepsFromMcpRuns,
   stepsFromMcpToolResults,
@@ -220,9 +221,41 @@ describe('stepsFromAgentLog', () => {
       ]),
     );
     expect(steps).toEqual([
-      { id: 's0', tool: 'microsoftListMessages', status: 'done', args: ISSUE_ARGS, resultSummary: '12 messages' },
-      { id: 's1', tool: 'microsoftListCalendars', status: 'done', args: {}, resultSummary: '1 calendar' },
+      {
+        id: 's0',
+        tool: 'microsoftListMessages',
+        status: 'done',
+        args: ISSUE_ARGS,
+        resultSummary: '12 messages',
+        result: { success: true, data: new Array(12).fill({}) },
+      },
+      { id: 's1', tool: 'microsoftListCalendars', status: 'done', args: {}, resultSummary: '1 calendar', result: [{}] },
     ]);
+  });
+
+  it('keeps what the tool returned so the row can show it, and nothing for a failed or unanswered call', () => {
+    const steps = stepsFromAgentLog(
+      log([
+        { role: 'assistant', content: { tool: 'microsoftListMessages', args: {} } },
+        { role: 'environment', content: { tool: 'microsoftListMessages', tool_executed: true, result: { data: [{ subject: 'Hi' }] } } },
+        { role: 'assistant', content: { tool: 'microsoftSendDraft', args: {} } },
+        { role: 'environment', content: { tool: 'microsoftSendDraft', tool_executed: false, error: 'nope', result: { leaked: true } } },
+        { role: 'assistant', content: { tool: 'microsoftListCalendars', args: {} } },
+      ]),
+    );
+    expect(steps[0].result).toEqual({ data: [{ subject: 'Hi' }] });
+    expect(listItems(steps[0].result)).toEqual([{ subject: 'Hi' }]);
+    expect(steps[1].status).toBe('error');
+    expect(steps[1].result).toBeUndefined();
+    expect(steps[2].result).toBeUndefined();
+  });
+
+  it('reads a log saved in the older shape (bare array, no result fields) without trouble', () => {
+    const steps = stepsFromAgentLog([
+      { role: 'assistant', content: { tool: 'microsoftListMessages', args: { top: 5 } } },
+      { role: 'environment', content: { tool: 'microsoftListMessages', tool_executed: true } },
+    ]);
+    expect(steps).toEqual([{ id: 's0', tool: 'microsoftListMessages', status: 'done', args: { top: 5 } }]);
   });
 
   it('marks failures, keeping the raw text for the details only', () => {

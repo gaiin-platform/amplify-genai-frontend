@@ -3,7 +3,7 @@ import { Modal } from "../ReusableComponents/Modal";
 import HomeContext from "@/components/Home/home.context";
 import InputsMap from "../ReusableComponents/InputMap";
 import {  getAdminConfigs, getAvailableModels, getFeatureFlags, getPowerPoints, testEmbeddingEndpoint, testEndpoint, updateAdminConfigs } from "@/services/adminService";
-import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig } from "@/types/admin";
+import { AdminConfigTypes, Endpoint, FeatureFlagConfig, OpenAIModelsConfig, SupportedModel, SupportedModelsConfig, AdminTab, DefaultModelsConfig, DocumentRetention, documentRetentionDaysAreValid, DOCUMENT_RETENTION_MAX_DAYS, DOCUMENT_RETENTION_MIN_DAYS } from "@/types/admin";
 import { IconCheck, IconRefresh, IconX} from "@tabler/icons-react";
 import { LoadingIcon } from "../Loader/LoadingIcon";
 import toast from "react-hot-toast";
@@ -83,6 +83,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
     const [defaultTimezone, setDefaultTimezone] = useState<string>('America/Chicago');
     const [smartMessagesEnabled, setSmartMessagesEnabled] = useState<boolean>(false);
+    const [documentRetention, setDocumentRetention] = useState<DocumentRetention>({ isActive: false, days: 90 });
     const [refreshingTypes, setRefreshingTypes] = useState< AdminConfigTypes[]>([]);
 
 
@@ -219,6 +220,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 setUserDocumentationUrl(data[AdminConfigTypes.USER_DOCUMENTATION_URL] || '');
                 setDefaultTimezone(data[AdminConfigTypes.DEFAULT_TIMEZONE] || 'America/Chicago');
                 setSmartMessagesEnabled(data[AdminConfigTypes.DEFAULT_SMART_MESSAGES] ?? false);
+                setDocumentRetention(data[AdminConfigTypes.DOCUMENT_RETENTION] || documentRetention);
                 setLoadingMessage("");
             
                 const nonlazyResult = await nonlazyReq;
@@ -432,6 +434,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 return defaultTimezone;
             case AdminConfigTypes.DEFAULT_SMART_MESSAGES:
                 return smartMessagesEnabled;
+            case AdminConfigTypes.DOCUMENT_RETENTION:
+                return { isActive: Boolean(documentRetention.isActive), days: Number(documentRetention.days) };
             case AdminConfigTypes.OPENAI_ENDPOINTS:
                 const toTest:{key: string, url: string, model:string}[] = [];
                 
@@ -563,6 +567,11 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
         if (emailSupport.isActive && !emailSupport.email) {
             alert("The Support Email feature cannot be activated without providing an email address. Please add an email address or disable the feature.");
+            return false;
+        }
+
+        if (unsavedConfigs.has(AdminConfigTypes.DOCUMENT_RETENTION) && !documentRetentionDaysAreValid(Number(documentRetention.days))) {
+            alert(`Document Retention needs a whole number of days from ${DOCUMENT_RETENTION_MIN_DAYS} to ${DOCUMENT_RETENTION_MAX_DAYS}.`);
             return false;
         }
 
@@ -767,6 +776,8 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                     setDefaultConversationStorage={setDefaultConversationStorage}
                     emailSupport={emailSupport}
                     setEmailSupport={setEmailSupport}
+                    documentRetention={documentRetention}
+                    setDocumentRetention={setDocumentRetention}
                     aiEmailDomain={aiEmailDomain}
                     setAiEmailDomain={featureFlags.assistantEmailEvents ? setAiEmailDomain : undefined}
                     defaultTimezone={defaultTimezone}

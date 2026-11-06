@@ -1600,12 +1600,13 @@
   color: var(--text-muted) !important;
   font-family: Inter, sans-serif !important;
   font-style: normal !important;
-  padding: 20px 0 !important;
+  /* 16px (was 20px): the 20px mark replaced a 6px dot + 13px line, so the row keeps ~the same
+     52px total height and the reply doesn't shift when this row first appears. */
+  padding: 16px 0 !important;
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
-  overflow: visible !important; /* override truncate's overflow:hidden to stop
-                                    the ::before circle from being clipped */
+  overflow: visible !important; /* override truncate's overflow:hidden so the mark's pulse isn't clipped */
 }
 
 /* Fix 40 — Hide the literal status text (e.g. "Amplify is responding…").
@@ -2151,31 +2152,26 @@
 
 [data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 > div {
   margin-left: 0 !important;
-  padding: 20px 0 !important;
+  padding: 16px 0 !important; /* 20px mark + 32px = the ~52px the old dot row occupied */
   min-width: 0 !important;
   display: flex !important;
   align-items: center !important;
   gap: 8px !important;
 }
 
-/* Replace the blinking text-cursor `▍` with the same breathing accent dot
-   used on PromptStatus (Phase 26), so pre-stream and in-stream loading states
-   feel like the same calm animation rather than two different old/new looks. */
-[data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 .animate-pulse {
-  font-size: 0 !important; /* hide the literal ▍ glyph, keep the element for layout */
-  display: inline-block !important;
-  width: 6px !important;
-  height: 6px !important;
-  border-radius: 50% !important;
-  background-color: var(--accent) !important;
-  opacity: 0.6 !important;
-  animation: none !important; /* Tailwind's animate-pulse replaced by our own below */
+/* ChatLoader's `▍` cursor was replaced by <ChatStatusIndicator source="sending">
+   (components/NewUI/chat/ChatStatusIndicator.tsx; styles: the `.nui-status` block below).
+   ChatLoader is mounted for the whole `loading` window but is only meant to be SEEN while
+   the request is out and no assistant turn exists yet (shell attr data-awaiting-first-token):
+     - streaming, not awaiting  → hidden but keeps its footprint (visibility, not display —
+                                   Phase 38/39: the element must stay laid out);
+     - not awaiting             → mark only, no label (the label means "request dispatched").
+   Same visibility rules as the old Phase 43 Fix 1b / Phase 65 / Phase 66 trio, in one place. */
+[data-new-ui="true"][data-streaming="true"]:not([data-awaiting-first-token="true"]) .nui-status[data-source="sending"] {
+  visibility: hidden;
 }
-
-@media (prefers-reduced-motion: no-preference) {
-  [data-new-ui="true"] .group.border-b.border-black\/10.bg-gray-50 .animate-pulse {
-    animation: new-ui-thinking-pulse 1.8s ease-in-out infinite !important;
-  }
+[data-new-ui="true"]:not([data-awaiting-first-token="true"]) .nui-status[data-source="sending"] .nui-status-labels {
+  display: none;
 }
 
 /* Fix 40 — Hide the streaming ▍ cursor inside ChatContentBlock.
@@ -2218,28 +2214,10 @@
    render in their static, final-state styling (Phase 19 TODO, done here).
 ───────────────────────────────────────────────────────────────────────────── */
 
-/* Static (always-present, non-animated) breathing dot before the status text.
-   Phase 67: parent is now display:flex, so ::before is a flex item.
-   margin-right removed (parent gap:8px handles spacing).
-   vertical-align removed (not applicable in flex context).
-   flex-shrink:0 is now meaningful — prevents the dot from collapsing. */
-[data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3::before {
-  content: "";
-  display: block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--accent);
-  opacity: 0.6;
-  flex-shrink: 0;
-}
+/* The PromptStatus row's ::before breathing dot is gone: the injected
+   .new-ui-loading-text host now renders a <ChatStatusIndicator source="status"> (mark + label). */
 
 @media (prefers-reduced-motion: no-preference) {
-  /* Breathing accent dot — slow, soft pulse */
-  [data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3::before {
-    animation: new-ui-thinking-pulse 1.8s ease-in-out infinite;
-  }
-
   /* Gradient shimmer sweep across the status text itself.
      NOTE: the text node lives in the nested `.mt-0.pt-0` div, not the
      `.mt-0.ml-3` row wrapper — background-clip:text must be applied directly
@@ -2271,11 +2249,6 @@
   [data-new-ui="true"] .text-sm\!important.opacity-70 .border-l.dark\:border-gray-600 {
     animation: new-ui-reasoning-settle-in 0.35s ease-out;
   }
-}
-
-@keyframes new-ui-thinking-pulse {
-  0%, 100% { opacity: 0.35; transform: scale(0.85); }
-  50%      { opacity: 0.9;  transform: scale(1.2); }
 }
 
 @keyframes new-ui-shimmer-sweep {
@@ -2620,9 +2593,7 @@
    the DOM with its layout footprint intact. `visibility:hidden` keeps the 6×6px
    layout space; the container's `padding: 20px 0` also stays intact.
    ─────────────────────────────────────────────────────────────────────────── */
-[data-new-ui="true"][data-streaming="true"] .group.border-b.border-black\/10.bg-gray-50 .animate-pulse {
-  visibility: hidden !important;
-}
+/* (superseded: see the `.nui-status[data-source="sending"]` gating rules in the Phase 27 block) */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Phase 65 Fix 1 — ALWAYS show a loading animation once the prompt is sent
@@ -2659,9 +2630,7 @@
    "Thinking…" dot that follows it, giving one continuous animation from send
    through to first token.
    ─────────────────────────────────────────────────────────────────────────── */
-[data-new-ui="true"][data-streaming="true"][data-awaiting-first-token="true"] .group.border-b.border-black\/10.bg-gray-50 .animate-pulse {
-  visibility: visible !important;
-}
+/* (superseded: see the `.nui-status[data-source="sending"]` gating rules in the Phase 27 block) */
 
 /* ── Phase 66 — "Sending…" label beside the pre-response dot ─────────────────
    The awaiting-first-token dot had no text, while the state that follows it
@@ -2692,21 +2661,7 @@
    rendered in ConversationViewShell.tsx (wiki §9 standing rule 15) — PromptStatus's
    own aria-live host does not exist yet during this window.
    ─────────────────────────────────────────────────────────────────────────── */
-[data-new-ui="true"][data-streaming="true"][data-awaiting-first-token="true"] .group.border-b.border-black\/10.bg-gray-50 > div::after {
-  content: "Sending\2026"; /* U+2026 HORIZONTAL ELLIPSIS = … */
-  color: var(--text-muted);
-  font-size: 13px;
-  font-style: italic;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  line-height: 1;
-  /* opacity default: 1 in reduced-motion mode; animated below otherwise */
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  [data-new-ui="true"][data-streaming="true"][data-awaiting-first-token="true"] .group.border-b.border-black\/10.bg-gray-50 > div::after {
-    animation: new-ui-loading-pulse 2s ease-in-out infinite;
-  }
-}
+/* (superseded: the "Sending…" label is now real text in <ChatStatusIndicator>, not ::after content) */
 
 /* ═══════════════════════════════════════════════════════════════════════════
    Phase 43 Fix 2 — "Thinking…" animated text alongside the PromptStatus dot
@@ -2735,35 +2690,13 @@
    (per wiki §9 standing rule 17: every animation must have a PRM override).
    ─────────────────────────────────────────────────────────────────────────── */
 
+/* The injected host. Its content is a <ChatStatusIndicator source="status"> portal; the row
+   itself is the flex container `.mt-0.ml-3` (centred, 8px gap), so the host only needs to
+   not shrink the mark. */
 [data-new-ui="true"] .new-ui-loading-text {
-  display: inline;
-  color: var(--text-muted);
-  font-size: 13px;
-  line-height: 1; /* Phase 67 fix: match the ChatLoader ::after "Sending…" line-height.
-                     Without this, the span inherits line-height ~1.7 from #chatHover
-                     (the prose wrapper), making the flex item ~22px tall instead of 13px.
-                     The taller item shifts the flex container's centre point upward,
-                     placing the dot ~4.5px lower than the "Sending…" dot. */
-  font-style: italic;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-  /* Phase 67: vertical-align removed — parent .mt-0.ml-3 is now display:flex
-     with align-items:center, so flex handles vertical alignment. */
-  /* opacity default: 1 in reduced-motion mode; animated below otherwise */
-}
-
-[data-new-ui="true"] .new-ui-loading-text::after {
-  content: "Thinking\2026"; /* U+2026 HORIZONTAL ELLIPSIS = … */
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  [data-new-ui="true"] .new-ui-loading-text {
-    animation: new-ui-loading-pulse 2s ease-in-out infinite;
-  }
-}
-
-@keyframes new-ui-loading-pulse {
-  0%, 100% { opacity: 0.5; }
-  50%       { opacity: 1;   }
+  display: flex;
+  align-items: center;
+  min-width: 0;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -2779,38 +2712,7 @@
 [data-new-ui="true"] .new-ui-awaiting-answer {
   display: flex;
   align-items: center;
-  gap: 8px;
   margin: 4px 0 8px;
-  color: var(--text-muted);
-  /* #chatHover forces prose font-size/line-height with !important */
-  font-size: 13px !important;
-  line-height: 1 !important;
-  font-style: italic;
-  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
-}
-
-[data-new-ui="true"] .new-ui-awaiting-answer::before {
-  content: "";
-  display: block;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background-color: var(--accent);
-  opacity: 0.6;
-  flex-shrink: 0;
-}
-
-[data-new-ui="true"] .new-ui-awaiting-answer::after {
-  content: "Thinking\2026";
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  [data-new-ui="true"] .new-ui-awaiting-answer::before {
-    animation: new-ui-thinking-pulse 1.8s ease-in-out infinite;
-  }
-  [data-new-ui="true"] .new-ui-awaiting-answer::after {
-    animation: new-ui-loading-pulse 2s ease-in-out infinite;
-  }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4639,6 +4541,75 @@
   line-height: 1.3;
 }
 
+/* ── Card wrapper: the card plus its optional excerpt underneath ── */
+.nui-src-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* ── Card: where in the document the text came from (right-aligned, muted) ── */
+.nui-src-location {
+  /* Shrinks (with an ellipsis) rather than pushing past the card when a document has many matched
+     positions, e.g. "Paragraphs 1-58 · Lines 1, 3, 5, 7, ..."; the full text is in the tooltip. */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 50%;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+
+/* ── Card: show / hide the retrieved text ── */
+.nui-src-excerpt-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.12s ease;
+  transform: rotate(-90deg);
+}
+
+.nui-src-excerpt-toggle[data-open="true"] {
+  transform: rotate(0deg);
+}
+
+.nui-src-excerpt-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.nui-src-excerpt-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ── Retrieved text under an expanded card ── */
+.nui-src-excerpt {
+  margin: 0 2px 2px 34px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--border-subtle);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
 /* ── Card: external-link icon — visible on hover ── */
 .nui-src-ext-icon {
   flex-shrink: 0;
@@ -5536,6 +5507,21 @@
   display: none !important;
 }
 
+/* The classic "Reasoning / Actions" disclosure (AgentLogBlock) repeats every tool call the step rows
+   already show — now with their results too. The layer sets data-agentlog-takeover="true" only while
+   the message's agent-log calls all have rows, and only the disclosure is hidden: the generated-files
+   list that shares AgentLogBlock's wrapper stays. With no files, the (empty) wrapper goes too, so its
+   top margin leaves no gap. (The files list is `wrapper > .pointer-events-auto > ul > li`; the
+   disclosure never has a direct <ul>.) Scheduled Tasks run logs have no step rows and are untouched. */
+[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-agentlog-takeover="true"])
+  .mt-3.pointer-events-none > .pointer-events-auto.max-w-full.overflow-hidden {
+  display: none !important;
+}
+[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-agentlog-takeover="true"])
+  .mt-3.pointer-events-none:has(> .pointer-events-auto.max-w-full.overflow-hidden):not(:has(> .pointer-events-auto > ul > li)) {
+  display: none !important;
+}
+
 /* Spacing is owned by this one container:
      --nui-ts-gap       between step rows (and the group)
      --nui-ts-wait-gap  around the "Thinking…" row while the answer is pending.
@@ -5758,7 +5744,10 @@
 
 .nui-step-details .nui-step-params dt {
   color: var(--text-muted);
-  overflow-wrap: anywhere;
+  /* The key column sizes to its longest key (capped at 40% above) and a key wraps only at its own
+     word boundaries — "conversationId" is never split mid-word. Values below can wrap anywhere. */
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .nui-step-details .nui-step-params dd {
@@ -5929,6 +5918,102 @@
   margin-top: 0;
 }
 
+/* ── A tool's Result: same container and grid as the parameters, hairline-separated ── */
+.nui-step-params + .nui-result,
+.nui-step-params-empty + .nui-result {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.nui-step-details > .nui-result:first-child .nui-code-title {
+  padding-right: 28px; /* clear of the floating copy button */
+}
+
+/* List results: one line per item, opening to its fields. No boxes, no nested cards. */
+.nui-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nui-result-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% + 4px); /* hover bleed 4px to the left only, so no sideways scroll */
+  margin: 0 0 0 -4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.nui-result-line:hover {
+  background: var(--bg-hover);
+}
+
+.nui-result-line:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.nui-result-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A plain value (nothing to open) is just a line of text. */
+div.nui-result-line.nui-result-plain {
+  width: 100%;
+  margin: 0;
+  padding: 2px 0;
+  cursor: default;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* An opened item's fields: the same grid, indented under the chevron. */
+.nui-step-details .nui-step-params.nui-result-fields {
+  margin: 4px 0 8px 16px !important;
+}
+
+/* ── Raw / Raw log: small muted text buttons; JSON in the same monospace container ── */
+.nui-step-raw-toggles {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.nui-step-raw-toggles .nui-step-link {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.nui-step-raw-toggles .nui-step-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.nui-step-raw-toggles .nui-step-link[aria-pressed="true"] {
+  color: var(--text-primary);
+}
+
+.nui-step-details .nui-step-raw {
+  padding-right: 24px !important; /* clear of the copy button */
+}
+
 /* ── Group body: rows indented under the header, no box, no left border ── */
 .nui-group-body {
   display: flex;
@@ -5938,7 +6023,9 @@
   margin: 6px 0 0 24px;
 }
 
-/* ── "Thinking…" (model reasoning) — italic, dot, no icon: not a tool step ── */
+/* ── "Thinking…" (model reasoning) — the shared status indicator (mark + label), no tool icon ──
+   The -6px / 6px pair pulls the hover padding out to the left, so the indicator's mark sits on
+   the message's left edge exactly like a step row's icon does (.nui-step-line). */
 .nui-thinking-line {
   display: inline-flex;
   align-items: center;
@@ -5949,10 +6036,8 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: var(--text-muted);
+  color: var(--text-secondary);
   font: inherit;
-  font-style: italic;
-  font-size: 13px;
   text-align: left;
 }
 
@@ -5963,15 +6048,6 @@
 
 .nui-thinking-line:is(button):hover {
   background: var(--bg-hover);
-}
-
-.nui-thinking-dot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--accent);
-  opacity: 0.6;
 }
 
 .nui-thinking-body {
@@ -5994,15 +6070,6 @@
   color: var(--text-muted);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .nui-thinking[data-active="true"] .nui-thinking-dot {
-    animation: new-ui-thinking-pulse 1.8s ease-in-out infinite;
-  }
-  .nui-thinking[data-active="true"] .nui-thinking-label {
-    animation: new-ui-loading-pulse 2s ease-in-out infinite;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   .nui-step-spinner {
     display: none;
@@ -6017,6 +6084,169 @@
   .nui-thinking-line:is(button) {
     transition: none;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Status indicator — "Sending…" / "Thinking…"      (ChatStatusIndicator.tsx)
+   ═══════════════════════════════════════════════════════════════════════════
+
+   ONE look for every in-progress status: ChatLoader ("Sending…"), the classic PromptStatus
+   card, the empty-turn row and the tool-step "Thinking…" row all render this. When each one
+   appears is decided by its owner; nothing here affects that.
+
+   Layout   mark (20px box ≈ 17px orb, the logo has transparent padding) · 8px · label.
+            Centred vertically. Left edge = the message's left edge, same as tool-step rows;
+            type size matches them (.nui-ts-root: 13.5px / secondary).
+   Mark     the Amplify logo, pulsing: scale .92→1 and opacity .7→1, 1.4s ease-in-out.
+            (Pulse rather than rotate: the orb is not rotationally symmetric — its top is
+            cut flat — so a spin reads as a wobble.)
+   Label    --text-secondary with a faint highlight sweeping left→right every 2s
+            (background-clip:text). The highlight is --text-primary: lighter than the base
+            in dark mode, a touch darker in light mode — understated in both because it only
+            covers ~20% of the text at any moment.
+   Motion   Pulse = transform + opacity only. The shimmer necessarily animates
+            background-position (a transform cannot move a gradient inside clipped text); it
+            repaints a ~80px text run, nothing else.
+   Phase    each instance starts at a negative delay (inline --nui-status-*-delay), so a node
+            swapped in mid-animation continues where the last one was instead of restarting.
+   PRM      prefers-reduced-motion: reduce → static mark, plain label, no crossfade — every
+            animation and transition below is inside no-preference.
+   Theme    tokens only (--text-secondary / --text-primary); no colours are hard-coded. */
+.nui-status {
+  --nui-status-fade: 150ms;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  min-width: 0;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  /* !important: inside an assistant message #chatHover forces prose font-size / line-height
+     with !important; the indicator must keep the step-row size whichever host it lands in. */
+  font-size: 13.5px !important;
+  font-style: normal !important;
+  line-height: 20px !important;
+  color: var(--text-secondary);
+}
+
+.nui-status-mark {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+}
+
+.nui-status-mark img {
+  display: block;
+  width: 20px;
+  height: 20px;
+  max-width: none;
+  object-fit: contain;
+}
+
+/* Both labels share one grid cell, so the box is as wide as the wider one during a crossfade
+   and nothing reflows. */
+.nui-status-labels {
+  display: inline-grid;
+  min-width: 0;
+}
+
+.nui-status-label {
+  grid-area: 1 / 1;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+/* Shimmer only where background-clip:text exists; elsewhere the plain colour above stays. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  @media (prefers-reduced-motion: no-preference) {
+    .nui-status[data-active="true"] .nui-status-label--in {
+      background-image: linear-gradient(
+        100deg,
+        var(--text-secondary) 43%,
+        var(--text-primary) 50%,
+        var(--text-secondary) 57%
+      );
+      background-size: 250% 100%;
+      background-repeat: no-repeat;
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      color: transparent;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nui-status[data-active="true"] .nui-status-mark {
+    animation: nui-status-pulse 1.4s ease-in-out var(--nui-status-pulse-delay, 0ms) infinite;
+  }
+
+  .nui-status .nui-status-label--in {
+    animation: nui-status-fade-in var(--nui-status-fade) ease-out both;
+  }
+  .nui-status[data-active="true"] .nui-status-label--in {
+    animation:
+      nui-status-fade-in var(--nui-status-fade) ease-out both,
+      nui-status-shimmer 2s linear var(--nui-status-shimmer-delay, 0ms) infinite;
+  }
+
+  .nui-status .nui-status-label--out {
+    animation: nui-status-fade-out var(--nui-status-fade) ease-in both;
+  }
+
+  /* The exit copy (NewUIStatusExitLayer): fade + collapse so the reply glides up. grid-rows
+     1fr → 0fr animates the height without measuring it; the copy's height is unknown because
+     it is built after the original has left the DOM. */
+  .nui-status-ghost {
+    display: grid;
+    grid-template-rows: 1fr;
+    opacity: 1;
+    pointer-events: none;
+    transition:
+      grid-template-rows 180ms ease-in-out,
+      opacity 150ms ease-out;
+  }
+  .nui-status-ghost[data-leaving] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+/* An exit copy under reduced motion is never created, but if one exists it must not linger. */
+@media (prefers-reduced-motion: reduce) {
+  .nui-status-ghost {
+    display: none;
+  }
+  .nui-status-label--out {
+    display: none;
+  }
+}
+
+.nui-status-ghost-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The mark's transform/opacity only; the highlight enters from the left edge and leaves right.
+   Position 100% puts the gradient's right end at the text's right edge (highlight off to the
+   left); 0% puts its left end at the text's left edge (highlight off to the right). */
+@keyframes nui-status-pulse {
+  0%, 100% { transform: scale(0.92); opacity: 0.7; }
+  50%      { transform: scale(1);    opacity: 1;   }
+}
+@keyframes nui-status-shimmer {
+  from { background-position: 100% 0; }
+  to   { background-position: 0% 0;   }
+}
+@keyframes nui-status-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes nui-status-fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
 }
 
 /* ─── No native PDF viewer inside the message list ──────────────────────────

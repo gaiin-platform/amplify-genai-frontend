@@ -70,11 +70,22 @@ import {
   extractKbId,
 } from '@/utils/app/bedrockKb';
 import { downloadDataSourceFile } from '@/utils/app/files';
+import { formatSourceLocation } from '@/utils/app/sourceLocation';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 /** Max sources shown before a "Show N more" button appears. */
 const MAX_VISIBLE = 4;
+
+/** Longest excerpt shown when a source card is expanded (a retrieved page can be several thousand characters). */
+const MAX_EXCERPT_CHARS = 700;
+
+/** The retrieved text for a source, trimmed to a readable excerpt; null when there is none. */
+function excerptOf(raw: any): string | null {
+  const text = typeof raw?.content === 'string' ? raw.content.replace(/\s+/g, ' ').trim() : '';
+  if (!text) return null;
+  return text.length > MAX_EXCERPT_CHARS ? `${text.slice(0, MAX_EXCERPT_CHARS).trimEnd()}...` : text;
+}
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -156,10 +167,14 @@ const SourceCard: React.FC<SourceCardProps> = ({ item }) => {
   const { data: session } = useSession();
   const user: any = session?.user;
   const [downloading, setDownloading] = useState(false);
+  const [showExcerpt, setShowExcerpt] = useState(false);
 
   const name: string = raw.name ?? raw.url ?? 'Source';
   const hasUrl = !!raw.url;
   const secondary = hasUrl ? getDomain(raw.url) : (raw.type ?? null);
+  // Where in the document the text came from ("Page 8", "Slide 22"); nothing for web pages or sources without a position.
+  const location = hasUrl ? null : formatSourceLocation(raw.locations);
+  const excerpt = excerptOf(raw);
 
   const handleClick = async () => {
     // 1. Plain URL source — open in new tab.
@@ -216,6 +231,7 @@ const SourceCard: React.FC<SourceCardProps> = ({ item }) => {
   return (
     <>
       <NewUILoadingStatus open={downloading} message="Downloading file…" />
+      <div className="nui-src-item">
       <div
         className="nui-src-card"
         role={hasUrl ? 'link' : 'button'}
@@ -241,12 +257,33 @@ const SourceCard: React.FC<SourceCardProps> = ({ item }) => {
         )}
       </span>
 
+      {/* Where in the document this came from */}
+      {location && <span className="nui-src-location" title={location}>{location}</span>}
+
+      {/* Show / hide the retrieved text */}
+      {excerpt && (
+        <button
+          type="button"
+          className="nui-src-excerpt-toggle"
+          data-open={showExcerpt ? 'true' : 'false'}
+          aria-expanded={showExcerpt}
+          aria-label={showExcerpt ? 'Hide excerpt' : 'Show excerpt'}
+          title={showExcerpt ? 'Hide excerpt' : 'Show excerpt'}
+          onClick={(e) => { e.stopPropagation(); setShowExcerpt((v) => !v); }}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <IconChevronDown size={13} />
+        </button>
+      )}
+
       {/* External link icon (shown on hover via CSS) */}
       {hasUrl && (
         <span className="nui-src-ext-icon" aria-hidden="true">
           <IconExternalLink size={12} />
         </span>
       )}
+    </div>
+    {showExcerpt && excerpt && <div className="nui-src-excerpt">{excerpt}</div>}
     </div>
     </>
   );

@@ -37,6 +37,12 @@ import { AttachedDocument } from '@/types/attacheddocument';
 import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { AttachMenu, AttachMenuChips, type SelectedAction } from '@/components/NewUI/shared/AttachMenu';
 import { AttachmentRail, attachmentRailHeight } from '@/components/NewUI/shared/AttachmentRail';
+import {
+  COMPOSER_INSET,
+  COMPOSER_INSET_BOTTOM,
+  EDITOR_LINE_PX,
+  composerCardMinHeight,
+} from '@/components/NewUI/shared/composerLayout';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import {
   HalloweenBackdrop,
@@ -233,6 +239,8 @@ export const NewHome: React.FC = () => {
   const [headingCollapsed, setHeadingCollapsed] = useState(false);
   // True while the text area is scrolled — shows the attachment row's divider.
   const [textScrolled, setTextScrolled] = useState(false);
+  // Full (unsqueezed) height of the text area — sizes the card's squeeze floor.
+  const [editorContentH, setEditorContentH] = useState(EDITOR_LINE_PX);
   const fitRaf = useRef(0);
 
   const fitHeading = useCallback(() => {
@@ -933,16 +941,21 @@ export const NewHome: React.FC = () => {
             border border-[--border-subtle]
             focus-within:border-[--border-composer-active]
             transition-colors duration-150
-            p-4 pb-3
           "
           style={{
+            // One inset for the card's content: top, left and right.
+            padding: `${COMPOSER_INSET}px ${COMPOSER_INSET}px ${COMPOSER_INSET_BOTTOM}px`,
             display: 'flex',
             flexDirection: 'column',
             flex: '0 1 auto',
-            // Floor = chrome (30) + full-height attachment row + ~3 lines (72) +
-            // toolbar (46) + slack. The row is never squeezed, so below this the
-            // pane scrolls instead of the parts overlapping.
-            minHeight: uiAttachments.length > 0 ? attachmentRailHeight(uiAttachments) + 152 : 110,
+            // Floor = chrome + full-height attachment row + up to 3 text lines +
+            // toolbar. The row is never squeezed, so below this the pane scrolls
+            // instead of the parts overlapping. The text part is min(3 lines, the
+            // text's own height), so a short draft leaves no empty space.
+            minHeight:
+              uiAttachments.length > 0
+                ? composerCardMinHeight(attachmentRailHeight(uiAttachments), editorContentH)
+                : 110,
           }}
           onClick={() => composerRef.current?.focus()}
         >
@@ -971,9 +984,11 @@ export const NewHome: React.FC = () => {
             placeholder={isHalloween ? HALLOWEEN_PLACEHOLDER : 'Ask anything…'}
             // No fixed cap: the editor grows with its content and is limited only
             // by the space left in the pane (card shrinks → this scrolls). With
-            // attachments present keep ~3 lines of usable editing room.
-            editorClassName={`overflow-y-auto${uiAttachments.length > 0 ? ' min-h-[4.5em]' : ''}`}
-            rootClassName={uiAttachments.length > 0 ? 'min-h-[4.5em]' : ''}
+            // attachments present keep up to ~3 lines of usable editing room —
+            // never more than the text needs, so it adds no empty space.
+            editorClassName="overflow-y-auto"
+            minVisibleLines={uiAttachments.length > 0 ? 3 : undefined}
+            onContentHeightChange={setEditorContentH}
             onScrolledChange={setTextScrolled}
             autoFocus
             hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}

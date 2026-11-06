@@ -36,16 +36,25 @@ const EASE_OUT = 'cubic-bezier(.2,.8,.2,1)';
 const EASE_IN = 'cubic-bezier(.4,0,1,1)';
 /** Room for a classic (non-overlay) horizontal scrollbar so it never eats into the cards. */
 const SCROLLBAR_ALLOWANCE = 8; // px
+/**
+ * The hover × sits 10px above its card, so the scroller (which clips) needs 10px
+ * of room above the cards. That room extends UP into the composer card's own
+ * top padding instead of adding layout height, so the cards' top edge lands
+ * exactly on the card's inset — the same distance as their left edge.
+ */
+const REMOVE_BUTTON_BLEED = 10; // px
 
 /**
- * Full height of the open rail (cards + insets + scrollbar allowance). Composers
- * use this to size the card's minimum height so the text area always keeps room.
+ * Layout height of the open rail (cards + bottom inset + scrollbar allowance;
+ * excludes the bleed above, which overlaps the composer card's padding).
+ * Composers use this to size the card's minimum height so the text area always
+ * keeps room.
  */
 export function attachmentRailHeight(attachments: UIAttachment[], editable = true): number {
   const base = attachments.some((a) => a.kind === 'paste' && !a.sourceMessageId && editable)
     ? PASTE_RAIL_HEIGHT
     : DEFAULT_RAIL_HEIGHT;
-  return base + SCROLLBAR_ALLOWANCE;
+  return base + SCROLLBAR_ALLOWANCE - REMOVE_BUTTON_BLEED;
 }
 
 /** Check if the user has asked for reduced motion. */
@@ -184,9 +193,14 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
     >
     <div
       ref={railRef}
-      // Many cards scroll sideways; the row never grows taller.
-      className="h-full overflow-x-auto overflow-y-hidden"
+      // Many cards scroll sideways; the row never grows taller. Pulled up by
+      // the bleed so the × has room without pushing the cards down.
+      className="absolute overflow-x-auto overflow-y-hidden"
       style={{
+        top: -REMOVE_BUTTON_BLEED,
+        left: 0,
+        right: 0,
+        bottom: 0,
         // Fade right edge when scrollable (spec §3)
         maskImage:
           'linear-gradient(to right, #000 0, #000 calc(100% - 32px), transparent 100%)',
@@ -201,7 +215,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
         role="list"
         aria-label={`${attachments.length} attachment${attachments.length !== 1 ? 's' : ''}`}
         className="flex gap-[16px] items-start"
-        style={{ width: 'max-content', padding: '10px 2px 6px' }}
+        style={{ width: 'max-content', padding: `${REMOVE_BUTTON_BLEED}px 0 6px` }}
         onKeyDown={handleRailKeyDown}
       >
         {attachments.map((a, idx) => (

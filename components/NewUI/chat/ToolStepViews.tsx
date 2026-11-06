@@ -2,7 +2,8 @@
  * ToolStepViews — presentational pieces for the chat's tool-call status.
  *
  *   ToolStepRow        one line per call: icon · label (· result) · status · chevron;
- *                      expands to the raw parameters (and raw error text).
+ *                      expands to the parameters, the tool's Result (a list is a summary plus
+ *                      one collapsed line per item), raw error text, and "Raw" / "Raw log".
  *   ToolStepGroup      several calls stacked under one header; collapses to
  *                      "Used Outlook · 2 steps" once nothing is running.
  *   ThinkingRow        model reasoning — deliberately NOT styled like a tool step.
@@ -39,6 +40,7 @@ import {
   IconUsers,
   IconWorld,
 } from '@tabler/icons-react';
+import { ChatStatusIndicator } from '@/components/NewUI/chat/ChatStatusIndicator';
 import { DisclosureChevron } from '@/components/NewUI/shared/DisclosureChevron';
 import { integrationIcon } from '@/components/NewUI/shared/integrationIcon';
 import {
@@ -53,8 +55,10 @@ import {
   formatParamRows,
   groupTitle,
   isMcpStep,
+  listItems,
   plainErrorMessage,
 } from '@/components/NewUI/shared/toolSteps';
+import { describeItem, resultRows } from '@/components/NewUI/shared/toolStepResults';
 
 // ─── Icons ───────────────────────────────────────────────────────────────────
 
@@ -191,49 +195,204 @@ function useCopy(getText: () => string) {
 
 // ─── Details panel ───────────────────────────────────────────────────────────
 
+/** Key / value rows as the one two-column grid every details panel uses. */
+const ParamGrid: React.FC<{ rows: Array<{ key: string; value: string }>; className?: string }> = ({ rows, className }) => (
+  <dl className={className ? `nui-step-params ${className}` : 'nui-step-params'}>
+    {rows.map(({ key, value }) => (
+      <React.Fragment key={key}>
+        <dt>{key}</dt>
+        <dd>{value}</dd>
+      </React.Fragment>
+    ))}
+  </dl>
+);
+
+const safeJson = (value: unknown): string => {
+  try {
+    return JSON.stringify(value, null, 2) ?? String(value);
+  } catch {
+    return String(value);
+  }
+};
+
+// ─── What a tool returned ────────────────────────────────────────────────────
+
+/** One list item: a single line (subject — from — time) that opens to every field it has. */
+const ResultItem: React.FC<{ item: unknown; now?: Date }> = ({ item, now }) => {
+  const [open, setOpen] = useState(false);
+  const fieldsId = useId();
+  const line = describeItem(item, { now });
+  const rows = item !== null && typeof item === 'object' && !Array.isArray(item) ? resultRows(item as Record<string, unknown>) : [];
+  const text = [line.title, line.meta, line.time].filter(Boolean).join(' — ');
+
+  // A plain value has nothing more to show: a line, not a toggle.
+  if (rows.length === 0) return <div className="nui-result-line nui-result-plain">{text}</div>;
+
+  return (
+    <div className="nui-result-item">
+      <button
+        type="button"
+        className="nui-result-line"
+        aria-expanded={open}
+        aria-controls={open ? fieldsId : undefined}
+        title={text}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <DisclosureChevron open={open} size={10} />
+        <span className="nui-result-text">{text}</span>
+      </button>
+      {open && <ParamGrid rows={rows} className="nui-result-fields" />}
+    </div>
+  );
+};
+
+interface ToolResultSectionProps {
+  result: unknown;
+  /** "11 messages" — the row's own summary, when it has one. */
+  summary?: string;
+  now?: Date;
+}
+
+/**
+ * The "Result" block of a step's details. A list is a summary plus one collapsed line per item;
+ * an object is the same key / value grid as the parameters; text is shown as text. Nothing here
+ * renders every raw field of every item by default.
+ */
+export const ToolResultSection: React.FC<ToolResultSectionProps> = ({ result, summary, now }) => {
+  const items = listItems(result);
+  let body: React.ReactNode;
+  let heading = 'Result';
+
+  if (items) {
+    const count = summary ?? `${items.length} ${items.length === 1 ? 'item' : 'items'}`;
+    heading = `Result · ${count}`;
+    body =
+      items.length > 0 ? (
+        <div className="nui-result-list">
+          {items.map((item, i) => (
+            <ResultItem key={i} item={item} now={now} />
+          ))}
+        </div>
+      ) : null;
+  } else if (result !== null && typeof result === 'object' && !Array.isArray(result)) {
+    const rows = resultRows(result as Record<string, unknown>);
+    body = rows.length > 0 ? <ParamGrid rows={rows} /> : <div className="nui-step-params-empty">No result data</div>;
+  } else {
+    body = <pre className="nui-code-pre">{typeof result === 'string' ? result : safeJson(result)}</pre>;
+  }
+
+  return (
+    <div className="nui-code-section nui-result">
+      <div className="nui-code-title">{heading}</div>
+      {body}
+    </div>
+  );
+};
+
+// ─── Details panel ───────────────────────────────────────────────────────────
+
 interface ToolStepDetailsProps {
   id?: string;
   args: Record<string, unknown>;
   errorDetail?: string;
+  /** What the tool returned; shown as a "Result" section under the parameters. */
+  result?: unknown;
+  resultSummary?: string;
+  /** The tool's name — only used to label the Raw view. */
+  tool?: string;
+  /** The message's whole agent log. Offered as "Raw log" (user prompt, terminate, notes and all). */
+  rawLog?: unknown;
+  now?: Date;
 }
 
+type RawView = 'step' | 'log' | null;
+
 /**
- * Raw parameters as a two-column grid (muted keys, primary values, one shared
- * left edge for every value) with a copy-as-JSON button in the top-right corner.
+ * Parameters as a two-column grid (muted keys, primary values, one shared left edge for every
+ * value) with a copy-as-JSON button in the top-right corner, then the tool's Result in the same
+ * container. "Raw" swaps the friendly view for JSON in the same monospace box; "Raw log" does
+ * the same for the message's whole agent log.
  */
-export const ToolStepDetails: React.FC<ToolStepDetailsProps> = ({ id, args, errorDetail }) => {
+export const ToolStepDetails: React.FC<ToolStepDetailsProps> = ({
+  id,
+  args,
+  errorDetail,
+  result,
+  resultSummary,
+  tool,
+  rawLog,
+  now,
+}) => {
+  const [raw, setRaw] = useState<RawView>(null);
   const params = formatParamRows(args);
-  const { copied, copy } = useCopy(() => JSON.stringify(args, null, 2));
+  const hasResult = result !== undefined && result !== null;
+  const rawText = () =>
+    raw === 'log'
+      ? safeJson(rawLog)
+      : safeJson({
+          ...(tool ? { tool } : {}),
+          args,
+          ...(hasResult ? { result } : {}),
+          ...(errorDetail ? { error: errorDetail } : {}),
+        });
+  const { copied, copy } = useCopy(() => (raw ? rawText() : JSON.stringify(args, null, 2)));
+  const hasAnything = params.length > 0 || hasResult || !!errorDetail;
 
   return (
     <div id={id} className="nui-step-details">
-      {params.length > 0 ? (
-        <>
-          <button
-            type="button"
-            className="nui-step-copy"
-            onClick={copy}
-            aria-label={copied ? 'Parameters copied' : 'Copy parameters as JSON'}
-            title={copied ? 'Copied' : 'Copy parameters as JSON'}
-          >
-            {copied ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : <IconCopy size={14} stroke={1.75} aria-hidden="true" />}
-          </button>
-          <dl className="nui-step-params">
-            {params.map(({ key, value }) => (
-              <React.Fragment key={key}>
-                <dt>{key}</dt>
-                <dd>{value}</dd>
-              </React.Fragment>
-            ))}
-          </dl>
-        </>
-      ) : (
-        <div className="nui-step-params-empty">No parameters</div>
+      {(params.length > 0 || raw) && (
+        <button
+          type="button"
+          className="nui-step-copy"
+          onClick={copy}
+          aria-label={copied ? (raw ? 'Copied' : 'Parameters copied') : raw ? 'Copy as JSON' : 'Copy parameters as JSON'}
+          title={copied ? 'Copied' : raw ? 'Copy as JSON' : 'Copy parameters as JSON'}
+        >
+          {copied ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : <IconCopy size={14} stroke={1.75} aria-hidden="true" />}
+        </button>
       )}
-      {errorDetail && (
-        <div className="nui-step-raw-error">
-          <div className="nui-step-raw-error-title">Error details</div>
-          <div className="nui-step-raw-error-text">{errorDetail}</div>
+
+      {raw ? (
+        <pre className="nui-code-pre nui-step-raw">{rawText()}</pre>
+      ) : (
+        <>
+          {params.length > 0 ? (
+            <ParamGrid rows={params} />
+          ) : (
+            !hasResult && <div className="nui-step-params-empty">No parameters</div>
+          )}
+          {hasResult && <ToolResultSection result={result} summary={resultSummary} now={now} />}
+          {errorDetail && (
+            <div className="nui-step-raw-error">
+              <div className="nui-step-raw-error-title">Error details</div>
+              <div className="nui-step-raw-error-text">{errorDetail}</div>
+            </div>
+          )}
+        </>
+      )}
+
+      {(hasAnything || rawLog !== undefined) && (
+        <div className="nui-step-raw-toggles">
+          {hasAnything && (
+            <button
+              type="button"
+              className="nui-step-link"
+              aria-pressed={raw === 'step'}
+              onClick={() => setRaw(raw === 'step' ? null : 'step')}
+            >
+              {raw === 'step' ? 'Friendly' : 'Raw'}
+            </button>
+          )}
+          {rawLog !== undefined && (
+            <button
+              type="button"
+              className="nui-step-link"
+              aria-pressed={raw === 'log'}
+              onClick={() => setRaw(raw === 'log' ? null : 'log')}
+            >
+              {raw === 'log' ? 'Friendly' : 'Raw log'}
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -434,9 +593,27 @@ interface ToolStepRowProps {
   now?: Date;
   /** Override for tests; defaults to opening Settings → Connectors. */
   onOpenConnectors?: () => void;
+  /** The message's whole agent log, offered as "Raw log" in this row's details (see `rawLogOwnerId`). */
+  rawLog?: unknown;
 }
 
-export const ToolStepRow: React.FC<ToolStepRowProps> = ({ step, now, onOpenConnectors = openConnectorsSettings }) => {
+/**
+ * The one step whose details carry "Raw log": the last one that uses the plain parameters / result
+ * panel (code runs and MCP calls have their own bodies, which don't).
+ */
+export const rawLogOwnerId = (steps: ToolStep[]): string | undefined => {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (!steps[i].detail && !steps[i].mcp) return steps[i].id;
+  }
+  return undefined;
+};
+
+export const ToolStepRow: React.FC<ToolStepRowProps> = ({
+  step,
+  now,
+  onOpenConnectors = openConnectorsSettings,
+  rawLog,
+}) => {
   const [open, setOpen] = useState(false);
   const detailsId = useId();
   const desc = describeStep(step, { now });
@@ -487,7 +664,16 @@ export const ToolStepRow: React.FC<ToolStepRowProps> = ({ step, now, onOpenConne
         ) : step.mcp ? (
           <McpCallDetails id={detailsId} step={step} />
         ) : (
-          <ToolStepDetails id={detailsId} args={step.args} errorDetail={step.errorDetail} />
+          <ToolStepDetails
+            id={detailsId}
+            args={step.args}
+            errorDetail={step.errorDetail}
+            result={step.result}
+            resultSummary={step.resultSummary}
+            tool={step.tool}
+            rawLog={rawLog}
+            now={now}
+          />
         ))}
     </div>
   );
@@ -499,9 +685,11 @@ interface ToolStepGroupProps {
   steps: ToolStep[];
   now?: Date;
   onOpenConnectors?: () => void;
+  rawLog?: unknown;
 }
 
-export const ToolStepGroup: React.FC<ToolStepGroupProps> = ({ steps, now, onOpenConnectors }) => {
+export const ToolStepGroup: React.FC<ToolStepGroupProps> = ({ steps, now, onOpenConnectors, rawLog }) => {
+  const logOwner = rawLog !== undefined ? rawLogOwnerId(steps) : undefined;
   // null = the user hasn't touched it: open while something runs, closed once it's all settled.
   const [userOpen, setUserOpen] = useState<boolean | null>(null);
   const bodyId = useId();
@@ -541,7 +729,13 @@ export const ToolStepGroup: React.FC<ToolStepGroupProps> = ({ steps, now, onOpen
       {open && (
         <div id={bodyId} className="nui-group-body">
           {steps.map((s) => (
-            <ToolStepRow key={s.id} step={s} now={now} onOpenConnectors={onOpenConnectors} />
+            <ToolStepRow
+              key={s.id}
+              step={s}
+              now={now}
+              onOpenConnectors={onOpenConnectors}
+              rawLog={s.id === logOwner ? rawLog : undefined}
+            />
           ))}
         </div>
       )}
@@ -563,12 +757,7 @@ export const ThinkingRow: React.FC<ThinkingRowProps> = ({ active, children }) =>
   const bodyId = useId();
   const hasBody = !!children;
 
-  const inner = (
-    <>
-      <span className="nui-thinking-dot" aria-hidden="true" />
-      <span className="nui-thinking-label">Thinking…</span>
-    </>
-  );
+  const inner = <ChatStatusIndicator label="Thinking…" source="thinking" active={active} />;
 
   return (
     <div className="nui-thinking" data-active={active ? 'true' : 'false'}>
@@ -605,6 +794,8 @@ interface MessageToolStepsProps {
   awaitingAnswer?: boolean;
   now?: Date;
   onOpenConnectors?: () => void;
+  /** The saved agent log (decompressed), when the message has one: offered once as "Raw log". */
+  rawLog?: unknown;
 }
 
 export const MessageToolSteps: React.FC<MessageToolStepsProps> = ({
@@ -613,11 +804,19 @@ export const MessageToolSteps: React.FC<MessageToolStepsProps> = ({
   awaitingAnswer = false,
   now,
   onOpenConnectors,
+  rawLog,
 }) => (
   <div className="nui-ts-root" data-awaiting={awaitingAnswer ? 'true' : 'false'}>
     {thinking && <ThinkingRow active={thinking.active}>{thinking.body}</ThinkingRow>}
-    {steps.length === 1 && <ToolStepRow step={steps[0]} now={now} onOpenConnectors={onOpenConnectors} />}
-    {steps.length > 1 && <ToolStepGroup steps={steps} now={now} onOpenConnectors={onOpenConnectors} />}
+    {steps.length === 1 && (
+      <ToolStepRow
+        step={steps[0]}
+        now={now}
+        onOpenConnectors={onOpenConnectors}
+        rawLog={rawLog !== undefined && rawLogOwnerId(steps) === steps[0].id ? rawLog : undefined}
+      />
+    )}
+    {steps.length > 1 && <ToolStepGroup steps={steps} now={now} onOpenConnectors={onOpenConnectors} rawLog={rawLog} />}
     {awaitingAnswer && <ThinkingRow active />}
   </div>
 );

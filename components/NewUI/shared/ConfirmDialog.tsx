@@ -151,13 +151,15 @@ export const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           <h2
             id="confirm-dialog-title"
             className="text-[15px] font-semibold mb-1.5"
-            style={{ color: 'var(--text-primary)' }}
+            style={{ color: 'var(--text-primary)', overflowWrap: 'anywhere' }}
           >
             {title}
           </h2>
           <div
             className="text-[13.5px] leading-relaxed"
-            style={{ color: 'var(--text-secondary)' }}
+            // overflowWrap:'anywhere' lets long unbroken strings (e.g. dotted file names
+            // with no spaces) wrap inside the panel instead of overhanging it.
+            style={{ color: 'var(--text-secondary)', overflowWrap: 'anywhere' }}
           >
             {message}
           </div>

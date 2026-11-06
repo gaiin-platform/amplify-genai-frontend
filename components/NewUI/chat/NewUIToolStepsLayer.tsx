@@ -30,8 +30,11 @@
  *      wrapper. With nothing to show (e.g. a plain chat before any tool call)
  *      the classic "● Thinking…" row is left alone.
  *
- * The classic "Reasoning / Actions" log (AgentLogBlock) is NOT touched: it also
- * carries generated files and the token-cost line.
+ * The classic "Reasoning / Actions" log (AgentLogBlock) is NOT edited. Once a message's
+ * agent-log calls have rows here (each with its parameters AND result), the host is flagged
+ * `data-agentlog-takeover="true"` and a `:has()` rule hides only that disclosure — the
+ * generated-files list beside it stays. The token cost moves to the message action row
+ * (NewUIMessageActionsLayer); the user prompt / terminate / notes live in "Raw log".
  *
  * ── Live region ──────────────────────────────────────────────────────────────
  * One persistent `aria-live="polite"` region (rendered by this component, so it
@@ -74,22 +77,26 @@ import { MessageToolSteps } from './ToolStepViews';
 // ─── Saved steps (cached) ────────────────────────────────────────────────────
 
 /** Decompressing + parsing an agent log is not free; key on the stored value itself. */
-const savedStepsCache = new WeakMap<object, ToolStep[]>();
+const savedStepsCache = new WeakMap<object, { log: unknown; steps: ToolStep[] }>();
 
-const agentLogSteps = (message: Message | undefined): ToolStep[] => {
+/** The agent log, decompressed and its steps built — once per stored value. */
+const decodedAgentLog = (message: Message | undefined): { log: unknown; steps: ToolStep[] } | null => {
   const raw = message?.data?.state?.agentLog;
-  if (!raw || typeof raw !== 'object') return [];
+  if (!raw || typeof raw !== 'object') return null;
   const hit = savedStepsCache.get(raw);
   if (hit) return hit;
-  let steps: ToolStep[] = [];
+  let decoded: { log: unknown; steps: ToolStep[] };
   try {
-    steps = stepsFromAgentLog(getAgentLog(message as Message));
+    const log = getAgentLog(message as Message);
+    decoded = { log, steps: stepsFromAgentLog(log) };
   } catch {
-    steps = [];
+    decoded = { log: undefined, steps: [] };
   }
-  savedStepsCache.set(raw, steps);
-  return steps;
+  savedStepsCache.set(raw, decoded);
+  return decoded;
 };
+
+const agentLogSteps = (message: Message | undefined): ToolStep[] => decodedAgentLog(message)?.steps ?? [];
 
 /**
  * Code-interpreter runs. While streaming, `deepMerge` appends to the SAME `runs` array in
@@ -229,6 +236,12 @@ interface SlotViewProps {
 const SlotView: React.FC<SlotViewProps> = ({ slot, message, live, analysis, isLiveSlot, mcpOn }) => {
   const steps = stepsToShow(savedSteps(message, mcpOn), live, slot.key);
   const mcpCovered = mcpCardIsCovered(message, mcpOn);
+  // The classic "Reasoning / Actions" disclosure shows the same calls again; hide it only while
+  // its calls have rows of their own. Anything it held that has no row (the user prompt,
+  // terminate, notes) stays reachable through "Raw log".
+  const decoded = decodedAgentLog(message);
+  const agentLogCovered = !!decoded && decoded.steps.length > 0;
+  const rawLog = agentLogCovered ? decoded.log : undefined;
 
   const showThinking = isLiveSlot && analysis.hasReasoning;
   const takeOver = steps.length > 0 || showThinking;
@@ -268,6 +281,14 @@ const SlotView: React.FC<SlotViewProps> = ({ slot, message, live, analysis, isLi
     };
   }, [slot.host, mcpCovered]);
 
+  // The classic Reasoning / Actions disclosure is hidden only while its calls have rows (see above).
+  useLayoutEffect(() => {
+    slot.host.setAttribute('data-agentlog-takeover', agentLogCovered ? 'true' : 'false');
+    return () => {
+      slot.host.setAttribute('data-agentlog-takeover', 'false');
+    };
+  }, [slot.host, agentLogCovered]);
+
   // While the answer hasn't started, the CSS collapses the (empty) reply block so
   // the "Thinking…" row sits an even distance from the "Reasoning / Actions" block.
   useLayoutEffect(() => {
@@ -282,6 +303,7 @@ const SlotView: React.FC<SlotViewProps> = ({ slot, message, live, analysis, isLi
   return (
     <MessageToolSteps
       steps={steps}
+      rawLog={rawLog}
       awaitingAnswer={awaitingAnswer}
       thinking={
         showThinking

@@ -64,6 +64,8 @@ export interface CreationModalShellProps {
     isSaving?: boolean;
     /** Disables the Save button (in addition to when isSaving is true) */
     saveDisabled?: boolean;
+    /** A roomier panel (1320px × min(960px, 94dvh)) for editors with a lot on screen. Default: the 1100px × 820px size. */
+    large?: boolean;
     children: ReactNode;
 }
 
@@ -76,6 +78,7 @@ export const CreationModalShell: React.FC<CreationModalShellProps> = ({
     saveLabel = 'Save',
     isSaving = false,
     saveDisabled = false,
+    large = false,
     children,
 }) => {
     const panelRef = useRef<HTMLDivElement>(null);
@@ -151,8 +154,8 @@ export const CreationModalShell: React.FC<CreationModalShellProps> = ({
                 className="new-ui-creation-modal-panel"
                 style={{
                     width: '100%',
-                    maxWidth: 1100,
-                    height: 'min(820px, 90dvh)',
+                    maxWidth: large ? 1320 : 1100,
+                    height: large ? 'min(960px, 94dvh)' : 'min(820px, 90dvh)',
                     background: 'var(--bg-raised)',
                     border: '1px solid var(--border-subtle)',
                     borderRadius: 14,

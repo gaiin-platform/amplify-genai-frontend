@@ -70,6 +70,7 @@ import { AttachedDocument } from '@/types/attacheddocument';
 import { DriveFilesDataSources } from '@/types/integrations';
 import { SkillReference, SkillSelectionMode } from '@/types/skill';
 import { createAssistant, addAssistantPath, lookupAssistant } from '@/services/assistantService';
+import { startMissingEmbeddings } from '@/services/adminService';
 import { deleteFile, getFileDownloadUrl } from '@/services/fileService';
 import { deleteScheduledTask, getScheduledTask } from '@/services/scheduledTasksService';
 import { cronToDriveRescanSchedule, determineDriveScanCron, determineWebsiteScanCron, manageScheduledTasks } from '@/utils/app/scheduledTasks';
@@ -85,6 +86,7 @@ import { AssistantPathField } from '@/components/NewUI/views/assistant/Assistant
 import {
     ACCESS_KIND_KEY,
     GENERATED_PATH_PATTERN,
+    GROUP_PUBLIC_ACCESS,
     deriveAccessKind,
     isPublishedLink,
     isRestrictedLink,
@@ -123,7 +125,7 @@ import { SignInRequiredNote } from '@/components/NewUI/shared/SignInRequiredNote
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { AssistantEmailEventsPanel } from '@/components/NewUI/views/assistant/AssistantEmailEventsPanel';
 import { addEventTemplate } from '@/services/emailEventService';
-import { formatEmailEventTemplate, safeEmailEventTag } from '@/utils/app/assistantEmailEvents';
+import { compareEmailEventTemplates, formatEmailEventTemplate, safeEmailEventTag } from '@/utils/app/assistantEmailEvents';
 import { isWebsiteDs } from '@/components/DataSources/WebsiteURLInput';
 import { NewWebsiteSourceInput } from '@/components/NewUI/views/assistant/NewWebsiteSourceInput';
 import { DriveSourcesPanel } from '@/components/NewUI/views/assistant/DriveSourcesPanel';
@@ -157,7 +159,7 @@ import {
     websiteScheduleRows,
     withDriveDefaults,
 } from './assistant/refreshScheduleModel';
-import { RescanTaskIds, sameTaskIds, syncRescanTasks, withScheduledTaskIds } from './assistant/rescanTaskSync';
+import { RescanTaskIds, hasRescanWork, rescanSignature, rescanSignatureChanged, sameTaskIds, syncRescanTasks, withScheduledTaskIds } from './assistant/rescanTaskSync';
 import { ToolsCapabilityPanel } from './assistant/ToolsCapabilityPanel';
 import {
     buildStoredOperations,
@@ -640,12 +642,17 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     /** The drive refresh schedule. `null` until the saved one has loaded; saving leaves the task alone while null. */
     const [driveSchedule, setDriveSchedule] = useState<DriveRescanSchedule | null>(null);
     const [driveScheduleLoadFailed, setDriveScheduleLoadFailed] = useState(false);
+    /** The drive schedule as it was saved; `null` until loaded (or if it could not be). Baseline for "did the schedule change". */
+    const loadedDriveSchedule = useRef<DriveRescanSchedule | null>(null);
 
     // ── Assistant icon ────────────────────────────────────────────────────
     const [astIcon, setAstIcon] = useState<AttachedDocument | undefined>(undefined);
     const [iconUploading, setIconUploading] = useState(false);
     /** Icon files the user replaced or removed. Deleted only after a successful save. */
     const queuedIconDeletes = useRef<string[]>([]);
+    /** Files attached from the library since the last save, by file id. Their embeddings may not exist (uploaded
+     *  with RAG off), unlike files uploaded here, which are embedded as part of the upload. */
+    const newLibraryFiles = useRef<Record<string, { name: string; type: string }>>({});
 
     // ── Skills state ──────────────────────────────────────────────────────
     const [selectedSkills, setSelectedSkills] = useState<SkillReference[]>([]);
@@ -915,7 +922,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             ? ((sourceAssistant?.data?.assistant?.definition as AssistantDefinition | undefined)?.data as any)?.scheduledTaskIds?.driveFiles as string | undefined
             : undefined;
         if (!savedTaskId) {
-            setDriveSchedule(withDriveDefaults(DEFAULT_DRIVE_SCHEDULE));
+            loadedDriveSchedule.current = withDriveDefaults(DEFAULT_DRIVE_SCHEDULE);
+            setDriveSchedule(loadedDriveSchedule.current);
             return;
         }
         let current = true;
@@ -924,11 +932,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 if (!current) return;
                 const task = result?.success ? result.data?.task : undefined;
                 if (!task) { setDriveScheduleLoadFailed(true); return; }
-                setDriveSchedule(withDriveDefaults(
+                loadedDriveSchedule.current = withDriveDefaults(
                     task.cronExpression && task.active
                         ? cronToDriveRescanSchedule(task.cronExpression)
                         : { enabled: false, frequency: 'none' },
-                ));
+                );
+                setDriveSchedule(loadedDriveSchedule.current);
             })
             .catch(() => { if (current) setDriveScheduleLoadFailed(true); });
         return () => { current = false; };
@@ -1215,6 +1224,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const addLibraryFiles = (picked: PickedLibraryFile[]) => {
         const fresh = picked.filter((file) => !dataSources.some((ds) => ds.id === file.id));
         if (fresh.length === 0) return;
+        fresh.forEach((file) => { newLibraryFiles.current[file.id] = { name: file.name, type: file.type }; });
         setDataSources((prev) => [
             ...prev,
             ...fresh.map((file) => ({
@@ -1632,6 +1642,16 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             const storedIcon = astIcon ? toStoredIcon(astIcon, groupId ?? undefined) : undefined;
             def.data = withAstIcon(def.data as Record<string, any>, storedIcon) as any;
 
+            // 4b2. Email event setup is stored on the assistant (the editor reads it back from here), so it goes
+            // out with the first save; registering the address itself needs the id and happens in 6a.
+            const emailEventsOn = enableEmailEvents && !!featureFlags.assistantEmailEvents && accessType !== 'collaborative';
+            const emailTag = (emailEventTag && emailEventTag.trim()) || safeEmailEventTag(name.trim());
+            const emailTemplate = {
+                userPrompt: emailEventTemplate?.userPrompt || '',
+                systemPrompt: emailEventTemplate?.systemPrompt || '',
+            };
+            if (emailEventsOn) def.data = { ...(def.data as Record<string, any>), emailEvents: { tag: emailTag, template: emailTemplate } } as any;
+
             // 4c. Refresh schedules for website / drive sources. They are scheduled tasks that name the
             // assistant by id, so an edit (id known) writes them now and they ride on the save below; a
             // new assistant gets its id from that save, so its tasks are made right after (see 5b).
@@ -1639,21 +1659,36 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             const schedulesBeforeSave = schedulesEnabled && isEditMode && !!existingDef?.assistantId;
             let scheduleFailures: string[] = [];
             let linkFailed = false;
-            const syncSchedules = (assistantIdForTasks: string) =>
+            const hasDriveFiles = totalSelectionCount(asDriveSelection(integrationDataSources)) > 0;
+            const driveAllowed = accessType !== 'collaborative' && !groupId;
+            // Schedule work (and its loader) happens only when a refresh is wanted or a task already exists, and
+            // the loader only when the schedule was attached, removed or changed — not on every save.
+            const wantedSchedules = rescanSignature({ websiteUrls, driveSchedule, hasDriveFiles, driveAllowed });
+            const savedSchedules = isEditMode
+                ? rescanSignature({
+                    websiteUrls: (existingDef?.data as any)?.websiteUrls ?? [],
+                    driveSchedule: loadedDriveSchedule.current,
+                    hasDriveFiles: totalSelectionCount(asDriveSelection((existingDef?.data as any)?.integrationDriveData)) > 0,
+                    driveAllowed,
+                })
+                : { websites: '', driveFiles: '' };
+            const scheduleWork = hasRescanWork(wantedSchedules, (def.data as any)?.scheduledTaskIds as RescanTaskIds | undefined);
+            const scheduleChanged = rescanSignatureChanged(savedSchedules, wantedSchedules);
+            const syncSchedules =(assistantIdForTasks: string) =>
                 syncRescanTasks(
                     {
                         existing: (def.data as any)?.scheduledTaskIds as RescanTaskIds | undefined,
                         dataSources,
                         websiteUrls,
                         driveSchedule,
-                        hasDriveFiles: totalSelectionCount(asDriveSelection(integrationDataSources)) > 0,
-                        driveAllowed: accessType !== 'collaborative' && !groupId,
+                        hasDriveFiles,
+                        driveAllowed,
                         assistantInfo: { name: def.name, assistantId: assistantIdForTasks },
                     },
                     { manageTask: manageScheduledTasks, websiteCron: determineWebsiteScanCron, driveCron: determineDriveScanCron },
                 );
-            if (schedulesBeforeSave) {
-                setLoadingMessage('Updating refresh schedules…');
+            if (schedulesBeforeSave && scheduleWork) {
+                if (scheduleChanged) setLoadingMessage('Updating refresh schedules…');
                 const synced = await syncSchedules(existingDef!.assistantId!);
                 scheduleFailures = synced.failed;
                 def.data = withScheduledTaskIds(def.data as Record<string, any>, synced.ids) as any;
@@ -1690,6 +1725,21 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 serverAstData = (created as any).ast_data;
             }
 
+            // Library files may never have been embedded: have the server check them now that they are saved on the
+            // assistant (it starts only the ones with no embeddings, whatever their id namespace). Only the ones still
+            // attached; the saved ids are matched by name and type. Never blocks the save.
+            if (id && !groupId) {
+                const attachedNow = new Set(dataSources.map((ds) => ds.id));
+                const pending = Object.entries(newLibraryFiles.current).filter(([fileId]) => attachedNow.has(fileId)).map(([, file]) => file);
+                const ids = ((data_sources ?? []) as AttachedDocument[])
+                    .filter((ds) => pending.some((file) => file.name === ds.name && file.type === ds.type))
+                    .map((ds) => ds.id);
+                if (ids.length > 0) {
+                    startMissingEmbeddings(Array.from(new Set(ids))).catch((e) => console.error('Could not start library file embeddings:', e));
+                }
+            }
+            if (id) newLibraryFiles.current = {};
+
             if (!id) {
                 setSaveError('Unable to save the assistant at this time. Please try again.');
                 setIsSaving(false);
@@ -1725,8 +1775,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
             // 5b. A new assistant's refresh tasks, now that it has an id. Their ids belong on the
             // assistant, so it is saved once more — only when there is something to record.
-            if (schedulesEnabled && !schedulesBeforeSave && assistantId) {
-                setLoadingMessage('Setting up refresh schedules…');
+            if (schedulesEnabled && !schedulesBeforeSave && assistantId && scheduleWork) {
+                if (scheduleChanged) setLoadingMessage('Setting up refresh schedules…');
                 const synced = await syncSchedules(assistantId);
                 scheduleFailures = synced.failed;
                 if (!sameTaskIds(synced.ids, (def.data as any)?.scheduledTaskIds)) {
@@ -1754,16 +1804,20 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             }
 
             // 6a. Register email event template if enabled (requires assistantId)
-            if (enableEmailEvents && featureFlags.assistantEmailEvents && accessType !== 'collaborative') {
+            // Only when it is new, or its tag or template changed since it was loaded.
+            if (emailEventsOn) {
                 try {
-                    const resolvedTag = (emailEventTag && emailEventTag.trim()) || safeEmailEventTag(name.trim());
-                    setLoadingMessage('Setting up email event…');
-                    const safeTemplate = {
-                        userPrompt: emailEventTemplate?.userPrompt || '',
-                        systemPrompt: emailEventTemplate?.systemPrompt || '',
-                    };
-                    await addEventTemplate(resolvedTag, formatEmailEventTemplate(safeTemplate), assistantId);
-                    (def.data as any).emailEvents = { tag: resolvedTag, template: safeTemplate };
+                    const savedEmail = (existingDef?.data as any)?.emailEvents as { tag?: string; template?: { userPrompt?: string; systemPrompt?: string } } | undefined;
+                    const emailChanged = !isEditMode || !savedEmail?.tag || savedEmail.tag !== emailTag
+                        || !compareEmailEventTemplates(
+                            { userPrompt: savedEmail.template?.userPrompt || '', systemPrompt: savedEmail.template?.systemPrompt || '' },
+                            emailTemplate,
+                        );
+                    if (emailChanged) {
+                        setLoadingMessage('Setting up email event…');
+                        await addEventTemplate(emailTag, formatEmailEventTemplate(emailTemplate), assistantId);
+                    }
+                    (def.data as any).emailEvents = { tag: emailTag, template: emailTemplate };
                 } catch (emailErr) {
                     console.error('Error registering email event:', emailErr);
                     // Non-blocking — assistant is saved, email events registration failed
@@ -1773,8 +1827,24 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             // 6b. Register the new link (or audience). The save above kept the old path (if any), so a failure
             // leaves the assistant exactly as it was published; the assistant itself is saved — and, when new,
             // now exists — so carry on and say so rather than abort and let a retry create a second copy.
-            if (pathPlan.register) {
-                const { path: newPath, astPathData: newPathData } = pathPlan.register;
+            // The plan treats a stored path as standing, but the registry is what actually serves it — and it can
+            // have released it (a failed delete, an old save without a path). Check, and register it again if so.
+            let linkToRegister = pathPlan.register;
+            const storedLink = pathPlan.data.astPath;
+            if (!linkToRegister && isEditMode && storedLink && !GENERATED_PATH_PATTERN.test(storedLink)) {
+                const access = pathPlan.data.astPathData ?? (accessType === 'collaborative' ? GROUP_PUBLIC_ACCESS : undefined);
+                if (access) {
+                    try {
+                        const held = await lookupAssistant(storedLink);
+                        // `inUse`: held by something this user cannot see — registering would only fail.
+                        if (!held.success && !held.inUse) linkToRegister = { path: storedLink, astPathData: access };
+                    } catch (lookupErr) {
+                        console.error('Could not verify the assistant link:', lookupErr);
+                    }
+                }
+            }
+            if (linkToRegister) {
+                const { path: newPath, astPathData: newPathData } = linkToRegister;
                 if (newPathData.isPublic) setLoadingMessage(`Publishing assistant to /assistants/${newPath}…`);
                 try {
                     const pathResult = await addAssistantPath(
@@ -1946,6 +2016,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             saveLabel={isEditMode ? 'Save Changes' : isCopyMode ? 'Create Copy' : 'Create'}
             isSaving={isSaving}
             saveDisabled={!canSave()}
+            large
         >
             {/* ── Section A: Access type ──────────────────────────────────── */}
             {(() => {

@@ -22,7 +22,7 @@
 
 import React, { useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
-import { IconAlertTriangle, IconLoader2, IconPlus, IconRobot, IconRoute, IconSparkles, IconUsers, IconWorld, IconX, IconSettings } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCheck, IconCopy, IconLoader2, IconPlus, IconRobot, IconRoute, IconSparkles, IconUsers, IconWorld, IconX, IconSettings } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
 import { Group } from '@/types/groups';
 import { Prompt } from '@/types/prompt';
@@ -96,6 +96,38 @@ export interface NewLayeredAssistantBuilderProps {
 }
 
 const FOCUS = 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]';
+
+/** Read-only assistant ID with a copy button. Shown once the layered assistant has been saved. */
+const AssistantIdChip: React.FC<{ assistantId: string }> = ({ assistantId }) => {
+    const [copied, setCopied] = useState(false);
+    const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
+    const copy = async () => {
+        try {
+            await navigator.clipboard.writeText(assistantId);
+            setCopied(true);
+            if (timer.current) clearTimeout(timer.current);
+            timer.current = setTimeout(() => setCopied(false), 1500);
+        } catch {
+            toast.error('Could not copy the assistant ID');
+        }
+    };
+    return (
+        <button
+            type="button"
+            onClick={copy}
+            title={copied ? 'Copied' : 'Copy assistant ID'}
+            aria-label={copied ? 'Assistant ID copied' : `Copy assistant ID ${assistantId}`}
+            className={`${FOCUS} hover:bg-[--bg-hover]`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 22, padding: '0 8px', minWidth: 0, maxWidth: 360, borderRadius: 11, border: '1px solid var(--border-subtle)', background: 'transparent', color: 'var(--text-secondary)', fontSize: 11.5, cursor: 'pointer' }}
+        >
+            <span style={{ fontWeight: 600, flexShrink: 0 }}>ID</span>
+            <code style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{assistantId}</code>
+            {copied ? <IconCheck size={12} aria-hidden="true" style={{ flexShrink: 0 }} /> : <IconCopy size={12} aria-hidden="true" style={{ flexShrink: 0 }} />}
+        </button>
+    );
+};
+
 const sectionLabel: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 };
 
 const card: React.CSSProperties = {
@@ -588,7 +620,10 @@ export const NewLayeredAssistantBuilder: React.FC<NewLayeredAssistantBuilderProp
 
                 {/* Footer */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 22px', borderTop: '1px solid var(--border-subtle)', flexShrink: 0 }}>
-                    <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--text-error)', minHeight: 18 }}>{saveError}</p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                        {la.assistantId && <AssistantIdChip assistantId={la.assistantId} />}
+                        <p role="alert" style={{ margin: 0, fontSize: 13, color: 'var(--text-error)', minHeight: 18 }}>{saveError}</p>
+                    </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                         <button type="button" onClick={requestClose} disabled={isSaving} className={`${FOCUS} disabled:opacity-50`} style={{ height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid var(--border-subtle)', background: 'var(--bg-raised)', color: 'var(--text-primary)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>
                             Cancel
