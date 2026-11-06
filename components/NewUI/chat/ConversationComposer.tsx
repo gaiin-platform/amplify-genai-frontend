@@ -71,6 +71,12 @@ import {
 } from '@/components/NewUI/shared/AttachMenu';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import { AttachmentRail, attachmentRailHeight } from '@/components/NewUI/shared/AttachmentRail';
+import {
+  COMPOSER_INSET,
+  COMPOSER_INSET_BOTTOM,
+  EDITOR_LINE_PX,
+  composerCardMinHeight,
+} from '@/components/NewUI/shared/composerLayout';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import {
   type EffortLevel,
@@ -388,6 +394,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   const [previewId, setPreviewId] = useState<string | null>(null);
   // True while the text area is scrolled — shows the attachment row's divider.
   const [textScrolled, setTextScrolled] = useState(false);
+  // Full (unsqueezed) height of the text area — sizes the card's squeeze floor.
+  const [editorContentH, setEditorContentH] = useState(EDITOR_LINE_PX);
   const [previewOriginRect, setPreviewOriginRect] = useState<
     DOMRect | undefined
   >(undefined);
@@ -1235,16 +1243,22 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             background: 'var(--bg-composer)',
             border: '1px solid var(--border-subtle)',
             borderRadius: 14,
-            padding: '16px 24px 12px',
+            // One inset for the card's content: top, left and right.
+            padding: `${COMPOSER_INSET}px ${COMPOSER_INSET}px ${COMPOSER_INSET_BOTTOM}px`,
             // Flex column (was a 3-row grid): rail and text area can shrink
             // under the dock's max-height; the toolbar never does.
             display: 'flex',
             flexDirection: 'column',
             flex: '0 1 auto',
             gap: 0,
-            // With attachments: chrome + full-height attachment row + ~3 lines +
-            // toolbar, so the parts can never be squeezed into overlapping.
-            minHeight: uiAttachments.length > 0 ? attachmentRailHeight(uiAttachments) + 152 : 88,
+            // With attachments: chrome + full-height attachment row + up to 3
+            // text lines + toolbar, so the parts can never be squeezed into
+            // overlapping. The text part is min(3 lines, the text's own height),
+            // so a short draft leaves no empty space.
+            minHeight:
+              uiAttachments.length > 0
+                ? composerCardMinHeight(attachmentRailHeight(uiAttachments), editorContentH)
+                : 88,
             transition: 'border-color 0.15s',
           }}
           onClick={() => richComposerRef.current?.focus()}
@@ -1292,8 +1306,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             onImagePaste={addFileToRail}
             placeholder="Write a message…"
             hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
-            editorClassName={`max-h-[288px] overflow-y-auto${uiAttachments.length > 0 ? ' min-h-[4.5em]' : ''}`}
-            rootClassName={uiAttachments.length > 0 ? 'min-h-[4.5em]' : ''}
+            editorClassName="max-h-[288px] overflow-y-auto"
+            minVisibleLines={uiAttachments.length > 0 ? 3 : undefined}
+            onContentHeightChange={setEditorContentH}
             onScrolledChange={setTextScrolled}
           />
 
