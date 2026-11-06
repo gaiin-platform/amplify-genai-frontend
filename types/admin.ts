@@ -3,8 +3,6 @@
 export interface DocumentRetention {
   isActive: boolean;
   days: number;
-  /** Set by the server (epoch seconds) when the setting was turned on. Never sent back when saving. */
-  enabledAt?: number;
 }
 
 export const DOCUMENT_RETENTION_MIN_DAYS = 1;

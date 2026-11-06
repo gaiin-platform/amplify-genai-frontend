@@ -1,4 +1,5 @@
-import React, { FC, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { FC, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import HomeContext from '@/components/Home/home.context';
 import {
   AccessSummary,
   BrowseResult,
@@ -8,6 +9,7 @@ import {
   FileDetails,
   HealthDoc,
   LookupResult,
+  MigrationDoc,
   MigrationHealth,
   MigrationStatus,
   Namespace,
@@ -15,7 +17,8 @@ import {
   SearchResult,
   runMigrationAction,
 } from '@/services/ragMigrationService';
-import { Bar, Button, Card, Pill, Stat, fmt } from './RagMigrationUi';
+import { Bar, Button, Card, Pill, Stat, ago, fmt } from './RagMigrationUi';
+import { money } from './RagMigrationCost';
 
 const NAMESPACE_LABELS: Record<Namespace, string> = {
   global: 'Old index (PostgreSQL)',
@@ -29,6 +32,14 @@ const STATE_COLORS: Record<string, string> = {
 
 const mono: React.CSSProperties = { fontSize: 12, color: 'var(--text-primary)', wordBreak: 'break-all' };
 const muted: React.CSSProperties = { fontSize: 11, color: 'var(--text-muted)' };
+const costOf = (doc?: { embeddingCost?: number; ocrCost?: number; qaCost?: number } | null) =>
+  (doc?.embeddingCost ?? 0) + (doc?.ocrCost ?? 0) + (doc?.qaCost ?? 0);
+
+/** A user id shown as the person's name or email where the app knows it (the same lookup the API keys page uses). */
+const useUserName = () => {
+  const { state: { amplifyUsers } } = useContext(HomeContext);
+  return (user?: string | null) => (user ? amplifyUsers?.[user] || user : '');
+};
 
 const hours = (seconds: number) => `${Math.round(seconds / 3600)} h`;
 
@@ -179,12 +190,14 @@ export const LiveCard: FC<{ health?: MigrationHealth; queues?: QueueDepths; migr
   );
 };
 
-const DocRow: FC<{ doc: HealthDoc; right?: React.ReactNode; bare?: boolean }> = ({ doc, right, bare }) => (
+const DocRow: FC<{ doc: HealthDoc; right?: React.ReactNode; bare?: boolean }> = ({ doc, right, bare }) => {
+  const userName = useUserName();
+  return (
   <div style={{ padding: '8px 0', borderTop: bare ? undefined : '1px solid var(--border-subtle)', display: 'flex', gap: 12, alignItems: 'center' }}>
     <div style={{ flex: 1, minWidth: 0 }}>
       <div style={mono}>{doc.contentKey}</div>
       <div style={muted}>
-        {doc.owner ? `${doc.owner} · ` : ''}{fmt(doc.chunksDone)}/{fmt(doc.totalChunks)} chunks
+        {doc.owner ? `${userName(doc.owner)} · ` : ''}{fmt(doc.chunksDone)}/{fmt(doc.totalChunks)} chunks
         {doc.chunksFailed ? ` · ${fmt(doc.chunksFailed)} failed` : ''}
         {doc.lastUpdated ? ` · updated ${doc.lastUpdated.slice(0, 16).replace('T', ' ')}` : ''}
       </div>
@@ -195,7 +208,8 @@ const DocRow: FC<{ doc: HealthDoc; right?: React.ReactNode; bare?: boolean }> = 
     {doc.reason && <Pill text={doc.reason} color={doc.reason === 'stuck' ? '#d97706' : '#dc2626'} />}
     {right}
   </div>
-);
+  );
+};
 
 const SideSummary: FC<{ title: string; side: NonNullable<LookupResult['legacy']> }> = ({ title, side }) => {
   const p = side.progress;
@@ -319,6 +333,11 @@ export const CreationProgress: FC<{
             </div>
             {progress && progress.totalChunks > 0 && <div style={{ marginTop: 4 }}><Bar value={progress.chunksDone} max={progress.totalChunks} /></div>}
             {row?.migration?.error && <div style={{ ...muted, color: '#ef4444' }}>{row.migration.error}</div>}
+            {costOf(row?.migration) > 0 && (
+              <div style={muted}>
+                Cost so far {money(costOf(row?.migration))}: embeddings {money(row?.migration?.embeddingCost)}, text reading {money(row?.migration?.ocrCost)}, questions {money(row?.migration?.qaCost)} ({fmt(row?.migration?.qaCalls)} calls at the recent average)
+              </div>
+            )}
           </div>
         );
       })}
@@ -419,6 +438,7 @@ const rebuildOutcome = (result: LookupResult): string => {
 export type Selection = Map<string, string>;     // content key -> name shown for it
 
 const DetailPanel: FC<{ query: string; onClose?: () => void; selection?: { picked: Selection; onToggle: (key: string, name: string) => void } }> = ({ query, onClose, selection }) => {
+  const userName = useUserName();
   const [result, setResult] = useState<LookupResult | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -453,7 +473,7 @@ const DetailPanel: FC<{ query: string; onClose?: () => void; selection?: { picke
               : `Uploaded ${fmt(result.file.uploads)} time${result.file.uploads === 1 ? '' : 's'}:`}
             {(result.file?.files ?? []).map((f) => (
               <div key={f.key} style={muted}>
-                {f.name || '(name unknown)'} {f.type ? `· ${f.type}` : ''}{f.sourceUrl ? ` · web page ${f.sourceUrl}` : ''} · {f.owner}{f.createdAt ? ` · ${String(f.createdAt).slice(0, 10)}` : ''}
+                {f.name || '(name unknown)'} {f.type ? `· ${f.type}` : ''}{f.sourceUrl ? ` · web page ${f.sourceUrl}` : ''} · {userName(f.owner)}{f.createdAt ? ` · ${String(f.createdAt).slice(0, 10)}` : ''}
               </div>
             ))}
             {result.file && result.file.uploads > result.file.files.length && (
@@ -537,6 +557,7 @@ const MIGRATION_LABELS: Record<string, string> = {
  * about one document; or browse by state (failed, stuck, complete, ...). Tick documents and create their new embeddings.
  */
 export const DocumentsPanel: FC<{ health?: MigrationHealth; picked: Selection; onPickedChange: (picked: Selection) => void; onContinue?: () => void }> = ({ health, picked, onPickedChange: setPicked, onContinue }) => {
+  const userName = useUserName();
   const [ns, setNs] = useState<'global' | 'global2'>('global');
   const [states, setStates] = useState<BrowseState[]>(NEEDS_ATTENTION);
   const [pages, setPages] = useState<Partial<Record<BrowseState, { docs: HealthDoc[]; next: string | null }>>>({});
@@ -702,7 +723,7 @@ export const DocumentsPanel: FC<{ health?: MigrationHealth; picked: Selection; o
                         {file.type ? <span style={{ ...muted, marginLeft: 6 }}>{file.type}</span> : null}
                       </div>
                       <div style={muted}>
-                        {file.owner}
+                        {userName(file.owner)}
                         {file.contentKey ? ` · ${fmt(file.chunksDone)}/${fmt(file.totalChunks)} chunks` : ' · no embeddings (RAG was off, or an older upload)'}
                       </div>
                       <div style={{ ...muted, wordBreak: 'break-all' }}>{shownKey}</div>
@@ -742,7 +763,7 @@ export const DocumentsPanel: FC<{ health?: MigrationHealth; picked: Selection; o
                       <div style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0' }}>{diagnosis(doc, matched)}</div>
                       <div style={{ ...muted, wordBreak: 'break-all' }}>{doc.contentKey}</div>
                       <div style={muted}>
-                        {doc.owner ? `${doc.owner} · ` : ''}{fmt(doc.chunksDone)}/{fmt(doc.totalChunks)} chunks
+                        {doc.owner ? `${userName(doc.owner)} · ` : ''}{fmt(doc.chunksDone)}/{fmt(doc.totalChunks)} chunks
                         {doc.chunksFailed ? ` · ${fmt(doc.chunksFailed)} failed` : ''}
                         {doc.lastUpdated ? ` · updated ${doc.lastUpdated.slice(0, 16).replace('T', ' ')}` : ''}
                       </div>
@@ -766,6 +787,41 @@ export const DocumentsPanel: FC<{ health?: MigrationHealth; picked: Selection; o
           </>
         )}
       </div>
+    </div>
+  );
+};
+
+/** Documents waiting for, or past, their new embeddings (queued or failed): why, and a way to start each again (or all of them). */
+export const DocList: FC<{
+  title: string; blurb: string; tone: 'bad' | 'info'; docs: MigrationDoc[]; total: number; now?: number; busy: boolean;
+  actionLabel: string; onAction: (contentKey: string) => void; allLabel?: string; onAll?: () => void;
+}> = ({ title, blurb, tone, docs, total, now, busy, actionLabel, onAction, allLabel, onAll }) => {
+  const userName = useUserName();
+  const [open, setOpen] = useState<string | null>(null);        // the document whose full details are showing
+  return (
+    <div style={{ margin: '0 0 14px', padding: 12, border: `1px solid ${tone === 'bad' ? '#ef4444' : 'var(--accent)'}`, borderRadius: 10 }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+        <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>{title} ({fmt(total)})</span>
+        {onAll && allLabel && <Button disabled={busy} onClick={onAll}>{allLabel}</Button>}
+      </div>
+      <p style={{ ...muted, margin: '0 0 6px' }}>{blurb} Showing {fmt(docs.length)} of {fmt(total)}.</p>
+      {docs.map((doc) => (
+        <div key={doc.contentKey} style={{ padding: '8px 0', borderTop: '1px solid var(--border-subtle)' }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={mono}>{doc.contentKey}</div>
+              {doc.error && <div style={{ ...muted, color: '#ef4444' }}>{doc.error}</div>}
+              <div style={muted}>
+                {doc.owner ? `${userName(doc.owner)} · ` : ''}{doc.trigger ? `${doc.trigger === 'manual' ? 'picked by hand' : doc.trigger === 'access' ? 'used in a chat' : 'from the bulk scope'} · ` : ''}
+                {doc.attempts ?? 0} attempt(s){now && doc.updatedAt ? ` · ${ago(doc.updatedAt, now)}` : ''}
+              </div>
+            </div>
+            <Button onClick={() => setOpen(open === doc.contentKey ? null : doc.contentKey)}>{open === doc.contentKey ? 'Hide details' : 'Details'}</Button>
+            <Button disabled={busy} onClick={() => onAction(doc.contentKey)}>{actionLabel}</Button>
+          </div>
+          {open === doc.contentKey && <div style={{ marginTop: 8 }}><DetailPanel query={doc.contentKey} onClose={() => setOpen(null)} /></div>}
+        </div>
+      ))}
     </div>
   );
 };

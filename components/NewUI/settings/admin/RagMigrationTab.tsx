@@ -1,9 +1,10 @@
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
-import { Bar, Button, Card, Collapsible, MigrationSkeleton, Notice, Pill, Stat, Step, StepNav, Tabs, ago, fmt } from './RagMigrationUi';
+import { Bar, Button, Card, Collapsible, MigrationSkeleton, Notice, Pill, Stat, Step, StepNav, StatusLine, Tabs, ago, fmt } from './RagMigrationUi';
 import { ScopePicker, estimateScope } from './RagMigrationScope';
-import { CleanupPreviewPanel, CreationProgress, DocumentsPanel, Selection, HealthCard, HealthSummary, LiveCard } from './RagMigrationHealth';
+import { CleanupPreviewPanel, CreationProgress, DocList, DocumentsPanel, Selection, HealthCard, HealthSummary, LiveCard } from './RagMigrationHealth';
 import { OrphanPanel } from './RagMigrationOrphans';
+import { CostEstimateBox, CostOverview } from './RagMigrationCost';
 import { finishedCount, useMigrationRun } from './useMigrationRun';
 import {
   AssistantUsage,
@@ -123,6 +124,9 @@ export const RagMigrationTab: FC = () => {
   const [changedSince, setChangedSince] = useState(false);            // something moved since the numbers were counted
   const [cleanupPreview, setCleanupPreview] = useState<CleanupPreview | null>(null);
   const [cleanRun, setCleanRun] = useState<{ baseline: number; total: number } | null>(null);      // the last "Remove old embeddings" press
+  const [costBusy, setCostBusy] = useState(false);
+  const [openList, setOpenList] = useState<'failed' | 'queued' | null>(null);      // the Overview list opened by clicking a count
+  const lastCostRefresh = useRef(0);
   const dirty = useRef(false);
   const statusRef = useRef<MigrationStatus | null>(null);      // the latest status, readable before React re-renders
 
@@ -223,6 +227,15 @@ export const RagMigrationTab: FC = () => {
     return true;
   };
 
+  /** Starts one document now from its original file and shows it in the step that creates embeddings. */
+  const startByHand = async (key: string) => {
+    if (await perform('rebuild', 'rebuild', { keys: [key] })) {
+      setTracked((previous) => Array.from(new Set([...previous, key])));
+      setMode('pick');
+      setStep(3);
+    }
+  };
+
   const pipeline = status?.pipeline;
   const inventory = status?.inventory ?? null;
   const migrated = (pipeline?.cutover ?? 0) + (pipeline?.cleaned ?? 0);
@@ -231,6 +244,20 @@ export const RagMigrationTab: FC = () => {
   const embedded = inventory?.legacy.complete ?? 0;
   const now = status?.serverTime;
   const estimate = estimateScope(inventory, scope);
+
+  // What the migration has cost so far: worked out on demand, once when the page opens, and again (at most once a minute)
+  // when more documents have finished.
+  const refreshCosts = useCallback(async () => {
+    lastCostRefresh.current = Date.now();
+    setCostBusy(true);
+    const result = await runMigrationAction('refresh_costs');
+    setCostBusy(false);
+    if (result.success && result.data?.summary) setStatus((previous) => (previous ? { ...previous, costs: result.data.summary } : previous));
+  }, []);
+  const haveStatus = !!status;
+  useEffect(() => {
+    if (haveStatus && Date.now() - lastCostRefresh.current > 60_000) refreshCosts();
+  }, [haveStatus, created, refreshCosts]);
 
   // The run reads the SAVED settings, so what the server enforces and what the page assumes cannot differ.
   const getStatus = useCallback(() => statusRef.current, []);
@@ -334,6 +361,11 @@ export const RagMigrationTab: FC = () => {
 
   if (!status) return <MigrationSkeleton error={error} />;
 
+  // Selected documents start right away, so there is no pace to set: Next from the selection goes where "Continue to create
+  // embeddings" goes (the selection itself is kept in this page, whichever button is used), and Back returns to it.
+  const nextStep = mode === 'pick' && step === 1 ? 3 : step + 1;
+  const previousStep = mode === 'pick' && step === 3 ? 1 : step - 1;
+  const statusLine = notice || busy ? <StatusLine busy={!!busy}>{busy ? 'Working…' : notice}</StatusLine> : null;
   const counting = busy === 'inventory' || (!inventory && !error);
   const nothingToStart = !!estimate && estimate.documents === 0 && !pipeline?.planned;
   return (
@@ -358,10 +390,13 @@ export const RagMigrationTab: FC = () => {
       </Card>
 
       {/* The rundown: what exists and where it stands */}
-      <Card
+      <Collapsible
         title="Overview"
-        subtitle="Only documents with embeddings (RAG on) are migrated. Files attached with RAG off keep working as they are."
-        right={
+        summary={inventory ? `${fmt(created)} of ${fmt(embedded)} embedded documents have new embeddings` : 'Counting your documents…'}
+        defaultOpen
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <p style={{ ...muted, margin: 0, maxWidth: 520 }}>Only documents with embeddings (RAG on) are migrated. Files attached with RAG off keep working as they are.</p>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
             <span style={muted}>
               {counting ? 'Counting…' : `Counted ${ago(inventory?.generatedAt, now)}`}
@@ -369,8 +404,7 @@ export const RagMigrationTab: FC = () => {
             </span>
             <Button disabled={!!busy && busy !== 'inventory'} loading={busy === 'inventory'} onClick={() => perform('inventory', 'refresh_inventory')}>Refresh counts</Button>
           </div>
-        }
-      >
+        </div>
         {!inventory ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-secondary)', fontSize: 13 }}>
             <span
@@ -396,9 +430,42 @@ export const RagMigrationTab: FC = () => {
               <div style={{ fontSize: 13, fontWeight: 600, color: '#16a34a', marginBottom: 8 }}>Migration progress: new embeddings (Nova)</div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
                 <Stat label="New embeddings created" value={fmt(created)} tone="good" hint={embedded ? `${fmt(Math.round((created / embedded) * 1000) / 10)}% of the ${fmt(embedded)} embedded documents` : undefined} />
-                <Stat label="In progress" value={fmt(inFlight)} hint={`${fmt(pipeline?.planned)} queued · ${fmt(pipeline?.building)} creating · ${fmt(pipeline?.built)} ready, references not moved`} />
-                <Stat label="Failed" value={fmt(pipeline?.failed)} tone={pipeline?.failed ? 'bad' : undefined} />
+                <Stat
+                  label="In progress" value={fmt(inFlight)}
+                  hint={`${fmt(pipeline?.planned)} queued · ${fmt(pipeline?.building)} creating · ${fmt(pipeline?.built)} ready, references not moved${pipeline?.planned ? (openList === 'queued' ? ' · click to hide the queue' : ' · click to see the queue') : ''}`}
+                  onClick={pipeline?.planned ? () => setOpenList(openList === 'queued' ? null : 'queued') : undefined}
+                />
+                <Stat
+                  label="Failed" value={fmt(pipeline?.failed)} tone={pipeline?.failed ? 'bad' : undefined}
+                  hint={pipeline?.failed ? (openList === 'failed' ? 'Click to hide the details' : 'Click for details and retry') : undefined}
+                  onClick={pipeline?.failed ? () => setOpenList(openList === 'failed' ? null : 'failed') : undefined}
+                />
               </div>
+              {openList === 'failed' && !!pipeline?.failed && (
+                <DocList
+                  title="Failed documents" tone="bad" docs={status.failures} total={pipeline.failed} now={now} busy={!!busy}
+                  blurb="A document fails when its new embeddings report an error, stop making progress for 2 hours, or are refused (for example, over the size limits). Retrying starts it again from its original file; chunks that already finished are kept."
+                  actionLabel="Retry" onAction={(key) => startByHand(key)}
+                  allLabel="Retry all failed"
+                  onAll={async () => { if (await perform('retry', 'retry_failed')) { setMode('bulk'); setStep(3); } }}
+                />
+              )}
+              {openList === 'queued' && !!pipeline?.planned && (
+                <DocList
+                  title="Queued documents" tone="info" docs={status.queued ?? []} total={pipeline.planned} now={now} busy={!!busy}
+                  blurb="Waiting to be started. A bulk run starts them when you press Start (hand-picked first); “Start now” does one right away."
+                  actionLabel="Start now" onAction={(key) => startByHand(key)}
+                  allLabel={(status.queued?.length ?? 0) > 1 ? `Start all listed (${status.queued?.length})` : undefined}
+                  onAll={async () => {
+                    const keys = (status.queued ?? []).map((doc) => doc.contentKey);
+                    if (await perform('rebuild', 'rebuild', { keys })) {
+                      setTracked((previous) => Array.from(new Set([...previous, ...keys])));
+                      setMode('pick');
+                      setStep(3);
+                    }
+                  }}
+                />
+              )}
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
                 <Stat label="Ready to go live" value={fmt(pipeline?.built)} hint="New embeddings are created and checked; users still get the old ones until you move references" />
                 <Stat label="Live on new embeddings" value={fmt(migrated)} tone="good" hint="References moved: file records and assistants use the new embeddings" />
@@ -407,9 +474,10 @@ export const RagMigrationTab: FC = () => {
               <Bar value={created} max={embedded} color="#16a34a" />
               <div style={{ ...muted, marginTop: 4 }}>{fmt(created)} of {fmt(embedded)} embedded documents have new embeddings ({fmt(migrated)} with references moved)</div>
             </div>
+            <CostOverview costs={status.costs} busy={costBusy} now={now ?? 0} onRefresh={refreshCosts} />
           </>
         )}
-      </Card>
+            </Collapsible>
 
       <Collapsible
         title="State breakdown"
@@ -432,9 +500,8 @@ export const RagMigrationTab: FC = () => {
           <StepNav labels={STEP_LABELS} active={step} onChange={setStep} />
           <Button onClick={startOver} title="Forgets the selected and sent lists on this page, recounts, and returns to step 1. Nothing is undone on the server.">Start over</Button>
         </div>
-        {(notice || busy) && <Notice>{busy ? 'Working…' : notice}</Notice>}
         {step === 1 && (
-        <Step n={1} title="Choose what to migrate" subtitle="Migrate everything that matches a scope, or select individual documents. Documents already migrated are skipped.">
+        <Step status={statusLine} n={1} title="Choose what to migrate" subtitle="Migrate everything that matches a scope, or select individual documents. Documents already migrated are skipped.">
           <Tabs
             value={mode} onChange={(v) => setMode(v as 'bulk' | 'pick')}
             options={[
@@ -449,6 +516,7 @@ export const RagMigrationTab: FC = () => {
 
         {step === 2 && (
         <Step
+          status={statusLine}
           n={2} title="Set the pace and safety"
           right={unsaved ? <Button kind="primary" disabled={busy === 'settings'} onClick={saveSettings}>Save changes</Button> : undefined}
           subtitle={unsaved ? 'You have unsaved changes. They are saved automatically when you press Start.' : 'Defaults are safe; the first run is best kept small.'}
@@ -474,6 +542,7 @@ export const RagMigrationTab: FC = () => {
 
         {step === 3 && (
         <Step
+          status={statusLine}
           n={3} title="Create new embeddings"
           subtitle="Starting uses your login and keeps going while this page is open. Documents already being created are never recalled by Pause or Stop; they finish on their own."
         >
@@ -499,6 +568,7 @@ export const RagMigrationTab: FC = () => {
             />
           </div>
           {run.message && <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '0 0 10px' }}>{run.message}</p>}
+          {run.state === 'idle' && !waitingToMove && <CostEstimateBox count={batchSize} />}
 
           {run.started > 0 ? (
             <div style={{ padding: 14, border: '1px solid var(--accent)', borderRadius: 10 }}>
@@ -562,6 +632,7 @@ export const RagMigrationTab: FC = () => {
               ))}
             </div>
           )}
+          <CostEstimateBox keys={Array.from(picked.keys())} />
           {tracked.length > 0 && (
             <CreationProgress keys={tracked} version={version} onRows={setTrackedRows} onContinue={() => setStep(4)} onClear={() => { setTracked([]); setTrackedRows({}); }} />
           )}
@@ -574,6 +645,7 @@ export const RagMigrationTab: FC = () => {
 
         {step === 4 && (
         <Step
+          status={statusLine}
           n={4} title="Move references"
           subtitle="Make chat and assistants read from the new embeddings. This is the step that changes what users get."
         >
@@ -620,6 +692,7 @@ export const RagMigrationTab: FC = () => {
 
         {step === 5 && (
         <Step
+          status={statusLine}
           n={5} title="Clean up"
           subtitle={`After references are moved and working, remove the old embeddings from the legacy database. Only documents whose new embeddings exist are cleaned.`}
         >
@@ -653,8 +726,8 @@ export const RagMigrationTab: FC = () => {
           <CleanupPreviewPanel preview={cleanupPreview} />
         </Step>)}
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
-          <Button disabled={step === 1} onClick={() => setStep(step - 1)}>Back</Button>
-          <Button kind={step < STEP_LABELS.length ? 'primary' : 'plain'} disabled={step === STEP_LABELS.length} onClick={() => setStep(step + 1)}>Next</Button>
+          <Button disabled={step === 1} onClick={() => setStep(previousStep)}>Back</Button>
+          <Button kind={step < STEP_LABELS.length ? 'primary' : 'plain'} disabled={step === STEP_LABELS.length} onClick={() => setStep(nextStep)}>Next</Button>
         </div>
       </Collapsible>
 

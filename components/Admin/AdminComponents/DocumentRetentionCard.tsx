@@ -62,20 +62,10 @@ export const DocumentRetentionCard: FC<Props> = ({ value, onChange, newUi }) => 
             </span>
           )}
           <span className="text-sm text-neutral-500 dark:text-neutral-400">
-            Counting starts when this is turned on, because older files have no record of when they were last used, so nothing is
-            deleted sooner than the number of days above after that. After that, a file is due once it has gone that many days
-            since it was uploaded or last used, whichever is later. The days apply to files already uploaded, and the cleanup runs
-            daily (about 4 AM UTC). Deleted files cannot be recovered.
+            A file is deleted once it has gone that many days since it was uploaded or last used, whichever is later. The days
+            apply to files already uploaded, so a short setting takes effect at the next cleanup. The cleanup runs daily (about
+            4 AM UTC) and never removes a file an assistant uses. Deleted files cannot be recovered.
           </span>
-          {value.isActive && (
-            <span className="text-sm text-neutral-600 dark:text-neutral-300" role="status">
-              {value.enabledAt
-                ? `Counting started ${new Date(value.enabledAt * 1000).toLocaleDateString()}. The earliest any file can be deleted is ${
-                    valid ? new Date((value.enabledAt + value.days * 86400) * 1000).toLocaleDateString() : 'set by the days above'
-                  }.`
-                : 'Counting starts when you save.'}
-            </span>
-          )}
         </div>
       </div>
     </div>

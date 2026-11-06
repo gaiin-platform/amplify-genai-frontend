@@ -88,6 +88,14 @@ export const Notice: FC<{ children: React.ReactNode; tone?: 'info' | 'warn' }> =
   </div>
 );
 
+/** What the page is doing or just did, shown under the heading of the step it belongs to; a spinner while work is under way. */
+export const StatusLine: FC<{ busy: boolean; children: React.ReactNode }> = ({ busy, children }) => (
+  <div role="status" aria-live="polite" style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '0 0 14px', fontSize: 13, color: 'var(--text-primary)' }}>
+    {busy && <IconLoader2 size={16} aria-hidden="true" className="motion-safe:animate-spin" style={{ color: 'var(--accent)' }} />}
+    <span>{children}</span>
+  </div>
+);
+
 /** The row of numbered stages: the current one is highlighted, finished ones are filled in, and only the current one's body is shown. */
 export const StepNav: FC<{ labels: string[]; active: number; onChange: (n: number) => void }> = ({ labels, active, onChange }) => (
   <div role="tablist" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
@@ -122,8 +130,8 @@ export const StepNav: FC<{ labels: string[]; active: number; onChange: (n: numbe
 );
 
 /** One numbered stage of a procedure: a badge, a heading and what it does, then its controls. */
-export const Step: FC<{ n: number; title: string; subtitle?: string; right?: React.ReactNode; children: React.ReactNode }> = ({
-  n, title, subtitle, right, children,
+export const Step: FC<{ n: number; title: string; subtitle?: string; right?: React.ReactNode; status?: React.ReactNode; children: React.ReactNode }> = ({
+  n, title, subtitle, right, status, children,
 }) => (
   <div style={{ border: '1px solid var(--border-subtle)', borderRadius: 12, padding: 20 }}>
     <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', marginBottom: 14 }}>
@@ -142,12 +150,17 @@ export const Step: FC<{ n: number; title: string; subtitle?: string; right?: Rea
       </div>
       {right}
     </div>
+    {status}
     {children}
   </div>
 );
 
-export const Stat: FC<{ label: string; value: string; hint?: string; tone?: 'good' | 'warn' | 'bad'; loading?: boolean }> = ({ label, value, hint, tone, loading }) => (
-  <div style={{ flex: '1 1 150px', minWidth: 140, padding: '12px 14px', border: '1px solid var(--border-subtle)', borderRadius: 10 }}>
+export const Stat: FC<{ label: string; value: string; hint?: string; tone?: 'good' | 'warn' | 'bad'; loading?: boolean; onClick?: () => void }> = ({ label, value, hint, tone, loading, onClick }) => (
+  <div
+    onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+    onKeyDown={onClick ? (event) => { if (event.key === 'Enter' || event.key === ' ') onClick(); } : undefined}
+    style={{ flex: '1 1 150px', minWidth: 140, padding: '12px 14px', border: '1px solid var(--border-subtle)', borderRadius: 10, cursor: onClick ? 'pointer' : undefined }}
+  >
     <div style={{ fontSize: 11, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{label}</div>
     <div
       style={{

@@ -211,7 +211,7 @@ export interface CleanupPreview {
 export interface MigrationDoc {
   contentKey: string;
   status: DocStatus;
-  trigger?: 'bulk' | 'access';
+  trigger?: 'bulk' | 'access' | 'manual';
   owner?: string;
   childFiles?: number;
   assistantReferenced?: boolean;
@@ -223,6 +223,11 @@ export interface MigrationDoc {
   startedAt?: number;
   builtAt?: number;
   cutoverAt?: number;
+  /** Added up as the rebuild runs: Nova embeddings and Textract are recorded; question calls are counted and priced at the recent average. */
+  embeddingCost?: number;
+  ocrCost?: number;
+  qaCost?: number;
+  qaCalls?: number;
 }
 
 /** Which assistants use a document: how many store the old id and how many already store the new one. */
@@ -233,13 +238,44 @@ export interface AssistantUsage {
   names: string[];
 }
 
+/** What the migration has cost, refreshed on demand ("Refresh costs"). All figures are USD. */
+export interface MigrationCosts {
+  generatedAt: number;
+  /** Nova embeddings and Textract pages are exact; question generation is counted per call and priced at the recent average. */
+  spent: { embeddingCost: number; ocrCost: number; qaCost: number; qaCalls: number; documents: number };
+  /** What the chat service billed the migration account for question generation, across every admin who ran the migration. */
+  /** Set when part of the figures could not be read: what went wrong, so the Overview can say what is missing. */
+  billedError?: string;
+  pricingError?: string;
+  billedQuestions?: { total: number; admins: { user: string; thisMonth: number; total: number }[] };
+}
+
+/** A rough cost of rebuilding chosen documents, before anything is started. */
+export interface CostEstimate {
+  docs: {
+    contentKey: string; name?: string | null; known: boolean; chunks?: number; tokens?: number; images?: number; embedding?: number; qa?: number;
+    /** pdf: could need Textract, `max` is every page; pictures: an Office file whose pictures may be read; none: no OCR expected. */
+    ocr?: { kind: 'pdf' | 'pictures' | 'none'; max: number };
+  }[];
+  totals: { embedding: number; qa: number; ocrMax: number; ocrPdfs: number; ocrOffice: number; noOcr: number; unknown: number; chunks: number; images: number };
+  assumptions: {
+    chunkTokens: number; novaTokensPerChunk: number; qaCallsPerChunk: number; callCost: number; imagePrice: number;
+    /** What a question call is priced from: the migration account's recent calls, or an assumption while there are none. */
+    callBasis: 'assumed' | { calls: number; model: string; avgInput: number; avgOutput: number };
+  };
+  qaModel?: string | null;
+}
+
 export interface MigrationStatus {
   config: MigrationConfig;
+  costs?: MigrationCosts | null;
   inventory: MigrationInventory | null;
   inventoryAgeSeconds: number | null;
   pipeline: Record<DocStatus, number>;
   inSecretSweepWindow: boolean;
   failures: MigrationDoc[];
+  /** Documents waiting to be started (the oldest 20). */
+  queued?: MigrationDoc[];
   queues?: QueueDepths;
   /** Documents whose new embeddings are being created right now, read fresh on every status call. */
   migrating?: (HealthDoc & { legacyKey: string; startedAt?: number })[];
@@ -249,7 +285,8 @@ export interface MigrationStatus {
 export type MigrationAction =
   | 'migrate' | 'refresh_inventory' | 'retry_failed'
   | 'cutover' | 'rollback' | 'cleanup' | 'dismiss_error'
-  | 'assistant_usage' | 'lookup' | 'rebuild' | 'preview_cleanup' | 'browse' | 'search' | 'clear_queue' | 'orphans' | 'remove_orphans';
+  | 'assistant_usage' | 'lookup' | 'rebuild' | 'preview_cleanup' | 'browse' | 'search' | 'clear_queue' | 'orphans' | 'remove_orphans'
+  | 'estimate' | 'refresh_costs';
 
 export interface MigrationSettingsPatch {
   scope?: MigrationScope;

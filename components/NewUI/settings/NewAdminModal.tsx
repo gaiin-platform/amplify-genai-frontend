@@ -907,13 +907,6 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
     act([AdminConfigTypes.EMAIL_SUPPORT], () =>
       homeDispatch({ field: 'supportEmail', value: emailSupport.email }),
     );
-    // The server stamps when counting started; show it right away instead of waiting for a reload.
-    act([AdminConfigTypes.DOCUMENT_RETENTION], () =>
-      setDocumentRetention((prev) => ({
-        ...prev,
-        enabledAt: prev.isActive ? prev.enabledAt ?? Math.floor(Date.now() / 1000) : undefined,
-      })),
-    );
     act([AdminConfigTypes.AI_EMAIL_DOMAIN], () =>
       homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain }),
     );

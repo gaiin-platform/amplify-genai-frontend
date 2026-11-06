@@ -598,9 +598,6 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
             homeDispatch({ field: 'webSearchUserMessage', value: webSearchConfig?.webSearchUserMessage?.trim() ?? null});
         });
         saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
-        // The server stamps when counting started; show it right away instead of waiting for a reload.
-        saveAction([AdminConfigTypes.DOCUMENT_RETENTION], () =>
-            setDocumentRetention((prev) => ({ ...prev, enabledAt: prev.isActive ? prev.enabledAt ?? Math.floor(Date.now() / 1000) : undefined })));
         saveAction([AdminConfigTypes.DEFAULT_SMART_MESSAGES], () => homeDispatch({ field: 'featureFlags', value: { ...featureFlags, smartMessages: smartMessagesEnabled }}));
         saveAction([AdminConfigTypes.RATE_LIMIT], () => {
             homeDispatch({ field: 'adminRateLimits', value: rateLimits });

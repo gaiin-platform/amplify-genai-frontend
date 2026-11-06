@@ -1724,13 +1724,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 serverAstData = (created as any).ast_data;
             }
 
-            // Library files may never have been embedded: start them now that they are saved on the assistant.
-            // Only the ones still attached; the saved ids (global/…) are matched by name and type. Never blocks the save.
+            // Library files may never have been embedded: have the server check them now that they are saved on the
+            // assistant (it starts only the ones with no embeddings, whatever their id namespace). Only the ones still
+            // attached; the saved ids are matched by name and type. Never blocks the save.
             if (id && !groupId) {
                 const attachedNow = new Set(dataSources.map((ds) => ds.id));
                 const pending = Object.entries(newLibraryFiles.current).filter(([fileId]) => attachedNow.has(fileId)).map(([, file]) => file);
                 const ids = ((data_sources ?? []) as AttachedDocument[])
-                    .filter((ds) => ds.id.startsWith('global2/') && pending.some((file) => file.name === ds.name && file.type === ds.type))
+                    .filter((ds) => pending.some((file) => file.name === ds.name && file.type === ds.type))
                     .map((ds) => ds.id);
                 if (ids.length > 0) {
                     startMissingEmbeddings(Array.from(new Set(ids))).catch((e) => console.error('Could not start library file embeddings:', e));
