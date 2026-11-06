@@ -86,6 +86,7 @@ import { AssistantPathField } from '@/components/NewUI/views/assistant/Assistant
 import {
     ACCESS_KIND_KEY,
     GENERATED_PATH_PATTERN,
+    GROUP_PUBLIC_ACCESS,
     deriveAccessKind,
     isPublishedLink,
     isRestrictedLink,
@@ -1826,8 +1827,24 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             // 6b. Register the new link (or audience). The save above kept the old path (if any), so a failure
             // leaves the assistant exactly as it was published; the assistant itself is saved — and, when new,
             // now exists — so carry on and say so rather than abort and let a retry create a second copy.
-            if (pathPlan.register) {
-                const { path: newPath, astPathData: newPathData } = pathPlan.register;
+            // The plan treats a stored path as standing, but the registry is what actually serves it — and it can
+            // have released it (a failed delete, an old save without a path). Check, and register it again if so.
+            let linkToRegister = pathPlan.register;
+            const storedLink = pathPlan.data.astPath;
+            if (!linkToRegister && isEditMode && storedLink && !GENERATED_PATH_PATTERN.test(storedLink)) {
+                const access = pathPlan.data.astPathData ?? (accessType === 'collaborative' ? GROUP_PUBLIC_ACCESS : undefined);
+                if (access) {
+                    try {
+                        const held = await lookupAssistant(storedLink);
+                        // `inUse`: held by something this user cannot see — registering would only fail.
+                        if (!held.success && !held.inUse) linkToRegister = { path: storedLink, astPathData: access };
+                    } catch (lookupErr) {
+                        console.error('Could not verify the assistant link:', lookupErr);
+                    }
+                }
+            }
+            if (linkToRegister) {
+                const { path: newPath, astPathData: newPathData } = linkToRegister;
                 if (newPathData.isPublic) setLoadingMessage(`Publishing assistant to /assistants/${newPath}…`);
                 try {
                     const pathResult = await addAssistantPath(
