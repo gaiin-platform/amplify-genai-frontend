@@ -179,7 +179,7 @@ function StatusBadge({ status }: { status: string | undefined }) {
 
     const statusMap: Record<string, { bg: string; fg: string; dot?: boolean }> = {
         completed:   { bg: 'var(--bg-raised)',  fg: 'var(--text-secondary)' },
-        processing:  { bg: '#3A2A0A',            fg: '#E8A030', dot: true },
+        processing:  { bg: 'var(--warning-bg)',  fg: 'var(--warning-fg)', dot: true },
         starting:    { bg: 'rgba(80,120,200,0.15)', fg: '#6090D8', dot: true },
         failed:      { bg: 'rgba(200,60,60,0.15)',  fg: '#E05252', dot: true },
         terminated:  { bg: 'rgba(100,100,100,0.15)',fg: 'var(--text-muted)', dot: true },
