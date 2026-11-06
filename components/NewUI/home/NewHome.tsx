@@ -93,7 +93,7 @@ const HEADING_FALLBACK_H = 72;
 export const NewHome: React.FC = () => {
   const {
     state: {
-      availableModels, defaultModelId, ragOn, selectedAssistant,
+      availableModels, defaultModelId, selectedAssistant,
       statsService, selectedConversation, page, chatEndpoint,
     },
     handleNewConversation,
@@ -506,9 +506,9 @@ export const NewHome: React.FC = () => {
     };
     handleFile(
       file, wrappedAdd, handleUploadProgress, handleSetKey, handleSetMetadata,
-      () => {}, featureFlags.uploadDocuments ?? false, undefined, ragOn, {}, [],
+      () => {}, featureFlags.uploadDocuments ?? false, undefined, false, {}, [],
     );
-  }, [addDocument, handleUploadProgress, handleSetKey, handleSetMetadata, featureFlags.uploadDocuments, ragOn]);
+  }, [addDocument, handleUploadProgress, handleSetKey, handleSetMetadata, featureFlags.uploadDocuments]);
 
   /**
    * Intake for a batch of files, from the picker or from a drop onto the pane.
@@ -527,7 +527,6 @@ export const NewHome: React.FC = () => {
           onSetAbortController: () => {},
           statsService,
           featureFlags,
-          ragOn,
           uploadDocuments: featureFlags.uploadDocuments ?? false,
           groupId: undefined,
           props: {},
@@ -545,7 +544,7 @@ export const NewHome: React.FC = () => {
       addFileToRail(file);
     });
   }, [addDocument, addFileToRail, featureFlags, handleSetKey, handleSetMetadata,
-      handleUploadProgress, ragOn, statsService]);
+      handleUploadProgress, statsService]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;

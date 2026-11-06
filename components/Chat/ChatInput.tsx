@@ -76,7 +76,6 @@ import { ToggleOptionButtons } from '../ReusableComponents/ToggleOptionButtons';
 import { capitalize } from '@/utils/app/data';
 import OperationSelector from "@/components/Agent/OperationSelector";
 import ActionsList from "@/components/Chat/ActionsList";
-import { resolveRagEnabled } from '@/types/features';
 import { OpBindings } from '@/types/op';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import { getActionSet, saveActionSet } from '@/services/actionSetsService';
@@ -131,7 +130,7 @@ export const ChatInput = ({
     const {
         state: {selectedConversation, conversations, folders, selectedAssistant, messageIsStreaming, artifactIsStreaming,
             prompts, layeredAssistants, groups, featureFlags, currentRequestId, chatEndpoint, statsService, availableModels,
-            extractedFacts, memoryExtractionEnabled, ragOn, defaultAccount, webSearchUserMessage, defaultModelId},
+            extractedFacts, memoryExtractionEnabled, defaultAccount, webSearchUserMessage, defaultModelId},
         getDefaultModel, handleUpdateConversation,
         dispatch: homeDispatch
     } = useContext(HomeContext);
@@ -147,9 +146,6 @@ export const ChatInput = ({
         return '100%';
     };
 
-    // Optional interpreter activation is server-routed. File upload preparation
-    // no longer reads stale plugin selector state.
-    const effectiveRagOn = ragOn;
 
     let settingRef = useRef<Settings | null>(null);
     // prevent recalling the getSettings function
@@ -1204,12 +1200,11 @@ export const ChatInput = ({
             onSetAbortController: handleDocumentAbortController,
             statsService,
             featureFlags,
-            ragOn: effectiveRagOn,
             uploadDocuments: featureFlags.uploadDocuments,
             groupId: undefined,
             props: {}
         });
-    }, [disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, effectiveRagOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+    }, [disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
 
     // Clipboard paste handler
     const handlePaste = useCallback((e: React.ClipboardEvent) => {
@@ -1229,8 +1224,7 @@ export const ChatInput = ({
                 onSetAbortController: handleDocumentAbortController,
                 statsService,
                 featureFlags,
-                ragOn: effectiveRagOn,
-                uploadDocuments: featureFlags.uploadDocuments,
+                    uploadDocuments: featureFlags.uploadDocuments,
                 groupId: undefined,
                 props: {}
             });
@@ -1258,7 +1252,7 @@ export const ChatInput = ({
             }
             // If text is not large, let the default paste behavior handle it
         }
-    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, effectiveRagOn, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
+    }, [content, handleLargeTextPaste, disallowedFileExtensions, featureFlags.uploadDocuments, featureFlags, statsService, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController]);
 
     // Handle individual large text block removal using hook
     const handleRemoveLargeTextBlock = useCallback((blockId: string) => {
@@ -1316,11 +1310,6 @@ export const ChatInput = ({
         const containsRagEval = pluginIds.includes(PluginID.RAG_EVAL);
         if (!containsRag && containsRagEval) {
             setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.RAG_EVAL));
-        }
-        // will effectively detach ragOn state from rag plugin if feature flag is off 
-        // ragOn is used to track the state of the rag plugin throughout the entire app when cached documents is on
-        if (featureFlags.cachedDocuments && (containsRag && !ragOn) || (!containsRag && ragOn)) {
-            homeDispatch({ field: 'ragOn', value: containsRag });
         }
     }, [plugins]);
 
@@ -1414,7 +1403,7 @@ export const ChatInput = ({
                                 }}
                                 showActionButtons={true}
                                 onIntegrationDataSourceSelected={featureFlags.integrations ?
-                                    (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, resolveRagEnabled(featureFlags, effectiveRagOn) )}
+                                    (file: File) => { handleFile(file, addDocument, handleDocumentState, handleSetKey, handleSetMetadata, handleDocumentAbortController, featureFlags.uploadDocuments, undefined, false )}
                                     : undefined
                                 }
                             />
@@ -1987,7 +1976,6 @@ export const ChatInput = ({
                                         onSetKey={handleSetKey}
                                         onSetAbortController={handleDocumentAbortController}
                                         onUploadProgress={handleDocumentState}
-                                        forceRagOn={false}
                                         className="chat-input-button"
                             />
                         </div>}

@@ -814,8 +814,9 @@ export function useSendService() {
                     } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
                         options = { ...(options || {}), ragEvaluation: true };
                     }
-                    // Advanced Rag is default off for assistant use 
-                    if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
+                    // Document caching is always on for chat; it is off for assistant use
+                    // (assistants rely on their knowledge-base RAG).
+                    if (options?.assistantId || options?.groupId) {
                         options = { ...(options || {}), skipDocumentCache: true };
                     }
 

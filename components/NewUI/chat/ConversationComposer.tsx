@@ -170,7 +170,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       selectedConversation,
       availableModels,
       defaultModelId,
-      ragOn,
       chatEndpoint,
       messageIsStreaming,
       statsService,
@@ -1047,7 +1046,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           handleAbort,
           featureFlags.uploadDocuments ?? false,
           undefined, // groupId
-          ragOn,
+          false, // chat uploads are never RAG'd
           {}, // extra props
           [], // tags
         );
@@ -1062,7 +1061,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       handleDocSetAbortController,
       handleDocUploadProgress,
       featureFlags.uploadDocuments,
-      ragOn,
     ],
   );
 
@@ -1112,7 +1110,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             onSetAbortController: handleDocSetAbortController,
             statsService,
             featureFlags,
-            ragOn,
             uploadDocuments: featureFlags.uploadDocuments,
             groupId: undefined,
             props: {},
@@ -1141,7 +1138,6 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       handleDocSetMetadata,
       handleDocSetAbortController,
       handleDocUploadProgress,
-      ragOn,
       statsService,
     ],
   );

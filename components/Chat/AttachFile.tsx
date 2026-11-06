@@ -11,7 +11,6 @@ import { addFile, checkContentReady, deleteFile } from "@/services/fileService";
 import { getMimeTypeFromExtension } from '@/utils/app/fileTypeTranslations';
 import HomeContext from "@/components/Home/home.context";
 import React from 'react';
-import { resolveRagEnabled } from '@/types/features';
 import { processInputFiles } from '@/utils/fileHandler';
 import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
 import { extractSensitivityLabel } from '@/utils/app/files';
@@ -29,12 +28,9 @@ interface Props {
     disallowedFileExtensions?: string[];
     allowedFileExtensions?: string[];
     groupId?: string;
+    // RAG at upload is opt-in: assistant knowledge-base uploads pass `false`; omitting it
+    // (chat uploads) means the file is never RAG'd.
     disableRag?: boolean;
-    // Override for the ambient HomeContext.ragOn flag. Callers use this when a mode
-    // outside the RAG plugin (e.g. Code Interpreter) still needs newly attached files
-    // to be RAG-indexed at upload time, so the file remains accessible to normal chat
-    // if that other mode is later disabled in the same conversation.
-    forceRagOn?: boolean;
     className?: string;
     props?: any;
 }
@@ -239,11 +235,10 @@ export const handleFile = async (file: any,
     }
 }
 
-export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMetadata, onSetKey, onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, forceRagOn, className = "", props = {} }) => {
+export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMetadata, onSetKey, onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, className = "", props = {} }) => {
     const { t } = useTranslation('sidebar');
 
-    const { state: { featureFlags, statsService, ragOn: ragOnFromContext } } = useContext(HomeContext);
-    const ragOn = forceRagOn || ragOnFromContext;
+    const { state: { featureFlags, statsService } } = useContext(HomeContext);
 
     const uploadDocuments = featureFlags.uploadDocuments;
 
@@ -292,7 +287,6 @@ export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMet
                         onSensitivityBlock: handleSensitivityBlock,
                         statsService,
                         featureFlags,
-                        ragOn,
                         uploadDocuments,
                         groupId,
                         disableRag,

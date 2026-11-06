@@ -30,9 +30,9 @@ export const PluginSelector: FC<Props> = ({
   //FEATURE FLAG CONSIDERATIONS
   const filterPlugInList = () => {
     return PluginList.filter(plugin => {
-             // Do not include the plugin in the list if ragEnabled is false
-              if (plugin.id === PluginID.RAG && !featureFlags.ragEnabled) return false;
-              if (plugin.id === PluginID.RAG_EVAL && (!featureFlags.ragEnabled || !featureFlags.ragEvaluation)) return false;
+             // RAG is only used for assistant knowledge bases; chat uploads are never RAG'd,
+             // so there is no per-chat RAG toggle to offer.
+              if (plugin.id === PluginID.RAG || plugin.id === PluginID.RAG_EVAL) return false;
               if (plugin.id === PluginID.CODE_INTERPRETER && !featureFlags.codeInterpreterEnabled) return false;
               if (plugin.id === PluginID.ARTIFACTS && (!featureFlags.artifacts || !settingRef.current?.featureOptions.includeArtifacts)) return false;
               // if (plugin.id === PluginID.SMART_MESSAGES && (!featureFlags.smartMessages || !settingRef.current?.featureOptions.includeFocusedMessages)) return false;

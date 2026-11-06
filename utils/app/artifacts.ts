@@ -175,7 +175,7 @@ export const downloadArtifacts = async (artifactName: string, textContent: strin
 
 
 // Upload Artifact Function
-export const uploadArtifact = async (filename: string, content: string, tags:string[], ragEnabled: boolean = true) => {
+export const uploadArtifact = async (filename: string, content: string, tags:string[], ragEnabled: boolean = false) => {
     try {
         // Create the file object from the content and type
         const fileType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';

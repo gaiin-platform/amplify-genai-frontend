@@ -481,10 +481,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             availableModels,
             selectedAssistant,
             chatEndpoint,
-            // Needed by the drag-and-drop path so dropped files log the same
-            // stats event and honour the same RAG setting as picked files.
+            // Needed by the drag-and-drop path so dropped files log the same stats event as picked files.
             statsService,
-            ragOn,
             defaultAccount,
         },
         dispatch: homeDispatch,
@@ -1209,8 +1207,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             onSetAbortController,
             statsService,
             featureFlags,
-            ragOn,
             uploadDocuments: featureFlags.uploadDocuments,
+            // Assistant knowledge-base files are RAG'd, same as the AttachFile picker.
+            disableRag: false,
             // Group assistants own their files; a regular assistant's belong to the user.
             groupId: editingAssistant?.groupId ?? undefined,
             props: {},

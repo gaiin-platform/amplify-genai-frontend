@@ -93,7 +93,6 @@ export interface HomeInitialState {
   supportEmail: string;
   aiEmailDomain: string;
   defaultTimezone: string;
-  ragOn: boolean;
   isStandalonePromptCreation: boolean;
   promptCostAlert: PromptCostAlert | null;
   canAddWebSearchApiKey: boolean;
@@ -194,7 +193,6 @@ export const initialState: HomeInitialState = {
   supportEmail: '',
   aiEmailDomain: '',
   defaultTimezone: 'America/Chicago',
-  ragOn: false,
   isStandalonePromptCreation: false,
   promptCostAlert: null,
   promptCostAlertModal: null,

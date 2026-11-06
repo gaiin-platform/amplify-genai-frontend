@@ -333,7 +333,6 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                             onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
                         />
 
-                        {Object.keys(featureFlags).includes('cachedDocuments') &&
                         <ModelDefaultSelect 
                             models={Object.values(availableModels).filter((m:SupportedModel) => 
                                     !m.id.includes('embedding') && (m.inputCachedTokenCost > 0 || m.inputWriteCachedTokenCost > 0))}
@@ -341,7 +340,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                             selectedKey='documentCaching'
                             description="This model is used when handling document context processing in chats when Retrieval Augmented Generation (RAG) is turned off. For optimal cost efficiency, choose a model with cached token support."
                             onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
-                        />}
+                        />
 
                         {Object.keys(featureFlags).includes('agentAssistantType') &&
                         <ModelDefaultSelect 

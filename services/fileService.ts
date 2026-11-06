@@ -162,7 +162,7 @@ export function checkContentReady(url: string, maxSeconds: number, abortControll
     });
 }
 
-export const addFile = async (metadata: AttachedDocument, file: File, onProgress?: (progress: number) => void, ragEnabled: boolean = true, tags: string[] = [], abortSignal: AbortSignal | null = null) => {
+export const addFile = async (metadata: AttachedDocument, file: File, onProgress?: (progress: number) => void, ragEnabled: boolean = false, tags: string[] = [], abortSignal: AbortSignal | null = null) => {
     const requestBody = {
         data: {
             actions: [],

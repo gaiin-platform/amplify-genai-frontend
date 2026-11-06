@@ -41,7 +41,6 @@ import { ArtifactPreview } from "./ArtifactPreview";
 import { CodeBlockDetails, extractCodeBlocksAndText } from "@/utils/app/codeblock";
 import ActionButton from "../ReusableComponents/ActionButton";
 import { getDateName } from "@/utils/app/date";
-import { resolveRagEnabled } from "@/types/features";
 import { getUserIdentifier } from "@/utils/app/data";
 
   interface Props {
@@ -51,7 +50,7 @@ import { getUserIdentifier } from "@/utils/app/data";
 
 export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts 
     const {state:{statsService, selectedConversation, selectedArtifacts, artifactIsStreaming, 
-                  conversations, folders, groups, featureFlags, amplifyUsers, ragOn},
+                  conversations, folders, groups, featureFlags, amplifyUsers},
            dispatch:homeDispatch, handleUpdateSelectedConversation} = useContext(HomeContext);
 
     const [selectArtifactList, setSelectArtifactList] = useState<Artifact[]>(selectedArtifacts ?? []);
@@ -813,7 +812,7 @@ export const Artifacts: React.FC<Props> = ({artifactIndex}) => { //artifacts
         setIsLoading('Upload Artifact to Amplify File Manager...');
         const artifact = selectArtifactList[versionIndex];
         const artifactContent = getArtifactContents();
-        await uploadArtifact(artifact.name.replace(/\s+/g, '_'), artifactContent, tags, resolveRagEnabled(featureFlags, ragOn));
+        await uploadArtifact(artifact.name.replace(/\s+/g, '_'), artifactContent, tags, false);
         handleTags();
         setIsLoading('');
     }
