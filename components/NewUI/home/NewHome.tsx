@@ -36,7 +36,7 @@ import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInst
 import { AttachedDocument } from '@/types/attacheddocument';
 import { ModelPicker, type EffortLevel } from '@/components/NewUI/shared/ModelPicker';
 import { AttachMenu, AttachMenuChips, type SelectedAction } from '@/components/NewUI/shared/AttachMenu';
-import { AttachmentRail } from '@/components/NewUI/shared/AttachmentRail';
+import { AttachmentRail, attachmentRailHeight } from '@/components/NewUI/shared/AttachmentRail';
 import { AttachmentPreview } from '@/components/NewUI/shared/AttachmentPreview';
 import {
   HalloweenBackdrop,
@@ -76,6 +76,13 @@ import {
   withConversationSkillSelection,
 } from '@/components/NewUI/shared/conversationSkillSelection';
 import { consumeAmplifyHelperPrefill } from '@/components/NewUI/shared/amplifyHelperPrefill';
+
+/** Min gap kept above the heading/composer and below the composer (px). */
+const PANE_EDGE_MARGIN = 24;
+/** The heading returns only when it would fit with this much room to spare (px) — prevents flicker at the boundary. */
+const HEADING_HYSTERESIS = 40;
+/** Used before the heading has been measured (40px logo + 32px gap). */
+const HEADING_FALLBACK_H = 72;
 
 export const NewHome: React.FC = () => {
   const {
@@ -209,8 +216,81 @@ export const NewHome: React.FC = () => {
   // are selected by the backend router, not by user-facing plugins.
   // ── Attachment ────────────────────────────────────────────────────────────
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── Heading collapse (tall-input handling) ───────────────────────────────
+  // Layout is pure CSS: the top spacer shrinks first (group shifts up), then the
+  // composer card shrinks and its text area scrolls. The one thing CSS can't do
+  // is "hide the heading once the input would otherwise have to scroll, and
+  // bring it back with hysteresis", so `fitHeading` makes that single decision
+  // from a few measurements. It runs on size changes (pane = window resize or
+  // banner shown/dismissed; card; toolbar) and on every edit/attachment change
+  // — not in a loop. The decision uses natural (unshrunk) heights only, so
+  // hiding the heading can't feed back into the measurement.
+  const paneRef = useRef<HTMLDivElement>(null);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const headingInnerRef = useRef<HTMLDivElement>(null);
+  const [headingCollapsed, setHeadingCollapsed] = useState(false);
+  // True while the text area is scrolled — shows the attachment row's divider.
+  const [textScrolled, setTextScrolled] = useState(false);
+  const fitRaf = useRef(0);
+
+  const fitHeading = useCallback(() => {
+    const pane = paneRef.current;
+    const card = cardRef.current;
+    const toolbar = toolbarRef.current;
+    const editor = card?.querySelector<HTMLElement>('[role="textbox"]');
+    if (!pane || !card || !toolbar || !editor) return;
+    const rail = card.querySelector<HTMLElement>('[data-attachment-rail]');
+    const cs = getComputedStyle(card);
+    const px = (v: string) => parseFloat(v) || 0;
+    const chrome =
+      px(cs.paddingTop) + px(cs.paddingBottom) + px(cs.borderTopWidth) + px(cs.borderBottomWidth);
+    const railH = rail ? px(rail.style.height) : 0; // target height (rail animates to it)
+    const toolbarH = toolbar.offsetHeight + px(getComputedStyle(toolbar).marginTop);
+    // scrollHeight = full content height, whether or not the editor is currently squeezed.
+    const naturalCard = chrome + railH + editor.scrollHeight + toolbarH;
+    const headingH = headingInnerRef.current?.offsetHeight ?? HEADING_FALLBACK_H;
+    const needWithHeading = PANE_EDGE_MARGIN + headingH + naturalCard + PANE_EDGE_MARGIN;
+    const available = pane.clientHeight;
+    setHeadingCollapsed((collapsed) =>
+      collapsed
+        ? !(needWithHeading + HEADING_HYSTERESIS <= available) // show again only with slack
+        : needWithHeading > available, // hide as soon as it wouldn't fit
+    );
+  }, []);
+
+  const scheduleFitHeading = useCallback(() => {
+    if (fitRaf.current) return;
+    fitRaf.current = requestAnimationFrame(() => {
+      fitRaf.current = 0;
+      fitHeading();
+    });
+  }, [fitHeading]);
+
+  useEffect(() => {
+    scheduleFitHeading();
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(scheduleFitHeading);
+    [paneRef.current, cardRef.current, toolbarRef.current].forEach((el) => el && ro.observe(el));
+    return () => {
+      ro.disconnect();
+      if (fitRaf.current) cancelAnimationFrame(fitRaf.current);
+      fitRaf.current = 0;
+    };
+  }, [scheduleFitHeading]);
   // UIAttachments: visual representations of docs/pastes in the rail
   const [uiAttachments, setUIAttachments] = useState<UIAttachment[]>([]);
+
+  // Attachments change the rail's target height; re-fit now and again once its
+  // 220ms height animation has settled (the card may be squeezed, so its own
+  // size isn't guaranteed to change and trigger the observer).
+  const attachmentCount = uiAttachments.length;
+  useEffect(() => {
+    scheduleFitHeading();
+    const t = setTimeout(scheduleFitHeading, 300);
+    return () => clearTimeout(t);
+  }, [attachmentCount, scheduleFitHeading]);
   // thumbUrl object-URLs to revoke on remove/send
   const thumbUrlsRef = useRef<Record<string, string>>({});
   // Backing AttachedDocuments (for send payload)
@@ -770,7 +850,11 @@ export const NewHome: React.FC = () => {
 
   return (
     <div
-      className={`relative flex-1 flex flex-col items-center justify-start bg-[--bg-app] overflow-hidden${isHalloween ? ' hw-active' : ''}`}
+      // min-h-0 + overflow-y-auto: the pane is sized by the flex shell (i.e. the
+      // space left under the announcement banner). If the composer ever can't fit
+      // even after shrinking, the pane scrolls rather than clipping the toolbar.
+      ref={paneRef}
+      className={`relative flex-1 min-h-0 flex flex-col items-center justify-start bg-[--bg-app] overflow-x-hidden overflow-y-auto${isHalloween ? ' hw-active' : ''}`}
       style={{ fontFamily: 'Inter, sans-serif' }}
       {...dropHandlers}
     >
@@ -795,11 +879,47 @@ export const NewHome: React.FC = () => {
         onChange={handleFileChange}
       />
 
-      {/* Centered content column */}
+      {/* Top spacer — resting size is the original `max(72px, 26vh)` (short
+          input looks unchanged). Huge flex-shrink makes it the FIRST thing to
+          give way as the composer grows, so the group slides up into the empty
+          space before anything else is squeezed. 24px is the minimum top gap. */}
       <div
-        className="relative z-[1] w-full max-w-[760px] px-6 flex flex-col items-center"
-        style={{ paddingTop: 'max(72px, 26vh)' }}
+        aria-hidden="true"
+        style={{ flex: `0 1000 max(72px, 26vh)`, minHeight: PANE_EDGE_MARGIN }}
+      />
+
+      {/* Content column — flex child that shrinks to the height left in the
+          pane (i.e. after the banner). Heading collapses (JS, see fitHeading),
+          then the composer card shrinks and its text area scrolls. The card's
+          min-height is the floor — past that the pane itself scrolls. */}
+      <div
+        className="relative z-[1] w-full max-w-[760px] px-6 min-h-0 flex flex-col items-center"
+        style={{ flex: '0 1 auto', paddingBottom: PANE_EDGE_MARGIN }}
       >
+        {/* Greeting — fades + collapses (150ms) when the input needs the room */}
+        <div
+          className="grid w-full shrink-0 transition-[grid-template-rows,opacity] duration-150 ease-out motion-reduce:transition-none"
+          style={{ gridTemplateRows: headingCollapsed ? '0fr' : '1fr', opacity: headingCollapsed ? 0 : 1 }}
+          aria-hidden={headingCollapsed || undefined}
+        >
+          <div className="min-h-0 overflow-hidden">
+            <div ref={headingInnerRef}>
+              {isHalloween ? (
+                <HalloweenGreeting />
+              ) : (
+                <div className="flex items-center gap-3 mb-8 justify-center">
+                  <AmplifyLogo size={40} radius={6} />
+                  <h1
+                    className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
+                    style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
+                  >
+                    How can I help?
+                  </h1>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
         {/* Greeting */}
         {isHalloween ? (
           <HalloweenGreeting />
@@ -815,21 +935,33 @@ export const NewHome: React.FC = () => {
           </div>
         )}
 
-        {/* Composer box — 3-band grid: rail | textarea | toolbar */}
+        {/* Composer box — flex column: rail | textarea | toolbar. Rail is pinned
+            above the text area; only the text area scrolls; the toolbar is
+            always visible. */}
         <div
+          ref={cardRef}
           className="
             new-ui-composer-card
-            w-full bg-[--bg-composer] rounded-[14px]
+            w-full min-h-0 bg-[--bg-composer] rounded-[14px]
             border border-[--border-subtle]
             focus-within:border-[--border-composer-active]
             transition-colors duration-150
             p-4 pb-3
           "
-          style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto' }}
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            flex: '0 1 auto',
+            // Floor = chrome (30) + full-height attachment row + ~3 lines (72) +
+            // toolbar (46) + slack. The row is never squeezed, so below this the
+            // pane scrolls instead of the parts overlapping.
+            minHeight: uiAttachments.length > 0 ? attachmentRailHeight(uiAttachments) + 152 : 110,
+          }}
           onClick={() => composerRef.current?.focus()}
         >
           {/* Band 1 — attachment rail (collapses to 0 when empty) */}
           <AttachmentRail
+            showDivider={textScrolled}
             attachments={uiAttachments}
             onRemove={handleRemoveAttachment}
             onEdit={handleEditPastedAttachment}
@@ -843,18 +975,27 @@ export const NewHome: React.FC = () => {
           <RichComposer
             ref={composerRef}
             onSend={handleSend}
-            onChange={(value) => setHasContent(value.trim().length > 0)}
+            onChange={(value) => {
+              setHasContent(value.trim().length > 0);
+              scheduleFitHeading();
+            }}
             onLargePaste={handleLargePaste}
             onImagePaste={addFileToRail}
             placeholder={isHalloween ? HALLOWEEN_PLACEHOLDER : 'Ask anything…'}
-            editorClassName="max-h-[240px] overflow-y-auto"
+            // No fixed cap: the editor grows with its content and is limited only
+            // by the space left in the pane (card shrinks → this scrolls). With
+            // attachments present keep ~3 lines of usable editing room.
+            editorClassName={`overflow-y-auto${uiAttachments.length > 0 ? ' min-h-[4.5em]' : ''}`}
+            rootClassName={uiAttachments.length > 0 ? 'min-h-[4.5em]' : ''}
+            onScrolledChange={setTextScrolled}
             autoFocus
             hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
           />
 
           {/* Band 3 — Toolbar */}
           <div
-            className="flex items-center justify-between mt-3"
+            ref={toolbarRef}
+            className="flex shrink-0 items-center justify-between mt-3"
             style={{ minHeight: 34 }}
             onClick={(e) => e.stopPropagation()}
           >

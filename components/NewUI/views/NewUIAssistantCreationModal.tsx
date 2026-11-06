@@ -47,12 +47,15 @@ import {
     IconBrain,
     IconPlugConnected,
     IconTemplate,
-    IconLoader2,
     IconCheck,
     IconX,
     IconCopy,
 } from '@tabler/icons-react';
 import { WorkflowTemplatePicker } from './assistant/WorkflowTemplatePicker';
+import { decideWorkflowTemplateSave } from './assistant/workflowTemplateSave';
+import { AssistantWorkflowDisplay } from '@/components/Promptbar/components/AssistantModalComponents/AssistantWorkflowDisplay';
+import { registerAstWorkflowTemplate } from '@/services/assistantWorkflowService';
+import type { AstWorkflow } from '@/types/assistantWorkflows';
 import { useSession } from 'next-auth/react';
 import HomeContext from '@/components/Home/home.context';
 import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
@@ -77,6 +80,16 @@ import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { checkSlugSystemTerms, cleanSlug, validateSlug } from '@/components/NewUI/views/assistant/assistantPathRules';
 import { buildThinkingFields, readEnforcedEffort } from '@/components/NewUI/views/assistant/enforcedEffortModel';
 import { GroupAssistantSettingsPanel } from '@/components/NewUI/views/assistant/GroupAssistantSettingsPanel';
+import { AssistantPublishLinkSection } from '@/components/NewUI/views/assistant/AssistantPublishLinkSection';
+import { AssistantPathField } from '@/components/NewUI/views/assistant/AssistantPathField';
+import {
+    ACCESS_KIND_KEY,
+    GENERATED_PATH_PATTERN,
+    deriveAccessKind,
+    isPublishedLink,
+    isRestrictedLink,
+    planAssistantPath,
+} from '@/components/NewUI/views/assistant/assistantLinkModel';
 import {
     GroupSettings,
     buildGroupData,
@@ -108,7 +121,6 @@ import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
 import { SignInRequiredNote } from '@/components/NewUI/shared/SignInRequiredNote';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
-import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { AssistantEmailEventsPanel } from '@/components/NewUI/views/assistant/AssistantEmailEventsPanel';
 import { addEventTemplate } from '@/services/emailEventService';
 import { formatEmailEventTemplate, safeEmailEventTag } from '@/utils/app/assistantEmailEvents';
@@ -116,11 +128,17 @@ import { isWebsiteDs } from '@/components/DataSources/WebsiteURLInput';
 import { NewWebsiteSourceInput } from '@/components/NewUI/views/assistant/NewWebsiteSourceInput';
 import { DriveSourcesPanel } from '@/components/NewUI/views/assistant/DriveSourcesPanel';
 import { AttachFile } from '@/components/Chat/AttachFile';
+import { DataSourceCardStatus } from '@/components/NewUI/shared/DataSourceCard';
+import { AttachedDataSources } from '@/components/NewUI/views/assistant/AttachedDataSources';
 import {
-    DataSourceCard,
-    DataSourceCardGrid,
-    DataSourceCardStatus,
-} from '@/components/NewUI/shared/DataSourceCard';
+    SitemapEditResult,
+    applySitemapEdit,
+    mergeSitemapExclusions,
+    scrapedFileKey,
+    scrapedFilesToDelete,
+    websiteUrlsAfterRemoval,
+    withSitemapExclusions,
+} from '@/components/NewUI/views/assistant/dataSourceGroupingModel';
 import {
     DataSourceLibraryPicker,
     PickedLibraryFile,
@@ -141,6 +159,12 @@ import {
 } from './assistant/refreshScheduleModel';
 import { RescanTaskIds, sameTaskIds, syncRescanTasks, withScheduledTaskIds } from './assistant/rescanTaskSync';
 import { ToolsCapabilityPanel } from './assistant/ToolsCapabilityPanel';
+import {
+    buildStoredOperations,
+    describeToolSelection,
+    httpApisFromStoredOperations,
+    integrationOpsFromStoredOperations,
+} from './assistant/toolSelectionModel';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -158,7 +182,6 @@ const SLUG_CHECK_DEBOUNCE_MS = 2_000;
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type AccessModel = 'private' | 'managed' | 'collaborative';
-type ManagedSubOption = 'specific' | 'public';
 type TeamMode = 'existing' | 'new';
 
 export interface NewUIAssistantCreationModalProps {
@@ -474,10 +497,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // In edit mode, derive initial access type from the existing assistant.
     const deriveInitialAccessType = (): AccessModel => {
         if (editingAssistant) {
-            if (editingAssistant.groupId) return 'collaborative';
             const def = editingAssistant.data?.assistant?.definition as AssistantDefinition | undefined;
-            if (def?.astPath || (def?.data?.astPath as string | undefined)) return 'managed';
-            return 'private';
+            return deriveAccessKind({
+                groupId: editingAssistant.groupId ?? undefined,
+                astPath: def?.astPath || (def?.data?.astPath as string | undefined),
+                accessKind: def?.data?.[ACCESS_KIND_KEY] as string | undefined,
+            });
         }
         // Copies begin as private, recipient-owned assistants unless the caller picked a kind.
         if (isCopyMode) return copyTargetAccess ?? 'private';
@@ -520,8 +545,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         setAccessType(value);
     };
 
-    // Managed URL sub-state
-    const [subOption, setSubOption] = useState<ManagedSubOption>('public');
+    // 'I manage it' sub-state: the people it is shared with
     const [emailList, setEmailList] = useState<string[]>([]);
     /** Emails already on the allow-list when editing — only newly added people get a share on save. */
     const alreadyAllowedEmails = useRef<string[]>([]);
@@ -552,6 +576,22 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const [selectedMemberEmails, setSelectedMemberEmails] = useState<string[]>([]);
     const [newMemberAccessMap, setNewMemberAccessMap] = useState<Record<string, GroupAccessType>>({});
 
+    // "Publish at a link" — offered by every access type. Seeded from the stored definition, so an edit that
+    // doesn't touch the setting keeps the link; switching it off and saving unpublishes.
+    const storedDef = isEditMode
+        ? (editingAssistant?.data?.assistant?.definition as AssistantDefinition | undefined)
+        : undefined;
+    const storedAstPath = storedDef ? (storedDef.astPath ?? (storedDef.data?.astPath as string | undefined)) : undefined;
+    const storedAstPathData = storedDef?.data?.astPathData as AstPathData | undefined;
+    const publishedNow = isPublishedLink(deriveInitialAccessType(), storedAstPath);
+    const [publishEnabled, setPublishEnabled] = useState<boolean>(publishedNow);
+    /** Published, but only people with access (you; for 'I manage it', the shared people) can open it. */
+    const [linkRestricted, setLinkRestricted] = useState<boolean>(
+        publishedNow && isRestrictedLink(deriveInitialAccessType(), storedAstPathData),
+    );
+    /** The slug input is live (and being availability-checked) whenever the link switch is on. */
+    const pathInputActive = publishEnabled && !!featureFlags.assistantPathPublishing;
+
     // Slug availability check state
     const [isCheckingSlug, setIsCheckingSlug] = useState(false);
     const [slugAvailable, setSlugAvailable] = useState<boolean | null>(null);
@@ -573,6 +613,16 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     /** Which data-source input panel is open: null = none. 'library' browses already-uploaded files. */
     const [activeDataSourceMethod, setActiveDataSourceMethod] = useState<'upload' | 'library' | 'website' | 'drive' | null>(null);
     const [websiteUrls, setWebsiteUrls] = useState<any[]>([]);
+    /**
+     * Ids of the sources the server already has (loaded with the assistant). Only these have an
+     * embedding status to show; anything added in this editing session is not embedded until saved.
+     */
+    const savedSourceIds = useRef<ReadonlySet<string>>(new Set());
+    /**
+     * Stored files of scraped website pages the user removed. They belong to this assistant alone,
+     * so they are deleted once a save succeeds (never before — cancelling must leave them intact).
+     */
+    const queuedScrapedDeletes = useRef<string[]>([]);
     /** id → failure reason. Drives the card's error state (icon + subtitle only). */
     const [dataSourceErrors, setDataSourceErrors] = useState<{ [key: string]: string }>({});
     /** id → cancel closure handed back by AttachFile for in-flight uploads. */
@@ -615,6 +665,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     /** Display name of that template, saved with the assistant so a viewer who cannot read the
      *  template (private, owned by someone else) can still be told which workflow it runs. */
     const [workflowTemplateName, setWorkflowTemplateName] = useState<string | undefined>(undefined);
+    /** The assistant's OWN configured copy of the base template (`data.workflowTemplateId`).
+     *  Cleared when the base template changes. See assistant/workflowTemplateSave. */
+    const [astWorkflowTemplateId, setAstWorkflowTemplateId] = useState<string | undefined>(undefined);
+    /** `workflowTemplateId` as loaded into the editor (edit OR copy), to tell "unchanged" from
+     *  "base template switched". Not `existingDef`: that is undefined when copying. */
+    const [loadedWorkflowTemplateId, setLoadedWorkflowTemplateId] = useState<string | undefined>(undefined);
+    /** The configured template AssistantWorkflowDisplay last reported; null while only viewing. */
+    const [currentWorkflowTemplate, setCurrentWorkflowTemplate] = useState<AstWorkflow | null>(null);
 
     // ── Advanced section state ────────────────────────────────────────────
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -702,6 +760,8 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         // Data sources (existing S3 keys — pre-loaded; new uploads handled by upload UI).
         // Already-saved sources are complete, so seed them at 100 or their cards
         // would spin forever waiting on an upload that already happened.
+        savedSourceIds.current = new Set();
+        queuedScrapedDeletes.current = [];
         if (Array.isArray(def.dataSources)) {
             const existing = def.dataSources as AttachedDocument[];
             // Copy mode keeps file references but never reuses mutable source objects.
@@ -711,6 +771,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 ...source,
                 ...(sourceAssistant?.groupId && !(source as any).groupId ? { groupId: sourceAssistant.groupId } : {}),
             }));
+            savedSourceIds.current = new Set(copiedSources.map((ds) => ds.id));
             setDataSources(copiedSources);
             setDocumentState((prev) => {
                 const next = { ...prev };
@@ -747,11 +808,17 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         const skillMode = (def.data as any)?.skillSelectionMode;
         if (skillMode) setSkillSelectionMode(skillMode);
 
-        // Tools / APIs are usable configuration; integration-owned selections may
-        // be unavailable to the recipient, so those stay opt-in via a fresh copy.
-        if (Array.isArray(def.tools)) setSelectedApis(def.tools);
-        const opInfo = (def.data as any)?.operations;
-        if (Array.isArray(opInfo)) setApiInfo(opInfo);
+        // Restore the selection from data.operations — it is what chat runs and what every
+        // save has always stored. `def.tools` is only the fallback: backends that predate the
+        // fix drop it on save, so it is empty on anything they return. Integration ops run on
+        // the *user's own* connection, so a copied or shared assistant keeps them; a user who
+        // hasn't connected the integration sees it as "Not connected" in the panel.
+        const storedIntegrationOps = integrationOpsFromStoredOperations((def.data as any)?.operations);
+        if (storedIntegrationOps.length > 0) setSelectedApis(storedIntegrationOps);
+        else if (Array.isArray(def.tools)) setSelectedApis(def.tools);
+        // `data.operations` also holds the integration ops (mirrored from `tools` on save), so only
+        // the custom HTTP APIs belong in `apiInfo`; hydrating the rest would write stale copies back.
+        setApiInfo(httpApisFromStoredOperations((def.data as any)?.operations));
         const builtIn = (def.data as any)?.builtInOperations;
         if (Array.isArray(builtIn)) setBuiltInAgentTools(builtIn);
 
@@ -761,7 +828,15 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         // opsLanguageVersion 'v4' (which IS hydrated, just below) with no template
         // — silently dropping the workflow. AssistantModal.tsx:378 hydrates it too.
         const workflowTemplate = (def.data as any)?.baseWorkflowTemplateId as string | undefined;
-        if (workflowTemplate) setBaseWorkflowTemplateId(workflowTemplate);
+        if (workflowTemplate) {
+            setBaseWorkflowTemplateId(workflowTemplate);
+            // The configured copy of the base template, if the assistant has one. Hydrating it is
+            // what stops an edit from overwriting the copy with the base id on save.
+            const loadedWorkflowId = (def.data as any)?.workflowTemplateId as string | undefined;
+            setAstWorkflowTemplateId(loadedWorkflowId);
+            setLoadedWorkflowTemplateId(loadedWorkflowId);
+            setCurrentWorkflowTemplate(null);
+        }
         const workflowName = (def.data as any)?.workflowTemplateName as string | undefined;
         if (workflowTemplate && workflowName) setWorkflowTemplateName(workflowName);
 
@@ -786,19 +861,25 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         }
         const astPath = isEditMode ? (def.astPath ?? ((def.data as any)?.astPath as string | undefined)) : undefined;
         if (astPath) {
-            generatedRestrictedPath.current = astPath.toLowerCase();
+            // An internal restricted key can be reused as-is; a published name must not become a hidden key.
+            if (GENERATED_PATH_PATTERN.test(astPath)) generatedRestrictedPath.current = astPath.toLowerCase();
+            const kind = deriveAccessKind({
+                groupId: editingAssistant?.groupId ?? undefined,
+                astPath,
+                accessKind: (def.data as any)?.[ACCESS_KIND_KEY],
+            });
             const applyPathData = (astPathData?: { isPublic?: boolean; accessTo?: { users?: string[] } }) => {
-                if (astPathData?.isPublic === false) {
-                    setSubOption('specific');
-                    const accessToUsers = astPathData?.accessTo?.users;
-                    if (Array.isArray(accessToUsers)) {
-                        setEmailList(accessToUsers);
-                        alreadyAllowedEmails.current = accessToUsers;
-                    }
-                } else {
-                    setSubOption('public');
+                const accessToUsers = astPathData?.accessTo?.users;
+                if (Array.isArray(accessToUsers)) {
+                    setEmailList(accessToUsers);
+                    alreadyAllowedEmails.current = accessToUsers;
+                }
+                const published = isPublishedLink(kind, astPath);
+                setPublishEnabled(published);
+                setLinkRestricted(published && isRestrictedLink(kind, astPathData as AstPathData | undefined));
+                if (published) {
                     setSlug(astPath);
-                    // Existing public path is already registered — skip re-checking.
+                    // Existing path is already registered — skip re-checking.
                     setSlugAvailable(true);
                     setSlugCheckMessage('Current path');
                 }
@@ -992,6 +1073,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     setSlugError('Path is already in use by another assistant');
                     setSlugAvailable(false);
                 }
+            } else if (result.inUse) {
+                // Registered to someone else (e.g. a restricted link we aren't allowed to open).
+                setSlugError('Path is already in use by another assistant');
+                setSlugAvailable(false);
             } else {
                 setSlugAvailable(true);
                 setSlugCheckMessage('Available');
@@ -1005,7 +1090,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
     // Debounce public path checks; cleanup cancels the timer and supersedes in-flight work.
     useEffect(() => {
-        if (accessType !== 'managed' || subOption !== 'public') {
+        if (!pathInputActive) {
             slugCheckRequestSeq.current += 1;
             setIsCheckingSlug(false);
             return;
@@ -1021,7 +1106,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             window.clearTimeout(timer);
             slugCheckRequestSeq.current += 1;
         };
-    }, [slug, slugError, slugAvailable, accessType, subOption, checkSlugAvailability]);
+    }, [slug, slugError, slugAvailable, pathInputActive, checkSlugAvailability]);
 
     // ── Attachment download handler ───────────────────────────────────────
     /**
@@ -1169,23 +1254,60 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             (ds) => (documentState[ds.id] ?? 0) < 100 && !dataSourceErrors[ds.id]
         );
 
-    const removeDataSource = (ds: AttachedDocument) => {
-        abortUploadRef.current[ds.id]?.();
-        delete abortUploadRef.current[ds.id];
-        setDataSources((prev) => prev.filter((x) => x.id !== ds.id));
+    /**
+     * Remove sources from the editor. Takes a list so removing a whole sitemap does its
+     * `websiteUrls` bookkeeping once: a removed sitemap page is recorded as excluded (or a
+     * rescan would bring it back), and a sitemap left with no pages is dropped.
+     */
+    const removeDataSources = (removed: AttachedDocument[]) => {
+        if (removed.length === 0) return;
+        const ids = new Set(removed.map((ds) => ds.id));
+        removed.forEach((ds) => {
+            abortUploadRef.current[ds.id]?.();
+            delete abortUploadRef.current[ds.id];
+        });
+        const remaining = dataSources.filter((ds) => !ids.has(ds.id));
+        // Only when editing: a copy's sources still point at the ORIGINAL assistant's files, which
+        // must survive. (A page that was never saved has no file, so scrapedFileKey is null for it.)
+        if (isEditMode) {
+            removed.forEach((ds) => {
+                const key = scrapedFileKey(ds);
+                if (key) queuedScrapedDeletes.current.push(key);
+            });
+        }
+        setDataSources((prev) => prev.filter((x) => !ids.has(x.id)));
         setDocumentState((prev) => {
             const next = { ...prev };
-            delete next[ds.id];
+            ids.forEach((id) => { delete next[id]; });
             return next;
         });
         setDataSourceErrors((prev) => {
             const next = { ...prev };
-            delete next[ds.id];
+            ids.forEach((id) => { delete next[id]; });
             return next;
         });
-        if (isWebsiteDs(ds)) {
-            setWebsiteUrls((prev: any[]) => prev.filter((u: any) => u.url !== ds.id));
+        if (removed.some(isWebsiteDs)) {
+            setWebsiteUrls((prev: any[]) => websiteUrlsAfterRemoval(prev, removed, remaining));
         }
+    };
+
+    const removeDataSource = (ds: AttachedDocument) => removeDataSources([ds]);
+
+    /**
+     * The sitemap include/exclude manager was saved: drop the pages switched off, add the ones
+     * switched on (they are scraped by the save, like any newly added website), and record the
+     * rules on the sitemap's entry so a rescan honours them.
+     */
+    const handleSitemapEdit = (sitemapUrl: string, edit: SitemapEditResult) => {
+        setDataSources((prev) => applySitemapEdit(prev, sitemapUrl, edit, editingAssistant?.groupId ?? undefined));
+        setDocumentState((prev) => {
+            const next = { ...prev };
+            edit.urlsToRemove.forEach((url) => { delete next[url]; });
+            // A page added here has no upload to wait for; without this the save is blocked on it.
+            edit.urlsToAdd.forEach((url) => { next[url] = 100; });
+            return next;
+        });
+        setWebsiteUrls((prev) => withSitemapExclusions(prev, sitemapUrl, edit.exclusions));
     };
 
     /** Drop the failed source and reopen the file picker so it can be re-added. */
@@ -1232,13 +1354,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         if (isGroupEdit && hasPendingGroupTypeUploads(groupSettings)) return false;
         // Group settings are seeded from the group; saving without it would wipe them (group types, question).
         if (isGroupEdit && !editGroup) return false;
+        // 'I manage it' needs someone to share with, or a published link — otherwise it is just 'Just for me'.
         if (accessType === 'managed') {
             if (!featureFlags.assistantPathPublishing) return false;
-            if (subOption === 'specific') {
-                if (emailList.length === 0) return false;
-            } else if (!slug.trim() || !!validateSlug(slug) || isCheckingSlug || slugAvailable !== true) {
-                return false;
-            }
+            if (emailList.length === 0 && !(publishEnabled && !linkRestricted)) return false;
+        }
+        // A published link must be a checked, available path.
+        if (publishEnabled && featureFlags.assistantPathPublishing) {
+            if (!slug.trim() || !!validateSlug(slug) || isCheckingSlug || slugAvailable !== true) return false;
         }
         // Editing keeps the assistant's existing group, so there is no group to choose.
         if (accessType === 'collaborative' && !isGroupEdit) {
@@ -1389,14 +1512,59 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 ? (editingAssistant!.data?.assistant?.definition as AssistantDefinition | undefined)
                 : undefined;
 
-            // Persisted on the definition too: the backend's add_path only stores `astPath`, so without
-            // this a restricted ("Specific people") assistant reloads as a public URL assistant.
-            const pathAccess: AstPathData | undefined =
-                accessType === 'managed'
-                    ? subOption === 'public'
-                        ? { isPublic: true, accessTo: { amplifyGroups: [], users: [] } }
-                        : { isPublic: false, accessTo: { amplifyGroups: [], users: emailList } }
-                    : undefined;
+            // The published link (or, for 'I manage it' without one, the internal key its people open it by):
+            // kept, changed or taken down according to the "Publish at a link" setting. Without the
+            // publishing feature the setting is hidden, so the stored link stands.
+            const linkFeature = !!featureFlags.assistantPathPublishing;
+            const pathPlan = planAssistantPath({
+                kind: accessType,
+                publish: linkFeature ? publishEnabled : publishedNow,
+                linkRestricted: linkFeature ? linkRestricted : isRestrictedLink(accessType, storedAstPathData),
+                slug: linkFeature ? slug : (storedAstPath ?? ''),
+                emails: emailList,
+                generatedPath: generatedRestrictedPath.current,
+                existingPath: storedAstPath,
+                existingAstPathData: storedAstPathData,
+            });
+
+            const storedOperations = buildStoredOperations(selectedApis || [], apiInfo);
+
+            // Workflow template: store the assistant's own configured copy, not the base template
+            // (see assistant/workflowTemplateSave). `workflowTemplateIdToSave` stays undefined when
+            // no template is selected.
+            let workflowTemplateIdToSave: string | undefined;
+            if (baseWorkflowTemplateId) {
+                const decision = decideWorkflowTemplateSave({
+                    baseWorkflowTemplateId,
+                    astWorkflowTemplateId,
+                    savedWorkflowTemplateId: loadedWorkflowTemplateId,
+                    currentWorkflowTemplate,
+                });
+                if (decision.kind === 'blocked') {
+                    setSaveError(decision.message);
+                    setIsSaving(false);
+                    setLoadingMessage('');
+                    return;
+                }
+                if (decision.kind === 'register') {
+                    setLoadingMessage('Registering workflow template…');
+                    const registered = await registerAstWorkflowTemplate(
+                        decision.workflow.template as any,
+                        decision.workflow.name,
+                        decision.workflow.description,
+                    );
+                    if (!(registered?.success && registered.data?.templateId)) {
+                        setSaveError('Unable to register the workflow template. Please try again.');
+                        setIsSaving(false);
+                        setLoadingMessage('');
+                        return;
+                    }
+                    workflowTemplateIdToSave = registered.data.templateId;
+                    setLoadingMessage(isEditMode ? 'Saving assistant…' : 'Creating assistant…');
+                } else {
+                    workflowTemplateIdToSave = decision.workflowTemplateId;
+                }
+            }
 
             const def: AssistantDefinition = {
                 name: name.trim(),
@@ -1424,11 +1592,13 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     ...(integrationDataSources ? { integrationDriveData: integrationDataSources } : {}),
                     ...(selectedSkills.length > 0 ? { skills: selectedSkills, skillSelectionMode } : {}),
                     ...(builtInAgentTools.length > 0 ? { builtInOperations: builtInAgentTools } : {}),
-                    ...(apiInfo.length > 0 ? { operations: apiInfo } : {}),
+                    // Chat reads tools from data.operations, never from definition.tools (see
+                    // buildStoredOperations), so the selected integration ops must be mirrored here.
+                    ...(storedOperations.length > 0 ? { operations: storedOperations } : {}),
                     // Workflow template — forces v4 ops language; overrides opsLanguageVersion
                     ...(baseWorkflowTemplateId ? {
                         baseWorkflowTemplateId,
-                        workflowTemplateId: baseWorkflowTemplateId,
+                        workflowTemplateId: workflowTemplateIdToSave ?? baseWorkflowTemplateId,
                         ...(workflowTemplateName ? { workflowTemplateName } : {}),
                         opsLanguageVersion: 'v4',
                     } : { opsLanguageVersion }),
@@ -1450,12 +1620,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     ...(isGroupEdit && groupId
                         ? buildGroupData(groupSettings, groupContext, groupId, existingDef?.data as Record<string, any> | undefined)
                         : {}),
-                    ...(pathAccess ? { astPathData: pathAccess } : {}),
+                    ...pathPlan.data,
+                    // A path alone reads back as 'I manage it'; this keeps a published 'Just for me' one private.
+                    ...(accessType === 'private' && pathPlan.hasPath ? { [ACCESS_KIND_KEY]: 'private' } : {}),
                 } as any,
                 // The restricted path is an internal lookup key; only public access exposes a user-chosen URL.
-                ...(accessType === 'managed'
-                    ? { astPath: subOption === 'public' ? slug.toLowerCase() : generatedRestrictedPath.current }
-                    : {}),
+                ...(pathPlan.data.astPath ? { astPath: pathPlan.data.astPath } : {}),
             };
 
             // 4b. Icon. `data` is rebuilt above, so the icon is written explicitly — and absent once removed.
@@ -1468,6 +1638,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             const schedulesEnabled = !!featureFlags.scheduledTasks;
             const schedulesBeforeSave = schedulesEnabled && isEditMode && !!existingDef?.assistantId;
             let scheduleFailures: string[] = [];
+            let linkFailed = false;
             const syncSchedules = (assistantIdForTasks: string) =>
                 syncRescanTasks(
                     {
@@ -1544,6 +1715,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 void Promise.allSettled(staleIconKeys.map((key) => deleteFile(key)));
             }
 
+            // Scraped pages the user removed are orphans now that the save went through. Skip any file the
+            // saved assistant still uses; a failed delete only leaves an orphan, so it never blocks the save.
+            const staleScrapedKeys = scrapedFilesToDelete(queuedScrapedDeletes.current, (def.dataSources ?? []) as AttachedDocument[]);
+            queuedScrapedDeletes.current = [];
+            if (staleScrapedKeys.length > 0) {
+                void Promise.allSettled(staleScrapedKeys.map((key) => deleteFile(key)));
+            }
+
             // 5b. A new assistant's refresh tasks, now that it has an id. Their ids belong on the
             // assistant, so it is saved once more — only when there is something to record.
             if (schedulesEnabled && !schedulesBeforeSave && assistantId) {
@@ -1591,37 +1770,27 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 }
             }
 
-            // 6b. Register an internal restricted path or the user-chosen public URL.
-            if (accessType === 'managed') {
-                const formattedPath = subOption === 'public' ? slug.toLowerCase() : generatedRestrictedPath.current!;
-                if (subOption === 'public') {
-                    setLoadingMessage(`Publishing assistant to /assistants/${formattedPath}…`);
-                }
-                const astPathData = pathAccess!;
-
+            // 6b. Register the new link (or audience). The save above kept the old path (if any), so a failure
+            // leaves the assistant exactly as it was published; the assistant itself is saved — and, when new,
+            // now exists — so carry on and say so rather than abort and let a retry create a second copy.
+            if (pathPlan.register) {
+                const { path: newPath, astPathData: newPathData } = pathPlan.register;
+                if (newPathData.isPublic) setLoadingMessage(`Publishing assistant to /assistants/${newPath}…`);
                 try {
                     const pathResult = await addAssistantPath(
                         assistantId,
-                        formattedPath,
-                        undefined,
-                        astPathData.isPublic,
-                        astPathData.accessTo
+                        newPath,
+                        groupId ?? undefined,
+                        newPathData.isPublic,
+                        newPathData.accessTo,
                     );
-                    if (!pathResult.success) {
-                        setSaveError('Unable to save assistant access settings. Please try again.');
-                        setIsSaving(false);
-                        setLoadingMessage('');
-                        return;
-                    }
-                    def.astPath = formattedPath;
-                    (def.data as any).astPath = formattedPath;
-                    (def.data as any).astPathData = astPathData;
+                    if (!pathResult?.success) throw new Error(pathResult?.message ?? 'add path failed');
+                    def.astPath = newPath;
+                    (def.data as any).astPath = newPath;
+                    (def.data as any).astPathData = newPathData;
                 } catch (pathErr) {
                     console.error('Error saving assistant path:', pathErr);
-                    setSaveError('Unable to save assistant access settings. Please try again.');
-                    setIsSaving(false);
-                    setLoadingMessage('');
-                    return;
+                    linkFailed = true;
                 }
             }
 
@@ -1642,7 +1811,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             await handleUpdateAssistantPrompt(aPrompt, prompts, homeDispatch, selectedAssistant);
 
             // 7b. "Specific people" must reach each person's Shared-with-me, not just the path allow-list.
-            if (accessType === 'managed' && subOption === 'specific') {
+            if (accessType === 'managed') {
                 const known = new Set(alreadyAllowedEmails.current.map((e) => e.toLowerCase()));
                 const newRecipients = emailList.filter((e) => !known.has(e.toLowerCase()));
                 if (newRecipients.length > 0) {
@@ -1696,6 +1865,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             }
 
             setLoadingMessage('');
+            if (linkFailed) {
+                toast.error('The assistant was saved, but its link couldn’t be updated and may be unavailable. Open it and save again to retry.', { duration: 8000 });
+            }
             if (scheduleFailures.length > 0) {
                 toast.error('The assistant was saved, but its refresh schedule couldn’t be set up. Open it and save again to retry.', { duration: 8000 });
             }
@@ -1707,6 +1879,47 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             setLoadingMessage('');
         }
     };
+
+    /** "Publish at a link" for the given access type — the same switch everywhere, worded for who can open it. */
+    const linkSectionFor = (kind: AccessModel) => featureFlags.assistantPathPublishing ? (
+        <AssistantPublishLinkSection
+            enabled={publishEnabled}
+            onEnabledChange={setPublishEnabled}
+            description={
+                kind === 'collaborative'
+                    ? 'Give this assistant its own page at a short address. Members of this group can open it from the link.'
+                    : kind === 'managed'
+                        ? 'Give this assistant its own page at a short address. People who open it can use it but can’t edit it.'
+                        : 'Give this assistant its own page at a short address. Only you can edit it.'
+            }
+            audience={kind === 'collaborative' ? undefined : {
+                restricted: linkRestricted,
+                onChange: setLinkRestricted,
+                anyone: {
+                    title: 'Anyone with the link',
+                    description: 'Anyone you give the link to can open and use this assistant.',
+                },
+                restrictedOption: kind === 'managed'
+                    ? {
+                        title: 'Only people I’ve shared it with',
+                        description: 'You and the people listed above. Everyone else is turned away.',
+                    }
+                    : {
+                        title: 'Only me',
+                        description: 'A short, stable address for your own use. Nobody else can open it.',
+                    },
+            }}
+            isPublishedNow={publishedNow}
+            field={{
+                value: slug,
+                onChange: handleSlugChange,
+                error: slugError,
+                checking: isCheckingSlug,
+                available: slugAvailable,
+                availableMessage: slugCheckMessage,
+            }}
+        />
+    ) : undefined;
 
     /** Folders + files picked from every drive service, for the method button. */
     const driveSelectionCount = totalSelectionCount(asDriveSelection(integrationDataSources));
@@ -1774,7 +1987,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
                 const numCards = visibleCards.length;
                 const activeIdx = visibleCards.findIndex((c) => c.value === accessType);
-                const showPanel = accessType !== 'private';
+                const showPanel = accessType !== 'private' || !!linkSectionFor('private');
 
                 // Arrow centers under the active card (using card-center percentage)
                 // Formula: (activeIdx + 0.5) / numCards * 100%
@@ -1891,112 +2104,42 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                         padding: 16,
                                     }}
                                 >
-                                    {/* ── Managed URL config ─────────────────── */}
+                                    {/* ── Just for me: only the optional link ─────────────── */}
+                                    {accessType === 'private' && linkSectionFor('private')}
+
+                                    {/* ── I manage it: who it is shared with, then the optional link ─────── */}
                                     {accessType === 'managed' && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                                            <SegmentedControl
-                                                items={[
-                                                    { id: 'specific', label: 'Specific people' },
-                                                    { id: 'public', label: 'Anyone with the link' },
-                                                ]}
-                                                value={subOption}
-                                                onChange={(value) => setSubOption(value as ManagedSubOption)}
-                                                aria-label="Managed assistant access"
-                                            />
-
-                                            {subOption === 'specific' && (
-                                                <div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                                                        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                            Who has access <span style={{ color: '#e05252' }}>*</span>
-                                                        </label>
-                                                        <InfoTooltip
-                                                            text="People you add can use this assistant, view its instructions, and make a copy they can edit. They can’t edit the original. Choose a Group assistant if others need to edit or manage it."
-                                                            ariaLabel="Who has access permissions"
-                                                            maxWidth={320}
-                                                        />
-                                                    </div>
-                                                    <EmailChipsInput
-                                                        selected={emailList}
-                                                        onChange={setEmailList}
-                                                        allEmails={Object.values(amplifyUsers as Record<string, string>)}
-                                                        currentUserEmail={session?.user?.email ?? undefined}
-                                                        fontSize={12}
-                                                        inputId="assistant-access-emails"
-                                                        ariaLabel="Who has access — email addresses"
-                                                    />
-                                                    <SignInRequiredNote action="access" fontSize={11} />
-                                                </div>
-                                            )}
-
-                                            {subOption === 'public' && (
-                                                <div>
-                                                    <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                                                        URL path<span style={{ color: '#e05252' }}> *</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                                                    <label htmlFor="assistant-access-emails" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                                        Share with specific people
                                                     </label>
-                                                    <div style={{ position: 'relative' }}>
-                                                        <input
-                                                            type="text"
-                                                            value={slug}
-                                                            onChange={(e) => handleSlugChange(e.target.value)}
-                                                            placeholder="my-assistant"
-                                                            maxLength={40}
-                                                            style={{
-                                                                ...fieldStyle,
-                                                                fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                                                                fontSize: 13,
-                                                                paddingRight: 34,
-                                                                borderColor: slugError
-                                                                    ? '#e05252'
-                                                                    : slugAvailable === true
-                                                                        ? '#3aa764'
-                                                                        : 'var(--border-subtle)',
-                                                            }}
-                                                        />
-                                                        {/* Inline status icon */}
-                                                        {slug && (
-                                                            <span
-                                                                style={{
-                                                                    position: 'absolute',
-                                                                    right: 10,
-                                                                    top: '50%',
-                                                                    transform: 'translateY(-50%)',
-                                                                    lineHeight: 0,
-                                                                    pointerEvents: 'none',
-                                                                }}
-                                                            >
-                                                                {isCheckingSlug ? (
-                                                                    <IconLoader2
-                                                                        size={14}
-                                                                        className="motion-safe:animate-spin motion-reduce:animate-none"
-                                                                        style={{ color: 'var(--text-muted)' }}
-                                                                    />
-                                                                ) : slugAvailable === true ? (
-                                                                    <IconCheck size={14} style={{ color: '#3aa764' }} />
-                                                                ) : slugError ? (
-                                                                    <IconAlertTriangle size={14} style={{ color: '#e05252' }} />
-                                                                ) : null}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {/* Status messages below the input */}
-                                                    {slugError ? (
-                                                        <p style={{ fontSize: 11, color: '#e05252', margin: '4px 0 0' }}>{slugError}</p>
-                                                    ) : isCheckingSlug ? (
-                                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                                                            Checking availability…
-                                                        </p>
-                                                    ) : slugAvailable === true ? (
-                                                        <p style={{ fontSize: 11, color: '#3aa764', margin: '4px 0 0' }}>
-                                                            {slugCheckMessage} — will be at {typeof window !== 'undefined' ? window.location.origin : ''}/assistants/{slug}
-                                                        </p>
-                                                    ) : slug && !slugError && slugAvailable === null ? (
-                                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                                                            We’ll check availability after you stop typing.
-                                                        </p>
-                                                    ) : null}
+                                                    <InfoTooltip
+                                                        text="People you add can use this assistant, view its instructions, and make a copy they can edit. They can’t edit the original. Choose a Group assistant if others need to edit or manage it."
+                                                        ariaLabel="Who has access permissions"
+                                                        maxWidth={320}
+                                                    />
                                                 </div>
-                                            )}
+                                                <EmailChipsInput
+                                                    selected={emailList}
+                                                    onChange={setEmailList}
+                                                    allEmails={Object.values(amplifyUsers as Record<string, string>)}
+                                                    currentUserEmail={session?.user?.email ?? undefined}
+                                                    fontSize={12}
+                                                    inputId="assistant-access-emails"
+                                                    ariaLabel="Share with specific people — email addresses"
+                                                />
+                                                <SignInRequiredNote action="access" fontSize={11} />
+                                                {emailList.length === 0 && !(publishEnabled && !linkRestricted) && (
+                                                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                                                        Add at least one person, or publish at a link below that anyone can open.
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div style={{ paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+                                                {linkSectionFor('managed')}
+                                            </div>
                                         </div>
                                     )}
 
@@ -2234,6 +2377,13 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                     </div>
                                                 </div>
                                             )}
+
+                                            {/* Optional: give the new team assistant its own page */}
+                                            {linkSectionFor('collaborative') && (
+                                                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+                                                    {linkSectionFor('collaborative')}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>
@@ -2396,38 +2546,36 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                         Sits above the add-source controls and keeps each card in
                         a stable grid slot from selection through ready, so state
                         changes never reflow the list. */}
-                    {dataSources.length > 0 && (
-                        <div style={{ marginBottom: 14 }}>
-                            {/* 12px clearance: the card's × overlaps 8px above its top edge */}
-                            <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', margin: '0 0 12px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Attached ({dataSources.length})
-                            </p>
-                            <DataSourceCardGrid label="Attached data sources">
-                                {dataSources.map((ds) => {
-                                    const status = dataSourceStatus(ds);
-                                    const progress = documentState[ds.id];
-                                    return (
-                                        <DataSourceCard
-                                            key={ds.id}
-                                            name={ds.name}
-                                            type={ds.type}
-                                            status={status}
-                                            progress={
-                                                status === 'uploading' && typeof progress === 'number'
-                                                    ? progress
-                                                    : undefined
-                                            }
-                                            error={dataSourceErrors[ds.id]}
-                                            onRemove={() => removeDataSource(ds)}
-                                            onCancelUpload={() => removeDataSource(ds)}
-                                            onRetry={isWebsiteDs(ds) ? undefined : () => retryDataSource(ds)}
-                                            onClick={status === 'ready' && !downloadingId ? () => handleDataSourceDownload(ds) : undefined}
-                                            downloading={downloadingId === ds.id}
-                                        />
-                                    );
-                                })}
-                            </DataSourceCardGrid>
-                        </div>
+                    {(dataSources.length > 0 || driveSelectionCount > 0) && (
+                        <AttachedDataSources
+                            sources={dataSources}
+                            statusOf={dataSourceStatus}
+                            progressOf={(ds) => documentState[ds.id]}
+                            errorOf={(ds) => dataSourceErrors[ds.id]}
+                            savedIds={savedSourceIds.current}
+                            groupId={editingAssistant?.groupId ?? undefined}
+                            downloadingId={downloadingId}
+                            onRemove={removeDataSource}
+                            onRemoveMany={removeDataSources}
+                            onRetry={retryDataSource}
+                            onOpen={handleDataSourceDownload}
+                            exclusionsFor={(sitemapUrl) =>
+                                mergeSitemapExclusions(
+                                    websiteUrls,
+                                    sitemapUrl,
+                                    dataSources.filter((ds) => ds.metadata?.fromSitemap === sitemapUrl),
+                                )
+                            }
+                            onSitemapEdit={handleSitemapEdit}
+                            drive={{
+                                // Passed through as-is (not `?? {}`) so an unchanged selection keeps its identity.
+                                selection: integrationDataSources ? asDriveSelection(integrationDataSources) : undefined,
+                                loaded: initIntegrationDataSources.current ? asDriveSelection(initIntegrationDataSources.current) : undefined,
+                                onManage: featureFlags.integrations && accessType !== 'collaborative'
+                                    ? () => setActiveDataSourceMethod('drive')
+                                    : undefined,
+                            }}
+                        />
                     )}
 
                     {/* ── Method selector row ──────────────────────────────── */}
@@ -2441,9 +2589,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                 ...(featureFlags.websiteUrls
                                     ? [{ key: 'website', label: 'Website URL', icon: <IconWorldWww size={15} /> }]
                                     : []),
-                                // The count keeps drive picks visible once the
-                                // panel is collapsed — they are the one kind of
-                                // attachment that gets no card in the grid above.
+                                // The count keeps the number of drive picks visible
+                                // while the panel is collapsed; the "Attached" list
+                                // above carries the full recap of what they became.
                                 ...(featureFlags.integrations && accessType !== 'collaborative'
                                     ? [{
                                         key: 'drive',
@@ -2676,6 +2824,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                         groupTypes: groupContext.groupTypes,
                                         supportConvAnalysis: groupContext.supportConvAnalysis,
                                     }}
+                                    urlSection={linkSectionFor('collaborative')}
                                 />
                             </CapabilityCard>
                         </div>
@@ -2712,11 +2861,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                     icon={<IconPlugConnected size={18} />}
                                     title="Tools & APIs"
                                     onFirstActive={activateToolsCard}
-                                    badge={
-                                        selectedApis.length + builtInAgentTools.length > 0
-                                            ? `${selectedApis.length + builtInAgentTools.length} configured`
-                                            : undefined
-                                    }
+                                    badge={describeToolSelection(selectedApis, availableApis, builtInAgentTools.length)}
                                 >
                                     {/*
                                      * `apiInfo` is intentionally NOT passed: the old panel declared
@@ -2756,9 +2901,32 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                             setBaseWorkflowTemplateId(id || undefined);
                                             // The old name belongs to the old template; the picker reports the new one.
                                             setWorkflowTemplateName(undefined);
+                                            // A configured copy belongs to the old base template.
+                                            setAstWorkflowTemplateId(undefined);
+                                            setCurrentWorkflowTemplate(null);
                                         }}
                                         onTemplateNameResolved={setWorkflowTemplateName}
                                     />
+
+                                    {/*
+                                     * Where the user configures the template: customizable steps and
+                                     * parameters on first setup, a read-only view plus "Edit Template" for a
+                                     * saved one. It reports the configured template through
+                                     * onWorkflowTemplateUpdate, and handleSave registers it as the assistant's
+                                     * own copy. Without this the base template was saved unconfigured.
+                                     * Classic component (guide §1); the wrapper supplies the inherited text colour.
+                                     */}
+                                    {baseWorkflowTemplateId && (
+                                        <div style={{ marginTop: 12, color: 'var(--text-primary)' }}>
+                                            <AssistantWorkflowDisplay
+                                                baseWorkflowTemplateId={baseWorkflowTemplateId}
+                                                astWorkflowTemplateId={astWorkflowTemplateId}
+                                                onWorkflowTemplateUpdate={(workflowTemplate) => {
+                                                    setCurrentWorkflowTemplate(workflowTemplate);
+                                                }}
+                                            />
+                                        </div>
+                                    )}
                                 </CapabilityCard>
                             )}
 

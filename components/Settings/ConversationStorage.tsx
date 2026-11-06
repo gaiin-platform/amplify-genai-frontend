@@ -5,7 +5,7 @@ import { IconCloud, IconMessage,
 } from '@tabler/icons-react';
 
 import HomeContext from '@/components/Home/home.context';
-import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
+import { handleStorageSelection, reconcileSelectedAfterStorageChange, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from "@/types/conversationStorage";
 import { saveConversations } from '@/utils/app/conversation';
 import React from 'react';
@@ -120,15 +120,15 @@ export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendi
               total: total,
             }
           });
-        }
+        },
+        () => conversationsRef.current, // the live list: chats created while this runs must survive
       );
 
       if (updatedConversations) {
         homeDispatch({field: 'conversations', value: updatedConversations});
         saveConversations(updatedConversations);
         if (selectedConversation) {
-          const updateSelected = updatedConversations.find((c) => c.id === selectedConversation.id);
-          homeDispatch({field: 'selectedConversation', value: updateSelected});
+          homeDispatch({field: 'selectedConversation', value: reconcileSelectedAfterStorageChange(selectedConversation, updatedConversations)});
         }
       }
 

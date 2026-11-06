@@ -10,6 +10,8 @@ export type ArtifactLibraryRecord = Omit<Artifact, 'contents'> & {
   sharedBy?: string;
   /** Server-stamped ISO save time (UTC). Absent on artifacts saved before it existed. */
   savedAt?: string;
+  /** The chat's artifactId, shared by every version of one artifact. Absent on older saves. */
+  lineageId?: string;
 };
 
 export type ArtifactSourceMatch = {
@@ -35,6 +37,17 @@ export type ArtifactLibraryItem = {
   source: ArtifactSourceMatch;
   /** When it was generated, for sorting and display. Undefined if no date can be read. */
   created?: ArtifactCreated;
+  /**
+   * Every saved version of this artifact, oldest first — this item is the latest one.
+   * The Library shows one row per artifact; older versions are reached from the viewer.
+   */
+  versions: ArtifactLibraryItem[];
+  /**
+   * What tied `versions` together: a lineage (saved or from a loaded chat) is proof they
+   * are one artifact; a shared name is only a guess, so callers should not act on the
+   * whole stack (e.g. rename it) on the strength of it.
+   */
+  groupedBy?: 'lineage' | 'name' | 'record';
 };
 
 export type ArtifactCreated = {
@@ -310,6 +323,16 @@ export function artifactCreated(artifact: Partial<ArtifactLibraryRecord>): Artif
   return undefined;
 }
 
+/** Date (and time, when the record has one) an artifact was generated. */
+export function formatArtifactCreated(created?: ArtifactCreated): { date: string; time: string; iso: string; title: string } | null {
+  if (!created) return null;
+  const when = new Date(created.ms);
+  if (Number.isNaN(when.getTime())) return null;
+  const date = when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const time = created.hasTime ? when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
+  return { date, time, iso: when.toISOString(), title: 'Generated ' + date + (time ? ' at ' + time : '') };
+}
+
 /** 2 = has an exact time, 1 = date only, 0 = no readable date. */
 const artifactDateTier = (item: ArtifactLibraryItem): number =>
   item.created ? (item.created.hasTime ? 2 : 1) : 0;
@@ -335,11 +358,94 @@ export function sortArtifactLibraryItemsNewestFirst(items: ArtifactLibraryItem[]
     .map(({ item }) => item);
 }
 
+const versionRefKey = (name: unknown, createdAt: unknown, version: unknown) =>
+  `${String(name ?? '')}|${String(createdAt ?? '')}|${Number(version)}`;
+
+/**
+ * Saved records from before the server stored `lineageId` can still be tied to their
+ * artifact through any loaded chat that holds it: a chat lists every version under the
+ * artifact's id, and each version matches its saved record by name + createdAt + version
+ * (see artifactRename). Refs that point at more than one artifact are left out.
+ */
+function lineageIndexFromConversations(conversations: Conversation[]): Map<string, string> {
+  const index = new Map<string, string>();
+  const ambiguous = new Set<string>();
+  for (const conversation of conversations) {
+    for (const [artifactId, versions] of Object.entries(conversation.artifacts ?? {})) {
+      if (!Array.isArray(versions)) continue;
+      for (const version of versions) {
+        const ref = versionRefKey(version.name, version.createdAt, version.version);
+        const existing = index.get(ref);
+        if (existing === undefined) index.set(ref, artifactId);
+        else if (existing !== artifactId) ambiguous.add(ref);
+      }
+    }
+  }
+  ambiguous.forEach((ref) => index.delete(ref));
+  return index;
+}
+
+/**
+ * What ties the saved versions of one artifact together — the chat's artifact id, which
+ * every version shares even when an edit gives it a new title. Newer saves carry it as
+ * `lineageId`; older ones get it from a loaded chat when possible, else fall back to the
+ * name (the Rename button renames every version, so it stays shared). A copy someone
+ * shared is kept apart from your own.
+ */
+export function artifactGroupKey(artifact: Partial<ArtifactLibraryRecord>, chatLineage?: string): string {
+  const owner = typeof artifact.sharedBy === 'string' ? artifact.sharedBy : '';
+  const lineage = typeof artifact.lineageId === 'string' && artifact.lineageId ? artifact.lineageId : chatLineage;
+  if (lineage) return `lineage:${owner}:${lineage}`;
+  const name = typeof artifact.name === 'string' ? artifact.name.trim().toLowerCase() : '';
+  if (name) return `name:${owner}:${name}`;
+  return `record:${artifactStableKey(artifact)}`;
+}
+
+const versionNumber = (item: ArtifactLibraryItem): number => Number(item.artifact.version) || 0;
+/**
+ * One item per artifact: its highest version, with every version attached. Newest first.
+ *
+ * Saves without a lineage are tied together by name, which can also catch unrelated
+ * artifacts that share a title. One artifact never has two records of the same version,
+ * so a repeated version number starts a separate stack.
+ */
+export function groupArtifactLibraryItems(
+  items: ArtifactLibraryItem[],
+  conversations: Conversation[] = [],
+): ArtifactLibraryItem[] {
+  const chatLineage = lineageIndexFromConversations(conversations);
+  // Map insertion order follows the newest-first sort, so each group sits where its
+  // most recently saved version would.
+  const groups = new Map<string, ArtifactLibraryItem[]>();
+  for (const item of sortArtifactLibraryItemsNewestFirst(items)) {
+    const { name, createdAt, version } = item.artifact;
+    const baseKey = artifactGroupKey(item.artifact, chatLineage.get(versionRefKey(name, createdAt, version)));
+    let key = baseKey;
+    if (baseKey.startsWith('name:')) {
+      for (let n = 2; groups.get(key)?.some((other) => versionNumber(other) === versionNumber(item)); n++) {
+        key = `${baseKey}#${n}`;
+      }
+    }
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else groups.set(key, [item]);
+  }
+
+  return Array.from(groups.entries()).map(([key, group]) => {
+    const groupedBy = key.startsWith('lineage:') ? 'lineage' : key.startsWith('name:') ? 'name' : 'record';
+    // Equal versions (should not happen) fall back to save time so the newest is last.
+    const versions = group
+      .map((item) => ({ ...item, versions: [] }))
+      .sort((a, b) => versionNumber(a) - versionNumber(b) || (a.created?.ms ?? 0) - (b.created?.ms ?? 0));
+    return { ...versions[versions.length - 1], versions, groupedBy };
+  });
+}
+
 export function buildArtifactLibraryItems(
   rawArtifacts: unknown,
   conversations: Conversation[] = [],
 ): ArtifactLibraryItem[] {
-  const items = normalizeArtifactRecords(rawArtifacts).map((artifact) => {
+  const items = normalizeArtifactRecords(rawArtifacts).map((artifact): ArtifactLibraryItem => {
     const content = decodeArtifactContents(artifact.contents);
     const hasContent = isUsableArtifactContent(content);
     const declared = resolveNUIType(artifact.type);
@@ -353,9 +459,10 @@ export function buildArtifactLibraryItems(
       nuiType,
       source: findArtifactSource(artifact, conversations),
       created: artifactCreated(artifact),
+      versions: [],
     };
   });
-  return sortArtifactLibraryItemsNewestFirst(items);
+  return groupArtifactLibraryItems(items, conversations);
 }
 
 /**

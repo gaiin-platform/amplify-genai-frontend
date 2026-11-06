@@ -1146,6 +1146,13 @@ const normalizeCardText = (raw?: string): string | undefined => {
   return flat || undefined;
 };
 
+const savedToolCount = (def: Assistant['definition']): number => {
+  const data = (def.data ?? {}) as Record<string, unknown>;
+  const ops = Array.isArray(data.operations) ? data.operations.length : 0;
+  const builtIns = Array.isArray(data.builtInOperations) ? data.builtInOperations.length : 0;
+  return ops + builtIns > 0 ? ops + builtIns : (def.tools ?? []).length;
+};
+
 const assistantCardInfo = (
   a: Assistant,
   resolveModelName: (id?: string) => string | undefined,
@@ -1162,7 +1169,8 @@ const assistantCardInfo = (
     description: (def.description ?? '').trim() || undefined,
     instructions: normalizeCardText(def.instructions),
     tags: (def.tags ?? []).filter(Boolean),
-    toolCount: (def.tools ?? []).length,
+    // Count data.operations: older backends never stored `definition.tools`. It is the fallback.
+    toolCount: savedToolCount(def),
     modelName: resolveModelName(def.data?.model),
   };
 };

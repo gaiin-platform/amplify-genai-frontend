@@ -84,6 +84,41 @@ export function countNodes(node: LayeredAssistantNode, type: 'router' | 'leaf'):
     return self + (isRouterNode(node) ? node.children.reduce((sum, c) => sum + countNodes(c, type), 0) : 0);
 }
 
+/** Ids of every proper ancestor of `id`, root first. Empty for the root or an unknown id. */
+export function ancestorIds(root: RouterNode, id: string): string[] {
+    const path: string[] = [];
+    const walk = (node: LayeredAssistantNode): boolean => {
+        if (node.id === id) return true;
+        if (!isRouterNode(node)) return false;
+        path.push(node.id);
+        if (node.children.some(walk)) return true;
+        path.pop();
+        return false;
+    };
+    return walk(root) ? path : [];
+}
+
+export interface OutlineRow {
+    node: LayeredAssistantNode;
+    depth: number;
+    /** Parent chain, root first (`ancestors[k]` is the ancestor at depth k). */
+    ancestors: string[];
+}
+
+/** The rows the outline shows, in order: a collapsed parent stays visible but its subtree is skipped. */
+export function visibleRows(root: RouterNode, collapsed: ReadonlySet<string>): OutlineRow[] {
+    const rows: OutlineRow[] = [];
+    const walk = (node: LayeredAssistantNode, depth: number, ancestors: string[]) => {
+        rows.push({ node, depth, ancestors });
+        if (isRouterNode(node) && !collapsed.has(node.id)) {
+            const next = [...ancestors, node.id];
+            node.children.forEach((c) => walk(c, depth + 1, next));
+        }
+    };
+    walk(root, 0, []);
+    return rows;
+}
+
 /** Every router in tree order (root first). */
 export function allRouters(root: RouterNode): RouterNode[] {
     const out: RouterNode[] = [];

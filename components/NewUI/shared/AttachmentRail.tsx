@@ -26,12 +26,27 @@ interface AttachmentRailProps {
   onRetry?: (id: string) => void;
   /** Called when the user restores an eligible clipboard paste into the composer. */
   onEdit?: (id: string) => void;
+  /** Show a divider along the bottom edge (set while the text area is scrolled). */
+  showDivider?: boolean;
 }
 
 const DEFAULT_RAIL_HEIGHT = 176; // px — fixed single-row height for file/image cards
 const PASTE_RAIL_HEIGHT = 256; // px — fits the 240px editable paste card plus insets
 const EASE_OUT = 'cubic-bezier(.2,.8,.2,1)';
 const EASE_IN = 'cubic-bezier(.4,0,1,1)';
+/** Room for a classic (non-overlay) horizontal scrollbar so it never eats into the cards. */
+const SCROLLBAR_ALLOWANCE = 8; // px
+
+/**
+ * Full height of the open rail (cards + insets + scrollbar allowance). Composers
+ * use this to size the card's minimum height so the text area always keeps room.
+ */
+export function attachmentRailHeight(attachments: UIAttachment[], editable = true): number {
+  const base = attachments.some((a) => a.kind === 'paste' && !a.sourceMessageId && editable)
+    ? PASTE_RAIL_HEIGHT
+    : DEFAULT_RAIL_HEIGHT;
+  return base + SCROLLBAR_ALLOWANCE;
+}
 
 /** Check if the user has asked for reduced motion. */
 function prefersReducedMotion() {
@@ -47,6 +62,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
   onPreview,
   onRetry,
   onEdit,
+  showDivider = false,
 }) => {
   const railRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
@@ -60,9 +76,7 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
   // Whether the rail is currently visible (has or had cards, allowing collapse animation)
   const [railOpen, setRailOpen] = useState(false);
   const reduced = prefersReducedMotion();
-  const railHeight = attachments.some((a) => a.kind === 'paste' && !a.sourceMessageId && onEdit)
-    ? PASTE_RAIL_HEIGHT
-    : DEFAULT_RAIL_HEIGHT;
+  const railHeight = attachmentRailHeight(attachments, Boolean(onEdit));
 
   // ── Entry animation ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -154,15 +168,25 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
   if (!railOpen && attachments.length === 0) return null;
 
   return (
+    // Outer region: fixed height (never shrinks → cards are never clipped), own
+    // opaque background, and the divider. Kept separate from the scroller below
+    // because that one has a mask-image, which would clip the divider's shadow.
+    <div
+      data-attachment-rail=""
+      style={{
+        position: 'relative',
+        zIndex: 2,
+        flex: 'none',
+        background: 'var(--bg-composer)',
+        height: railOpen ? railHeight : 0,
+        transition: reduced ? 'none' : `height 220ms ${EASE_OUT}`,
+      }}
+    >
     <div
       ref={railRef}
-      className="overflow-x-auto overflow-y-hidden"
+      // Many cards scroll sideways; the row never grows taller.
+      className="h-full overflow-x-auto overflow-y-hidden"
       style={{
-        height: railOpen ? railHeight : 0,
-        transition: reduced
-          ? 'none'
-          : `height 220ms ${railOpen ? EASE_OUT : EASE_OUT}`,
-        paddingBottom: railOpen ? 6 : 0,
         // Fade right edge when scrollable (spec §3)
         maskImage:
           'linear-gradient(to right, #000 0, #000 calc(100% - 32px), transparent 100%)',
@@ -192,6 +216,25 @@ export const AttachmentRail: React.FC<AttachmentRailProps> = ({
           />
         ))}
       </ul>
+    </div>
+      {/* Divider — only while the text area below is scrolled, to show the text
+          continues underneath. Purely visual (pointer-events none), lives
+          inside the rail's own box, doesn't affect layout. */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          height: 1,
+          background: 'var(--border-subtle)',
+          boxShadow: '0 4px 8px -2px rgba(0,0,0,0.22)',
+          opacity: showDivider && railOpen ? 1 : 0,
+          transition: reduced ? 'none' : 'opacity 150ms ease-out',
+          pointerEvents: 'none',
+        }}
+      />
     </div>
   );
 };

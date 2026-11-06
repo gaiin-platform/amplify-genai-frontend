@@ -47,6 +47,7 @@ import {
     IconX,
 } from '@tabler/icons-react';
 import { getAttachmentMime } from './attachmentTypes';
+import { EmbeddingReprocessButton, EmbeddingStatusText, EmbeddingStatusView } from './EmbeddingStatus';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -83,6 +84,14 @@ export interface DataSourceCardProps {
      * to "Preparing download…" to signal an async download operation.
      */
     downloading?: boolean;
+    /**
+     * Embedding/RAG status of an already-saved file, shown after the type label
+     * ("Document · Completed"). Only shown in the ready state. Omit for sources
+     * the server has not seen yet.
+     */
+    embedding?: EmbeddingStatusView | null;
+    /** Offer a "regenerate embeddings" button. Only shown in the ready state. */
+    onReprocess?: () => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +213,8 @@ export const DataSourceCard: React.FC<DataSourceCardProps> = ({
     onRetry,
     onClick,
     downloading = false,
+    embedding,
+    onReprocess,
 }) => {
     const busy = (status === 'uploading' || status === 'processing') && !downloading;
     const isError = status === 'error' && !downloading;
@@ -227,6 +238,7 @@ export const DataSourceCard: React.FC<DataSourceCardProps> = ({
     const dismiss = busy ? onCancelUpload : onRemove;
     const dismissLabel = busy ? `Cancel upload of ${displayName}` : `Remove ${displayName}`;
     const showDismiss = Boolean(onRemove || onCancelUpload);
+    const showEmbedding = status === 'ready' && !downloading && !!embedding;
 
     return (
         <li
@@ -322,8 +334,19 @@ export const DataSourceCard: React.FC<DataSourceCardProps> = ({
                         }}
                     >
                         {subtitle}
+                        {showEmbedding && embedding && (
+                            <>
+                                <span aria-hidden="true"> · </span>
+                                <EmbeddingStatusText status={embedding} />
+                            </>
+                        )}
                     </span>
                 </div>
+
+                {/* ── Regenerate embeddings (saved files that need it) ── */}
+                {status === 'ready' && !downloading && onReprocess && (
+                    <EmbeddingReprocessButton name={displayName} onClick={onReprocess} />
+                )}
 
                 {/* ── Retry affordance (error only) ── */}
                 {isError && onRetry && (
@@ -451,6 +474,18 @@ export const DataSourceCardGrid: React.FC<DataSourceCardGridProps> = ({ children
                 .nui-ds-remove:not(:disabled) { opacity: 1; }
             }
 
+            /* Small icon buttons inside a card or row (regenerate, manage, expand). */
+            .nui-ds-icon-btn:hover:not(:disabled) { background: var(--bg-hover); color: var(--text-primary); }
+            .nui-ds-icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+            .nui-ds-icon-btn:disabled { opacity: 0.55; cursor: progress; }
+
+            /* Sitemap group header toggle (views/assistant/SitemapDataSourceGroup). */
+            .nui-ds-group-toggle:hover { background: var(--bg-hover); }
+            .nui-ds-group-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+            /* In-flight embedding status pulses; the word still says what is happening. */
+            .nui-ds-embed--busy { animation: nuiDsPulse 1.6s ease-in-out infinite; }
+
             .nui-ds-retry:hover {
                 color: var(--text-primary);
                 border-color: var(--text-muted);
@@ -460,6 +495,7 @@ export const DataSourceCardGrid: React.FC<DataSourceCardGridProps> = ({ children
             @media (prefers-reduced-motion: reduce) {
                 .nui-ds-spinner { animation: none; }
                 .nui-ds-slot--busy { animation: nuiDsPulse 1.6s ease-in-out infinite; }
+                .nui-ds-embed--busy { animation: none; }
                 .nui-ds-layer { transition: none; }
                 .nui-ds-remove { transition: none; }
             }

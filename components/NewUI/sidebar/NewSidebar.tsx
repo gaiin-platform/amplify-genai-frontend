@@ -589,7 +589,8 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       updated.push(newConversation);
       dispatch({ field: 'selectedConversation', value: newConversation });
     } else if (selectedConversation?.id === conversation.id) {
-      dispatch({ field: 'selectedConversation', value: updated[updated.length - 1] });
+      // the list holds stubs / compressed copies; open the real chat (a stub here is overwritten by the next message)
+      handleSelectConversation(updated[updated.length - 1]);
     }
 
     saveConversations(updated);
@@ -598,7 +599,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     // The remote copy of a cloud conversation is already deleted by deleteConversationCleanUp
     // above (keyed on the conversation itself). An extra delete here, keyed on the global
     // storage setting, only duplicated that request and fired for local chats too.
-  }, [conversations, selectedConversation, storageSelection, statsService]);
+  }, [conversations, selectedConversation, storageSelection, statsService, handleSelectConversation]);
 
   // Only pass chat-type folders to the grouping function (never 'prompt' or 'workflow' folders)
   const chatFolders = folders.filter((f: any) => !f.type || f.type === 'chat');

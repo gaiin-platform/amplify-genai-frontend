@@ -79,9 +79,9 @@ import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInst
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
 import {
     buildArtifactLibraryItems,
+    formatArtifactCreated,
     hydrateArtifactLibraryItem,
     renameArtifactInConversation,
-    type ArtifactCreated,
     type ArtifactLibraryItem,
 } from '@/components/NewUI/shared/artifactLibraryModel';
 import {
@@ -117,16 +117,6 @@ function formatTime(isoString: string): string {
     } catch {
         return '';
     }
-}
-
-/** Date (and time, when the record has one) an artifact was generated. */
-function formatArtifactCreated(created?: ArtifactCreated): { date: string; time: string; iso: string; title: string } | null {
-    if (!created) return null;
-    const when = new Date(created.ms);
-    if (Number.isNaN(when.getTime())) return null;
-    const date = when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const time = created.hasTime ? when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }) : '';
-    return { date, time, iso: when.toISOString(), title: 'Generated ' + date + (time ? ' at ' + time : '') };
 }
 
 /** Return the byte count stored on a library record by the file service. */
@@ -690,7 +680,7 @@ const ArtifactLibraryRow: React.FC<{
                         </button>
                     </div>
                 )}
-                <p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version}{sourceLabel ? ` · ${sourceLabel}` : ''}</p>
+                <p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version}{item.versions.length > 1 ? ` · ${item.versions.length} versions` : ''}{sourceLabel ? ` · ${sourceLabel}` : ''}</p>
             </div>
             {createdLabel && (
                 <time dateTime={createdLabel.iso} title={createdLabel.title} data-new-ui-artifact-created="true" className="flex-shrink-0 w-[92px] text-right leading-tight max-md:w-auto max-md:mr-auto max-md:text-left">
@@ -1117,7 +1107,14 @@ export const NewLibraryView: React.FC = () => {
             // Without the source chat only this one record can be renamed.
         }
 
-        const keys = Array.from(new Set([ownKey, ...resolveArtifactRenameKeys(savedArtifacts, group?.versions ?? [])]));
+        // A stack grouped only by a shared title may hold unrelated artifacts, so its other
+        // versions are renamed only when the source chat (above) confirms they belong.
+        const stackKeys = item.groupedBy === 'lineage'
+            ? item.versions
+                .map((version) => version.artifact.key)
+                .filter((key): key is string => Boolean(key))
+            : [];
+        const keys = Array.from(new Set([ownKey, ...stackKeys, ...resolveArtifactRenameKeys(savedArtifacts, group?.versions ?? [])]));
         const result = await renameArtifactsRemote(keys, name);
         if (!result.success) {
             toast.error(result.message || 'Unable to rename artifact');
@@ -1679,7 +1676,8 @@ export const NewLibraryView: React.FC = () => {
                 <ArtifactPreviewModal
                     item={previewArtifact}
                     onClose={() => setPreviewArtifact(null)}
-                    onOpenChat={() => void handleChatArtifact(previewArtifact)}
+                    onOpenChat={(shown) => void handleChatArtifact(shown)}
+                    loadVersion={hydrateArtifactItem}
                 />
             )}
             <ConfirmDialog

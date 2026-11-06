@@ -50,8 +50,16 @@ import HomeContext from '@/components/Home/home.context';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import {
   listAstWorkflowTemplates,
+  getAstWorkflowTemplate,
   deleteAstWorkflowTemplate,
 } from '@/services/assistantWorkflowService';
+import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
+import {
+  hasLoadedSteps,
+  knownStepCount,
+  mergeFullTemplate,
+  replaceTemplate,
+} from './workflowTemplateData';
 import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import { useLegacySettingsEventBridge } from '@/components/NewUI/shared/newUISettingsEvents';
@@ -76,13 +84,6 @@ function getInputProps(workflow: AstWorkflow): InputProp[] {
     type: val.type ?? 'string',
     description: val.description,
   }));
-}
-
-/** Count non-terminate steps */
-function nonTerminateStepCount(workflow: AstWorkflow): number {
-  return (workflow.template?.steps ?? []).filter(
-    (s) => s.tool !== 'terminate' && s.stepName !== 'done',
-  ).length;
 }
 
 // ── Skeleton row ───────────────────────────────────────────────────────────────
@@ -130,6 +131,48 @@ export const NewWorkflowsView: React.FC = () => {
   // editorTemplate: the template pre-loaded into the builder (null = create new)
   const [editorTemplate, setEditorTemplate] = useState<AstWorkflow | undefined>(undefined);
 
+  // ── Full-template loading ──────────────────────────────────────────────
+  // The list endpoint returns metadata only; a template's steps come from
+  // getAstWorkflowTemplate (see workflowTemplateData.ts). Selecting a template, or opening
+  // it in the editor, loads them.
+  const [loadingFullId, setLoadingFullId] = useState<string | null>(null);
+  const [loadFailedId, setLoadFailedId] = useState<string | null>(null);
+  const inFlightRef = useRef<Set<string>>(new Set());
+  const templatesRef = useRef<AstWorkflow[]>([]);
+
+  useEffect(() => {
+    templatesRef.current = templates;
+  }, [templates]);
+
+  /** Fetch one template's steps and merge them into the list. Resolves null on failure. */
+  const loadFullTemplate = useCallback(async (templateId: string): Promise<AstWorkflow | null> => {
+    const already = templatesRef.current.find((t) => t.templateId === templateId);
+    if (already && hasLoadedSteps(already)) return already;
+    if (inFlightRef.current.has(templateId)) return null;
+
+    inFlightRef.current.add(templateId);
+    setLoadingFullId(templateId);
+    setLoadFailedId((prev) => (prev === templateId ? null : prev));
+    try {
+      const res = await getAstWorkflowTemplate(templateId);
+      // Log the backend's reason: the on-screen text is deliberately generic.
+      if (!(res?.success && res.data)) throw new Error(res?.message || 'template not returned');
+      const merged = mergeFullTemplate(
+        templatesRef.current.find((t) => t.templateId === templateId),
+        res.data as AstWorkflow,
+      );
+      setTemplates((prev) => replaceTemplate(prev, merged));
+      return merged;
+    } catch (err) {
+      console.error('NewWorkflowsView: failed to load workflow template', templateId, err);
+      setLoadFailedId(templateId);
+      return null;
+    } finally {
+      inFlightRef.current.delete(templateId);
+      setLoadingFullId((prev) => (prev === templateId ? null : prev));
+    }
+  }, []);
+
   // ── Load templates ─────────────────────────────────────────────────────
   const fetchTemplates = useCallback(async () => {
     setIsLoading(true);
@@ -168,6 +211,13 @@ export const NewWorkflowsView: React.FC = () => {
     [templates, selectedId],
   );
 
+  // Load the selected template's steps (once; a failure waits for the Retry button).
+  useEffect(() => {
+    if (!selectedTemplate || hasLoadedSteps(selectedTemplate)) return;
+    if (loadFailedId === selectedTemplate.templateId) return;
+    void loadFullTemplate(selectedTemplate.templateId);
+  }, [selectedTemplate, loadFailedId, loadFullTemplate]);
+
   // ── Delete handler ─────────────────────────────────────────────────────
   const handleDelete = useCallback(
     async (templateId: string) => {
@@ -200,11 +250,27 @@ export const NewWorkflowsView: React.FC = () => {
     setShowEditor(true);
   }, []);
 
+  /**
+   * Open the builder on an existing template. The builder shows exactly what it is given, and
+   * a list item has no steps, so it would open the workflow empty (and a save could replace the
+   * real steps). Load the full template first.
+   */
+  const openEditorFor = useCallback(
+    async (template: AstWorkflow) => {
+      const full = hasLoadedSteps(template) ? template : await loadFullTemplate(template.templateId);
+      if (!full) {
+        toast.error('Could not load this workflow. Please try again.');
+        return;
+      }
+      setEditorTemplate(full);
+      setShowEditor(true);
+    },
+    [loadFullTemplate],
+  );
+
   const openEditEditor = useCallback(() => {
-    if (!selectedTemplate) return;
-    setEditorTemplate(selectedTemplate);
-    setShowEditor(true);
-  }, [selectedTemplate]);
+    if (selectedTemplate) void openEditorFor(selectedTemplate);
+  }, [selectedTemplate, openEditorFor]);
 
   const closeEditor = useCallback(() => {
     setShowEditor(false);
@@ -275,7 +341,8 @@ export const NewWorkflowsView: React.FC = () => {
     return (
       <div className="flex flex-col gap-[6px] px-3 pt-2 pb-4">
         {filtered.map((t) => {
-          const stepCount = nonTerminateStepCount(t);
+          // null until this template's steps have been fetched: never claim "0 steps" for a list item.
+          const stepCount = knownStepCount(t);
           const isSelected = t.templateId === selectedId;
           const isHovered = hoveredId === t.templateId;
           const isDeleting = isDeletingId === t.templateId;
@@ -342,16 +409,18 @@ export const NewWorkflowsView: React.FC = () => {
 
                 {/* Badges row */}
                 <div className="flex flex-wrap items-center gap-[6px]">
-                  {/* Step count */}
-                  <span
-                    className="rounded-full px-2 py-[2px] text-[11px]"
-                    style={{
-                      background: 'var(--bg-active)',
-                      color: 'var(--text-muted)',
-                    }}
-                  >
-                    {stepCount} step{stepCount !== 1 ? 's' : ''}
-                  </span>
+                  {/* Step count — only once known */}
+                  {stepCount !== null && (
+                    <span
+                      className="rounded-full px-2 py-[2px] text-[11px]"
+                      style={{
+                        background: 'var(--bg-active)',
+                        color: 'var(--text-muted)',
+                      }}
+                    >
+                      {stepCount} step{stepCount !== 1 ? 's' : ''}
+                    </span>
+                  )}
                   {/* Base template badge */}
                   {t.isBaseTemplate && (
                     <span
@@ -398,8 +467,7 @@ export const NewWorkflowsView: React.FC = () => {
                       onClick={(e) => {
                         e.stopPropagation();
                         setSelectedId(t.templateId);
-                        setEditorTemplate(t);
-                        setShowEditor(true);
+                        void openEditorFor(t);
                       }}
                       className="flex h-7 w-7 touch:h-9 touch:w-9 touch:min-w-9 touch:shrink-0 items-center justify-center rounded-[6px] transition-colors"
                       style={{ color: 'var(--text-muted)' }}
@@ -466,6 +534,7 @@ export const NewWorkflowsView: React.FC = () => {
     }
 
     const tpl = selectedTemplate;
+    const stepsLoaded = hasLoadedSteps(tpl);
     const steps = tpl.template?.steps ?? [];
     const nonTerminate = steps.filter(
       (s) => s.tool !== 'terminate' && s.stepName !== 'done',
@@ -499,7 +568,9 @@ export const NewWorkflowsView: React.FC = () => {
                 color: 'var(--text-muted)',
               }}
             >
-              {nonTerminate.length} step{nonTerminate.length !== 1 ? 's' : ''}
+              {stepsLoaded
+                ? `${nonTerminate.length} step${nonTerminate.length !== 1 ? 's' : ''}`
+                : 'Steps…'}
             </span>
             {tpl.isBaseTemplate && (
               <span
@@ -577,6 +648,30 @@ export const NewWorkflowsView: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Steps are fetched separately from the list; say so while they load or if that fails. */}
+        {!stepsLoaded && (
+          <div className="mb-8">
+            {loadFailedId === tpl.templateId ? (
+              <div className="flex items-center gap-3 text-[13px]" style={{ color: 'var(--text-secondary)' }} role="alert">
+                <span>Couldn’t load this workflow’s steps.</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoadFailedId(null);
+                    void loadFullTemplate(tpl.templateId);
+                  }}
+                  className="rounded-[6px] border px-3 py-1 text-[12px] font-medium"
+                  style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <NewUILoadingStatus open variant="inline" message="Loading workflow steps…" />
+            )}
           </div>
         )}
 
@@ -704,7 +799,8 @@ export const NewWorkflowsView: React.FC = () => {
           <div className="pb-6">
             <button
               onClick={openEditEditor}
-              className="flex items-center gap-2 px-5 py-2.5 rounded-[10px] text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80"
+              disabled={!stepsLoaded && loadFailedId !== tpl.templateId && loadingFullId === tpl.templateId}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-[10px] text-[14px] font-medium text-white transition-opacity hover:opacity-90 active:opacity-80 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ background: 'var(--accent)' }}
             >
               <IconEdit size={16} />

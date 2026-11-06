@@ -75,6 +75,10 @@ export function isBlankPlaceholderConversation(c: Conversation): boolean {
 
     if ((c.messages?.length ?? 0) > 0) return false;
     if ((c.compressedMessages?.length ?? 0) > 0) return false;
+    // A cloud chat is a metadata stub locally (no messages); the cloud list tells us whether it has content.
+    if ((c.messageCount ?? 0) > 0) return false;
+    // An unreadable stored blob is kept on the entry: it is not an empty placeholder and must never be cleaned up.
+    if (c.corruptCompressedMessages !== undefined) return false;
 
     // Anything the user deliberately attached to the conversation makes it non-blank.
     if (isPinnedConv(c)) return false;

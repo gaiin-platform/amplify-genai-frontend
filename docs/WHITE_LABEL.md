@@ -9,6 +9,7 @@ This guide explains how to customize the branding of this application to match y
 - [Logo Configuration](#logo-configuration)
 - [Theme Configuration](#theme-configuration)
 - [Color Customization](#color-customization)
+- [New UI](#new-ui)
 - [Theme Precedence](#theme-precedence)
 - [Troubleshooting](#troubleshooting)
 - [Complete Example](#complete-example)
@@ -84,6 +85,26 @@ NEXT_PUBLIC_BRAND_NAME=My Company AI Assistant
 - Used for accessibility (logo alt text)
 - May appear in various UI elements
 - Should be your organization's name or product name
+- The New UI uses `Amplify` when this is not set (the classic UI uses `Amplify GenAI`)
+
+### NEXT_PUBLIC_ORGANIZATION_NAME
+
+**Purpose:** Marks the build as deployed by an organization other than the stock Vanderbilt Amplify deployment. Used by the New UI's Amplify Helper.
+
+**Type:** String (optional)
+
+**Default:** unset (stock Vanderbilt deployment)
+
+**Example:**
+```bash
+NEXT_PUBLIC_ORGANIZATION_NAME=Acme Corporation
+```
+
+**Notes:**
+- Leave it unset for the stock deployment; nothing changes.
+- When set, the Amplify Helper drops Vanderbilt-specific content: the "Data classification and cost" policy section, the data-classification link, the Vanderbilt resources link and the `amplify@vanderbilt.edu` contact.
+- Your support email and documentation URL are then taken from the admin settings, and the Resources and email links appear only if you have set them.
+- See [New UI](#new-ui) for the one thing an admin must also do for the Helper's AI prompt.
 
 ## Logo Configuration
 
@@ -122,17 +143,18 @@ npm start
 
 **For Docker Deployment:**
 ```bash
-docker build \
+docker build --no-cache \
   --build-arg NEXT_PUBLIC_CUSTOM_LOGO="my-company-logo.svg" \
   --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
   --build-arg NEXT_PUBLIC_BRAND_NAME="My Company" \
+  --build-arg NEXT_PUBLIC_ORGANIZATION_NAME="My Company" \
   -t my-app:latest \
   .
 
 docker run -p 3000:3000 my-app:latest
 ```
 
-**Note:** Environment variables must be passed as build arguments for Docker builds since they are baked into the application at build time.
+**Note:** Environment variables must be passed as build arguments for Docker builds since they are baked into the application at build time. A **build argument** is a value you give `docker build` with `--build-arg NAME=value`. The `Dockerfile` accepts exactly these four: `NEXT_PUBLIC_CUSTOM_LOGO`, `NEXT_PUBLIC_DEFAULT_THEME`, `NEXT_PUBLIC_BRAND_NAME` and `NEXT_PUBLIC_ORGANIZATION_NAME`. Values in `.env.local` do not reach a Docker build (`.dockerignore` excludes it), and values given at `docker run` come too late. Put the logo file in `public/logos/` **before** you build. If the result does not look branded, see [Docker builds: branding does not show up](#docker-builds-branding-does-not-show-up).
 
 ### Logo Examples
 
@@ -304,6 +326,46 @@ All existing UI components automatically use your custom colors. For example:
 3. **Testing:** Test your colors in both light and dark modes
 4. **Accessibility:** Consider color-blind users when choosing color combinations
 
+## New UI
+
+The New UI honors the same three build-time variables as the classic UI, plus `NEXT_PUBLIC_ORGANIZATION_NAME`. Colors work differently.
+
+### What each setting changes in the New UI
+
+| Setting | Where it shows |
+|---|---|
+| `NEXT_PUBLIC_CUSTOM_LOGO` | Sidebar header, new-chat greeting, login page. Falls back to the stock Amplify mark, then to a one-letter tile. |
+| `NEXT_PUBLIC_BRAND_NAME` | Sidebar wordmark, login heading ("Welcome to ..."), startup loading message, logo alt text and letter tile, iOS home-screen title, and the "... Helper" tab and page names. |
+| `NEXT_PUBLIC_DEFAULT_THEME` | First-visit theme. A user's saved choice still wins. |
+| `NEXT_PUBLIC_ORGANIZATION_NAME` | Removes Vanderbilt-specific content from the Amplify Helper (see above). |
+
+**Logo shape.** The New UI shows the logo in a square slot (24 px in the sidebar, 40 px on the home screen, about 58 px on login). A square or icon-style logo looks best. A wide logo is scaled to fit, not stretched. Put the file in `public/logos/` and give only the filename (no folders).
+
+### New UI colors
+
+The New UI does **not** use the `--color-primary-*` variables from [Color Customization](#color-customization); changing those will not recolor it. It uses its own design tokens at the top of `styles/globals.css`, declared once in `:root` (light) and once in `.dark`:
+
+| Token | Used for |
+|---|---|
+| `--accent`, `--accent-fg` | Buttons, links, focus rings, selected states, and the text/icon color on top of them |
+| `--bg-app`, `--bg-sidebar`, `--bg-raised`, `--bg-hover`, `--bg-active`, `--bg-card`, `--bg-inset`, `--bg-elevated`, `--bg-composer` | Page, sidebar and surface backgrounds |
+| `--border-subtle`, `--border-composer-active` | Borders |
+| `--text-primary`, `--text-secondary`, `--text-muted`, `--text-error` | Text |
+| `--success-*`, `--warning-*`, `--file-icon-*` | Status colors and file-type icons (usually leave alone) |
+
+Typical rebrand: change `--accent` in both `:root` and `.dark` (keep text on it readable via `--accent-fg`), then adjust the background and border tokens if you want a different neutral palette. Check contrast in both themes. Rebuild after editing.
+
+### Amplify Helper (optional feature)
+
+The Helper is off unless an admin enables the `amplifyHelper` feature flag. Two things to know on a white-labeled deployment:
+
+1. Set `NEXT_PUBLIC_ORGANIZATION_NAME` so the in-app guide has no Vanderbilt content.
+2. The Helper's AI prompt (`amplifyHelper.base`) has a default written on the backend that names Vanderbilt and `amplify@vanderbilt.edu`. Before enabling the Helper, an admin should replace it in **Admin → System Prompts → Amplify Helper**.
+
+### What is not rebranded
+
+Product terms such as "Amplify Groups", messages that say users must have "signed in to Amplify", and the default `ordinaryChat.base` system prompt ("You are Amplify...") still say Amplify. The chat system prompt can be changed in Admin → System Prompts. Everything else in the New UI chrome (logo, wordmark, login, loading, tab titles) follows the settings above.
+
 ## Theme Precedence
 
 Understanding how themes are selected helps you configure the right defaults for your users.
@@ -384,6 +446,29 @@ echo $NEXT_PUBLIC_CUSTOM_LOGO
 # Check build output
 npm run build 2>&1 | grep -i logo
 ```
+
+### Docker builds: branding does not show up
+
+**Problem:** You built a Docker image with white-label settings, but the running app still shows the default logo, name or theme.
+
+This is usually a stale image or an old container, not a code problem. Work through these in order:
+
+1. **Rebuild with `--no-cache`.** Docker reuses cached build layers, which keeps the old values.
+2. **Pass every value with `--build-arg`.** The values are compiled into the JavaScript at build time. `.env.local` is excluded from the image by `.dockerignore`, and variables given to `docker run` do not change compiled code. A build argument you did not pass is empty.
+3. **Put the logo in `public/logos/` before building**, and set `NEXT_PUBLIC_CUSTOM_LOGO` to the filename only (case-sensitive, no folder).
+4. **Use a new image tag** (for example `acme-ai:2026-11-06`) so your host cannot keep using the old image.
+5. **Stop and remove the old container**, then start one from the new image:
+   ```bash
+   docker ps
+   docker stop <container> && docker rm <container>
+   ```
+6. **Check the image itself.** This lists compiled files that contain your brand name, and prints nothing if the value was not baked in:
+   ```bash
+   docker run --rm --entrypoint sh <image> -c 'grep -rl "<brand>" .next/static | head'
+   ```
+7. **Hard refresh the browser** (Cmd+Shift+R or Ctrl+Shift+R).
+
+(We have not tested this Docker path end to end.)
 
 ### Theme Not Applying
 
@@ -555,10 +640,11 @@ project/
 
 3. **Build with Docker:**
    ```bash
-   docker build \
+   docker build --no-cache \
      --build-arg NEXT_PUBLIC_CUSTOM_LOGO="acme-logo.svg" \
      --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
      --build-arg NEXT_PUBLIC_BRAND_NAME="Acme AI Assistant" \
+     --build-arg NEXT_PUBLIC_ORGANIZATION_NAME="Acme Corporation" \
      -t acme-ai:latest \
      .
    ```
@@ -609,5 +695,5 @@ If you encounter issues not covered in this guide:
 
 ---
 
-**Last Updated:** December 2, 2025
+**Last Updated:** November 5, 2026 (v0.9.5)
 **Version:** 1.0.0

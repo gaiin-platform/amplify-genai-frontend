@@ -339,9 +339,13 @@ export const lookupAssistant = async (astPath: string) => {
         data: actualResult.data
       };
     } else {
+      const message = actualResult.message || 'Assistant not found at this path';
       return {
         success: false,
-        message: actualResult.message || 'Assistant not found at this path'
+        message,
+        // The path IS registered, just not to anyone this user may see (a restricted link, or a group's).
+        // Callers checking availability must not read that as "free".
+        inUse: /not authorized/i.test(message),
       };
     }
   } catch (error) {

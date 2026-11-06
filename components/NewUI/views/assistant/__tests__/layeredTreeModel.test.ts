@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { LayeredNodeType, LeafNode, RouterNode } from '@/types/layeredAssistant';
 import {
     addLeaf,
+    ancestorIds,
     addSubParent,
     allLeaves,
     assignedLeafIds,
@@ -27,6 +28,7 @@ import {
     unresolvedLeaves,
     updateNode,
     validateForSave,
+    visibleRows,
 } from '../layeredTreeModel';
 
 const router = (id: string, children: (RouterNode | LeafNode)[] = [], extra: Partial<RouterNode> = {}): RouterNode => ({
@@ -271,5 +273,40 @@ describe('routerContextOptions', () => {
         expect(all.map((o) => o.field)).toEqual(['dataSources', 'tools', 'workflow']);
         expect(routerContextOptions({ data: { integrationDriveData: { x: 1 } } }).map((o) => o.field)).toEqual(['dataSources']);
         expect(routerContextOptions({ data: { builtInOperations: ['x'] } }).map((o) => o.field)).toEqual(['tools']);
+    });
+});
+
+describe('ancestorIds', () => {
+    it('lists proper ancestors outermost-first', () => {
+        const tree = router('top', [router('r1', [router('r2', [leaf('x')])])]);
+        expect(ancestorIds(tree, 'x')).toEqual(['top', 'r1', 'r2']);
+        expect(ancestorIds(tree, 'r2')).toEqual(['top', 'r1']);
+    });
+    it('is empty for the top node and for an unknown id', () => {
+        const tree = sample();
+        expect(ancestorIds(tree, tree.id)).toEqual([]);
+        expect(ancestorIds(tree, 'nope')).toEqual([]);
+    });
+});
+
+describe('visibleRows', () => {
+    it('shows every node in tree order with depth and ancestor chain when nothing is collapsed', () => {
+        const tree = sample();
+        const rows = visibleRows(tree, new Set());
+        expect(rows.map((r) => [r.node.id, r.depth])).toEqual([[tree.id, 0], ['a', 1], ['r1', 1], ['b', 2], ['c', 2], ['d', 1]]);
+        expect(rows.find((r) => r.node.id === 'b')!.ancestors).toEqual([tree.id, 'r1']);
+        expect(rows[0].ancestors).toEqual([]);
+    });
+    it('keeps a collapsed parent but hides its whole subtree', () => {
+        const tree = sample();
+        expect(visibleRows(tree, new Set(['r1'])).map((r) => r.node.id)).toEqual([tree.id, 'a', 'r1', 'd']);
+    });
+    it('hides everything under a collapsed top node', () => {
+        const tree = sample();
+        expect(visibleRows(tree, new Set([tree.id])).map((r) => r.node.id)).toEqual([tree.id]);
+    });
+    it('hides nested subtrees even when the inner parent is not itself collapsed', () => {
+        const tree = router('top', [router('r1', [router('r2', [leaf('x')])])]);
+        expect(visibleRows(tree, new Set(['r1'])).map((r) => r.node.id)).toEqual(['top', 'r1']);
     });
 });

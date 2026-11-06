@@ -9,6 +9,7 @@ import {
     SkillShare
 } from "@/types/skill";
 import { createTtlCache } from "./inFlight";
+import { postToChatProxy } from "@/utils/app/chatProxy";
 
 // The + menu's skills submenu remounts on every hover, and the assistant editor's skills panel
 // loads the same list. Callers on those paths opt in with `{ cached: true }`; the list is dropped
@@ -53,13 +54,7 @@ const sendSkillsRequest = async <T = any>(
 
         // Routed through the server-side chat proxy, which attaches the
         // Cognito access token from the JWT cookie.
-        const response = await fetch('/api/chat/proxy', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ endpoint: chatEndpoint, body: requestBody })
-        });
+        const response = await postToChatProxy({ endpoint: chatEndpoint, body: requestBody });
 
         if (!response.ok) {
             const errorText = await response.text();

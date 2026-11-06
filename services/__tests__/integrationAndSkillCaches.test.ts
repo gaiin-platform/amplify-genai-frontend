@@ -10,6 +10,10 @@ import {
   getOauthRedirect,
 } from '@/services/oauthIntegrationsService';
 import { createSkill, getUserSkills } from '@/services/skillsService';
+import { decodeProxyRequestBody } from '@/utils/server/chatProxyBody';
+
+// The chat proxy transport encodes request bodies (gzip + base64); decode as the proxy route does.
+const proxyBody = (init: any) => decodeProxyRequestBody(JSON.parse(init.body));
 
 const callsTo = (op: string) => mocks.doRequestOp.mock.calls.filter((c) => c[0].op === op).length;
 
@@ -60,13 +64,13 @@ describe('integration list reads', () => {
 describe('skills list reads', () => {
   const fetchMock = vi.fn();
   const listCalls = () => fetchMock.mock.calls.filter((c) =>
-    JSON.parse(c[1].body).body.skillsRequest.action === 'list').length;
+    proxyBody(c[1]).body.skillsRequest.action === 'list').length;
 
   beforeEach(() => {
     fetchMock.mockReset();
     fetchMock.mockImplementation(async (_url: string, init: any) => ({
       ok: true,
-      json: async () => ({ success: true, data: [{ id: JSON.parse(init.body).body.skillsRequest.action }] }),
+      json: async () => ({ success: true, data: [{ id: proxyBody(init).body.skillsRequest.action }] }),
     }));
     vi.stubGlobal('fetch', fetchMock);
   });

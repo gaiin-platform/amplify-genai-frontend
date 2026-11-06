@@ -1,18 +1,26 @@
 /**
  * LayeredTreeOutline — the routing tree as an accessible outline (`role="tree"`).
  *
+ * Structure: parents collapse and expand (chevron, or → / ←), and each level is colour-coded — an icon
+ * chip per row plus a coloured vertical guide line for every ancestor level, so nesting reads at a glance.
+ * Colour is a second cue only (parent vs assistant is also the icon; the selection also has a ring).
+ * A collapsed parent hides its subtree; selecting something inside it (map click, new sub-parent, a
+ * keyboard move) reveals it again.
+ *
  * Mouse: drag a row by its handle; the row under the pointer shows where it will land (line above /
  * below, or an outline for "inside a parent"). Keyboard (no pointer needed):
- *   ↑ / ↓        move selection        Alt+↑ / Alt+↓   move the node among its siblings
+ *   ↑ / ↓        move selection        → / ←   expand / collapse (or step into / out to the parent)
+ *   Alt+↑ / Alt+↓   move the node among its siblings
  *   Alt+→        indent into the parent above          Alt+←   outdent out of its parent
  * The same moves are also buttons in the node editor. Which drops are legal (not onto itself, not a
  * parent into its own subtree, leaves can't take children) is decided by `layeredTreeModel`.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { IconGitBranch, IconGripVertical, IconRobot } from '@tabler/icons-react';
-import { LayeredAssistantNode, RouterNode, isRouterNode } from '@/types/layeredAssistant';
-import { DropPosition, normalizeDropPosition } from '../layeredTreeModel';
+import { IconChevronRight, IconGripVertical, IconRobot, IconRoute } from '@tabler/icons-react';
+import { RouterNode, isRouterNode } from '@/types/layeredAssistant';
+import { DropPosition, ancestorIds, normalizeDropPosition, visibleRows } from '../layeredTreeModel';
+import { depthColor, tint } from '../layeredTreeStyle';
 
 export type KeyboardMove = 'up' | 'down' | 'indent' | 'outdent';
 
@@ -25,17 +33,12 @@ export interface LayeredTreeOutlineProps {
     onKeyboardMove: (id: string, move: KeyboardMove) => boolean;
 }
 
-interface Row { node: LayeredAssistantNode; depth: number }
-
-const flatten = (root: RouterNode): Row[] => {
-    const rows: Row[] = [];
-    const walk = (node: LayeredAssistantNode, depth: number) => {
-        rows.push({ node, depth });
-        if (isRouterNode(node)) node.children.forEach((c) => walk(c, depth + 1));
-    };
-    walk(root, 0);
-    return rows;
-};
+// Row geometry: [grip hangs in the left gutter] [chevron] [icon chip] [name] [count]. A guide line for
+// ancestor level k runs down the centre of that ancestor's chevron, so it sits just left of its children.
+const GUTTER = 20;
+const INDENT = 20;
+const CHEVRON = 16;
+const guideX = (level: number) => GUTTER + level * INDENT + CHEVRON / 2;
 
 export const LayeredTreeOutline: React.FC<LayeredTreeOutlineProps> = ({
     root,
@@ -44,7 +47,8 @@ export const LayeredTreeOutline: React.FC<LayeredTreeOutlineProps> = ({
     onMove,
     onKeyboardMove,
 }) => {
-    const rows = useMemo(() => flatten(root), [root]);
+    const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set());
+    const rows = useMemo(() => visibleRows(root, collapsed), [root, collapsed]);
     const [dragId, setDragId] = useState<string | null>(null);
     const [drop, setDrop] = useState<{ id: string; position: DropPosition } | null>(null);
     const rowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -59,6 +63,29 @@ export const LayeredTreeOutline: React.FC<LayeredTreeOutlineProps> = ({
         const typing = active instanceof HTMLElement && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
         if (!typing) rowRefs.current.get(selectedId)?.focus();
     }, [selectedId, rows]);
+
+    // Never leave the selection hidden: if it (or a node just moved/added) sits under a collapsed parent,
+    // open the path to it. Deliberately not keyed on `collapsed` — collapsing is handled in `toggle`.
+    useEffect(() => {
+        if (!selectedId) return;
+        const hidden = ancestorIds(root, selectedId);
+        setCollapsed((current) => (hidden.some((id) => current.has(id)) ? new Set(Array.from(current).filter((id) => !hidden.includes(id))) : current));
+    }, [selectedId, root]);
+
+    const setOpen = (id: string, open: boolean) =>
+        setCollapsed((current) => {
+            if (open !== current.has(id)) return current;
+            const next = new Set(current);
+            if (open) next.delete(id); else next.add(id);
+            return next;
+        });
+
+    const toggle = (id: string) => {
+        const closing = !collapsed.has(id);
+        setOpen(id, !closing);
+        // Collapsing a parent that holds the selection hands the selection to that parent.
+        if (closing && selectedId && selectedId !== id && ancestorIds(root, selectedId).includes(id)) onSelect(id);
+    };
 
     const clearDrag = () => { setDragId(null); setDrop(null); };
 
@@ -75,7 +102,17 @@ export const LayeredTreeOutline: React.FC<LayeredTreeOutlineProps> = ({
             }
             return;
         }
-        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        const row = rows[index];
+        const expandable = isRouterNode(row.node) && row.node.children.length > 0;
+        if (e.key === 'ArrowRight' && expandable) {
+            e.preventDefault();
+            if (collapsed.has(id)) setOpen(id, true);
+            else { focusAfterSelect.current = true; onSelect((row.node as RouterNode).children[0].id); }
+        } else if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            if (expandable && !collapsed.has(id)) toggle(id);
+            else if (row.ancestors.length) { focusAfterSelect.current = true; onSelect(row.ancestors[row.ancestors.length - 1]); }
+        } else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
             e.preventDefault();
             const next = rows[index + (e.key === 'ArrowDown' ? 1 : -1)];
             if (next) {
@@ -92,15 +129,18 @@ export const LayeredTreeOutline: React.FC<LayeredTreeOutlineProps> = ({
         <div
             role="tree"
             aria-label="Routing tree"
-            style={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+            style={{ display: 'flex', flexDirection: 'column' }}
         >
-            {rows.map(({ node, depth }, index) => {
+            {rows.map(({ node, depth, ancestors }, index) => {
                 const selected = node.id === selectedId;
                 const isRoot = node.id === root.id;
                 const router = isRouterNode(node);
                 const dropHere = drop?.id === node.id ? drop.position : null;
                 const label = node.name.trim() || (router ? 'Unnamed parent' : 'Unnamed assistant');
                 const childCount = router ? (node as RouterNode).children.length : 0;
+                const expandable = childCount > 0;
+                const isCollapsed = expandable && collapsed.has(node.id);
+                const color = depthColor(depth);
                 return (
                     <div
                         key={node.id}
@@ -108,7 +148,7 @@ export const LayeredTreeOutline: React.FC<LayeredTreeOutlineProps> = ({
                         role="treeitem"
                         aria-level={depth + 1}
                         aria-selected={selected}
-                        aria-expanded={router ? true : undefined}
+                        aria-expanded={expandable ? !isCollapsed : undefined}
                         aria-label={`${router ? 'Parent' : 'Assistant'} ${label}${router ? `, ${childCount} member${childCount === 1 ? '' : 's'}` : ''}`}
                         tabIndex={selected || (!selectedId && index === 0) ? 0 : -1}
                         draggable={!isRoot}
@@ -136,21 +176,26 @@ export const LayeredTreeOutline: React.FC<LayeredTreeOutlineProps> = ({
                         }}
                         onDrop={(e) => {
                             e.preventDefault();
-                            if (dragId && drop) onMove(dragId, drop.id, drop.position);
+                            if (dragId && drop) {
+                                if (drop.position === 'inside') setOpen(drop.id, true);
+                                onMove(dragId, drop.id, drop.position);
+                            }
                             clearDrag();
                         }}
-                        className="focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+                        className="group focus:outline-none focus-visible:ring-2 focus-visible:ring-[--accent] hover:bg-[--bg-hover]"
                         style={{
                             position: 'relative',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 6,
                             minHeight: 36,
-                            padding: `0 8px 0 ${6 + depth * 16}px`,
+                            padding: `0 8px 0 ${GUTTER + depth * INDENT}px`,
                             borderRadius: 8,
                             cursor: 'pointer',
                             opacity: dragId === node.id ? 0.45 : 1,
-                            background: selected ? 'var(--bg-active)' : 'transparent',
+                            // Selected: a tint of the row's own level colour plus a ring, so it shows without hue too.
+                            background: selected ? tint(color, 16) : undefined,
+                            boxShadow: selected ? `inset 0 0 0 1.5px ${tint(color, 70)}` : undefined,
                             outline: dropHere === 'inside' ? '2px solid var(--accent)' : undefined,
                             outlineOffset: -2,
                             color: 'var(--text-primary)',
@@ -159,17 +204,33 @@ export const LayeredTreeOutline: React.FC<LayeredTreeOutlineProps> = ({
                         {dropHere === 'before' && <span aria-hidden="true" style={dropLine('top')} />}
                         {dropHere === 'after' && <span aria-hidden="true" style={dropLine('bottom')} />}
 
-                        <span aria-hidden="true" style={{ width: 14, flexShrink: 0, color: 'var(--text-muted)', cursor: isRoot ? 'default' : 'grab', opacity: isRoot ? 0 : 1 }} title={isRoot ? undefined : 'Drag to move'}>
-                            <IconGripVertical size={14} />
+                        {/* Level guides: one coloured vertical line per ancestor, continuous across rows. */}
+                        {ancestors.map((_, level) => (
+                            <span key={level} aria-hidden="true" style={{ position: 'absolute', top: 0, bottom: 0, left: guideX(level), width: 2, borderRadius: 1, background: tint(depthColor(level), 45), pointerEvents: 'none' }} />
+                        ))}
+
+                        {!isRoot && (
+                            <span aria-hidden="true" className="opacity-0 group-hover:opacity-80" style={{ position: 'absolute', left: 3, display: 'inline-flex', color: 'var(--text-muted)', cursor: 'grab' }} title="Drag to move">
+                                <IconGripVertical size={14} />
+                            </span>
+                        )}
+                        <span
+                            aria-hidden="true"
+                            onClick={expandable ? (e) => { e.stopPropagation(); toggle(node.id); } : undefined}
+                            title={expandable ? (isCollapsed ? 'Expand' : 'Collapse') : undefined}
+                            className={expandable ? 'hover:bg-[--bg-active]' : undefined}
+                            style={{ position: 'relative', width: CHEVRON, height: CHEVRON, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 4, color: 'var(--text-muted)', cursor: expandable ? 'pointer' : 'default' }}
+                        >
+                            {expandable && <IconChevronRight size={14} style={{ transform: isCollapsed ? undefined : 'rotate(90deg)', transition: 'transform 120ms' }} />}
                         </span>
-                        <span aria-hidden="true" style={{ flexShrink: 0, color: selected ? 'var(--accent)' : 'var(--text-secondary)', display: 'inline-flex' }}>
-                            {router ? <IconGitBranch size={15} /> : <IconRobot size={15} />}
+                        <span aria-hidden="true" style={{ position: 'relative', flexShrink: 0, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 6, background: color, color: '#fff' }}>
+                            {router ? <IconRoute size={14} /> : <IconRobot size={14} />}
                         </span>
-                        <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: router ? 600 : 400, fontStyle: node.name.trim() ? 'normal' : 'italic' }}>
+                        <span style={{ position: 'relative', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: 13, fontWeight: router ? 600 : 400, fontStyle: node.name.trim() ? 'normal' : 'italic' }}>
                             {label}
                         </span>
                         {router && (
-                            <span aria-hidden="true" style={{ flexShrink: 0, fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-hover)', borderRadius: 9, padding: '1px 7px' }}>
+                            <span aria-hidden="true" style={{ position: 'relative', flexShrink: 0, fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-hover)', borderRadius: 9, padding: '1px 7px' }}>
                                 {childCount}
                             </span>
                         )}

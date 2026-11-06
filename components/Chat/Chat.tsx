@@ -118,7 +118,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             handleUpdateConversation,
             dispatch: homeDispatch,
             handleUpdateSelectedConversation,
-            getDefaultModel, handleForkConversation
+            getDefaultModel, handleForkConversation, handleSelectConversation
         } = useContext(HomeContext);
 
         // there should be a model id now since on fetchModels, I set it
@@ -1119,10 +1119,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             saveConversations(updatedConversations);
 
             if (updatedConversations.length > 0) {
-                homeDispatch({
-                    field: 'selectedConversation',
-                    value: updatedConversations[updatedConversations.length - 1],
-                });
+                // the list holds stubs / compressed copies; open the real chat (a stub here is overwritten by the next message)
+                handleSelectConversation(updatedConversations[updatedConversations.length - 1]);
 
             } else {
                 homeDispatch({

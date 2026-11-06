@@ -15,7 +15,7 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { IconCloud, IconMessage, IconInfoCircle } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
-import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
+import { handleStorageSelection, reconcileSelectedAfterStorageChange, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from '@/types/conversationStorage';
 import { saveConversations } from '@/utils/app/conversation';
 import toast from 'react-hot-toast';
@@ -146,14 +146,15 @@ export const NewStorageSection: FC = () => {
             },
           });
         },
+        () => conversationsRef.current, // the live list: chats created while this runs must survive
       );
 
       if (updatedConversations) {
         homeDispatch({ field: 'conversations', value: updatedConversations });
         saveConversations(updatedConversations);
         if (selectedConversation) {
-          const updated = updatedConversations.find((c) => c.id === selectedConversation.id);
-          homeDispatch({ field: 'selectedConversation', value: updated });
+          // keep the full in-memory chat open; the list entry is only a stub / compressed copy
+          homeDispatch({ field: 'selectedConversation', value: reconcileSelectedAfterStorageChange(selectedConversation, updatedConversations) });
         }
       }
 

@@ -327,6 +327,7 @@ const VisualizationRenderer: React.FC<VisualizationRendererProps> = ({
                 sandbox="allow-scripts"
                 style={{
                     width: '100%',
+                    height: '100%',
                     minHeight: 480,
                     border: 'none',
                     background: isDark ? '#1a1b26' : '#fff',
@@ -517,6 +518,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
     if (effectiveType === 'visualization') {
         return (
             <div className="artifactContentBlock w-full" id="artifactsContentBlock"
+                style={{ height: '100%' }}
                 data-artifact-id={artifactId} data-version-index={versionIndex}>
                 <VisualizationRenderer
                     content={rawContentForType}

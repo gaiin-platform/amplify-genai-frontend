@@ -220,7 +220,9 @@ export const ImportAnythingModal: FC<ImportModalProps> = (
             // tab switch
             window.dispatchEvent(new CustomEvent('homeChatBarTabSwitch', { detail: { tab: "Chats" , side: "left"}} ));
             const lastIdx = exportData.history.length - 1
-            const openTo: Conversation = exportData.history[lastIdx];
+            // open the copy that is in the merged list (an existing chat with the same id is kept, not replaced)
+            const incomingChat: Conversation = exportData.history[lastIdx];
+            const openTo: Conversation = history.find((c: Conversation) => c.id === incomingChat.id) ?? incomingChat;
             toast(`Chat Opened: ${openTo.name}`);
             handleSelectConversation(openTo);
         }

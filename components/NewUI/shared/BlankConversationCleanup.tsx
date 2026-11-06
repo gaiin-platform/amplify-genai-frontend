@@ -14,9 +14,12 @@
  * out from under them.
  *
  * Deliberately conservative:
- *   - Only local conversations are removed. Cloud-stored ones are stripped to metadata
- *     in local history (messages live server-side), so "no messages" locally does not
- *     prove they are empty — deleting them could destroy real content.
+ *   - Only local conversations, and cloud chats that were never created in the cloud, are
+ *     removed. A cloud chat is stripped to metadata in local history (messages live
+ *     server-side), so "no messages" locally does not prove it is empty — deleting it could
+ *     destroy real content. The exception is a blank chat held only in this browser (the
+ *     service never created its cloud object): there is nothing to destroy, so it is dropped
+ *     locally without any request.
  *   - Pinned / tagged / artifact-bearing / renamed conversations are never touched
  *     (see isBlankPlaceholderConversation).
  *   - Runs once per mount. It reacts to startup state, not to ongoing user activity,
@@ -32,6 +35,7 @@ import {
   saveConversations,
 } from '@/utils/app/conversation';
 import { isBlankPlaceholderConversation } from '@/components/NewUI/shared/chatFilters';
+import { getHeldBlankConversationIds, releaseHeldBlankConversations } from '@/services/remoteConversationService';
 
 export const BlankConversationCleanup: React.FC = () => {
   const {
@@ -40,6 +44,9 @@ export const BlankConversationCleanup: React.FC = () => {
   } = useContext(HomeContext);
 
   const hasRunRef = useRef(false);
+  // the list can change while the async check above runs; always prune the live one
+  const conversationsRef = useRef<Conversation[]>(conversations);
+  conversationsRef.current = conversations;
 
   useEffect(() => {
     if (hasRunRef.current) return;
@@ -51,21 +58,30 @@ export const BlankConversationCleanup: React.FC = () => {
     hasRunRef.current = true;
 
     const keepId = selectedConversation?.id;
-    const stale = conversations.filter(
-      (c: Conversation) =>
-        c.id !== keepId && isLocalConversation(c) && isBlankPlaceholderConversation(c),
-    );
+    const snapshot = conversations;
 
-    if (stale.length === 0) return;
+    (async () => {
+      const heldIds = await getHeldBlankConversationIds().catch(() => new Set<string>());
+      const isStale = (c: Conversation) =>
+        c.id !== keepId &&
+        isBlankPlaceholderConversation(c) &&
+        (isLocalConversation(c) || heldIds.has(c.id));
 
-    const staleIds = new Set(stale.map((c) => c.id));
-    const kept = conversations.filter((c: Conversation) => !staleIds.has(c.id));
+      const stale = snapshot.filter(isStale);
+      if (stale.length === 0) return;
 
-    // Releases any side artifacts (code interpreter records) the placeholder held.
-    stale.forEach(deleteConversationCleanUp);
+      const staleIds = new Set(stale.map((c) => c.id));
+      // Remove from the list as it is NOW (the check above awaited): chats added meanwhile must stay.
+      const kept = conversationsRef.current.filter((c: Conversation) => !staleIds.has(c.id));
 
-    dispatch({ field: 'conversations', value: kept });
-    saveConversations(kept);
+      // Releases any side artifacts (code interpreter records) a local placeholder held.
+      stale.filter((c) => isLocalConversation(c)).forEach(deleteConversationCleanUp);
+      // A held blank chat has no cloud object and no artifacts: forgetting the local copy is enough.
+      releaseHeldBlankConversations(stale.filter((c) => !isLocalConversation(c)).map((c) => c.id));
+
+      dispatch({ field: 'conversations', value: kept });
+      saveConversations(kept);
+    })();
   }, [conversationStateId, conversations, selectedConversation, dispatch]);
 
   return null;

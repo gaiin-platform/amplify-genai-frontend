@@ -2,8 +2,10 @@ import React from 'react';
 import { AmplifyLogo } from '@/components/NewUI/shared/AmplifyLogo';
 import { signIn } from 'next-auth/react';
 import { IconArrowRight } from '@tabler/icons-react';
+import { getBrandName } from '@/utils/whiteLabel/branding';
 
 export const NewLogin: React.FC = () => {
+  const brandName = getBrandName();
   return (
     <div
       data-new-ui-login="true"
@@ -21,7 +23,7 @@ export const NewLogin: React.FC = () => {
               id="new-login-title"
               className="text-[40px] font-semibold leading-tight text-[--text-primary]"
             >
-              Welcome to Amplify
+              Welcome to {brandName}
             </h1>
             <p className="mt-4 text-lg leading-8 text-[--text-secondary]">
               Log in with your institution account.

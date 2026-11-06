@@ -12,7 +12,7 @@ import { ReservedTags } from "@/types/tags";
 import { deepMerge } from "@/utils/app/state";
 import toast from "react-hot-toast";
 import { OutOfOrderResults } from "@/utils/app/outOfOrder";
-import { condenseForConversationHistory, conversationWithCompressedMessages, isRemoteConversation, remoteForConversationHistory, saveConversations } from "@/utils/app/conversation";
+import { condenseForConversationHistory, conversationWithCompressedMessages, isRemoteConversation, remoteForConversationHistory, saveConversations, upsertConversationEntry } from "@/utils/app/conversation";
 import { getHook } from "@/utils/app/chathooks";
 import { AttachedDocument } from "@/types/attacheddocument";
 import { Prompt } from "@/types/prompt";
@@ -506,14 +506,20 @@ export function useSendService() {
                         // Make sure the history list (what the sidebar renders) has this chat now,
                         // not only after the stream ends.
                         const listed = conversationsRef.current.some(c => c.id === updatedConversation.id);
-                        if (isFirstExchange || !listed) {
+                        // Local chats are persisted (with the new prompt) on every send, and cloud chats
+                        // when they are new to the list. Previously a follow-up prompt was only written
+                        // when the response finished, so closing the tab mid-stream lost it.
+                        if (isFirstExchange || !listed || !isRemoteConversation(updatedConversation)) {
                             const entry = condenseForConversationHistory(updatedConversation);
-                            const withEntry: Conversation[] = listed
-                                ? conversationsRef.current.map(c => c.id === entry.id ? entry : c)
-                                : [...conversationsRef.current, entry];
+                            const withEntry: Conversation[] = upsertConversationEntry(conversationsRef.current, entry);
                             conversationsRef.current = withEntry;
                             homeDispatch({ field: 'conversations', value: withEntry });
                             saveConversations(withEntry);
+                        }
+                        // Cloud chats: save the prompt right away too. The save queue persists it locally
+                        // first, serializes it with the later saves and retries on failure.
+                        if (isRemoteConversation(updatedConversation)) {
+                            void uploadConversation(updatedConversation, foldersRef.current);
                         }
                     }
 
@@ -1126,26 +1132,14 @@ export function useSendService() {
                                 console.error(`❌ [STREAM] Error stack:`, error?.stack);
 
                                 if (selectedConversation.isLocal) {
-                                    const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                        (conversation: Conversation) => {
-                                            if (conversation.id === selectedConversation.id) {
-                                                return conversationWithCompressedMessages(updatedConversation);
-                                            }
-                                            return conversation;
-                                        },
-                                    );
-                                    if (updatedConversations.length === 0) {
-                                        updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                                    }
+                                    const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, conversationWithCompressedMessages(updatedConversation));
                                     homeDispatch({ field: 'conversations', value: updatedConversations });
                                     saveConversations(updatedConversations);
                                 } else {
                                     uploadConversation(updatedConversation, foldersRef.current);
                                     {
                                         const remoteEntry = remoteForConversationHistory(updatedConversation);
-                                        const updatedConversations: Conversation[] = conversationsRef.current.length === 0
-                                            ? [remoteEntry]
-                                            : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
+                                        const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, remoteEntry);
                                         homeDispatch({ field: 'conversations', value: updatedConversations });
                                         saveConversations(updatedConversations);
                                         saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
@@ -1625,26 +1619,14 @@ export function useSendService() {
 
                                 // Save conversation
                                 if (selectedConversation.isLocal) {
-                                    const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                        (conversation: Conversation) => {
-                                            if (conversation.id === selectedConversation.id) {
-                                                return conversationWithCompressedMessages(updatedConversation);
-                                            }
-                                            return conversation;
-                                        },
-                                    );
-                                    if (updatedConversations.length === 0) {
-                                        updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                                    }
+                                    const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, conversationWithCompressedMessages(updatedConversation));
                                     homeDispatch({ field: 'conversations', value: updatedConversations });
                                     saveConversations(updatedConversations);
                                 } else {
                                     uploadConversation(updatedConversation, foldersRef.current);
                                     {
                                         const remoteEntry = remoteForConversationHistory(updatedConversation);
-                                        const updatedConversations: Conversation[] = conversationsRef.current.length === 0
-                                            ? [remoteEntry]
-                                            : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
+                                        const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, remoteEntry);
                                         homeDispatch({ field: 'conversations', value: updatedConversations });
                                         saveConversations(updatedConversations);
                                         saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
@@ -1790,26 +1772,14 @@ export function useSendService() {
                         }
 
                         if (selectedConversation.isLocal) {
-                            const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                (conversation: Conversation) => {
-                                    if (conversation.id === selectedConversation.id) {
-                                        return conversationWithCompressedMessages(updatedConversation);
-                                    }
-                                    return conversation;
-                                },
-                            );
-                            if (updatedConversations.length === 0) {
-                                updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                            }
+                            const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, conversationWithCompressedMessages(updatedConversation));
                             homeDispatch({ field: 'conversations', value: updatedConversations });
                             saveConversations(updatedConversations);
                         } else {
                             uploadConversation(updatedConversation, foldersRef.current);
                             {
                                 const remoteEntry = remoteForConversationHistory(updatedConversation);
-                                const updatedConversations: Conversation[] = conversationsRef.current.length === 0
-                                    ? [remoteEntry]
-                                    : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
+                                const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, remoteEntry);
                                 homeDispatch({ field: 'conversations', value: updatedConversations });
                                 saveConversations(updatedConversations);
                                 saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });

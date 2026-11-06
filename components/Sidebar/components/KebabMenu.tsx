@@ -441,7 +441,7 @@ interface Props {
         try {
             const allRemoteConvs = await fetchAllRemoteConversations(days);
             if (allRemoteConvs) {
-                const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch);
+                const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch, () => conversationsRef.current);
                 const updatedFolders = [...folders, ...newCloudFolders.newfolders];
                 homeDispatch({ field: 'folders', value: updatedFolders });
                 saveFolders(updatedFolders);
@@ -644,7 +644,7 @@ interface Props {
                                     if (isRemoteConversation(item)) {
                                         try {
                                             const fullConv = await fetchRemoteConversation(item.id);
-                                            if (fullConv) uploadConversation({...fullConv, tags: item.tags}, foldersRef.current);
+                                            if (fullConv) uploadConversation({...fullConv, tags: item.tags, folderId: item.folderId ?? null}, foldersRef.current);
                                         } catch {
                                             console.log("Failed to update remote conversation with new tags")
                                         } 
@@ -657,7 +657,7 @@ interface Props {
                             if (isRemoteConversation(item)) {
                                 try {
                                     const fullConv = await fetchRemoteConversation(item.id);
-                                    if (fullConv) uploadConversation({...fullConv, tags: item.tags}, foldersRef.current);
+                                    if (fullConv) uploadConversation({...fullConv, tags: item.tags, folderId: item.folderId ?? null}, foldersRef.current);
                                 } catch {
                                     console.log("Failed to update remote conversation with updated tags")
                                 }

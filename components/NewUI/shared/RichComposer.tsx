@@ -71,6 +71,15 @@ interface RichComposerProps {
   placeholder?: string;
   /** Additional className for the editable div */
   editorClassName?: string;
+  /**
+   * Additional className for the wrapper around the editor. Use it to give the
+   * wrapper the same min-height as the editor (e.g. `min-h-[4.5em]`) so a
+   * height-capped parent can't shrink the wrapper below its child and let the
+   * text paint outside its box.
+   */
+  rootClassName?: string;
+  /** Fires when the editor's scroll position leaves/returns to the top (drives the attachment-row divider). */
+  onScrolledChange?: (scrolled: boolean) => void;
   autoFocus?: boolean;
   /**
    * When true, Enter sends even if the editor's own text is empty — e.g. the
@@ -218,12 +227,49 @@ function insertTextInBlock(range: Range, sel: Selection, text: string) {
 // ── Component ──────────────────────────────────────────────────────────────
 
 export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
-  ({ onSend, onChange, onLargePaste, onImagePaste, placeholder = 'Ask anything…', editorClassName = '', autoFocus = false, hasExternalContent = false }, ref) => {
+  ({ onSend, onChange, onLargePaste, onImagePaste, placeholder = 'Ask anything…', editorClassName = '', rootClassName = '', onScrolledChange, autoFocus = false, hasExternalContent = false }, ref) => {
     const editorRef = useRef<HTMLDivElement>(null);
+    const scrolledRef = useRef(false);
+    const handleScroll = useCallback(
+      (e: React.UIEvent<HTMLDivElement>) => {
+        const scrolled = e.currentTarget.scrollTop > 0;
+        if (scrolled === scrolledRef.current) return;
+        scrolledRef.current = scrolled;
+        onScrolledChange?.(scrolled);
+      },
+      [onScrolledChange],
+    );
     const [hasContent, setHasContent] = useState(false);
 
     // Keep imperative updates on the same state/change path as user input. This
     // deliberate insertion does not dispatch a paste event or run paste thresholds.
+    // Keep the caret line visible when the editor is a capped, scrolling box.
+    // Browsers only do this natively for some edits (not Enter on a trailing
+    // empty line, not programmatic insertion), so do it explicitly.
+    const scrollCaretIntoView = useCallback(() => {
+      const editor = editorRef.current;
+      const sel = window.getSelection();
+      if (!editor || !sel || !sel.rangeCount) return;
+      if (editor.scrollHeight <= editor.clientHeight) return;
+      const range = sel.getRangeAt(0);
+      if (!editor.contains(range.endContainer)) return;
+      let rect: DOMRect | undefined = range.getClientRects()[0] ?? range.getBoundingClientRect();
+      if (!rect || (rect.height === 0 && rect.top === 0)) {
+        // A collapsed range on an empty line reports an empty rect — use its element.
+        const node = range.endContainer;
+        const el = node instanceof HTMLElement ? node : node.parentElement;
+        if (!el) return;
+        rect = el.getBoundingClientRect();
+      }
+      const box = editor.getBoundingClientRect();
+      const pad = 4;
+      if (rect.bottom > box.bottom - pad) {
+        editor.scrollTop += rect.bottom - box.bottom + pad;
+      } else if (rect.top < box.top + pad) {
+        editor.scrollTop -= box.top - rect.top + pad;
+      }
+    }, []);
+
     const updateHasContent = useCallback(() => {
       const editor = editorRef.current;
       if (!editor) return;
@@ -237,7 +283,8 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
         newLine.innerHTML = '<br>';
         editor.appendChild(newLine);
       }
-    }, [onChange]);
+      scrollCaretIntoView();
+    }, [onChange, scrollCaretIntoView]);
 
     // Expose imperative handle so parent can clear/focus/get value
     useImperativeHandle(ref, () => ({
@@ -575,7 +622,9 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
     }, [updateHasContent]);
 
     return (
-      <div className="relative">
+      // Flex column with min-h-0 so a height-capped parent can shrink the editor
+      // (which then scrolls internally) instead of the card growing past the viewport.
+      <div className={`relative flex flex-col min-h-[1.5em] ${rootClassName}`}>
         {/* Placeholder — shown when editor is empty */}
         {!hasContent && (
           <div
@@ -594,10 +643,15 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
           suppressContentEditableWarning
           onKeyDown={handleKeyDown}
           onInput={updateHasContent}
+          onScroll={handleScroll}
+          onKeyUp={(e) => {
+            // Arrow/Page/Home/End move the caret without an input event.
+            if (/^(Arrow|Page|Home|End)/.test(e.key)) scrollCaretIntoView();
+          }}
           onPaste={handlePaste}
           spellCheck
           className={`outline-none text-[16px] leading-[1.5] text-[--text-primary]
-                      min-h-[1.5em] break-words ${editorClassName}`}
+                      min-h-[1.5em] break-words overflow-y-auto ${editorClassName}`}
           aria-multiline="true"
           aria-label="Message input"
           role="textbox"

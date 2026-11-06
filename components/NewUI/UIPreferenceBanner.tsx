@@ -57,6 +57,7 @@ import {
   setUiRollout,
 } from '@/components/NewUI/shared/uiRolloutStore';
 import { getSettings } from '@/utils/app/settings';
+import { getBrandName } from '@/utils/whiteLabel/branding';
 
 // Re-exported so existing importers (home.tsx, AccountMenu) keep their import path.
 export { UI_PREF_KEY, getUIPreference, resolveStoredUIPreference };
@@ -336,7 +337,7 @@ export const UIPreferenceBanner: React.FC<UIPreferenceBannerProps> = ({
         className="fixed inset-0 z-[200]"
         style={{ background: 'var(--bg-app)' }}
       >
-        <NewUILoadingStatus open message="Setting up Amplify…" />
+        <NewUILoadingStatus open message={`Setting up ${getBrandName()}…`} />
       </div>
     );
   }
