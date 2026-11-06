@@ -9,7 +9,7 @@
 
 ## Summary
 
-Version 0.9.5 adds the **New UI**, a redesigned interface for Amplify. Compared with `v0.9.4` it contains **309 commits** and **636 changed files**. The New UI ships **switched off**: it is controlled by a feature flag named `newUi`, and deploying this release changes nothing for users until an admin turns the flag on. The Classic UI is still in the product.
+Version 0.9.5 adds the **New UI**, a redesigned interface for Amplify. Compared with `v0.9.4` it contains **322 commits** and **659 changed files**. The New UI ships **switched off**: it is controlled by a feature flag named `newUi`, and deploying this release changes nothing for users until an admin turns the flag on. The Classic UI is still in the product.
 
 This document keeps two kinds of content apart:
 
@@ -21,7 +21,8 @@ This document keeps two kinds of content apart:
 - :warning: **The New UI is off by default.** An admin enables the `newUi` feature flag (exact name, case-sensitive).
 - :warning: **Build changes** - Next.js 14 to 15, Node 20 or newer, `console.log/info/debug` removed from production builds.
 - :art: **White labeling** - the New UI honors `NEXT_PUBLIC_CUSTOM_LOGO`, `NEXT_PUBLIC_BRAND_NAME`, `NEXT_PUBLIC_DEFAULT_THEME` and the new `NEXT_PUBLIC_ORGANIZATION_NAME`. These are **build-time** values and must be passed as Docker build arguments.
-- :package: **No data migration** is needed in the browser or on the server.
+- :mag: **RAG upgrade (admin tool)** - a new **RAG Migration** tab in the New UI admin panel and a **Document Retention** card (off by default). They need the matching backend and do nothing until an admin uses them. See [section 6](#6-rag-migration-and-document-retention-admins).
+- :package: **No mandatory data migration** in the browser or on the server. Moving existing documents to the new RAG storage is optional and admin-run (section 6).
 
 ### Terms used in this document
 - **Feature flag**: an on/off switch in the Admin panel, with optional per-user and per-group exceptions.
@@ -168,7 +169,36 @@ The most common cause is a **stale image or an old container**, not a code probl
 7. **Hard refresh the browser** (Cmd+Shift+R / Ctrl+Shift+R). Users who chose a theme keep their choice.
 8. If you host with AWS Amplify instead of Docker, the build runs `env | grep NEXT_PUBLIC_` into `.env.production`, so set the variables in the Amplify build environment.
 
-## 6. Load-balancer cookie (check with your infra owner)
+## 6. RAG migration and document retention (admins)
+
+**RAG** is how Amplify searches uploaded documents. This release works with a backend change that processes **new** uploads in a new way and lets an admin move **existing** documents over. The full operator guide (new AWS resources, settings, costs, limits, regions) is in the backend release notes, [section 11](https://github.com/gaiin-platform/amplify-genai-backend/blob/main/RELEASE_NOTES_NEW_UI.md#11-rag-pipeline-upgrade). This section covers what you see in the web app. Both parts need the matching backend; an older backend gives errors (see below).
+
+**What users notice without any admin action**
+- A document that is attached to a chat only, with no search embeddings, shows the status **"Chat Only"** instead of `-----`. This applies in the Classic and New UIs.
+- In the New UI assistant editor, saved data sources show a status (Starting, Processing, Completed, Failed, Error) and a regenerate button, with summary lines such as "198 completed - 2 need attention".
+- In the New UI, source cards in a chat show where the quote came from (for example "Page 8" or "Slides 22-25") and an expandable excerpt of up to 700 characters.
+- Uploads over the new size limits are rejected with a message from the backend. The frontend did not add limits.
+
+**RAG Migration tab (New UI only)**
+- **Where:** Admin Panel, left rail, **RAG Migration**. It shows to anyone who can open the admin panel, and the backend routes also check for an admin. The Classic admin has no such tab.
+- **It is optional.** Nothing is moved until an admin starts it. Without it, existing documents keep working.
+- **How a run goes:** choose the documents, set the pace, create the new embeddings, move assistants' references to the new copies, then (optionally, later) remove the old embeddings. Details and limits are in the backend notes.
+- **Keep the page open.** The run loop lives in the browser page and uses the admin's login (the confirmation says about an hour). Closing the tab stops new documents starting; ones already building finish. The list of tracked documents is kept only for the browser session.
+- **Start, Pause, Stop:** Start and Resume ask for a confirmation. Pause stops only new starts. Stop also empties the waiting queue.
+- **"Move references"** (cut-over) handles up to 50 documents per press and can be rolled back with "Roll back". Leave "Move references automatically" off for the first run.
+- **"Remove old embeddings"** is the only step that deletes data, and it cannot be undone. It is guarded by a browser confirmation only, so treat it carefully. Each press handles up to 200 documents.
+- **Orphaned files:** a "Clean up orphaned files" section lists files no assistant uses any more. Deleting needs the admin to type `DELETE`.
+- **Cost figures** in the tab are estimates built from fixed values in the code, and the tab itself says page-image prices are not confirmed with AWS.
+- Documents cannot be started between about 02:55 and 03:20 UTC.
+
+**Document Retention card (Classic and New admin)**
+- **Where:** Admin Panel, Configurations, **Document Retention**. Off by default; the default period is 90 days (allowed 1 to 3650).
+- When on, a daily clean-up (about 04:00 UTC) deletes chat-only attachments not used for that many days. Deleted files cannot be recovered. Files used by an assistant or group, images, videos and files with embeddings are not deleted.
+- Deploy the backend (including `amplify-lambda-js`) before turning it on.
+
+**If the backend is older:** the RAG Migration tab is not hidden. It shows a loading placeholder with an error and retries every 10 seconds. We did not test the exact error text.
+
+## 7. Load-balancer cookie (check with your infra owner)
 
 When a user is on the New UI the app sets a cookie `X-Amplify-UI=new` (one year), and it clears the cookie when the flag is off. A code comment says it exists for a load-balancer rule that sends that cookie to a separate "new UI" target group. **No load-balancer configuration for it exists in either repo.** If you serve both UIs from one build, which is the default for this repo, you need nothing. If your environment runs separate New UI and Classic targets, that rule must exist before you turn the flag on.
 
@@ -207,8 +237,12 @@ These descriptions come from the commit history and the code. Items behind a fea
 ### Settings and customization
 - Custom Instructions, Prompt Templates with a model selector, Sidebar Items, and synced defaults for chat font, model and reasoning effort.
 
+### Documents and RAG
+- A **RAG Migration** admin tab (New UI) for moving existing documents to the new document storage, with cost estimates, rollback before clean-up, and an orphaned-file finder. A **Document Retention** card in both admin UIs (off by default). See Part 1, [section 6](#6-rag-migration-and-document-retention-admins).
+- A "Chat Only" document status, embedding status and a regenerate button in the assistant editor, and source cards that show the page or slide a quote came from.
+
 ### Admin
-- A redesigned admin modal with User Costs, System Prompts, Deployment, a site-wide announcement banner, model rate limits and an AI router model setting.
+- A redesigned admin modal with User Costs, System Prompts, Deployment, RAG Migration, a site-wide announcement banner, model rate limits and an AI router model setting.
 
 ### Rollout, themes and mobile
 - The `newUi` flag, a first-run UI choice, and switches between the two UIs (see Part 1).
@@ -225,27 +259,27 @@ These descriptions come from the commit history and the code. Items behind a fea
 
 ## Stats
 
-Measured with `git diff origin/main...dev` on 2026-11-05; commits keep landing, so re-run before publishing.
+Measured with `git diff origin/main...origin/dev` on 2026-11-06 (at `fbbcb974`); commits keep landing, so re-run before publishing.
 
 | Metric | Count |
 |--------|-------|
-| Commits | 309 |
-| Files changed | 636 |
-| Insertions | +114,214 |
-| Deletions | -6,459 |
-| Merged pull requests | 9 |
+| Commits | 322 |
+| Files changed | 659 |
+| Insertions | +118,784 |
+| Deletions | -6,599 |
+| Merged pull requests | 10 (#333, #336, #338, #339, #344, #345, #346, #347, #349, #350) |
 
 ## Contributors
 
 - **Max Moundas** - New UI implementation, rollout, admin, white-label (committed under two git names, `Max Moundas` and `maxmoundas`)
 - **Harsha Raj Kumar** - Artifact library, preview and edit fixes, PowerPoint generation
 - **Jagadeesh Reddy Vanga** - Halloween theme, Download as Word, Classic skills picker, security fixes
-- **Karely Rodriguez** - Admin User Costs, model rate limits
+- **Karely Rodriguez** - RAG Migration admin tab, Admin User Costs, model rate limits
 - **prestonmhorne** - Notebook components moved to the New UI design tokens
 
 ## Deployment instructions
 
-1. **Deploy backend v0.9.5 first.** See the [backend release notes](https://github.com/gaiin-platform/amplify-genai-backend/blob/main/RELEASE_NOTES_NEW_UI.md).
+1. **Deploy backend v0.9.5 first.** See the [backend release notes](https://github.com/gaiin-platform/amplify-genai-backend/blob/main/RELEASE_NOTES_NEW_UI.md). In it, `amplify-lambda` must finish deploying before `embedding` starts.
 2. Rebuild the frontend image (with `--no-cache` and any white-label `--build-arg` values), push it to ECR and update the ECS service.
 3. In the Admin panel, enable the `newUi` flag for the users you want.
 
@@ -264,6 +298,11 @@ See the full [deployment guide](https://github.com/gaiin-platform/.github/blob/m
 ## Draft status (delete this section before publishing)
 
 1. **Contributor lines are taken from commit subjects**; confirm names and wording (prestonmhorne has one commit and no full name in git).
-2. **`GET /state/share/sent`**: the backend route was added (uncommitted) so the share dialog can load share history saved on the server. Without it the dialog silently falls back to the browser's own history. Confirm it is committed and deployed with the backend before publishing (see the backend draft-status section).
-3. **Not tested by us:** the Docker build and troubleshooting steps above, a deployed flag rollout, and the load-balancer cookie behaviour.
-4. **Versions:** `package.json` still says `0.9.0`.
+2. **`GET /state/share/sent`**: the backend route was added (backend commit `0920ab5a`) so the share dialog can load share history saved on the server. Without it the dialog silently falls back to the browser's own history. We have not called it on a deployed backend.
+3. **RAG Migration wording to fix or accept** (all confirmed in the frontend code):
+   - `RagMigrationTab.tsx:30` tells admins "'Update assistants' tries again", but that button was removed. Retrying is done by pressing "Move references" again.
+   - `RagMigrationScope.tsx:169-170` points to a "Documents section below" with a "Complete" filter that no longer exists; the real path is step 1, "Select documents".
+   - The "Remove old embeddings" confirm (`RagMigrationTab.tsx:708`) says "every document whose references have moved" and names PostgreSQL, but one press handles at most 200. It is the only irreversible bulk step and has only a browser confirm; orphan deletion by contrast requires typing `DELETE`.
+   - Cost figures use fixed numbers in the code (for example 20 embedding calls per file and $0.0015 per OCR page) and the tab says page-image prices are unconfirmed.
+4. **Not tested by us:** the Docker build and troubleshooting steps above, a deployed flag rollout, the load-balancer cookie behaviour, and the RAG Migration tab against a live backend.
+5. **Versions:** `package.json` still says `0.9.0`.
