@@ -1175,7 +1175,9 @@ export const NewLibraryView: React.FC = () => {
         setDeleteTarget(null);
         setIsDeleting(true);
         try {
-            const result = await deleteDatasourceFile({ id: file.id, name: file.name });
+            // showToast=false: this view reports the outcome itself below, so the
+            // helper's own toast/alert would show a duplicate message.
+            const result = await deleteDatasourceFile({ id: file.id, name: file.name }, false);
             if (result.success) {
                 // Remove the row in place. Cursors stay valid because a page
                 // key only records a position in the index, so there is no need
