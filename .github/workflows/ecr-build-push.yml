@@ -31,7 +31,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      # AWS access is only needed to push/deploy. PR runs have no environment, so
+      # the environment-scoped vars (AWS_REGION, etc.) are not available to them.
       - name: Configure AWS credentials
+        if: github.event_name != 'pull_request'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_IAM_ROLE_ARN }}
@@ -44,6 +47,7 @@ jobs:
 
       - name: Login to Amazon ECR
         id: login-ecr
+        if: github.event_name != 'pull_request'
         uses: aws-actions/amazon-ecr-login@v2
         with:
           registries: ${{ vars.AWS_ACCOUNT_ID }}

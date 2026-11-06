@@ -1,0 +1,205 @@
+import { Conversation, Message } from '@/types/chat';
+import { ErrorMessage } from '@/types/error';
+import { FolderInterface} from '@/types/folder';
+import {  Models } from '@/types/model';
+import { Prompt } from '@/types/prompt';
+import { WorkflowDefinition } from "@/types/workflow";
+import { Status } from "@/types/workflow";
+import { Workspace } from "@/types/workspace";
+import { v4 as uuidv4 } from 'uuid';
+import { Assistant } from "@/types/assistant";
+import { noOpStatsServices, StatsServices } from "@/types/stats";
+import { Account } from "@/types/accounts";
+import {Op} from "@/types/op";
+import {CheckItemType} from "@/types/checkItem";
+import { PluginLocation } from '@/types/plugin';
+import { Group } from '@/types/groups';
+import { Artifact } from '@/types/artifacts';
+import { ShareItem } from '@/types/export';
+import { ExtractedFact } from '@/types/memory';
+import { Features } from '@/types/features';
+import { PromptCostAlert } from '@/components/Admin/AdminUI';
+import { LayeredAssistant } from '@/types/layeredAssistant';
+import { RateLimit, RateLimits, HonorPersonalRateLimit } from '@/types/rateLimit';
+
+export interface HomeInitialState {
+  defaultAccount: Account | undefined;
+  chatEndpoint: string | null;
+  conversationStateId: string;
+  loading: boolean;
+  lightMode: 'light' | 'dark';
+  messageIsStreaming: boolean;
+  artifactIsStreaming: boolean
+  modelError: ErrorMessage | null;
+  status: Status[];
+
+  // models: Model[]; // models shown to the user 
+  availableModels: Models, 
+  defaultModelId: string | undefined; // user settings will have priority over this value else come from admin settings
+  cheapestModelId: string | undefined;
+  advancedModelId: string | undefined;
+
+  folders: FolderInterface[];
+  conversations: Conversation[];
+  artifacts: any[];
+  workflows: WorkflowDefinition[];
+  selectedConversation: Conversation | undefined;
+  currentMessage: Message | undefined;
+  selectedArtifacts: Artifact[] | undefined;
+  prompts: Prompt[];
+  temperature: number;
+  showChatbar: boolean;
+  showPromptbar: boolean;
+  showUserMenu: boolean;
+  activeAssistantGalleryTab: 'group' | 'individual' | 'templates' | 'layered';
+  layeredAssistants: LayeredAssistant[];
+  syncingLayeredAssistants: boolean;
+
+  workspaceDirty: boolean; //legacy
+  workspaceMetadata: Workspace; //legacy
+  workspaces: ShareItem[] | null;
+
+  currentFolder: FolderInterface | undefined;
+  messageError: boolean;
+  searchTerm: string;
+  featureFlags: Features,
+  selectedAssistant: Assistant | null;
+  page: string;
+  statsService: StatsServices;
+  currentRequestId: string | null;
+  inputEmail: string;
+  hasScrolledToBottom: boolean;
+  storageSelection: string | null;
+  storageProcessing: {
+    isProcessing: boolean;
+    message: string;
+    progress: number;
+    total: number;
+  };
+  ops: { [key: string]: Op };
+  allFoldersOpenConvs: boolean;
+  allFoldersOpenPrompts: boolean;
+  checkedItems: Array<any>;
+  checkingItemType: CheckItemType | null;
+  pluginLocation: PluginLocation;
+  groups: Group[];
+  syncingConversations: boolean;
+  syncingPrompts: boolean;
+  hiddenGroupFolders: FolderInterface[];
+  powerPointTemplateOptions: string[];
+  amplifyUsers: { [key: string]: string };
+  extractedFacts: ExtractedFact[];
+  memoryExtractionEnabled: boolean;
+  supportEmail: string;
+  aiEmailDomain: string;
+  defaultTimezone: string;
+  isStandalonePromptCreation: boolean;
+  promptCostAlert: PromptCostAlert | null;
+  canAddWebSearchApiKey: boolean;
+  webSearchUserMessage: string | null;
+  userDocumentationUrl: string;
+  adminRateLimits: RateLimits;
+  honorPersonalRateLimit: HonorPersonalRateLimit;
+  groupRateLimits: { groupName: string; limits: RateLimits }[];
+  promptCostAlertModal: {
+    isOpen: boolean;
+    message: string;
+    cost: string;
+    prompts: number;
+    onConfirm: () => void;
+    onDeny: () => void;
+  } | null;
+}
+
+export const initialState: HomeInitialState = {
+  defaultAccount: undefined,
+  chatEndpoint: null,
+  conversationStateId: "init",
+  loading: false,
+  lightMode: 'dark',
+  status: [],
+
+  workspaceDirty: false,
+  workspaceMetadata: {
+    name: '',
+    description: '',
+    id: uuidv4(),
+    // populate with date tiem string in iso format
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    lastAccessedAt: new Date().toISOString(),
+    tags: [],
+    data: {},
+  },
+  workspaces: null, 
+
+  messageIsStreaming: false,
+  artifactIsStreaming: false,
+  modelError: null,
+  // models: [],
+  availableModels: {},
+  defaultModelId: undefined,
+  cheapestModelId: undefined,
+  advancedModelId: undefined,
+  folders: [],
+  conversations: [],
+  artifacts:[], // for saved/remote artifacts
+  workflows: [],
+  ops: {},
+  
+  selectedConversation: undefined,
+  currentMessage: undefined,
+  selectedArtifacts: undefined,
+  prompts: [],
+  temperature: 1,
+  showPromptbar: false,
+  showChatbar: false,
+  showUserMenu: false,
+  activeAssistantGalleryTab: 'group',
+  layeredAssistants: [],
+  syncingLayeredAssistants: true,
+  currentFolder: undefined,
+  messageError: false,
+  searchTerm: '',
+  selectedAssistant: null,
+  page: 'chat',
+  currentRequestId: null,
+
+  featureFlags: {},
+
+  statsService: noOpStatsServices,
+  inputEmail: '',
+  hasScrolledToBottom: false,
+  storageSelection: null,
+  storageProcessing: {
+    isProcessing: false,
+    message: '',
+    progress: 0,
+    total: 0,
+  },
+  allFoldersOpenConvs: false,
+  allFoldersOpenPrompts: false,
+  checkedItems: [],
+  checkingItemType: null,
+  pluginLocation: {x:100, y:-250},
+  groups: [],
+  syncingConversations: true,
+  syncingPrompts: true,
+  hiddenGroupFolders: [],
+  powerPointTemplateOptions: [],
+  amplifyUsers: {},
+  extractedFacts: [],
+  memoryExtractionEnabled: true,
+  supportEmail: '',
+  aiEmailDomain: '',
+  defaultTimezone: 'America/Chicago',
+  isStandalonePromptCreation: false,
+  promptCostAlert: null,
+  promptCostAlertModal: null,
+  canAddWebSearchApiKey: false,
+  webSearchUserMessage: null,
+  userDocumentationUrl: '',
+  adminRateLimits: [],
+  honorPersonalRateLimit: { enabled: false },
+  groupRateLimits: []
+};

@@ -15,7 +15,6 @@ import {
   IconExternalLink,
   IconLoader2,
   IconRefresh,
-  IconInfoCircle,
   IconTool,
   IconPlugConnected,
   IconPlugConnectedX,
@@ -28,6 +27,7 @@ import {
   MCP_SERVER_PRESETS,
   validateMCPServerUrlWithReason,
 } from '@/types/mcp';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
 import {
   listMCPServers,
   addMCPServer,
@@ -338,45 +338,17 @@ export const MCPServersTab: FC<Props> = ({ open, setUnsavedChanges }) => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <IconServer className="w-6 h-6 text-purple-500" />
-            <h2 className="text-xl font-semibold text-black dark:text-white">
-              MCP Servers
-            </h2>
-          </div>
-          {!showAddForm && (
-            <button
-              onClick={handleShowAddForm}
-              className="px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center gap-1 text-sm"
-            >
-              <IconPlus className="w-4 h-4" />
-              Add Server
-            </button>
-          )}
+      {!showAddForm && (
+        <div className="flex justify-end">
+          <button
+            onClick={handleShowAddForm}
+            className="px-3 py-1.5 bg-purple-500 text-white rounded hover:bg-purple-600 flex items-center gap-1 text-sm"
+          >
+            <IconPlus className="w-4 h-4" />
+            Add Server
+          </button>
         </div>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-          Connect to MCP servers for extended tool capabilities like Jupyter notebooks,
-          file systems, databases, and more.
-        </p>
-      </div>
-
-      {/* Info Box */}
-      <div className="p-4 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
-        <div className="flex items-start gap-3">
-          <IconInfoCircle className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
-          <div className="text-sm text-purple-700 dark:text-purple-300">
-            <p className="font-medium">What is MCP?</p>
-            <p className="mt-1">
-              Model Context Protocol (MCP) allows the AI to interact with external tools
-              and services. When you connect an MCP server, its tools become available
-              for the AI to use during conversations.
-            </p>
-          </div>
-        </div>
-      </div>
+      )}
 
       {/* Add Server Form */}
       {showAddForm && (

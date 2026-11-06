@@ -112,6 +112,7 @@ import { MetaHandler, sendChatRequestWithDocuments } from "./chatService";
 import { emptyAstPathData } from "@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor";
 import { DEFAULT_SYSTEM_PROMPT } from "@/utils/app/const";
 import { deepMerge } from "@/utils/app/state";
+import { buildPromptWithInstruction } from "@/components/NewUI/shared/customInstructions";
 
 export const sendDirectAssistantMessage = async (
   chatEndpoint: string,
@@ -184,6 +185,9 @@ export const sendDirectAssistantMessage = async (
       skipMemory: true, // Skip memory processing
       ...options,
     };
+    // Compose after options so a caller-provided prompt cannot replace the
+    // active instruction. Preserve any existing base prompt when supplied.
+    chatBody.prompt = buildPromptWithInstruction(chatBody.prompt || DEFAULT_SYSTEM_PROMPT);
 
     // 🔍 DEBUG: Estimate JSON body size
     try {
@@ -335,9 +339,13 @@ export const lookupAssistant = async (astPath: string) => {
         data: actualResult.data
       };
     } else {
+      const message = actualResult.message || 'Assistant not found at this path';
       return {
         success: false,
-        message: actualResult.message || 'Assistant not found at this path'
+        message,
+        // The path IS registered, just not to anyone this user may see (a restricted link, or a group's).
+        // Callers checking availability must not read that as "free".
+        inUse: /not authorized/i.test(message),
       };
     }
   } catch (error) {

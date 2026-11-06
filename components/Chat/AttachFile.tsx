@@ -9,13 +9,14 @@ import { v4 as uuidv4 } from 'uuid';
 import { AttachedDocument, AttachedDocumentMetadata } from '@/types/attacheddocument';
 import { addFile, checkContentReady, deleteFile } from "@/services/fileService";
 import { getMimeTypeFromExtension } from '@/utils/app/fileTypeTranslations';
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import React from 'react';
-import { resolveRagEnabled } from '@/types/features';
 import { processInputFiles } from '@/utils/fileHandler';
 import { ConfirmModal } from '../ReusableComponents/ConfirmModal';
 import { extractSensitivityLabel } from '@/utils/app/files';
 import { VIDEO_FILE_TYPES } from '@/utils/app/const';
+
+const UPLOAD_ERROR_EVENT = 'amplify:upload-error';
 
 interface Props {
     onAttach: (data: AttachedDocument) => void;
@@ -27,12 +28,9 @@ interface Props {
     disallowedFileExtensions?: string[];
     allowedFileExtensions?: string[];
     groupId?: string;
+    // RAG at upload is opt-in: assistant knowledge-base uploads pass `false`; omitting it
+    // (chat uploads) means the file is never RAG'd.
     disableRag?: boolean;
-    // Override for the ambient HomeContext.ragOn flag. Callers use this when a mode
-    // outside the RAG plugin (e.g. Code Interpreter) still needs newly attached files
-    // to be RAG-indexed at upload time, so the file remains accessible to normal chat
-    // if that other mode is later disabled in the same conversation.
-    forceRagOn?: boolean;
     className?: string;
     props?: any;
 }
@@ -124,7 +122,7 @@ export const handleFile = async (file: any,
             ? { ...props, durationSeconds: videoDurationSeconds }
             : props;
 
-        let document: AttachedDocument = { id: uuidv4(), name: fileName, type: type, raw: "", data: dataProps, groupId };
+        let document: AttachedDocument = { id: uuidv4(), name: fileName, type: type, raw: "", data: dataProps, size, groupId };
         console.log(`document.type: "${document.type}"`);
         console.log("document", document);
         console.log("file", file);
@@ -219,7 +217,9 @@ export const handleFile = async (file: any,
                 console.error('[UPLOAD DEBUG] Error in upload flow:', e);
                 // @ts-ignore
                 if (e.message !== 'Abort') {
-                    alert("Upload file aborted");
+                    window.dispatchEvent(new CustomEvent(UPLOAD_ERROR_EVENT, {
+                        detail: { message: 'Upload file aborted' },
+                    }));
                     if (docKey) safeCleanUp(docKey);
                 }
             }
@@ -235,16 +235,25 @@ export const handleFile = async (file: any,
     }
 }
 
-export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMetadata, onSetKey, onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, forceRagOn, className = "", props = {} }) => {
+export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMetadata, onSetKey, onSetAbortController, allowedFileExtensions, disallowedFileExtensions, groupId, disableRag, className = "", props = {} }) => {
     const { t } = useTranslation('sidebar');
 
-    const { state: { featureFlags, statsService, ragOn: ragOnFromContext } } = useContext(HomeContext);
-    const ragOn = forceRagOn || ragOnFromContext;
+    const { state: { featureFlags, statsService } } = useContext(HomeContext);
 
     const uploadDocuments = featureFlags.uploadDocuments;
 
     // State for sensitivity block modal
     const [blockedFile, setBlockedFile] = useState<{ fileName: string; labelName: string } | null>(null);
+    const [uploadError, setUploadError] = useState<string | null>(null);
+
+    React.useEffect(() => {
+        const handleUploadError = (event: Event) => {
+            const message = (event as CustomEvent<{ message?: string }>).detail?.message;
+            if (message) setUploadError(message);
+        };
+        window.addEventListener(UPLOAD_ERROR_EVENT, handleUploadError);
+        return () => window.removeEventListener(UPLOAD_ERROR_EVENT, handleUploadError);
+    }, []);
 
     const handleSensitivityBlock = (fileName: string, labelName: string) => {
         setBlockedFile({ fileName, labelName });
@@ -278,7 +287,6 @@ export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMet
                         onSensitivityBlock: handleSensitivityBlock,
                         statsService,
                         featureFlags,
-                        ragOn,
                         uploadDocuments,
                         groupId,
                         disableRag,
@@ -305,6 +313,17 @@ export const AttachFile: FC<Props> = ({ id, onAttach, onUploadProgress, onSetMet
             </button>
 
             {/* Sensitivity Block Modal */}
+            {uploadError && (
+                <ConfirmModal
+                    title="Upload failed"
+                    message={uploadError}
+                    confirmLabel="OK"
+                    onConfirm={() => setUploadError(null)}
+                    width={450}
+                    height={220}
+                />
+            )}
+
             {blockedFile && (
                 <ConfirmModal
                     title="🔒 Sensitive File Detected"

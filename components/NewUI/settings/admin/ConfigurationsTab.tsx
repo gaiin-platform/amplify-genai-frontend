@@ -1,0 +1,1550 @@
+import { DocumentRetentionCard } from "@/components/Admin/AdminComponents/DocumentRetentionCard";
+import { FC, useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
+import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "@/components/Admin/AdminUI";
+import { AdminConfigTypes, DocumentRetention, FeatureFlagConfig } from "@/types/admin";
+import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport, IconUsers } from "@tabler/icons-react";
+import Checkbox from "@/components/ReusableComponents/CheckBox";
+import ExpansionComponent from "@/components/Chat/ExpansionComponent";
+import { RateLimiter } from "@/components/Settings/AccountComponents/RateLimit";
+import { PeriodType, formatRateLimit, formatRateLimits, normalizeRateLimits, rateLimitObj, noRateLimit, RateLimit, RateLimits } from "@/types/rateLimit";
+import { InfoBox } from "@/components/ReusableComponents/InfoBox";
+import Search from "@/components/Search";
+import ActionButton from "@/components/ReusableComponents/ActionButton";
+import { useSession } from "next-auth/react";
+import InputsMap from "@/components/ReusableComponents/InputMap";
+import { AddEmailWithAutoComplete } from "@/components/Emails/AddEmailsAutoComplete";
+import { EmailsAutoComplete } from "@/components/Emails/EmailsAutoComplete";
+import { ConversationStorage } from "@/types/conversationStorage";
+import { capitalize, getUserIdentifier } from "@/utils/app/data";
+import { CsvUpload } from "@/components/ReusableComponents/CsvUpload";
+import { CsvPreviewModal } from "@/components/ReusableComponents/CsvPreviewModal";
+import { useCsvUpload } from "@/hooks/useCsvUpload";
+import { AdminCsvUploadConfig, AdminCsvPreviewConfig } from "@/config/csvUploadConfigs";
+import toast from "react-hot-toast";
+
+// ── UUID helpers ─────────────────────────────────────────────────────────────
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isRawUUID = (s: string) => UUID_RE.test(s?.trim() ?? '');
+
+const getInitials = (emailOrName: string): string => {
+    const s = (emailOrName ?? '').trim();
+    if (s.includes('@')) return s.split('@')[0].slice(0, 2).toUpperCase();
+    const parts = s.split(/[\s._-]+/).filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return s.slice(0, 2).toUpperCase();
+};
+
+const avatarColorClass = (s: string): string => {
+    let h = 0;
+    for (let i = 0; i < s.length; i++) h = s.charCodeAt(i) + ((h << 5) - h);
+    const palette = ['bg-blue-500','bg-emerald-500','bg-violet-500','bg-rose-500',
+                     'bg-amber-500','bg-cyan-500','bg-indigo-500','bg-pink-500'];
+    return palette[Math.abs(h) % palette.length];
+};
+
+interface Props {
+    admins: string[];
+    setAdmins: (a: string[]) => void;
+
+    ampGroups: Amplify_Groups;
+    setAmpGroups: (g: Amplify_Groups) => void;
+    
+    amplifyUsers: { [key: string]: string };
+
+    rateLimits: RateLimits;
+    setRateLimits: (l: RateLimits) => void;
+
+    honorPersonalRateLimit: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' };
+    setHonorPersonalRateLimit: (v: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }) => void;
+
+    promptCostAlert: PromptCostAlert;
+    setPromptCostAlert: (a: PromptCostAlert) => void;
+
+    defaultConversationStorage: ConversationStorage;
+    setDefaultConversationStorage: (s: ConversationStorage) => void;
+
+    emailSupport: EmailSupport;
+    setEmailSupport: (e :EmailSupport) => void;
+
+    documentRetention: DocumentRetention;
+    setDocumentRetention: (d: DocumentRetention) => void;
+
+    aiEmailDomain: string;
+    setAiEmailDomain?: (d: string) => void;
+
+    defaultTimezone: string;
+    setDefaultTimezone: (tz: string) => void;
+
+    smartMessagesEnabled: boolean;
+    setSmartMessagesEnabled: (v: boolean) => void;
+    features: FeatureFlagConfig;
+
+    allEmails: Array<string> | null;
+    availableModels: { [modelId: string]: { id?: string; name?: string; isAvailable?: boolean } };
+
+    admin_text: string;
+    updateUnsavedConfigs: (t: AdminConfigTypes) => void;
+    onModalStateChange?: (hasOpenModal: boolean) => void;   
+}
+
+export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setAmpGroups, amplifyUsers, allEmails,
+                                              rateLimits, setRateLimits, honorPersonalRateLimit, setHonorPersonalRateLimit,
+                                              promptCostAlert, setPromptCostAlert,
+                                              defaultConversationStorage, setDefaultConversationStorage,
+                                              emailSupport, setEmailSupport, documentRetention, setDocumentRetention, aiEmailDomain, setAiEmailDomain,
+                                              defaultTimezone, setDefaultTimezone,
+                                              smartMessagesEnabled, setSmartMessagesEnabled, features, availableModels,
+                                              admin_text, updateUnsavedConfigs, onModalStateChange}) => {
+
+    const smartMessagesFlagOn = features.smartMessages?.enabled !== false;
+
+    const { data: session } = useSession();
+    const userEmail = getUserIdentifier(session?.user);
+
+    const [isDeleting, setIsDeleting] = useState<boolean>(false);
+    const [deleteUsersList, setDeleteUsersList] = useState<string[]>([]);
+    const [hoveredUser, setHoveredUser] = useState<string | null>(null);
+    const [hoveredAmpGroup, setHoveredAmpGroup] = useState<string>('');
+    const [isAddingAmpGroups, setIsAddingAmpGroups] = useState<Amplify_Group | null>(null);
+    const [ampGroupSearchTerm, setAmpGroupSearchTerm] = useState<string>(''); 
+    const [showAmpGroupSearch, setShowAmpGroupsSearch] = useState<boolean>(true);
+    const [editingRateLimit, setEditingRateLimit] = useState<string | null>(null);
+    const [tempRateLimits, setTempRateLimits] = useState<RateLimit[]>([]); // working copy for group being edited
+    const [addingGroupLimitRow, setAddingGroupLimitRow] = useState<{period: PeriodType, rate: string} | null>(null);
+    const [addingAdminLimitRow, setAddingAdminLimitRow] = useState<{period: PeriodType, rate: string} | null>(null);
+    const [editingAdminLimitIdx, setEditingAdminLimitIdx] = useState<{idx: number, period: PeriodType, rate: string} | null>(null);
+    const [hoveredAdminLimitIdx, setHoveredAdminLimitIdx] = useState<number | null>(null);
+    const [editingGroupLimitIdx, setEditingGroupLimitIdx] = useState<{idx: number, period: PeriodType, rate: string} | null>(null);
+    const [hoveredRateLimit, setHoveredRateLimit] = useState<string | null>(null);
+    const [showAddAdminInput, setShowAddAdminInput] = useState<boolean>(false);
+    const [editingModelRateGroup, setEditingModelRateGroup] = useState<string | null>(null);
+    const [tempModelRateLimits, setTempModelRateLimits] = useState<Record<string, RateLimit>>({});
+    const [newModelRateId, setNewModelRateId] = useState<string>('');
+    const [newModelRate, setNewModelRate] = useState<string>('$0.00');
+
+    const availableModelOptions = useMemo(
+        () => Object.entries(availableModels || {})
+            .filter(([modelId, model]) => model.isAvailable === true || modelId in (ampGroups[editingModelRateGroup || '']?.modelRateLimits || {}))
+            .map(([modelId, model]) => ({ id: model.id || modelId, name: model.name || model.id || modelId }))
+            .sort((a, b) => a.name.localeCompare(b.name)),
+        [availableModels, ampGroups, editingModelRateGroup]
+    );
+
+    const openModelRateLimitEditor = (groupName: string) => {
+        setTempModelRateLimits({ ...(ampGroups[groupName]?.modelRateLimits || {}) });
+        setNewModelRateId('');
+        setNewModelRate('$0.00');
+        setEditingModelRateGroup(groupName);
+    };
+
+    const closeModelRateLimitEditor = () => {
+        setEditingModelRateGroup(null);
+        setNewModelRateId('');
+        setNewModelRate('$0.00');
+    };
+
+    const saveModelRateLimits = () => {
+        if (!editingModelRateGroup) return;
+        // Auto-commit any pending add row before saving
+        let pending = { ...tempModelRateLimits };
+        if (newModelRateId) {
+            const pendingRate = Number(newModelRate.replace(/[$,]/g, ''));
+            if (Number.isFinite(pendingRate) && pendingRate >= 0) {
+                pending = { ...pending, [newModelRateId]: { period: 'Monthly', rate: pendingRate } };
+            }
+        }
+        const validLimits = Object.fromEntries(
+            Object.entries(pending).filter(([, limit]) =>
+                limit?.period === 'Monthly' && Number.isFinite(Number(limit.rate)) && Number(limit.rate) >= 0
+            )
+        );
+        const group = ampGroups[editingModelRateGroup];
+        handleUpdateAmpGroups({
+            ...ampGroups,
+            [editingModelRateGroup]: {
+                ...group,
+                modelRateLimits: Object.keys(validLimits).length > 0 ? validLimits : undefined
+            }
+        });
+        closeModelRateLimitEditor();
+    };
+
+    // Manage Members modal state
+    const [manageMembersGroup, setManageMembersGroup] = useState<string | null>(null);
+    const [memberModalInput, setMemberModalInput] = useState<string>('');
+
+    // Reverse lookup: email -> username. Built once when amplifyUsers changes.
+    const emailToUsername = useMemo(
+        () => Object.fromEntries(Object.entries(amplifyUsers).map(([k, v]) => [v, k])),
+        [amplifyUsers]
+    );
+
+    // Members of the currently managed group as a Set for O(1) lookups.
+    const managedGroupMembersSet = useMemo(
+        () => new Set(manageMembersGroup ? (ampGroups[manageMembersGroup]?.members ?? []) : []),
+        [manageMembersGroup, ampGroups]
+    );
+
+    // Emails available to add in the modal — pre-filtered, recomputed only when group or email list changes.
+    const managedGroupAvailableEmails = useMemo(
+        () => (allEmails ?? []).filter(e => {
+            const username = emailToUsername[e];
+            return !managedGroupMembersSet.has(username || e) && !managedGroupMembersSet.has(e);
+        }),
+        [allEmails, managedGroupMembersSet, emailToUsername]
+    );
+
+    // Resolve a stored username/UUID to a displayable email; fallback to "Unknown User"
+    const resolveDisplay = (usernameOrUuid: string): string => {
+        if (!usernameOrUuid) return 'Unknown User';
+        const mapped = amplifyUsers[usernameOrUuid];
+        if (mapped && !isRawUUID(mapped)) return mapped;
+        // maybe it was stored as an email directly
+        if (usernameOrUuid.includes('@')) return usernameOrUuid;
+        // UUID with no mapping
+        if (isRawUUID(usernameOrUuid)) return 'Unknown User';
+        return usernameOrUuid;
+    };
+
+    // Admin CSV Upload functionality using the new generic hook
+    const adminCsvUpload = useCsvUpload({
+        uploadConfig: AdminCsvUploadConfig,
+        previewConfig: AdminCsvPreviewConfig,
+        existingItems: admins,
+        onImportComplete: async (newAdmins: string[]) => {
+            const updatedAdmins = [...admins, ...newAdmins];
+            handleUpdateAdmins(updatedAdmins);
+        },
+        onImportSuccess: (newAdmins: string[]) => {
+            toast.success(`Successfully imported ${newAdmins.length} admin(s)`);
+        },
+        onImportError: (error: Error) => {
+            toast.error('Failed to import admins. Please try again.');
+        }
+    });
+
+    // Notify parent about modal state changes
+    useEffect(() => {
+        onModalStateChange?.(adminCsvUpload.hasOpenModal || editingModelRateGroup !== null || manageMembersGroup !== null);
+    }, [adminCsvUpload.hasOpenModal, editingModelRateGroup, manageMembersGroup, onModalStateChange]);
+
+    const handleUpdateAdmins = (updatedAdmins: string[]) => {
+        setAdmins(updatedAdmins);
+        updateUnsavedConfigs(AdminConfigTypes.ADMINS);
+    }
+
+    const handleUpdateRateLimits = (updatedRateLimits: RateLimits) => {
+        setRateLimits(updatedRateLimits);
+        updateUnsavedConfigs(AdminConfigTypes.RATE_LIMIT);
+    }
+
+    const handleUpdateHonorPersonalRateLimit = (value: { enabled: boolean; scope?: 'both' | 'apiKey' | 'amplifyAccount' }) => {
+        setHonorPersonalRateLimit(value);
+        updateUnsavedConfigs(AdminConfigTypes.RATE_LIMIT);
+    }
+
+    const handleUpdatePromptCostAlert = (updatedPromptCostAlert: PromptCostAlert) => {
+        setPromptCostAlert(updatedPromptCostAlert);
+        updateUnsavedConfigs(AdminConfigTypes.PROMPT_COST_ALERT);
+    }
+
+    const handleUpdateDefaultConversationStorage = (updatedDefaultConversationStorage: string) => {
+        setDefaultConversationStorage(updatedDefaultConversationStorage as ConversationStorage);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE);
+    }
+
+    const handleUpdateEmailSupport = (updatedEmailSupport: EmailSupport) => {
+        setEmailSupport(updatedEmailSupport);
+        updateUnsavedConfigs(AdminConfigTypes.EMAIL_SUPPORT);
+    }
+
+    const handleUpdateDocumentRetention = (updated: DocumentRetention) => {
+        setDocumentRetention(updated);
+        updateUnsavedConfigs(AdminConfigTypes.DOCUMENT_RETENTION);
+    }
+
+    const handleUpdateAiEmailDomain = (updatedAiEmailDomain: string) => {
+        if (!setAiEmailDomain) return;
+        setAiEmailDomain(updatedAiEmailDomain);
+        updateUnsavedConfigs(AdminConfigTypes.AI_EMAIL_DOMAIN);
+    }
+
+    const handleUpdateDefaultTimezone = (tz: string) => {
+        setDefaultTimezone(tz);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_TIMEZONE);
+    }
+
+    const handleUpdateSmartMessages = (enabled: boolean) => {
+        setSmartMessagesEnabled(enabled);
+        updateUnsavedConfigs(AdminConfigTypes.DEFAULT_SMART_MESSAGES);
+    }
+
+    const handleUpdateAmpGroups = (updatedGroups: Amplify_Groups) => {
+        setAmpGroups(updatedGroups);
+        updateUnsavedConfigs(AdminConfigTypes.AMPLIFY_GROUPS);
+    }
+
+
+    return <div data-new-ui-configurations="true" className="nui-configurations flex flex-col gap-5">
+    <div className="admin-style-settings-card nui-config-card nui-config-hero overflow-x-hidden">
+        <div className="admin-style-settings-card-header nui-config-card-header">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h3 className="admin-style-settings-card-title nui-config-title">Admins</h3>
+                        <p className="admin-style-settings-card-description nui-config-description">Manage the admins of the admin panel</p>
+                    </div>
+                    <button
+                        title="Import Admins from CSV"
+                        onClick={adminCsvUpload.openUpload}
+                        className="flex items-center cursor-pointer group px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-md hover:bg-neutral-100 dark:hover:bg-neutral-700 transition-colors"
+                        id="csvUploadButton"
+                    >
+                        <div className="icon-pop-group">
+                            <IconFileImport size={18} />
+                        </div>
+                        <span style={{marginLeft: '10px'}}>Upload Admins</span>
+                    </button>
+                </div>
+            </div>
+                
+                <div className="settings-card-content nui-config-card-content px-6">
+                    <div className='w-full pr-20 relative'>
+                        {/* Buttons on same line */}
+                        <div className="flex items-start gap-4 mb-4">
+                            {/* Add Admins button */}
+                            <button 
+                                className="flex items-center cursor-pointer group"
+                                onClick={() => setShowAddAdminInput(!showAddAdminInput)}
+                                title="Add Admins"
+                            >
+                                <div className="icon-pop-group">
+                                    <IconPlus size={18} />
+                                </div>
+                                <span style={{marginLeft: '10px'}}>Add Admins</span>
+                            </button>
+
+                            {/* Remove Admins button */}
+                            {admins.length > 0 && (
+                                <button 
+                                    onClick={() => setIsDeleting(true)} 
+                                    className="flex items-center cursor-pointer group"
+                                    id="removeAdminButton"
+                                    title="Remove Admins"
+                                >
+                                    <div className="icon-pop-group">
+                                        <IconTrash size={15}/>
+                                    </div>
+                                    <span style={{marginLeft: '10px'}}>Remove Admins</span>
+                                </button>
+                            )}
+
+                            {/* Delete confirmation controls - simple, no red box */}
+                            {isDeleting && (
+                                <div className="flex items-center gap-3 ml-4">
+                                    <UserAction
+                                        label="Confirm Removal"
+                                        onConfirm={() => {
+                                            if (deleteUsersList.length > 0) {
+                                                const updatedAdmins = admins.filter(admin => !deleteUsersList.includes(admin));
+                                                handleUpdateAdmins(updatedAdmins);
+                                            }
+                                            setIsDeleting(false);
+                                            setDeleteUsersList([]);
+                                        }}
+                                        onCancel={() => {
+                                            setIsDeleting(false);
+                                            setDeleteUsersList([]);
+                                        }}
+                                        top="mt-0"
+                                    />
+                                    <Checkbox
+                                        id={`selectAll${AdminConfigTypes.ADMINS}`}
+                                        label="Select All"
+                                        checked={deleteUsersList.length === admins.length}
+                                        onChange={(isChecked: boolean) => {
+                                            if (isChecked) {
+                                                setDeleteUsersList(admins.map((a:string) => a));
+                                            } else {
+                                                setDeleteUsersList([]);
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Add Admin input - full width on new line - only show when button clicked */}
+                        {showAddAdminInput && (
+                            <div className="w-full mb-4">
+                                <AddEmailWithAutoComplete
+                                    id={String(AdminConfigTypes.ADMINS)}
+                                    emails={admins.map(username => amplifyUsers[username] || username)}
+                                    allEmails={allEmails ?? []}
+                                    handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                        // Convert emails back to usernames for storage
+                                        const usernames = updatedEmails.map(email => {
+                                            const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                            return username || email;
+                                        });
+                                        handleUpdateAdmins(usernames);
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
+            </div>
+                
+            <div className="ml-10 pr-5 ">
+            
+                {admins.length === 0 ? (
+                        <div className="ml-4">No admins to display</div>
+                    ) : (
+                        <div className="flex flex-wrap ">
+                        {admins
+                            .map((user, index) => (
+                            <div key={index} id={`adminEmail${index}`} className="border border-neutral-500 flex items-center">
+                                <div
+                                className="flex items-center"
+                                onMouseEnter={() => setHoveredUser(user)}
+                                onMouseLeave={() => setHoveredUser(null)}
+                                >
+                                <div className="min-w-[28px] flex items-center ml-2">
+                                {hoveredUser === user && !isDeleting && (
+                                    <button
+                                    type="button"
+                                    id="deleteAdminUser"
+                                    className="p-0.5 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
+                                    onClick={() => handleUpdateAdmins(admins.filter((u: string) => u !== user))}
+                                    >
+                                    <IconTrash size={16} />
+                                    </button>
+                                )}
+                                    {isDeleting && (
+                                    <div className="ml-0.5">
+                                        <Checkbox
+                                            id={`${index}${AdminConfigTypes.ADMINS}`}
+                                            label=""
+                                            checked={deleteUsersList.includes(user)}
+                                            onChange={(isChecked: boolean) => {
+                                                if (isChecked) {
+                                                    setDeleteUsersList((prevList) => [...prevList, user]);
+                                        } else {
+                                            setDeleteUsersList((prevList) =>
+                                            prevList.filter((name) => name !== user)
+                                            );
+                                        }
+                                            }}
+                                        />
+                                    </div>
+                                    )}
+                                </div>
+                                <span className="truncate pr-8 py-2 mr-1">{amplifyUsers[user] || user}</span>
+                            
+                                </div>
+                            </div>
+                            ))}
+                    </div>)}
+
+            </div>
+        </div>
+            
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Support Email</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">Configure email support features and contact information</p>
+                </div>
+                
+                <div className="px-6 mr-4">
+                <Checkbox
+                    id="supportEmail"
+                    label="Activates various communication features, such as 'Send Feedback' options, allowing users to contact the system administrator or support team directly through the application."
+                    checked={emailSupport.isActive}
+                    onChange={(isChecked: boolean) => {
+                        handleUpdateEmailSupport({...emailSupport, isActive: isChecked});
+                    }}
+                />
+                </div>
+
+                <div className={`mx-12 ${emailSupport.isActive ? "" :'opacity-30'}`}>
+                    <InputsMap
+                        id = {`${AdminConfigTypes.EMAIL_SUPPORT}`}
+                        inputs={[ {label: 'Email', key: 'email', placeholder: 'Contact Email', disabled:!emailSupport.isActive} ]}
+                        state ={{email : emailSupport.email ?? ''}}
+                        inputChanged = {(key:string, value:string) => {
+                            handleUpdateEmailSupport({...emailSupport, [key]: value});
+                        }}
+                    />
+                </div>
+            </div>
+       
+            {setAiEmailDomain && 
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">AI Email Domain</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">Set the email domain that allows users to email AI assistants directly (e.g., user+tag@domain.com)</p>
+                </div>
+                
+                <div className="mx-12">
+                    <InputsMap
+                        id = {`${AdminConfigTypes.AI_EMAIL_DOMAIN}`}
+                        inputs={[ {label: 'Domain', key: 'domain', placeholder: 'AI Email Domain', disabled: false} ]}
+                        state ={{domain : aiEmailDomain ?? ''}}
+                        inputChanged = {(key:string, value:string) => {
+                            handleUpdateAiEmailDomain(value);
+                        }}
+                    />
+                </div>
+            </div>}
+
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Default Timezone</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">System-wide default timezone used for scheduled tasks, calendar events, and email timestamps</p>
+                </div>
+                <div className="mx-12 pb-4">
+                    <select
+                        aria-label="Default Timezone"
+                        className="w-full p-2 rounded border border-neutral-300 dark:border-neutral-600 bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100"
+                        value={defaultTimezone}
+                        onChange={(e) => handleUpdateDefaultTimezone(e.target.value)}
+                    >
+                        <optgroup label="US Timezones">
+                            <option value="America/New_York">Eastern Time (America/New York)</option>
+                            <option value="America/Chicago">Central Time (America/Chicago)</option>
+                            <option value="America/Denver">Mountain Time (America/Denver)</option>
+                            <option value="America/Los_Angeles">Pacific Time (America/Los Angeles)</option>
+                            <option value="America/Anchorage">Alaska Time (America/Anchorage)</option>
+                            <option value="Pacific/Honolulu">Hawaii Time (Pacific/Honolulu)</option>
+                        </optgroup>
+                        <optgroup label="Europe">
+                            <option value="Europe/London">London (Europe/London)</option>
+                            <option value="Europe/Paris">Paris / Berlin (Europe/Paris)</option>
+                            <option value="Europe/Helsinki">Helsinki (Europe/Helsinki)</option>
+                            <option value="Europe/Moscow">Moscow (Europe/Moscow)</option>
+                        </optgroup>
+                        <optgroup label="Asia / Pacific">
+                            <option value="Asia/Dubai">Dubai (Asia/Dubai)</option>
+                            <option value="Asia/Kolkata">India (Asia/Kolkata)</option>
+                            <option value="Asia/Bangkok">Bangkok (Asia/Bangkok)</option>
+                            <option value="Asia/Shanghai">China (Asia/Shanghai)</option>
+                            <option value="Asia/Tokyo">Japan (Asia/Tokyo)</option>
+                            <option value="Australia/Sydney">Sydney (Australia/Sydney)</option>
+                        </optgroup>
+                        <optgroup label="Other">
+                            <option value="UTC">UTC</option>
+                        </optgroup>
+                    </select>
+                </div>
+            </div>
+
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <div className="flex items-center gap-3 mb-2">
+                        <h3 className="admin-style-settings-card-title nui-config-title">Chat Rate Limits</h3>
+                        <button
+                            title="Add Rate Limit"
+                            disabled={addingAdminLimitRow !== null || rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).length >= 4}
+                            className={`flex items-center gap-1 px-2 py-1 rounded border border-neutral-300 dark:border-white/20 text-sm transition-colors ${(addingAdminLimitRow || rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).length >= 4) ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer hover:bg-neutral-100 dark:hover:bg-neutral-700'}`}
+                            onClick={() => {
+                                const usedPeriods = rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map(l => l.period);
+                                const firstAvailable = (['Monthly', 'Daily', 'Hourly', 'Total'] as PeriodType[]).find(p => !usedPeriods.includes(p)) ?? 'Monthly';
+                                setAddingAdminLimitRow({ period: firstAvailable, rate: '$0.00' });
+                            }}
+                        >
+                            <IconPlus size={14} /> Add Limit
+                        </button>
+                    </div>
+                    <p className="admin-style-settings-card-description nui-config-description">
+                        Configure one or more simultaneous rate limits (e.g. Monthly $300 <strong>AND</strong> Hourly $30). All limits must pass for a user to be allowed.
+                    </p>
+                </div>
+
+                <div className="px-6 pb-4">
+                    {rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).length === 0 && !addingAdminLimitRow && (
+                        <span className="text-sm text-neutral-500 dark:text-neutral-400 italic">No limits set — all users are Unlimited</span>
+                    )}
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        {rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map((limit, idx) => (
+                            editingAdminLimitIdx?.idx === idx ? (
+                                <div key={idx} className="flex items-center gap-2">
+                                    <RateLimiter
+                                        period={editingAdminLimitIdx.period}
+                                        setPeriod={(p: PeriodType) => setEditingAdminLimitIdx({ ...editingAdminLimitIdx, period: p })}
+                                        rate={editingAdminLimitIdx.rate}
+                                        setRate={(r: string) => setEditingAdminLimitIdx({ ...editingAdminLimitIdx, rate: r })}
+                                        excludePeriods={rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).filter((_, i) => i !== idx).map(l => l.period)}
+                                    />
+                                    <button
+                                        title="Confirm"
+                                        className="text-green-500 hover:text-green-600"
+                                        onClick={() => {
+                                            const updated = rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null);
+                                            updated[idx] = rateLimitObj(editingAdminLimitIdx.period, editingAdminLimitIdx.rate);
+                                            handleUpdateRateLimits(updated);
+                                            setEditingAdminLimitIdx(null);
+                                        }}
+                                    >
+                                        <IconCheck size={18} />
+                                    </button>
+                                    <button
+                                        title="Cancel"
+                                        className="text-red-400 hover:text-red-600"
+                                        onClick={() => setEditingAdminLimitIdx(null)}
+                                    >
+                                        <IconX size={18} />
+                                    </button>
+                                </div>
+                            ) : (
+                                <div
+                                    key={idx}
+                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-neutral-300 dark:border-neutral-600 bg-neutral-100 dark:bg-neutral-700"
+                                    onMouseEnter={() => setHoveredAdminLimitIdx(idx)}
+                                    onMouseLeave={() => setHoveredAdminLimitIdx(null)}
+                                >
+                                    <span className="text-sm font-medium text-neutral-700 dark:text-neutral-200">
+                                        {formatRateLimit(limit)}
+                                    </span>
+                                    {hoveredAdminLimitIdx === idx && (<>
+                                        <button
+                                            title="Edit limit"
+                                            className="text-neutral-400 hover:text-blue-500 transition-colors"
+                                            onClick={() => {
+                                                setAddingAdminLimitRow(null);
+                                                setEditingAdminLimitIdx({ idx, period: limit.period, rate: `$${(limit.rate as number).toFixed(2)}` });
+                                            }}
+                                        >
+                                            <IconEdit size={13} />
+                                        </button>
+                                        <button
+                                            title="Remove limit"
+                                            className="text-neutral-400 hover:text-red-500 transition-colors"
+                                            onClick={() => {
+                                                const active = rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null);
+                                                active.splice(idx, 1);
+                                                handleUpdateRateLimits(active.length > 0 ? active : []);
+                                            }}
+                                        >
+                                            <IconTrash size={13} />
+                                        </button>
+                                    </>)}
+                                </div>
+                            )
+                        ))}
+
+                        {addingAdminLimitRow && (
+                            <div className="flex items-center gap-2">
+                                <RateLimiter
+                                    period={addingAdminLimitRow.period}
+                                    setPeriod={(p: PeriodType) => setAddingAdminLimitRow({ ...addingAdminLimitRow, period: p })}
+                                    rate={addingAdminLimitRow.rate}
+                                    setRate={(r: string) => setAddingAdminLimitRow({ ...addingAdminLimitRow, rate: r })}
+                                    excludePeriods={rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map(l => l.period)}
+                                />
+                                <button
+                                    title="Confirm"
+                                    className="text-green-500 hover:text-green-600"
+                                    onClick={() => {
+                                        const newLimit = rateLimitObj(addingAdminLimitRow.period, addingAdminLimitRow.rate);
+                                        if (newLimit.period !== 'Unlimited') {
+                                            const existing = rateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null);
+                                            handleUpdateRateLimits([...existing, newLimit]);
+                                        }
+                                        setAddingAdminLimitRow(null);
+                                    }}
+                                >
+                                    <IconCheck size={18} />
+                                </button>
+                                <button
+                                    title="Cancel"
+                                    className="text-red-400 hover:text-red-600"
+                                    onClick={() => setAddingAdminLimitRow(null)}
+                                >
+                                    <IconX size={18} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="mt-2">
+                    <Checkbox
+                        id="honorPersonalRateLimit"
+                        label="Honor personal rate limits — if a user has set their own personal rate limit, it will be honored even if it exceeds the admin or group limits. Enable with caution."
+                        checked={honorPersonalRateLimit.enabled}
+                        onChange={(v) => handleUpdateHonorPersonalRateLimit({ ...honorPersonalRateLimit, enabled: v, scope: honorPersonalRateLimit.scope ?? 'both' })}
+                    />
+                    {honorPersonalRateLimit.enabled && (
+                        <div className="ml-6 mt-2 flex flex-col gap-1">
+                            <p className="text-sm font-medium mb-1">Apply to:</p>
+                            {([
+                                { value: 'both', label: 'Both — API and Amplify accessed' },
+                                { value: 'apiKey', label: 'API key accessed only' },
+                                { value: 'amplifyAccount', label: 'Amplify accessed only' },
+                            ] as const).map(({ value, label }) => (
+                                <label key={value} className="flex items-center gap-2 text-sm cursor-pointer">
+                                    <input
+                                        type="radio"
+                                        name="honorPersonalScope"
+                                        value={value}
+                                        checked={(honorPersonalRateLimit.scope ?? 'both') === value}
+                                        onChange={() => handleUpdateHonorPersonalRateLimit({ ...honorPersonalRateLimit, scope: value })}
+                                    />
+                                    {label}
+                                </label>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            
+            <div className="admin-style-settings-card flex flex-row gap-14">
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Default User Conversation Storage</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">Choose the default storage location for user conversations</p>
+                </div>
+                
+                <div className="settings-theme-options">
+                    {["future-local", "future-cloud"].map((storage) => (
+                        <label className="settings-theme-option" key={storage}>
+                            <input 
+                                type="radio" 
+                                name="conversationStorage"
+                                id="conversationStorageCheck"
+                                value={storage}
+                                checked={defaultConversationStorage === storage}
+                                onChange={(event) => handleUpdateDefaultConversationStorage(event.target.value as ConversationStorage)}
+                                className="settings-theme-radio"
+                            />
+                            <div className="settings-theme-option-content">
+                                <div className="settings-theme-option-icon">
+                                    {storage === 'future-cloud' ? 
+                                        <IconCloudFilled className='text-blue-500 dark:text-white'/> :
+                                        <IconMessage className='text-gray-600 dark:text-white'/>
+                                    }
+                                </div>
+                                <span className="settings-theme-option-label">
+                                    {capitalize(storage.split('-')[1])}
+                                </span>
+                            </div>
+                        </label>
+                    ))}
+                </div>
+            </div>
+        
+
+            
+            <div className="admin-style-settings-card flex flex-row items-start gap-14">
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Smart Focused Messages — Default Setting</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">
+                        {smartMessagesFlagOn
+                            ? 'Default on/off for users without a saved preference'
+                            : <span className="text-amber-500 dark:text-amber-400 text-xs font-semibold">⚠ Enable the <strong>smartMessages</strong> feature flag first to configure this</span>
+                        }
+                    </p>
+                </div>
+                <div className={`flex-shrink-0 flex items-center rounded-md border border-neutral-600 bg-neutral-200 dark:bg-[#39394a] p-1 gap-1 ${
+                    !smartMessagesFlagOn ? 'opacity-40 pointer-events-none select-none' : ''
+                }`}>
+                    <button
+                        onClick={() => handleUpdateSmartMessages(true)}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all duration-200 ${
+                            smartMessagesEnabled
+                                ? 'bg-white dark:bg-[#1f1f29] text-green-500 dark:text-green-400 font-bold scale-105'
+                                : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                        }`}
+                    >
+                        ON
+                    </button>
+                    <button
+                        onClick={() => handleUpdateSmartMessages(false)}
+                        className={`px-3 py-1 rounded text-xs font-semibold transition-all duration-200 ${
+                            !smartMessagesEnabled
+                                ? 'bg-white dark:bg-[#1f1f29] text-red-400 dark:text-red-400 font-bold scale-105'
+                                : 'bg-transparent text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-[#31313f]'
+                        }`}
+                    >
+                        OFF
+                    </button>
+                </div>
+            </div>
+
+            <DocumentRetentionCard value={documentRetention} onChange={handleUpdateDocumentRetention} newUi />
+
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <h3 className="admin-style-settings-card-title nui-config-title">Prompt Cost Alert</h3>
+                    <p className="admin-style-settings-card-description nui-config-description">Alert the user when the cost of their prompt exceeds the set threshold</p>
+                </div>
+                
+                <div className="px-6 mr-6">
+                <Checkbox
+                    id="promptCostAlert"
+                    label="Alert the user when the cost of their prompt exceeds the set threshold"
+                    checked={promptCostAlert.isActive}
+                    onChange={(isChecked: boolean) => {
+                        handleUpdatePromptCostAlert({...promptCostAlert, isActive: isChecked});
+                    }}
+                />
+                <div className={`ml-6 flex flex-col ${promptCostAlert.isActive ? "" :'opacity-30'}`}>
+                    <div className="text-md w-full text-center">Alert Message</div>
+                    <InfoBox
+                        content={
+                        <span className="text-sm w-full text-center">
+                            To include dynamic values in the alert message, use placeholders in the following format: {"<placeholderName>"}.
+                            <br className="mt-1"></br>
+                                Supported Placeholders:<br></br>
+                            <div className="flex justify-center text-start">
+                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<totalCost>"}: The estimated total cost (e.g., &quot;$0.05&quot;)
+                                <br></br>
+                                &nbsp;&nbsp;&nbsp;&nbsp; * {"<prompts>"}: Number of context windows needed (e.g., &quot;2&quot; if tokens exceed 1x context window)
+                            </div>
+                        </span>
+                        }
+                    />
+                    <textarea title="Parameter Description" className={`w-full ${admin_text}`}
+                    placeholder={"Alert message to display when the users prompt will cost over the threshold"}
+                    value={promptCostAlert.alertMessage} disabled={!promptCostAlert.isActive}
+                    onChange={(e) => {
+                        handleUpdatePromptCostAlert({...promptCostAlert, alertMessage: e.target.value});
+                    }}
+                    rows={1} 
+                    />
+                    <div className="mt-2 flex flex-row gap-3">
+                    Cost Threshold
+                    <input type="number" disabled={!promptCostAlert.isActive}
+                            className="text-center w-[100px] dark:bg-[#40414F] bg-gray-200"
+                            id="costThresholdInput"
+                            aria-label="Cost Threshold"
+                            min={0} step={.01} value={promptCostAlert.cost as number?? 0 }
+                            onChange={(e) => {
+                                const value = parseFloat(e.target.value);
+                                handleUpdatePromptCostAlert({...promptCostAlert, cost: value});
+                            }}
+                    /> 
+                    </div>
+                </div>
+                </div>
+            </div>
+
+           
+
+            <div className="admin-style-settings-card">
+                <div className="admin-style-settings-card-header nui-config-card-header">
+                    <div className="flex items-center gap-3 mb-2">
+                        <h3 className="admin-style-settings-card-title nui-config-title">Amplify Groups</h3>
+                        <button
+                            title={isAddingAmpGroups ? "" : 'Add Amplify Group'}
+                            disabled={isAddingAmpGroups !== null}
+                            id="addAmplifyGroup"
+                            className={`flex-shrink-0 py-2 items-center gap-3 rounded-md border border-neutral-300 dark:border-white/20 px-2 transition-colors duration-200  ${ isAddingAmpGroups ? "" : " cursor-pointer hover:bg-neutral-200 dark:hover:bg-gray-500/10" }`}
+                            onClick={() => setIsAddingAmpGroups(emptyAmplifyGroups(userEmail ?? 'unknown'))}
+                        >
+                            <IconPlus size={16}/>
+                        </button>
+
+                        {isAddingAmpGroups && 
+                            <UserAction
+                            top={"mt-0"}
+                            label={"Add Template"}
+                            clearOnConfirm={false}
+                            onConfirm={() => {
+                                const name = isAddingAmpGroups.groupName;
+                                if (!name) {
+                                    alert(`Group name is required. Please enter a name and try again.`);
+                                    return;
+                                }
+                                if (Object.keys(ampGroups).includes(name)){
+                                    alert(`There already exists a group with the name ${name}.\n\n Please change the group name to create the Amplify Group.`);
+                                } else {
+                                    setAmpGroupSearchTerm('');
+                                    const {groupName, ...groupData} = isAddingAmpGroups;
+                                    handleUpdateAmpGroups({...ampGroups, [name] : groupData});
+                                    setIsAddingAmpGroups(null);
+                                }
+                            }}
+                            onCancel={() => {
+                                setIsAddingAmpGroups(null);
+                            }}
+                        /> 
+                        }
+
+                        { showAmpGroupSearch && !isAddingAmpGroups && Object.keys(ampGroups).length > 0 &&
+                                <div className="ml-auto">
+                                    <Search
+                                    placeholder={'Search Amplify Groups...'}
+                                    searchTerm={ampGroupSearchTerm}
+                                    onSearch={(searchTerm: string) => setAmpGroupSearchTerm(searchTerm.toLocaleLowerCase())}
+                                    />
+                                </div>}
+                    </div>
+                    <p className="admin-style-settings-card-description nui-config-description">Create and manage Amplify Groups for user organization and permissions</p>
+                </div>
+                
+                {isAddingAmpGroups && 
+                    <div className="ml-6 flex flex-row flex-shrink-0 mr-4 ">
+                        <label className="flex-shrink-0 border border-neutral-400 dark:border-[#40414F] p-2 rounded-l text-[0.9rem] whitespace-nowrap text-center"
+                        >Group Name </label>
+                        <input
+                        title={"Group names must be unique"}
+                        id="groupName"
+                        className={`w-[200px] ${admin_text}`}
+                        placeholder={"Group Name"}
+                        onChange={(e) => {
+                            setIsAddingAmpGroups({...isAddingAmpGroups, groupName: e.target.value});
+                        }}
+                        value={isAddingAmpGroups.groupName}
+                        />
+                        <div className="ml-4 flex-grow flex flex-col mt-[-32px] max-w-[40%]">
+                            <AddEmailWithAutoComplete
+                                id={`${String(AdminConfigTypes.AMPLIFY_GROUPS)}_ADD`}
+                                emails={isAddingAmpGroups.members.map(username => amplifyUsers[username] || username)}
+                                allEmails={allEmails ?? []}
+                                handleUpdateEmails={(updatedEmails: Array<string>) => {
+                                    // Convert emails back to usernames for storage
+                                    const usernames = updatedEmails.map(email => {
+                                        const username = Object.keys(amplifyUsers).find(key => amplifyUsers[key] === email);
+                                        return username || email;
+                                    });
+                                    setIsAddingAmpGroups({...isAddingAmpGroups, members : usernames});
+                                }}
+                            />
+                            <div className="h-[40px] rounded-r border border-neutral-500 pl-4 py-1 dark:bg-[#40414F] bg-gray-200 dark:text-neutral-100 text-neutral-900 shadow focus:outline-none dark:border-neutral-800 dark:border-opacity-50 overflow-x-auto">
+                            {isAddingAmpGroups.members.map((user, idx) => (
+                                <div key={idx} className="flex items-center gap-1 mr-1">
+                                    <span className="flex flex-row gap-4 py-2 mr-4"> 
+                                        {amplifyUsers[user] || user} 
+                                        <button
+                                        className={`text-red-500 hover:text-red-800 `}
+                                        onClick={() => {
+                                            const updatedMembers = isAddingAmpGroups.members.filter(
+                                                                    (u) => u !== user);
+                                            setIsAddingAmpGroups({...isAddingAmpGroups, members : updatedMembers})
+                                        }} >
+                                        <IconTrash size={16} />
+                                        </button>
+                                    </span>
+                                </div>
+                                ))}
+                            </div>
+                                
+                        </div>
+                        <div className="flex-grow ml-4 flex flex-col mt-[-36px] max-w-[40%]">
+                            <InfoBox color="#60A5FA" padding={"py-0.5"}
+                               content={
+                                    <span className="ml-1 text-xs w-full text-center"> 
+                                    The group will include all members from the following Amplify Groups
+                                    </span>
+                                }/>
+                                
+                            <AmplifyGroupSelect 
+                                groups={Object.keys(ampGroups)}
+                                selected={isAddingAmpGroups.includeFromOtherGroups ?? []}
+                                setSelected={(selectedGroups: string[]) => {
+                                    setIsAddingAmpGroups({...isAddingAmpGroups, includeFromOtherGroups: selectedGroups});
+                                }}
+                            /> 
+                        </div>
+                    </div>
+                }
+
+
+                <div className="ml-6 mt-6 mb-10">
+                    {Object.keys(ampGroups).length > 0 ?
+                            <ExpansionComponent 
+                            onOpen={() => setShowAmpGroupsSearch(true)}
+                            onClose={() => {
+                                setShowAmpGroupsSearch(false);
+                                setAmpGroupSearchTerm('');
+                            }}
+                            title={'Manage Amplify Groups'} 
+                            content={ 
+                                <>
+                                <div className="nui-config-table-scroll mt-4"><table className="modern-table hide-last-column nui-config-table w-full" style={{boxShadow: 'none'}} id="groupTable">
+                                    <thead>
+                                    <tr className="gradient-header hide-last-column">
+                                        {['Group Name', 'Members', 'Membership by Amplify Groups', 'Billing Group', 'Rate Limit', 'Model Rate Limits', 'Created By'].map((title, i) => (
+                                        <th key={i}
+                                            id={title}
+                                            className="px-4 py-2 text-center border border-gray-500 text-neutral-600 dark:text-neutral-300"
+                                            style={{width: [0, 4, 5].includes(i) ? "15%" 
+                                                    : i === 3 ? "10%"
+                                                    : "25%", 
+                                            }}> 
+                                            {title}
+                                        </th>
+                                        ))}
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {Object.entries(ampGroups)
+                                            .filter(([groupName, group]: [string, Amplify_Group]) => ampGroupSearchTerm ? 
+                                                    groupName.toLowerCase().includes(ampGroupSearchTerm) : true)
+                                            .map(([groupName, group]: [string, Amplify_Group]) => 
+                                        <tr key={groupName}
+                                            onMouseEnter={() => setHoveredAmpGroup(groupName)}
+                                            onMouseLeave={() => setHoveredAmpGroup('')}>
+                                            <td className="border border-neutral-500 px-4 py-2 break-words max-w-[200px]" id="groupName">
+                                                {groupName}
+                                            </td>
+
+                                            {/* Members cell — collapsed pill view */}
+                                            <td className="border border-neutral-500 px-3 py-2">
+                                                {group.includeFromOtherGroups !== undefined ? (
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        {/* Show first 2 resolved emails as pills, then "+N more" */}
+                                                        {(() => {
+                                                            const members = group.members ?? [];
+                                                            const resolved = members.map(u => resolveDisplay(u)).filter(d => d !== 'Unknown User');
+                                                            const unknown = members.length - resolved.length;
+                                                            const visible = resolved.slice(0, 2);
+                                                            const extra = resolved.length - visible.length + unknown;
+                                                            return (
+                                                                <>
+                                                                    {visible.map((email, i) => (
+                                                                        <span key={i} className="inline-flex items-center gap-1 pl-0.5 pr-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 max-w-[180px]">
+                                                                            <span className={`w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-white text-[9px] font-bold ${avatarColorClass(email)}`}>
+                                                                                {getInitials(email)}
+                                                                            </span>
+                                                                            <span className="text-xs text-blue-800 dark:text-blue-700 truncate" title={email}>{email}</span>
+                                                                        </span>
+                                                                    ))}
+                                                                    {extra > 0 && (
+                                                                        <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">+{extra} more</span>
+                                                                    )}
+                                                                    {members.length === 0 && (
+                                                                        <span className="text-xs text-gray-400 italic">No members</span>
+                                                                    )}
+                                                                    <button
+                                                                        aria-label="Manage Members"
+                                                                        title="Manage Members"
+                                                                        className="ml-auto flex-shrink-0 flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-700 transition-colors"
+                                                                        onClick={() => { setManageMembersGroup(groupName); setMemberModalInput(''); }}
+                                                                    >
+                                                                        <IconUsers size={13} className="text-blue-600 dark:text-blue-700"/>
+                                                                        Manage
+                                                                    </button>
+                                                                </>
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-center text-xs text-gray-400 italic">N/A</div>
+                                                )}
+                                            </td>
+
+                                            <td className="border border-neutral-500 max-w-[300px]">
+                                                {group.includeFromOtherGroups !== undefined ?
+                                                <AmplifyGroupSelect 
+                                                    groups={Object.keys(ampGroups).filter((k: string) => 
+                                                                                k != groupName)}
+                                                    selected={group.includeFromOtherGroups}
+                                                    setSelected={(selectedGroups: string[]) => {
+                                                        const updatedGroup = {...group, includeFromOtherGroups: selectedGroups}
+                                                        handleUpdateAmpGroups({...ampGroups, [groupName] : updatedGroup});
+                                                    }}
+                                                /> : <div className="text-center">N/A</div>
+                                                }
+                                            </td>
+
+                                            <td className="text-center border border-neutral-500 px-4 py-2">
+                                                <button 
+                                                    title={group.isBillingGroup ? "Disable as Billing Group" : "Enable as Billing Group"}
+                                                    className="cursor-pointer flex items-center justify-center w-full"
+                                                    onClick={() => {
+                                                        const updatedGroup = {...group, isBillingGroup: !group.isBillingGroup};
+                                                        handleUpdateAmpGroups({...ampGroups, [groupName]: updatedGroup});
+                                                    }}>
+                                                    {group.isBillingGroup ? 
+                                                        <IconCheck className="text-green-600 hover:opacity-60" size={18} /> 
+                                                        : <IconX className="text-red-600 hover:opacity-60" size={18} />}
+                                                </button>
+                                            </td>
+
+                                            <td className="text-center border border-neutral-500 px-1 py-2"
+                                                onMouseEnter={() => setHoveredRateLimit(groupName)}
+                                                onMouseLeave={() => setHoveredRateLimit(null)}>
+                                                <div className="flex flex-col items-center justify-center gap-1">
+                                                    {editingRateLimit === groupName ? (
+                                                        // ── EDIT MODE: list editor ──────────────────────────
+                                                        <div className="flex flex-col gap-1.5 w-full px-1">
+                                                            <div className="flex flex-wrap items-center gap-1.5">
+                                                                {tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map((limit, idx) => (
+                                                                    editingGroupLimitIdx?.idx === idx ? (
+                                                                        <div key={idx} className="flex items-center gap-1 flex-wrap">
+                                                                            <RateLimiter
+                                                                                period={editingGroupLimitIdx.period}
+                                                                                setPeriod={(p: PeriodType) => setEditingGroupLimitIdx({ ...editingGroupLimitIdx, period: p })}
+                                                                                rate={editingGroupLimitIdx.rate}
+                                                                                setRate={(r: string) => setEditingGroupLimitIdx({ ...editingGroupLimitIdx, rate: r })}
+                                                                                excludePeriods={tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).filter((_, i) => i !== idx).map(l => l.period)}
+                                                                            />
+                                                                            <button
+                                                                                title="Confirm"
+                                                                                className="text-green-500 hover:text-green-600"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    const updated = [...tempRateLimits];
+                                                                                    updated[idx] = rateLimitObj(editingGroupLimitIdx.period, editingGroupLimitIdx.rate);
+                                                                                    setTempRateLimits(updated);
+                                                                                    setEditingGroupLimitIdx(null);
+                                                                                }}
+                                                                            >
+                                                                                <IconCheck size={15} />
+                                                                            </button>
+                                                                            <button
+                                                                                title="Cancel"
+                                                                                className="text-red-400 hover:text-red-600"
+                                                                                onClick={(e) => { e.stopPropagation(); setEditingGroupLimitIdx(null); }}
+                                                                            >
+                                                                                <IconX size={15} />
+                                                                            </button>
+                                                                        </div>
+                                                                    ) : (
+                                                                    <div key={idx} className="flex items-center gap-1 px-2 py-0.5 rounded-full border border-neutral-400 dark:border-neutral-500 bg-neutral-100 dark:bg-neutral-700">
+                                                                        <span className="text-xs text-neutral-700 dark:text-neutral-200">{formatRateLimit(limit)}</span>
+                                                                        <button
+                                                                            title="Edit"
+                                                                            className="text-neutral-400 hover:text-blue-500"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setAddingGroupLimitRow(null);
+                                                                                setEditingGroupLimitIdx({ idx, period: limit.period, rate: `$${(limit.rate as number).toFixed(2)}` });
+                                                                            }}
+                                                                        >
+                                                                            <IconEdit size={11} />
+                                                                        </button>
+                                                                        <button
+                                                                            title="Remove"
+                                                                            className="text-neutral-400 hover:text-red-500"
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                const updated = tempRateLimits.filter((_, i) => i !== idx);
+                                                                                setTempRateLimits(updated);
+                                                                            }}
+                                                                        >
+                                                                            <IconTrash size={11} />
+                                                                        </button>
+                                                                    </div>
+                                                                    )
+                                                                ))}
+                                                            </div>
+
+                                                            {addingGroupLimitRow ? (
+                                                                <div className="flex items-center gap-1 flex-wrap mt-1">
+                                                                    <RateLimiter
+                                                                        period={addingGroupLimitRow.period}
+                                                                        setPeriod={(p: PeriodType) => setAddingGroupLimitRow({ ...addingGroupLimitRow, period: p })}
+                                                                        rate={addingGroupLimitRow.rate}
+                                                                        setRate={(r: string) => setAddingGroupLimitRow({ ...addingGroupLimitRow, rate: r })}
+                                                                        excludePeriods={tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map(l => l.period)}
+                                                                    />
+                                                                    <button
+                                                                        title="Confirm add"
+                                                                        className="text-green-500 hover:text-green-600"
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            const newLimit = rateLimitObj(addingGroupLimitRow.period, addingGroupLimitRow.rate);
+                                                                            if (newLimit.period !== 'Unlimited') {
+                                                                                setTempRateLimits(prev => [...prev.filter(l => l.period !== 'Unlimited'), newLimit]);
+                                                                            }
+                                                                            setAddingGroupLimitRow(null);
+                                                                        }}
+                                                                    >
+                                                                        <IconCheck size={15} />
+                                                                    </button>
+                                                                    <button
+                                                                        title="Cancel add"
+                                                                        className="text-red-400 hover:text-red-600"
+                                                                        onClick={(e) => { e.stopPropagation(); setAddingGroupLimitRow(null); }}
+                                                                    >
+                                                                        <IconX size={15} />
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <button
+                                                                    title="Add limit"
+                                                                    disabled={tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).length >= 4}
+                                                                    className="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-0.5 mt-0.5 disabled:opacity-40 disabled:cursor-not-allowed"
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const usedPeriods = tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null).map(l => l.period);
+                                                                        const firstAvailable = (['Monthly', 'Daily', 'Hourly', 'Total'] as PeriodType[]).find(p => !usedPeriods.includes(p)) ?? 'Monthly';
+                                                                        setAddingGroupLimitRow({ period: firstAvailable, rate: '$0.00' });
+                                                                    }}
+                                                                >
+                                                                    <IconPlus size={12} /> Add
+                                                                </button>
+                                                            )}
+
+                                                            <div className="flex gap-1.5 mt-1">
+                                                                <ActionButton
+                                                                    title='Save'
+                                                                    id="confirmRateLimitChange"
+                                                                    className='text-green-500'
+                                                                    handleClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        const savedLimits = tempRateLimits.filter(l => l.period !== 'Unlimited' && l.rate !== null);
+                                                                        const updatedGroup = { ...group, rateLimit: savedLimits.length > 0 ? savedLimits : [noRateLimit] };
+                                                                        handleUpdateAmpGroups({ ...ampGroups, [groupName]: updatedGroup });
+                                                                        setEditingRateLimit(null);
+                                                                        setAddingGroupLimitRow(null);
+                                                                    }}
+                                                                >
+                                                                    <IconCheck size={16} />
+                                                                </ActionButton>
+                                                                <ActionButton
+                                                                    title='Discard'
+                                                                    id="discardRateLimitChange"
+                                                                    className='text-red-500'
+                                                                    handleClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        setEditingRateLimit(null);
+                                                                        setAddingGroupLimitRow(null);
+                                                                    }}
+                                                                >
+                                                                    <IconX size={16} />
+                                                                </ActionButton>
+                                                            </div>
+                                                        </div>
+                                                    ) : (
+                                                        // ── DISPLAY MODE ────────────────────────────────────
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <span className="text-xs text-center leading-snug">
+                                                                {(() => {
+                                                                    const rl = group.rateLimit;
+                                                                    if (!rl) return 'Unlimited';
+                                                                    if (typeof rl === 'number') return formatRateLimit(rateLimitObj('Daily', String(rl)));
+                                                                    const normalized = normalizeRateLimits(rl);
+                                                                    return formatRateLimits(normalized);
+                                                                })()}
+                                                            </span>
+                                                            {hoveredRateLimit === groupName && (
+                                                                <button
+                                                                    type="button"
+                                                                    id="editRateLimit"
+                                                                    className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 flex-shrink-0"
+                                                                    onClick={() => {
+                                                                        const rl = group.rateLimit;
+                                                                        let normalized: RateLimit[];
+                                                                        if (!rl) normalized = [];
+                                                                        else if (typeof rl === 'number') normalized = [rateLimitObj('Daily', String(rl))];
+                                                                        else normalized = normalizeRateLimits(rl);
+                                                                        setTempRateLimits(normalized.filter(l => l.period !== 'Unlimited' && l.rate !== null));
+                                                                        setEditingRateLimit(groupName);
+                                                                        setAddingGroupLimitRow(null);
+                                                                    }}
+                                                                    title="Edit Rate Limits"
+                                                                >
+                                                                    <IconEdit size={16} />
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </td>
+
+                                            <td className="text-center border border-neutral-500 px-2 py-2 break-words max-w-[300px]">
+                                                <div className="flex items-center justify-center gap-1.5">
+                                                    <span className="text-xs">{Object.keys(group.modelRateLimits || {}).length > 0 ? `${Object.keys(group.modelRateLimits || {}).length} model${Object.keys(group.modelRateLimits || {}).length === 1 ? '' : 's'}` : 'Unlimited'}</span>
+                                                    {hoveredAmpGroup === groupName && <button type="button" className="text-neutral-400 hover:text-blue-500 flex-shrink-0" title="Manage model rate limits" onClick={() => openModelRateLimitEditor(groupName)}><IconEdit size={15} /></button>}
+                                                </div>
+                                            </td>
+
+                                            <td className="text-center border border-neutral-500 px-4 py-2 break-words max-w-[300px]">
+                                                {resolveDisplay(group.createdBy)}
+                                            </td>
+
+                                            <td className="">
+                                                <div className="w-[50px] flex-shrink-0">
+                                                {hoveredAmpGroup === groupName && group.includeFromOtherGroups !== undefined ?
+                                                <button
+                                                    title={"Delete Amplify Group"}
+                                                    type="button"
+                                                    className="ml-2 p-1 text-sm bg-neutral-400 dark:bg-neutral-500 rounded hover:bg-red-600 dark:hover:bg-red-700 focus:outline-none"
+                                                    onClick={() => {
+                                                        const { [groupName]: _, ...remainingGroups } = ampGroups;
+                                                        handleUpdateAmpGroups(remainingGroups);
+                                                    }}
+                                                    >
+                                                    <IconTrash size={20} />
+                                                </button>
+                                                
+                                                : null}
+                                                </div>
+                                            </td>
+                                        </tr>     
+                                    )}
+                                    </tbody>
+                                </table></div>
+
+                                </>
+                            }
+                            isOpened={true}
+                        />  
+                            :
+                            <>No Amplify Groups listed. </>
+                        }
+                </div>
+            </div>
+
+            {/* ── Manage Model Rate Limits Modal ── */}
+            {editingModelRateGroup !== null && (
+                createPortal(
+                <div className="fixed inset-0 z-[10001] flex items-start justify-center overflow-y-auto px-4 py-10 sm:py-16">
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-[2px]" onClick={closeModelRateLimitEditor} />
+                    <div className="relative z-10 flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-2xl dark:border-neutral-700 dark:bg-[#2b2c36]">
+                        <div className="flex items-start justify-between border-b border-neutral-200 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 text-white dark:border-neutral-700">
+                            <div>
+                                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-100">Amplify Group</div>
+                                <h2 className="mt-1 text-xl font-semibold">Model Rate Limits</h2>
+                                <p className="mt-1 max-w-lg text-sm text-blue-100">Set monthly model limits inherited by every member of this group.</p>
+                            </div>
+                            <button type="button" onClick={closeModelRateLimitEditor} className="rounded-lg p-2 text-blue-100 transition hover:bg-white/15 hover:text-white" title="Close"><IconX size={20} /></button>
+                        </div>
+                        <div className="border-b border-neutral-200 px-6 py-3 text-sm text-neutral-600 dark:border-neutral-700 dark:text-neutral-300">
+                            <span className="font-medium text-neutral-900 dark:text-neutral-100">{editingModelRateGroup}</span>
+                            <span className="mx-2 text-neutral-400">•</span>
+                            Limits apply to the current month and are checked in addition to the group-wide rate limit.
+                        </div>
+                        <div className="max-h-[60vh] overflow-y-auto px-6 py-5 text-neutral-900 dark:text-neutral-100 nui-config-model-modal">
+                        <div className="flex flex-col gap-4">
+                            <p className="text-sm text-neutral-600 dark:text-neutral-300">
+                                Configure a monthly model limit for members of this group.
+                            </p>
+                            {Object.entries(tempModelRateLimits).length > 0 && <div className="rounded border border-neutral-300 dark:border-neutral-700">
+                                {Object.entries(tempModelRateLimits).map(([modelId, limit]) => (
+                                    <div key={modelId} className="flex items-center gap-3 border-b border-neutral-200 dark:border-neutral-700 p-3 last:border-b-0">
+                                        <span className="min-w-0 flex-1 truncate text-sm" title={modelId}>{availableModelOptions.find(option => option.id === modelId)?.name || modelId}</span>
+                                        <RateLimiter
+                                            period="Monthly"
+                                            fixedPeriod="Monthly"
+                                            setPeriod={() => {}}
+                                            rate={`$${Number(limit.rate).toFixed(2)}`}
+                                            setRate={(value) => {
+                                                const parsed = Number(value.replace(/[$,]/g, ''));
+                                                if (Number.isFinite(parsed) && parsed >= 0) {
+                                                    setTempModelRateLimits({ ...tempModelRateLimits, [modelId]: { period: 'Monthly', rate: parsed } });
+                                                }
+                                            }}
+                                        />
+                                        <button type="button" className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40" title="Remove model limit" onClick={() => {
+                                            const next = { ...tempModelRateLimits };
+                                            delete next[modelId];
+                                            setTempModelRateLimits(next);
+                                        }}><IconTrash size={15} /></button>
+                                    </div>
+                                ))}
+                            </div>}
+                            <div className="rounded border border-neutral-300 dark:border-neutral-700 bg-neutral-50 dark:bg-[#23242d] p-3">
+                                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-neutral-600 dark:text-neutral-300">Add model</div>
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <select className="min-w-0 flex-1 rounded border border-neutral-300 bg-white px-2 py-1.5 text-sm text-neutral-900 dark:border-neutral-700 dark:bg-[#40414F] dark:text-neutral-100" value={newModelRateId} onChange={(e) => setNewModelRateId(e.target.value)}>
+                                        <option value="">Select a model</option>
+                                        {availableModelOptions.filter(({ id }) => !tempModelRateLimits[id]).map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
+                                    </select>
+                                    <RateLimiter
+                                        period="Monthly"
+                                        fixedPeriod="Monthly"
+                                        setPeriod={() => {}}
+                                        rate={newModelRate}
+                                        setRate={setNewModelRate}
+                                    />
+                                    <button type="button" className="rounded-lg border border-blue-500 px-2 py-1.5 text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-950/40 disabled:opacity-40" title="Add model limit" disabled={!newModelRateId} onClick={() => {
+                                        const rate = Number(newModelRate.replace(/[$,]/g, ''));
+                                        if (!newModelRateId || !Number.isFinite(rate) || rate < 0) return;
+                                        setTempModelRateLimits({ ...tempModelRateLimits, [newModelRateId]: { period: 'Monthly', rate } });
+                                        setNewModelRateId('');
+                                        setNewModelRate('$0.00');
+                                    }}><IconPlus size={15} /></button>
+                                </div>
+                            </div>
+                        </div>
+                        </div>
+                        <div className="flex items-center justify-end gap-3 border-t border-neutral-200 bg-neutral-50 px-6 py-4 dark:border-neutral-700 dark:bg-[#23242d]">
+                            <button type="button" onClick={closeModelRateLimitEditor} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium text-neutral-700 transition hover:bg-neutral-100 dark:border-neutral-600 dark:text-neutral-200 dark:hover:bg-neutral-700">Cancel</button>
+                            <button type="button" onClick={saveModelRateLimits} className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">Save limits</button>
+                        </div>
+                    </div>
+                </div>,
+                document.body
+                )
+            )}
+
+            {/* ── Manage Members Modal ── */}
+            {manageMembersGroup !== null && createPortal(
+                (() => {
+                    const group = ampGroups[manageMembersGroup];
+                    if (!group) return null;
+                    const members = group.members ?? [];
+
+                    const removeMember = (username: string) => {
+                        const updated = { ...group, members: members.filter(u => u !== username) };
+                        handleUpdateAmpGroups({ ...ampGroups, [manageMembersGroup]: updated });
+                    };
+
+                    const addMemberByEmail = (email: string) => {
+                        const username = Object.keys(amplifyUsers).find(k => amplifyUsers[k] === email);
+                        const entry = username || email;
+                        if (!members.includes(entry)) {
+                            const updated = { ...group, members: [...members, entry] };
+                            handleUpdateAmpGroups({ ...ampGroups, [manageMembersGroup]: updated });
+                        }
+                        setMemberModalInput('');
+                    };
+
+                    return (
+                        <div className="fixed inset-0 z-[10001] flex items-center justify-center">
+                            {/* Backdrop */}
+                            <div
+                                className="absolute inset-0 bg-black/50"
+                                onClick={() => setManageMembersGroup(null)}
+                            />
+                            {/* Panel */}
+                            <div className="relative z-10 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 w-full max-w-md mx-4 flex flex-col max-h-[80vh]">
+
+                                {/* Header */}
+                                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 dark:border-gray-700">
+                                    <div className="flex items-center gap-2">
+                                        <IconUsers size={18} className="text-blue-500" />
+                                        <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                            Manage Members
+                                        </h2>
+                                        <span className="ml-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-800 text-xs text-gray-500 dark:text-gray-400 font-medium">
+                                            {manageMembersGroup}
+                                        </span>
+                                    </div>
+                                    <button
+                                        onClick={() => setManageMembersGroup(null)}
+                                        className="p-1 rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                    >
+                                        <IconX size={16} />
+                                    </button>
+                                </div>
+
+                                {/* Member list */}
+                                <div className="flex-1 overflow-y-auto px-5 py-3">
+                                    {members.length === 0 ? (
+                                        <p className="text-sm text-gray-400 italic text-center py-6">No members yet</p>
+                                    ) : (
+                                        <ul className="space-y-1.5">
+                                            {members.map((username, idx) => {
+                                                const display = resolveDisplay(username);
+                                                if (display === 'Unknown User' && isRawUUID(username)) return null;
+                                                const initials = getInitials(display);
+                                                const color = avatarColorClass(display);
+                                                return (
+                                                    <li key={idx} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/60 group">
+                                                        <span className={`w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold ${color}`}>
+                                                            {initials}
+                                                        </span>
+                                                        <span className="flex-1 text-sm text-gray-800 dark:text-gray-200 truncate" title={display}>
+                                                            {display}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => removeMember(username)}
+                                                            className="flex-shrink-0 p-1 rounded-md text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 opacity-0 group-hover:opacity-100 transition-all"
+                                                            title={`Remove ${display}`}
+                                                        >
+                                                            <IconTrash size={14} />
+                                                        </button>
+                                                    </li>
+                                                );
+                                            })}
+                                        </ul>
+                                    )}
+                                </div>
+
+                                {/* Add member input */}
+                                <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700">
+                                    <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Add member</p>
+                                    <div className="relative flex gap-2 items-start">
+                                        <div className="flex-1 relative">
+                                            <EmailsAutoComplete
+                                                input={memberModalInput}
+                                                setInput={setMemberModalInput}
+                                                allEmails={managedGroupAvailableEmails}
+                                                alreadyAddedEmails={members.map(u => resolveDisplay(u)).filter(d => d !== 'Unknown User')}
+                                                addMultipleUsers={false}
+                                                onSuggestionSelected={(suggestion) => addMemberByEmail(suggestion)}
+                                                onEnterPressed={() => {
+                                                    if (memberModalInput.trim()) addMemberByEmail(memberModalInput.trim());
+                                                }}
+                                            />
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => { if (memberModalInput.trim()) addMemberByEmail(memberModalInput.trim()); }}
+                                            disabled={!memberModalInput.trim()}
+                                            className="flex-shrink-0 flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                        >
+                                            <IconPlus size={14} />
+                                            Add
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {/* Footer */}
+                                <div className="px-5 py-3 border-t border-gray-200 dark:border-gray-700 flex justify-end">
+                                    <button
+                                        onClick={() => setManageMembersGroup(null)}
+                                        className="px-4 py-2 rounded-lg text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                                    >
+                                        Done
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })(),
+                document.body
+            )}
+
+            {/* CSV Upload Modal */}
+            {adminCsvUpload.showUpload && createPortal(
+                <div className="fixed inset-0 z-[10001] flex items-center justify-center p-4">
+                    {/* Backdrop */}
+                    <div className="absolute inset-0 bg-black bg-opacity-50" onClick={adminCsvUpload.handleCancel} />
+                    
+                    {/* Modal Content */}
+                    <div className="relative max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <CsvUpload
+                            config={AdminCsvUploadConfig}
+                            existingItems={admins}
+                            onUploadSuccess={adminCsvUpload.handleUploadSuccess}
+                            onClose={adminCsvUpload.handleCancel}
+                        />
+                    </div>
+                </div>,
+                document.body
+            )}
+
+            {/* CSV Preview Modal */}
+            {createPortal(
+                <CsvPreviewModal
+                    open={adminCsvUpload.showPreview}
+                    result={adminCsvUpload.uploadResult}
+                    config={AdminCsvPreviewConfig}
+                    onConfirm={adminCsvUpload.handleImportConfirm}
+                    onCancel={adminCsvUpload.handleCancel}
+                    isProcessing={adminCsvUpload.isProcessing}
+                />,
+                document.body
+            )}
+                    
+    </div>
+
+}
+
+
+const emptyAmplifyGroups = (currentUser: string) => {
+    return {
+        groupName : '', // can be a cognito group per say
+        members : [],
+        createdBy : currentUser,
+        includeFromOtherGroups : []
+    } as Amplify_Group
+}

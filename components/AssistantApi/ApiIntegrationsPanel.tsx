@@ -2,7 +2,7 @@ import React, { useContext, useState } from 'react';
 import { IconChevronDown, IconChevronRight, IconPlus, IconHomeBolt } from '@tabler/icons-react';
 import { ApiItemSelector } from './ApiSelector';
 import { ExternalAPI } from './CustomAPIEditor';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { PythonFunctionModal } from '../Operations/PythonFunctionModal';
 import { createPortal } from 'react-dom';
 import { OpBindingMode, OpDef } from '@/types/op';

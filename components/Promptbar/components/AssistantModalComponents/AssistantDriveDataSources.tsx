@@ -1,6 +1,6 @@
 import React, { FC, useContext, useState, useEffect } from 'react';
 import { IconAlertTriangle, IconFolder, IconFolders, IconTrash, IconFile, IconChevronRight, IconCaretDown, IconCaretRight, IconAlertCircle, IconReload } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { capitalize } from '@/utils/app/data';
 import DataSourcesTableScrollingIntegrations from '@/components/DataSources/DataSourcesTableScrollingIntegrations';
 import ExpansionComponent from '@/components/Chat/ExpansionComponent';

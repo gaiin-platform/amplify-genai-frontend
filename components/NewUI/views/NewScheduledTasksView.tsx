@@ -1,0 +1,1587 @@
+/**
+ * NewScheduledTasksView — New UI full-pane reimplementation of the old ScheduledTasks modal
+ * (components/Agent/ScheduledTasks.tsx).
+ *
+ * Same design language as NewAssistantsView.tsx / NewLibraryView.tsx:
+ *   - Sticky top bar with back button + title + search + "New Task" button
+ *   - List pane (left) of TaskRow items, grouped/filterable by task type
+ *   - Detail pane (right): form editor OR run-logs viewer for the selected task
+ *
+ * Data/services are IDENTICAL to the old component — no changes to services/types:
+ *   services/scheduledTasksService.ts (create/get/list/update/delete/executeTask/getTaskExecutionDetails)
+ *   types/scheduledTasks.ts (ScheduledTask, ScheduledTaskType, TASK_TYPE_MAP, TaskExecutionRecord)
+ *
+ * PORT: The "Task Type" object-selector sub-flow (Assistant / Action / Workflow picker,
+ * including the "Create Action Set" builder) reuses several old, unmodified components
+ * (CronScheduleBuilder, ActionSetList, CompositeActionsPanel, ApiItemSelector,
+ * ApiParameterBindingEditor) inside a new-UI-styled wrapper. These sub-components still use
+ * their original (old-UI) internal styling. TODO: give these a dedicated new-UI visual pass
+ * in a future phase.
+ *
+ * Design tokens: --bg-app, --bg-sidebar, --bg-raised, --bg-hover, --bg-active,
+ *                --border-subtle, --text-primary, --text-secondary, --text-muted, --accent
+ */
+
+import React, { useContext, useState, useEffect, useRef, useMemo } from 'react';
+import cloneDeep from 'lodash/cloneDeep';
+import toast from 'react-hot-toast';
+import {
+    IconX,
+    IconPlus,
+    IconTrash,
+    IconLoader2,
+    IconRobot,
+    IconSettingsAutomation,
+    IconTool,
+    IconPuzzle,
+    IconPlayerPlay,
+    IconNotes,
+    IconRefresh,
+    IconAlarm,
+    IconChevronDown,
+    IconChevronRight,
+    IconChevronUp,
+    IconExclamationCircle,
+    IconDeviceFloppy,
+    IconAdjustments,
+} from '@tabler/icons-react';
+
+import HomeContext from '@/components/Home/home.context';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
+import { SearchInput } from '@/components/NewUI/shared/SearchInput';
+import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
+import { ScheduledTaskScheduleBuilder } from '@/components/NewUI/shared/ScheduledTaskScheduleBuilder';
+import {
+    ScheduleDateRange,
+    ScheduledTask,
+    ScheduledTaskType,
+    TASK_TYPE_MAP,
+    TaskExecutionRecord,
+} from '@/types/scheduledTasks';
+import {
+    createScheduledTask,
+    deleteScheduledTask,
+    executeTask,
+    getScheduledTask,
+    getTaskExecutionDetails,
+    listScheduledTasks,
+    updateScheduledTask,
+} from '@/services/scheduledTasksService';
+import { camelCaseToTitle } from '@/utils/app/data';
+import { isAssistant } from '@/utils/app/assistants';
+import { Prompt } from '@/types/prompt';
+import { userFriendlyDate } from '@/utils/app/date';
+import { filterSupportedIntegrationOps } from '@/utils/app/ops';
+import { getOpsForUser } from '@/services/opsService';
+import { getAgentTools } from '@/services/agentService';
+import { listAstWorkflowTemplates } from '@/services/assistantWorkflowService';
+import { AstWorkflow } from '@/types/assistantWorkflows';
+import { OpDef, OpBindingMode } from '@/types/op';
+import { CompositeFunction } from '@/utils/app/compositeFunctions';
+
+// PORT: old, unmodified sub-widgets reused as-is
+import { ActionSetList } from '@/components/Agent/ActionSets';
+import CompositeActionsPanel from '@/components/Agent/CompositeActionsPanel';
+import { ApiItemSelector } from '@/components/AssistantApi/ApiSelector';
+import { ApiParameterBindingEditor } from '@/components/AssistantApi/ApiParameterBindingEditor';
+import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
+import { NewUIAgentLog } from '@/components/NewUI/chat/NewUIAgentLog';
+import { saveActionSet, ActionItem } from '@/services/actionSetsService';
+import { splitEmailList, looksLikeEmail } from '@/components/NewUI/shared/emailSuggestions';
+import { useLegacySettingsEventBridge } from '@/components/NewUI/shared/newUISettingsEvents';
+import { formatRunStatus, LOAD_FAILED_DETAILS_MESSAGE, normalizeExecutionRecord } from '@/components/NewUI/shared/scheduledTaskLogDetails';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const PENDING_TASK_KEY = 'amplify_pending_scheduled_task';
+const TASK_LIST_WIDTH_KEY = 'nui-scheduled-task-list-width';
+const TASK_LIST_DEFAULT_WIDTH = 340;
+const TASK_LIST_MIN_WIDTH = 260;
+const TASK_DETAIL_MIN_WIDTH = 420;
+const TASK_SPLITTER_WIDTH = 10;
+const TASK_SPLITTER_KEYBOARD_STEP = 24;
+
+const clampTaskListWidth = (width: number, containerWidth: number) => {
+    const maxWidth = Math.max(TASK_LIST_MIN_WIDTH, containerWidth - TASK_DETAIL_MIN_WIDTH - TASK_SPLITTER_WIDTH);
+    return Math.min(Math.max(width, TASK_LIST_MIN_WIDTH), maxWidth);
+};
+
+const emptyTask = (): ScheduledTask => ({
+    taskId: '',
+    taskName: '',
+    description: '',
+    cronExpression: '0 9 * * *',
+    active: true,
+    taskInstructions: '',
+    taskType: 'assistant',
+    objectInfo: { objectId: '', objectName: '' },
+    tags: [],
+});
+
+interface ScheduledTaskPreview {
+    taskId: string;
+    taskName: string;
+    taskType: ScheduledTaskType;
+    active: boolean;
+}
+
+const TYPE_ICON: Record<ScheduledTaskType, React.ReactNode> = {
+    assistant: <IconRobot size={16} />,
+    actionSet: <IconSettingsAutomation size={16} />,
+    apiTool: <IconTool size={16} />,
+    workflow: <IconPuzzle size={16} />,
+};
+
+// ── Small shared primitives (matching NewAssistantsView / NewLibraryView) ──────
+
+const FieldLabel: React.FC<{ children: React.ReactNode; htmlFor?: string }> = ({ children, htmlFor }) => (
+    <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-medium" style={{ color: 'var(--text-secondary)' }}>{children}</label>
+);
+
+const textFieldClass = "w-full h-9 px-3 rounded-[8px] text-[13px] border focus:outline-none focus:ring-2 focus:ring-[--accent] focus:ring-offset-1 transition-colors";
+const textFieldStyle = { backgroundColor: 'var(--bg-raised)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' };
+const sectionClass = "border-t pt-5";
+const sectionTitleClass = "text-[15px] font-semibold mb-3";
+
+const PrimaryButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: React.ReactNode }> = ({ icon, children, className = '', ...rest }) => (
+    <button
+        {...rest}
+        className={`flex items-center justify-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50 ${className}`}
+        style={{ backgroundColor: 'var(--accent)' }}
+    >
+        {icon}
+        {children}
+    </button>
+);
+
+const GhostButton: React.FC<React.ButtonHTMLAttributes<HTMLButtonElement> & { icon?: React.ReactNode }> = ({ icon, children, className = '', ...rest }) => (
+    <button
+        {...rest}
+        className={`flex items-center justify-center gap-1.5 h-[32px] px-3 rounded-[8px] text-[12.5px] font-medium transition-colors disabled:opacity-50 ${className}`}
+        style={{ backgroundColor: 'var(--bg-hover)', color: 'var(--text-secondary)' }}
+        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)'; }}
+    >
+        {icon}
+        {children}
+    </button>
+);
+
+const EmptyState: React.FC<{ message: string; subMessage?: string; onAction?: () => void; actionLabel?: string }> = ({
+    message, subMessage, onAction, actionLabel,
+}) => (
+    <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
+        <IconAlarm size={32} className="mb-4 opacity-20" style={{ color: 'var(--text-muted)' }} />
+        <p className="text-[14px] font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>{message}</p>
+        {subMessage && <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>{subMessage}</p>}
+        {onAction && actionLabel && (
+            <button
+                onClick={onAction}
+                className="mt-4 flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                style={{ backgroundColor: 'var(--accent)' }}
+            >
+                <IconPlus size={14} />
+                {actionLabel}
+            </button>
+        )}
+    </div>
+);
+
+// ── Task list row ───────────────────────────────────────────────────────────────
+
+const TaskRow: React.FC<{
+    task: ScheduledTaskPreview;
+    isSelected: boolean;
+    isDeleting: boolean;
+    onClick: () => void;
+    onDelete: (e: React.MouseEvent) => void;
+}> = ({ task, isSelected, isDeleting, onClick, onDelete }) => {
+    const [hovered, setHovered] = useState(false);
+    return (
+        <div
+            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] cursor-pointer transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+            role="button"
+            tabIndex={0}
+            aria-label={task.taskName || 'Untitled task'}
+            style={{ backgroundColor: isSelected ? 'var(--bg-active)' : hovered ? 'var(--bg-hover)' : 'transparent' }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onClick={onClick}
+            onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
+        >
+            <div className="flex-shrink-0 flex items-center justify-center w-9 h-9 rounded-[8px]" style={{ backgroundColor: 'var(--bg-raised)', color: 'var(--text-muted)' }}>
+                {TYPE_ICON[task.taskType] ?? <IconAlarm size={16} />}
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="text-[13.5px] font-medium truncate" style={{ color: 'var(--text-primary)' }}>{task.taskName || 'Untitled task'}</p>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                    <span
+                        className="text-[11px] px-1.5 py-[1px] rounded-full"
+                        style={{
+                            backgroundColor: task.active ? 'rgba(90,180,110,0.15)' : 'var(--bg-hover)',
+                            color: task.active ? '#4CAF6D' : 'var(--text-muted)',
+                        }}
+                    >
+                        {task.active ? 'Active' : 'Inactive'}
+                    </span>
+                </div>
+            </div>
+            <button
+                type="button"
+                aria-label={'Delete ' + (task.taskName || 'task')}
+                className="flex-shrink-0 flex items-center justify-center h-[26px] w-[26px] rounded-[6px] transition-opacity"
+                style={{ color: '#e05252', opacity: hovered || isSelected ? 1 : 0 }}
+                onClick={onDelete}
+                title="Delete task"
+                disabled={isDeleting}
+            >
+                {isDeleting ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconTrash size={14} />}
+            </button>
+        </div>
+    );
+};
+
+// ── Main component ───────────────────────────────────────────────────────────────
+
+export const NewScheduledTasksView: React.FC = () => {
+    useLegacySettingsEventBridge();
+
+    const { state: { featureFlags, prompts, statsService }, dispatch: homeDispatch } = useContext(HomeContext);
+    const paneContainerRef = useRef<HTMLDivElement>(null);
+    const splitterRef = useRef<HTMLDivElement>(null);
+    const [taskListWidth, setTaskListWidth] = useState(() => {
+        if (typeof window === 'undefined') return TASK_LIST_DEFAULT_WIDTH;
+        try {
+            const storedWidth = Number(localStorage.getItem(TASK_LIST_WIDTH_KEY));
+            return Number.isFinite(storedWidth) && storedWidth > 0 ? storedWidth : TASK_LIST_DEFAULT_WIDTH;
+        } catch {
+            return TASK_LIST_DEFAULT_WIDTH;
+        }
+    });
+    const [isResizingPanes, setIsResizingPanes] = useState(false);
+    const isResizingPanesRef = useRef(false);
+    const [paneContainerWidth, setPaneContainerWidth] = useState(0);
+    const availablePaneWidth = paneContainerWidth || (
+        typeof window === 'undefined'
+            ? TASK_LIST_DEFAULT_WIDTH + TASK_DETAIL_MIN_WIDTH + TASK_SPLITTER_WIDTH
+            : window.innerWidth
+    );
+    const taskListWidthRef = useRef(taskListWidth);
+    const dragStartXRef = useRef(0);
+    const dragStartWidthRef = useRef(taskListWidth);
+    const previousUserSelectRef = useRef<string | null>(null);
+
+    const applyTaskListWidth = (requestedWidth: number, persist = false) => {
+        const containerWidth = paneContainerRef.current?.clientWidth ?? (
+            typeof window === 'undefined'
+                ? TASK_LIST_DEFAULT_WIDTH + TASK_DETAIL_MIN_WIDTH + TASK_SPLITTER_WIDTH
+                : window.innerWidth
+        );
+        const nextWidth = clampTaskListWidth(requestedWidth, containerWidth);
+        taskListWidthRef.current = nextWidth;
+        setTaskListWidth(nextWidth);
+        if (persist) {
+            try {
+                localStorage.setItem(TASK_LIST_WIDTH_KEY, String(nextWidth));
+            } catch {
+                // Keep resizing usable when localStorage is unavailable.
+            }
+        }
+    };
+
+    useEffect(() => {
+        const container = paneContainerRef.current;
+        if (!container) return;
+        const resizeObserver = new ResizeObserver(() => {
+            setPaneContainerWidth(container.clientWidth);
+            const clamped = clampTaskListWidth(taskListWidthRef.current, container.clientWidth);
+            if (clamped !== taskListWidthRef.current) applyTaskListWidth(clamped, true);
+        });
+        resizeObserver.observe(container);
+        applyTaskListWidth(taskListWidthRef.current);
+        return () => resizeObserver.disconnect();
+        // The observer tracks the mounted pane container; resizes use the latest width ref.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleSplitterPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.button !== 0) return;
+        event.preventDefault();
+        event.currentTarget.setPointerCapture(event.pointerId);
+        dragStartXRef.current = event.clientX;
+        dragStartWidthRef.current = taskListWidthRef.current;
+        isResizingPanesRef.current = true;
+        setIsResizingPanes(true);
+        previousUserSelectRef.current = document.body.style.userSelect;
+        document.body.style.userSelect = 'none';
+    };
+
+    const handleSplitterPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (!isResizingPanes) return;
+        applyTaskListWidth(dragStartWidthRef.current + event.clientX - dragStartXRef.current);
+    };
+
+    const finishSplitterResize = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+            event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+        if (!isResizingPanes) return;
+        isResizingPanesRef.current = false;
+        setIsResizingPanes(false);
+        document.body.style.userSelect = previousUserSelectRef.current ?? '';
+        previousUserSelectRef.current = null;
+        try {
+            localStorage.setItem(TASK_LIST_WIDTH_KEY, String(taskListWidthRef.current));
+        } catch {
+            // Keep resizing usable when localStorage is unavailable.
+        }
+    };
+
+    const handleSplitterKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+        if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+        event.preventDefault();
+        const delta = event.key === 'ArrowRight' ? TASK_SPLITTER_KEYBOARD_STEP : -TASK_SPLITTER_KEYBOARD_STEP;
+        applyTaskListWidth(taskListWidthRef.current + delta, true);
+    };
+
+    // Consume the one-shot sessionStorage handoff (mirrors the pending-message bridge pattern)
+    const initTask = useMemo<ScheduledTask | undefined>(() => {
+        if (typeof window === 'undefined') return undefined;
+        try {
+            const raw = sessionStorage.getItem(PENDING_TASK_KEY);
+            sessionStorage.removeItem(PENDING_TASK_KEY);
+            return raw ? (JSON.parse(raw) as ScheduledTask) : undefined;
+        } catch {
+            return undefined;
+        }
+    }, []);
+
+    const [selectedTask, setSelectedTask] = useState<ScheduledTask>(initTask ?? emptyTask());
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [isViewingLogs, setIsViewingLogs] = useState(false);
+    const [isLoadingLogs, setIsLoadingLogs] = useState(false);
+    const [taskLogs, setTaskLogs] = useState<TaskExecutionRecord[]>([]);
+    const [selectedLogId, setSelectedLogId] = useState<string | null>(null);
+    const [selectedLogDetails, setSelectedLogDetails] = useState<any>(null);
+    const [isLoadingLogDetails, setIsLoadingLogDetails] = useState(false);
+    const [logDetailsError, setLogDetailsError] = useState<string | null>(null);
+    const logDetailsSeqRef = useRef(0);
+    const [isLogsExpanded, setIsLogsExpanded] = useState(false);
+    const [isTestingTask, setIsTestingTask] = useState(false);
+    const pollingCancelledRef = useRef(false);
+    // Identifies the current "Run" poll chain. A new run bumps it, which retires any chain still
+    // waiting on a timer (they previously both kept going once the shared flag was reset).
+    const pollRunIdRef = useRef(0);
+    // Leaving the page must stop the poll; it used to keep requesting the task until it finished.
+    useEffect(() => () => {
+        pollingCancelledRef.current = true;
+        pollRunIdRef.current += 1;
+    }, []);
+
+    const [tagsInput, setTagsInput] = useState('');
+    const [notifyEmailsInput, setNotifyEmailsInput] = useState('');
+
+    const [allTasks, setAllTasks] = useState<ScheduledTaskPreview[]>([]);
+    const [isLoadingTasks, setIsLoadingTasks] = useState(false);
+    const [isLoadingTask, setIsLoadingTask] = useState(false);
+    const [search, setSearch] = useState('');
+    const [typeFilter, setTypeFilter] = useState<string>('All');
+
+    // Object-selector sub-flow state (ported from old ScheduledTasks.tsx)
+    const [showActionSelector, setShowActionSelector] = useState(false);
+    const [actionSubMode, setActionSubMode] = useState<'actionSet' | 'apiTool' | 'createActionSet'>('apiTool');
+    const [newActionSetName, setNewActionSetName] = useState('');
+    const [newActionSetActions, setNewActionSetActions] = useState<ActionItem[]>([]);
+    const [isSavingActionSet, setIsSavingActionSet] = useState(false);
+    const [rawOpsOpen, setRawOpsOpen] = useState(false);
+    const [rawAgentOpen, setRawAgentOpen] = useState(true);
+    const [rawIntegrationOpen, setRawIntegrationOpen] = useState(true);
+    const [editingActionName, setEditingActionName] = useState<string | null>(null);
+    const [actionParamModes, setActionParamModes] = useState<Record<string, Record<string, OpBindingMode>>>({});
+    const [actionParamValues, setActionParamValues] = useState<Record<string, Record<string, string>>>({});
+    const [showWorkflowList, setShowWorkflowList] = useState(false);
+    const [availableApis, setAvailableApis] = useState<any[] | null>(null);
+    const [availableAgentTools, setAvailableAgentTools] = useState<Record<string, any> | null>(null);
+    const [availableWorkflows, setAvailableWorkflows] = useState<AstWorkflow[] | null>(null);
+
+    // ── Effects: load supporting data ──
+    // The ops/integrations/agent-tools lists are only read by the action (apiTool/actionSet)
+    // editor, and the workflow list only by the workflow editor. The default task type is
+    // 'assistant', which needs none of them, so each list loads when its task type is selected
+    // instead of on every visit to this page.
+    const needsActionData = selectedTask.taskType === 'actionSet' || selectedTask.taskType === 'apiTool';
+    const needsWorkflowData = selectedTask.taskType === 'workflow';
+
+    useEffect(() => {
+        if (needsActionData && featureFlags.integrations && availableApis === null) {
+            getOpsForUser().then((ops) => {
+                if (ops.success) {
+                    filterSupportedIntegrationOps(ops.data).then((filtered) => { if (filtered) setAvailableApis(filtered); });
+                    return;
+                }
+                setAvailableApis([]);
+            });
+        }
+    }, [needsActionData, availableApis, featureFlags.integrations]);
+
+    useEffect(() => {
+        if (needsActionData && featureFlags.agentTools && availableAgentTools === null) {
+            getAgentTools().then((tools) => setAvailableAgentTools(tools.success ? tools.data : {}));
+        }
+    }, [needsActionData, availableAgentTools, featureFlags.agentTools]);
+
+    useEffect(() => {
+        if (needsWorkflowData && featureFlags.assistantWorkflows && availableWorkflows === null) {
+            listAstWorkflowTemplates(true, false).then((response) => {
+                setAvailableWorkflows(response.success ? response.data?.templates ?? [] : []);
+            });
+        }
+    }, [needsWorkflowData, availableWorkflows, featureFlags.assistantWorkflows]);
+
+    const fetchTasks = async () => {
+        setIsLoadingTasks(true);
+        try {
+            const result = await listScheduledTasks();
+            if (result.success && result.data?.tasks) {
+                setAllTasks(result.data.tasks);
+            } else {
+                toast.error('Failed to load scheduled tasks');
+            }
+        } catch (err) {
+            console.error('Failed to load tasks:', err);
+            setAllTasks([]);
+        }
+        setIsLoadingTasks(false);
+    };
+
+    useEffect(() => { fetchTasks(); }, []);
+
+    // If we arrived with a pre-filled task (from ScheduledTaskButton), treat as "new"
+    useEffect(() => {
+        if (initTask) setShowActionSelector(false);
+    }, [initTask]);
+
+    // ── Handlers ──
+
+    const handleNewTask = () => {
+        setSelectedTask(emptyTask());
+        setShowActionSelector(false);
+        setIsViewingLogs(false);
+        setError(null);
+    };
+
+    const handleLoadTask = async (taskId: string) => {
+        setIsLoadingTask(true);
+        const result = await getScheduledTask(taskId);
+        if (result.success && result.data?.task) {
+            const task = result.data.task;
+            pollingCancelledRef.current = true;
+            setIsTestingTask(false);
+            setShowActionSelector(false);
+            setSelectedTask(task);
+            setTaskLogs([]);
+            setSelectedLogId(null);
+            setSelectedLogDetails(null);
+            setIsViewingLogs(false);
+            setError(null);
+            if (task.taskType === 'apiTool') setActionSubMode('apiTool');
+            else if (task.taskType === 'actionSet') setActionSubMode('actionSet');
+            setNewActionSetActions([]);
+            setNewActionSetName('');
+        } else {
+            toast.error('Failed to load task');
+        }
+        setIsLoadingTask(false);
+    };
+
+    const handleSaveTask = async () => {
+        try {
+            setIsSubmitting(true);
+            setError(null);
+
+            if (!selectedTask.taskName.trim()) { setError('Task name is required'); setIsSubmitting(false); return; }
+            if (!selectedTask.cronExpression.trim()) { setError('Schedule is required'); setIsSubmitting(false); return; }
+            if (!selectedTask.objectInfo.objectId) { setError('An object must be selected under "Task Type"'); setIsSubmitting(false); return; }
+
+            const parsedTags = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+            const parsedNotifyEmails = splitEmailList(notifyEmailsInput);
+            const badEmails = parsedNotifyEmails.filter((e) => !looksLikeEmail(e));
+            if (badEmails.length > 0) {
+                setError(`These notification email addresses don't look valid: ${badEmails.join(', ')}`);
+                setIsSubmitting(false);
+                return;
+            }
+            selectedTask.tags = parsedTags;
+            selectedTask.notifyEmailAddresses = parsedNotifyEmails;
+            setSelectedTask((prev) => ({ ...prev, tags: parsedTags, notifyEmailAddresses: parsedNotifyEmails }));
+
+            if (selectedTask.taskId) {
+                const result = await updateScheduledTask(selectedTask.taskId, selectedTask);
+                if (result.success) {
+                    statsService.trackEvent('Scheduled Task Saved', { 'Is Edit': true });
+                    toast.success('Successfully updated task');
+                }
+                else toast.error('Failed to update task');
+            } else {
+                const task = cloneDeep(selectedTask);
+                const { taskId, ...taskData } = task;
+                const result = await createScheduledTask(taskData);
+                if (result.success && result.data?.taskId) {
+                    statsService.trackEvent('Scheduled Task Saved', { 'Is Edit': false });
+                    setSelectedTask({ ...selectedTask, taskId: result.data.taskId });
+                    toast.success('Successfully created task');
+                } else {
+                    toast.error('Failed to save task');
+                }
+            }
+            fetchTasks();
+        } catch (err) {
+            setError('An error occurred while saving the task');
+            console.error(err);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleDeleteTask = async (taskId: string, e: React.MouseEvent) => {
+        e.stopPropagation();
+        setIsDeletingId(taskId);
+        const result = await deleteScheduledTask(taskId);
+        if (result.success) {
+            toast.success('Successfully deleted task');
+            setAllTasks((prev) => prev.filter((t) => t.taskId !== taskId));
+            if (selectedTask.taskId === taskId) handleNewTask();
+        } else {
+            toast.error('Failed to delete task');
+        }
+        setIsDeletingId(null);
+    };
+
+    const handleRunTask = async (taskId: string) => {
+        setIsViewingLogs(true);
+        setIsTestingTask(true);
+        pollingCancelledRef.current = false;
+        const startTime = new Date().toISOString();
+
+        try {
+            const taskResult = await executeTask(taskId);
+            if (!taskResult.success) {
+                toast.error('Failed to run task: ' + (taskResult.message || 'Unknown error'));
+                setIsTestingTask(false);
+                return;
+            }
+            statsService.trackEvent('Scheduled Task Run');
+            toast.success('Task execution started.');
+
+            let attempts = 0;
+            const maxAttempts = 80;
+            let trackedExecutionId: string | null = null;
+            let hasFoundRunning = false;
+
+            const getInterval = () => (!hasFoundRunning
+                ? Math.min(3000 + attempts * 500, 6000)
+                : Math.min(1500 + attempts * 100, 4000));
+
+            const runId = ++pollRunIdRef.current;
+            const isStale = () => pollingCancelledRef.current || runId !== pollRunIdRef.current;
+
+            const pollForLogs = async () => {
+                if (isStale()) return;
+                // Nobody is watching a background tab; wait without spending a request or an attempt.
+                if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+                    setTimeout(pollForLogs, 5000);
+                    return;
+                }
+                attempts++;
+                try {
+                    const fetchedLogs = await fetchTaskLogs(taskId, false);
+                    if (isStale()) return;
+
+                    const executionLogs = fetchedLogs
+                        .filter((log: TaskExecutionRecord) => log.executionId.startsWith('execution-') || log.executionId.startsWith('scheduled-task-'))
+                        .sort((a: TaskExecutionRecord, b: TaskExecutionRecord) => new Date(b.executedAt).getTime() - new Date(a.executedAt).getTime());
+
+                    if (!trackedExecutionId && executionLogs.length > 0) {
+                        let logToTrack = executionLogs.find((log: TaskExecutionRecord) => log.executedAt > startTime);
+                        if (!logToTrack) logToTrack = executionLogs.find((log: TaskExecutionRecord) => log.status === 'running');
+                        if (logToTrack) {
+                            trackedExecutionId = logToTrack.executionId;
+                            if (logToTrack.status === 'running') hasFoundRunning = true;
+                            const isAlreadyCompleted = ['success', 'failure', 'timeout'].includes(logToTrack.status);
+                            if (isAlreadyCompleted && logToTrack.executedAt > startTime) {
+                                toast(`Task completed with status: ${logToTrack.status}`);
+                                setSelectedLogId(logToTrack.executionId);
+                                setIsTestingTask(false);
+                                return;
+                            }
+                        }
+                    }
+
+                    if (trackedExecutionId) {
+                        const trackedLog = fetchedLogs.find((log: TaskExecutionRecord) => log.executionId === trackedExecutionId);
+                        if (trackedLog) {
+                            if (trackedLog.status === 'running' && !hasFoundRunning) hasFoundRunning = true;
+                            const isCompleted = ['success', 'failure', 'timeout'].includes(trackedLog.status);
+                            if (isCompleted) {
+                                toast(`Task completed with status: ${trackedLog.status}`);
+                                setSelectedLogId(trackedLog.executionId);
+                                setIsTestingTask(false);
+                                return;
+                            }
+                        }
+                    }
+
+                    if (!trackedExecutionId && attempts > 2) {
+                        const anyCompleted = executionLogs.find((log: TaskExecutionRecord) =>
+                            ['success', 'failure', 'timeout'].includes(log.status) && log.executedAt > startTime);
+                        if (anyCompleted) {
+                            toast(`Task completed with status: ${anyCompleted.status}`);
+                            setSelectedLogId(anyCompleted.executionId);
+                            setIsTestingTask(false);
+                            return;
+                        }
+                    }
+
+                    if (attempts < maxAttempts) {
+                        setTimeout(pollForLogs, getInterval());
+                    } else {
+                        toast.error('Timeout waiting for task completion logs. Please check logs manually.');
+                        setIsTestingTask(false);
+                    }
+                } catch (err) {
+                    console.error('Error polling for logs:', err);
+                    if (attempts < maxAttempts) setTimeout(pollForLogs, 5000);
+                    else { toast.error('Error monitoring task execution.'); setIsTestingTask(false); }
+                }
+            };
+
+            setTimeout(pollForLogs, 1000);
+        } catch (err) {
+            console.error('Error executing task:', err);
+            toast.error('Error executing task');
+            setIsTestingTask(false);
+        }
+    };
+
+    const fetchTaskLogs = async (taskId: string, notify: boolean = true) => {
+        if (!taskId) return [];
+        if (notify) setIsLoadingLogs(true);
+        try {
+            const result = await getScheduledTask(taskId);
+            if (result.success && result.data?.task?.logs) {
+                setTaskLogs(result.data.task.logs);
+                return result.data.task.logs;
+            }
+            if (notify) { setTaskLogs([]); toast.error('Error fetching task logs'); }
+            return [];
+        } catch (err) {
+            console.error('Error fetching task logs:', err);
+            return [];
+        } finally {
+            if (notify) setIsLoadingLogs(false);
+        }
+    };
+
+    const fetchLogDetails = async (taskId: string, executionId: string) => {
+        if (!taskId || !executionId) return;
+        // Only the newest request may write state: clicking through runs quickly must not let a slow
+        // earlier response replace the run now on screen.
+        const seq = ++logDetailsSeqRef.current;
+        setIsLoadingLogDetails(true);
+        setLogDetailsError(null);
+        setSelectedLogDetails(null);
+        try {
+            const result = await getTaskExecutionDetails(taskId, executionId);
+            if (seq !== logDetailsSeqRef.current) return;
+            const record = result?.success ? normalizeExecutionRecord(result.data?.details) : null;
+            if (record) {
+                setSelectedLogDetails(record);
+            } else {
+                // Keep the panel open and say why, rather than closing it as if nothing was clicked.
+                console.warn('Could not load scheduled task run details:', result?.message);
+                setLogDetailsError(LOAD_FAILED_DETAILS_MESSAGE);
+            }
+        } catch (err) {
+            console.error('Error fetching log details:', err);
+            if (seq === logDetailsSeqRef.current) setLogDetailsError(LOAD_FAILED_DETAILS_MESSAGE);
+        } finally {
+            if (seq === logDetailsSeqRef.current) setIsLoadingLogDetails(false);
+        }
+    };
+
+    useEffect(() => {
+        setTagsInput(selectedTask.tags?.join(', ') || '');
+        setNotifyEmailsInput(selectedTask.notifyEmailAddresses?.join(', ') || '');
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedTask.taskId]);
+
+    const commitTagsInput = () => {
+        const parsed = tagsInput.split(',').map((t) => t.trim()).filter(Boolean);
+        setSelectedTask((prev) => ({ ...prev, tags: parsed }));
+    };
+    const commitNotifyEmailsInput = () => {
+        const parsed = splitEmailList(notifyEmailsInput);
+        setSelectedTask((prev) => ({ ...prev, notifyEmailAddresses: parsed }));
+    };
+
+    const invalidNotifyEmails = splitEmailList(notifyEmailsInput).filter((e) => !looksLikeEmail(e));
+
+    useEffect(() => { if (isViewingLogs) fetchTaskLogs(selectedTask.taskId); }, [isViewingLogs, selectedTask.taskId]);
+    useEffect(() => {
+        if (selectedLogId && selectedTask.taskId) fetchLogDetails(selectedTask.taskId, selectedLogId);
+        else {
+            logDetailsSeqRef.current++;
+            setSelectedLogDetails(null);
+            setLogDetailsError(null);
+            setIsLoadingLogDetails(false);
+        }
+    }, [selectedLogId, selectedTask.taskId]);
+
+    // Object selector handlers (ported)
+    const handleActionSetSelect = (actionSet: any) => {
+        setSelectedTask({ ...selectedTask, taskType: 'actionSet', objectInfo: { objectId: actionSet.id || '', objectName: actionSet.name || 'Unnamed Set' } });
+        setShowActionSelector(false);
+    };
+
+    const handleAddRawActionToNewSet = (api: OpDef) => {
+        const actionItem: ActionItem = {
+            name: api.name,
+            operation: { tool_name: api.name, name: api.name, description: api.description, id: api.name, type: api.type || '', parameters: api.parameters, tags: api.tags ?? [], bindings: api.bindings, method: (api as any).method },
+        };
+        setNewActionSetActions((prev) => (prev.find((a) => a.name === api.name) ? prev : [...prev, actionItem]));
+    };
+
+    const handleAddCompositeToNewSet = (fn: CompositeFunction) => {
+        if (!availableApis) return;
+        const opNames = new Set(fn.operations);
+        const ops = (availableApis as OpDef[]).filter((api) => opNames.has(api.name));
+        if (ops.length === 0) return;
+        setNewActionSetActions((prev) => {
+            const existingNames = new Set(prev.map((a) => a.name));
+            const toAdd = ops.filter((api) => !existingNames.has(api.name)).map((api) => ({
+                name: api.name,
+                operation: { tool_name: api.name, name: api.name, description: api.description, id: api.name, type: api.type || '', parameters: api.parameters, tags: api.tags ?? [], bindings: api.bindings, method: api.method },
+            }));
+            return [...prev, ...toAdd];
+        });
+    };
+
+    const handleRemoveActionFromNewSet = (name: string) => setNewActionSetActions((prev) => prev.filter((a) => a.name !== name));
+
+    const handleUpdateOpBindingsInNewSet = (actionName: string, bindings: any) =>
+        setNewActionSetActions((prev) => prev.map((a) => (a.name === actionName ? { ...a, operation: { ...a.operation, bindings } } : a)));
+
+    const handleActionParamModeChange = (actionName: string, param: string, mode: OpBindingMode) => {
+        const newModes = { ...actionParamModes, [actionName]: { ...(actionParamModes[actionName] || {}), [param]: mode } };
+        setActionParamModes(newModes);
+        const vals = actionParamValues[actionName] || {};
+        const bindings: any = {};
+        const action = newActionSetActions.find((a) => a.name === actionName);
+        if (action?.operation?.parameters?.properties) {
+            Object.keys(action.operation.parameters.properties).forEach((p) => {
+                const m = (newModes[actionName] || {})[p] || 'ai';
+                const v = vals[p] || '';
+                if (v || m === 'manual') bindings[p] = { value: v, mode: m };
+            });
+        }
+        handleUpdateOpBindingsInNewSet(actionName, bindings);
+    };
+
+    const handleActionParamValueChange = (actionName: string, param: string, value: string) => {
+        const newVals = { ...actionParamValues, [actionName]: { ...(actionParamValues[actionName] || {}), [param]: value } };
+        setActionParamValues(newVals);
+        const modes = actionParamModes[actionName] || {};
+        const bindings: any = {};
+        const action = newActionSetActions.find((a) => a.name === actionName);
+        if (action?.operation?.parameters?.properties) {
+            Object.keys(action.operation.parameters.properties).forEach((p) => {
+                const m = modes[p] || 'ai';
+                const v = (newVals[actionName] || {})[p] || '';
+                if (v || m === 'manual') bindings[p] = { value: v, mode: m };
+            });
+        }
+        handleUpdateOpBindingsInNewSet(actionName, bindings);
+    };
+
+    const handleSaveNewActionSet = async () => {
+        if (newActionSetActions.length === 0) return;
+        if (!newActionSetName.trim()) { toast.error('Please enter a name for the action set'); return; }
+        setIsSavingActionSet(true);
+        try {
+            const name = newActionSetName.trim();
+            const savedSet = await saveActionSet({ name, tags: [], actions: newActionSetActions });
+            setSelectedTask({ ...selectedTask, taskType: 'actionSet', objectInfo: { objectId: savedSet.id || '', objectName: savedSet.name } });
+            setNewActionSetName('');
+            setNewActionSetActions([]);
+            setActionSubMode('actionSet');
+            setShowActionSelector(false);
+            toast.success(`Action set "${savedSet.name}" created and selected`);
+        } catch (err) {
+            console.error('Error saving action set:', err);
+            toast.error('Failed to save action set');
+        } finally {
+            setIsSavingActionSet(false);
+        }
+    };
+
+    const handleApiToolSelect = (name: string, opSpecs: any) => {
+        setSelectedTask({ ...selectedTask, objectInfo: { objectId: name, objectName: name, data: { op: opSpecs } } });
+        setShowActionSelector(false);
+    };
+
+    const handleWorkflowSelect = (templateId: string) => {
+        const workflow = availableWorkflows?.find((w) => w.templateId === templateId);
+        const workflowName = workflow?.name || `Workflow Template: ${templateId}`;
+        setSelectedTask({ ...selectedTask, objectInfo: { objectId: templateId, objectName: workflowName, data: { templateId } } });
+        setShowWorkflowList(false);
+    };
+
+    const isDisabled = () => selectedTask.taskType ? Boolean(selectedTask.objectInfo.data?.enforced) : false;
+
+    // ── Derived list ──
+    const tasksByType = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        const acc: Record<string, ScheduledTaskPreview[]> = {};
+        allTasks
+            .filter((t) => !q || t.taskName.toLowerCase().includes(q))
+            .forEach((t) => {
+                if (!acc[t.taskType]) acc[t.taskType] = [];
+                acc[t.taskType].push(t);
+            });
+        Object.keys(acc).forEach((type) => acc[type].sort((a, b) => (a.active === b.active ? 0 : a.active ? -1 : 1)));
+        return acc;
+    }, [allTasks, search]);
+
+    const availableTypes = ['All', ...Object.keys(tasksByType)];
+    const totalVisible = Object.values(tasksByType).reduce((n, arr) => n + arr.length, 0);
+
+    // ── Object selector renderer (ported, restyled) ──
+    const getObjectSelector = () => {
+        const taskType = selectedTask.taskType;
+        if (!taskType) return null;
+        const enforced = isDisabled();
+
+        if (taskType === 'assistant') {
+            const asts = prompts.filter((p: Prompt) => isAssistant(p));
+            if (asts.length === 0) {
+                return (
+                    <div className="flex items-center gap-2 text-[13px] py-2" style={{ color: 'var(--text-muted)' }}>
+                        <IconExclamationCircle size={16} style={{ color: '#e05252' }} />
+                        No assistants found
+                    </div>
+                );
+            }
+            return (
+                <select
+                    disabled={enforced}
+                    value={selectedTask.objectInfo?.objectId ?? ''}
+                    onChange={(e) => setSelectedTask({ ...selectedTask, objectInfo: { objectId: e.target.value, objectName: prompts.find((p: Prompt) => p.data?.assistant?.definition.assistantId === e.target.value)?.name || '' } })}
+                    className={textFieldClass}
+                    style={textFieldStyle}
+                >
+                    <option value="">Select Assistant</option>
+                    {asts.map((ast: Prompt, i: number) => (
+                        <option key={i} value={ast.data?.assistant?.definition.assistantId ?? ast.id}>{ast.name}</option>
+                    ))}
+                </select>
+            );
+        }
+
+        if (taskType === 'actionSet' || taskType === 'apiTool') {
+            if (!featureFlags.actionSets && !featureFlags.integrations) return null;
+            return (
+                <div className={`flex flex-col gap-3 ${enforced ? 'opacity-50 pointer-events-none' : ''}`}>
+                    <div
+                        onClick={() => !enforced && setShowActionSelector((v) => !v)}
+                        className={`${textFieldClass} flex justify-between items-center cursor-pointer`}
+                        style={textFieldStyle}
+                    >
+                        <span>{selectedTask.objectInfo?.objectName || 'Select Action'}</span>
+                        <IconChevronDown size={16} className={`transition-transform ${(showActionSelector || !selectedTask.objectInfo?.objectId) ? 'rotate-180' : ''}`} />
+                    </div>
+
+                    {(showActionSelector || !selectedTask.objectInfo?.objectId) && !enforced && (
+                        <>
+                            <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${[featureFlags.integrations, featureFlags.actionSets, featureFlags.actionSets].filter(Boolean).length}, minmax(0, 1fr))` }}>
+                                {featureFlags.integrations && (
+                                    <button
+                                        onClick={() => { setActionSubMode('apiTool'); }}
+                                        className="flex flex-col items-start gap-1 px-3 py-2.5 rounded-[8px] border text-left transition-colors"
+                                        style={{
+                                            backgroundColor: actionSubMode === 'apiTool' ? 'var(--bg-active)' : 'transparent',
+                                            borderColor: actionSubMode === 'apiTool' ? 'var(--accent)' : 'var(--border-subtle)',
+                                        }}
+                                    >
+                                        <span className="text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>API Action</span>
+                                        <span className="text-[11.5px] leading-tight" style={{ color: 'var(--text-muted)' }}>Run a single API or agent tool once per schedule</span>
+                                    </button>
+                                )}
+                                {featureFlags.actionSets && (
+                                    <button
+                                        onClick={() => setActionSubMode('actionSet')}
+                                        className="flex flex-col items-start gap-1 px-3 py-2.5 rounded-[8px] border text-left transition-colors"
+                                        style={{
+                                            backgroundColor: actionSubMode === 'actionSet' ? 'var(--bg-active)' : 'transparent',
+                                            borderColor: actionSubMode === 'actionSet' ? 'var(--accent)' : 'var(--border-subtle)',
+                                        }}
+                                    >
+                                        <span className="text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>Action Set</span>
+                                        <span className="text-[11.5px] leading-tight" style={{ color: 'var(--text-muted)' }}>Use a pre-saved collection of actions</span>
+                                    </button>
+                                )}
+                                {featureFlags.actionSets && (
+                                    <button
+                                        onClick={() => { setActionSubMode('createActionSet'); setNewActionSetActions([]); setNewActionSetName(''); }}
+                                        className="flex flex-col items-start gap-1 px-3 py-2.5 rounded-[8px] border text-left transition-colors"
+                                        style={{
+                                            backgroundColor: actionSubMode === 'createActionSet' ? 'var(--bg-active)' : 'transparent',
+                                            borderColor: actionSubMode === 'createActionSet' ? 'var(--accent)' : 'var(--border-subtle)',
+                                        }}
+                                    >
+                                        <span className="text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>+ Create Action Set</span>
+                                        <span className="text-[11.5px] leading-tight" style={{ color: 'var(--text-muted)' }}>Build and save a new set of actions</span>
+                                    </button>
+                                )}
+                            </div>
+
+                            {actionSubMode === 'actionSet' && featureFlags.actionSets && (
+                                <div className="rounded-[8px] border p-3 overflow-y-auto" style={{ borderColor: 'var(--border-subtle)', maxHeight: 300 }}>
+                                    <div className="text-neutral-900 dark:text-white">
+                                        <ActionSetList onLoad={handleActionSetSelect} selectedId={selectedTask.objectInfo?.objectId} />
+                                    </div>
+                                </div>
+                            )}
+
+                            {actionSubMode === 'apiTool' && (
+                                <div className="rounded-[8px] border p-3 overflow-y-auto text-neutral-900 dark:text-white" style={{ borderColor: 'var(--border-subtle)', maxHeight: 300 }}>
+                                    <div className="flex flex-col gap-2">
+                                        {availableAgentTools && Object.keys(availableAgentTools).length > 0 && (
+                                            <div>
+                                                <button className="flex items-center gap-1.5 text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }} onClick={() => setRawAgentOpen((v) => !v)}>
+                                                    {rawAgentOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}Agent Tools
+                                                </button>
+                                                {rawAgentOpen && (
+                                                    <ApiItemSelector
+                                                        availableApis={Object.entries(availableAgentTools).map(([key, tool]: [string, any]) => ({ id: tool.tool_name || key, name: tool.tool_name || key, tool_name: tool.tool_name || key, description: tool.description || '', parameters: tool.parameters || {}, tags: [...(tool.tags || []), 'Agent Tool', 'native'], type: 'builtIn' }))}
+                                                        selectedApis={selectedTask.objectInfo?.objectId ? [{ id: selectedTask.objectInfo.objectId, name: selectedTask.objectInfo.objectName } as any] : []}
+                                                        setSelectedApis={() => { }}
+                                                        onClickApiItem={(api: OpDef) => handleApiToolSelect(api.name, { tool_name: api.name, name: api.name, description: api.description, id: api.name, type: 'builtIn', parameters: api.parameters, tags: api.tags ?? [], bindings: api.bindings })}
+                                                        disableSelection showDetails={false} allowConfiguration
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
+                                        {featureFlags.integrations && availableApis && (
+                                            <div>
+                                                <button className="flex items-center gap-1.5 text-xs font-semibold mb-1" style={{ color: 'var(--text-secondary)' }} onClick={() => setRawIntegrationOpen((v) => !v)}>
+                                                    {rawIntegrationOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}Integration APIs
+                                                </button>
+                                                {rawIntegrationOpen && (
+                                                    <ApiItemSelector
+                                                        availableApis={availableApis}
+                                                        selectedApis={selectedTask.objectInfo?.objectId ? [{ id: selectedTask.objectInfo.objectId, name: selectedTask.objectInfo.objectName } as any] : []}
+                                                        setSelectedApis={() => { }}
+                                                        apiFilter={(apis) => apis.filter((api) => api.type !== 'custom')}
+                                                        onClickApiItem={(api: OpDef) => handleApiToolSelect(api.name, { tool_name: api.name, name: api.name, description: api.description, id: api.name, type: api.type || '', parameters: api.parameters, tags: api.tags ?? [], bindings: api.bindings, method: api.method })}
+                                                        disableSelection showDetails={false} allowConfiguration
+                                                    />
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+
+                            {actionSubMode === 'createActionSet' && (
+                                <div className="space-y-3">
+                                    <div className="rounded-[8px] border p-3 overflow-y-auto text-neutral-900 dark:text-white" style={{ borderColor: 'var(--border-subtle)', maxHeight: 320 }}>
+                                        <div className="flex flex-col gap-2">
+                                            <CompositeActionsPanel selectedId={null} allOperations={availableApis} onSelect={handleAddCompositeToNewSet} />
+                                            <div className="border-t pt-2 mt-1" style={{ borderColor: 'var(--border-subtle)' }}>
+                                                <button className="flex items-center gap-1.5 text-xs font-semibold mb-2" style={{ color: 'var(--text-secondary)' }} onClick={() => setRawOpsOpen((v) => !v)}>
+                                                    {rawOpsOpen ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}Browse raw actions
+                                                </button>
+                                                {rawOpsOpen && (
+                                                    <div className="flex flex-col gap-2 pl-2">
+                                                        {availableAgentTools && Object.keys(availableAgentTools).length > 0 && (
+                                                            <div>
+                                                                <button className="flex items-center gap-1.5 text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }} onClick={() => setRawAgentOpen((v) => !v)}>
+                                                                    {rawAgentOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}Agent Tools
+                                                                </button>
+                                                                {rawAgentOpen && (
+                                                                    <ApiItemSelector
+                                                                        availableApis={Object.entries(availableAgentTools).map(([key, tool]: [string, any]) => ({ id: tool.tool_name || key, name: tool.tool_name || key, tool_name: tool.tool_name || key, description: tool.description || '', parameters: tool.parameters || {}, tags: [...(tool.tags || []), 'Agent Tool', 'native'], type: 'builtIn' }))}
+                                                                        selectedApis={newActionSetActions.map((a) => a.operation as any)} setSelectedApis={() => { }} onClickApiItem={(api: OpDef) => handleAddRawActionToNewSet(api)} disableSelection showDetails={false} allowConfiguration
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                        {featureFlags.integrations && availableApis && (
+                                                            <div>
+                                                                <button className="flex items-center gap-1.5 text-xs font-semibold mb-1" style={{ color: 'var(--text-muted)' }} onClick={() => setRawIntegrationOpen((v) => !v)}>
+                                                                    {rawIntegrationOpen ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}Integration APIs
+                                                                </button>
+                                                                {rawIntegrationOpen && (
+                                                                    <ApiItemSelector
+                                                                        availableApis={availableApis} selectedApis={newActionSetActions.map((a) => a.operation as any)} setSelectedApis={() => { }}
+                                                                        apiFilter={(apis) => apis.filter((api) => api.type !== 'custom')}
+                                                                        onClickApiItem={(api: OpDef) => handleAddRawActionToNewSet(api)} disableSelection showDetails={false} allowConfiguration
+                                                                    />
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {newActionSetActions.length > 0 && (
+                                        <div className="space-y-2 border-t pt-2" style={{ borderColor: 'var(--border-subtle)' }}>
+                                            <div className="flex flex-wrap gap-1.5">
+                                                {newActionSetActions.map((action) => {
+                                                    const hasParams = action.operation?.parameters?.properties && Object.keys(action.operation.parameters.properties).length > 0;
+                                                    const isEditing = editingActionName === action.name;
+                                                    return (
+                                                        <span
+                                                            key={action.name}
+                                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11.5px] border transition-colors"
+                                                            style={{
+                                                                backgroundColor: isEditing ? 'var(--bg-active)' : 'var(--bg-raised)',
+                                                                color: 'var(--text-primary)',
+                                                                borderColor: isEditing ? 'var(--accent)' : 'var(--border-subtle)',
+                                                            }}
+                                                        >
+                                                            {action.name}
+                                                            {hasParams && (
+                                                                <button onClick={() => setEditingActionName(isEditing ? null : action.name)} title="Configure parameters" style={{ color: isEditing ? 'var(--accent)' : 'var(--text-muted)' }}>
+                                                                    <IconAdjustments size={11} />
+                                                                </button>
+                                                            )}
+                                                            <button onClick={() => { handleRemoveActionFromNewSet(action.name); if (isEditing) setEditingActionName(null); }} style={{ color: 'var(--text-muted)' }}>
+                                                                <IconX size={11} />
+                                                            </button>
+                                                        </span>
+                                                    );
+                                                })}
+                                            </div>
+                                            {editingActionName && newActionSetActions.find((a) => a.name === editingActionName) && (() => {
+                                                const action = newActionSetActions.find((a) => a.name === editingActionName)!;
+                                                return (
+                                                    <div className="rounded-[8px] border p-3 text-neutral-900 dark:text-white" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
+                                                        <div className="flex items-center justify-between mb-2">
+                                                            <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Configure: {action.name}</span>
+                                                            <button onClick={() => setEditingActionName(null)} style={{ color: 'var(--text-muted)' }}><IconX size={14} /></button>
+                                                        </div>
+                                                        <ApiParameterBindingEditor
+                                                            paramSource={action.operation?.parameters}
+                                                            paramModes={actionParamModes[action.name] || {}}
+                                                            paramValues={actionParamValues[action.name] || {}}
+                                                            onParamModeChange={(param, mode) => handleActionParamModeChange(action.name, param, mode)}
+                                                            onParamValueChange={(param, value) => handleActionParamValueChange(action.name, param, value)}
+                                                        />
+                                                    </div>
+                                                );
+                                            })()}
+                                            <input
+                                                type="text" placeholder="Action set name (required)" value={newActionSetName}
+                                                onChange={(e) => setNewActionSetName(e.target.value)}
+                                                className={textFieldClass}
+                                                style={{ ...textFieldStyle, borderColor: newActionSetName.trim() ? 'var(--border-subtle)' : '#e05252' }}
+                                            />
+                                            <PrimaryButton onClick={handleSaveNewActionSet} disabled={isSavingActionSet} icon={isSavingActionSet ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconDeviceFloppy size={14} />} className="w-full">
+                                                {isSavingActionSet ? 'Saving…' : 'Save Action Set & Use'}
+                                            </PrimaryButton>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    )}
+                </div>
+            );
+        }
+
+        if (taskType === 'workflow') {
+            if (!featureFlags.assistantWorkflows) return null;
+            return (
+                <div className="relative flex flex-col">
+                    <div
+                        onClick={() => !enforced && setShowWorkflowList(!showWorkflowList)}
+                        className={`${textFieldClass} flex justify-between items-center cursor-pointer`}
+                        style={textFieldStyle}
+                    >
+                        <span>{selectedTask.objectInfo?.objectName || 'Select Workflow Template'}</span>
+                        <IconChevronDown size={16} className={`transition-transform ${showWorkflowList && !enforced ? 'rotate-180' : ''}`} />
+                    </div>
+                    {showWorkflowList && !enforced && (
+                        <div className="absolute top-full left-0 right-0 z-50 mt-1 rounded-[8px] border shadow-lg text-neutral-900 dark:text-white" style={{ backgroundColor: 'var(--bg-app)', borderColor: 'var(--border-subtle)' }}>
+                            <div className="p-3 overflow-y-auto" style={{ maxHeight: 350 }}>
+                                {availableWorkflows === null ? (
+                                    <div className="text-center py-4 text-[13px]" style={{ color: 'var(--text-muted)' }}>Loading workflows…</div>
+                                ) : availableWorkflows.length === 0 ? (
+                                    <div className="text-center py-4 text-[13px]" style={{ color: 'var(--text-muted)' }}>No workflow templates available</div>
+                                ) : (
+                                    <div className="space-y-2">
+                                        {availableWorkflows.map((workflow) => (
+                                            <div
+                                                key={workflow.templateId}
+                                                onClick={() => handleWorkflowSelect(workflow.templateId)}
+                                                className="p-3 rounded-[8px] cursor-pointer border transition-colors"
+                                                style={{
+                                                    backgroundColor: selectedTask.objectInfo?.data?.templateId === workflow.templateId ? 'var(--bg-active)' : 'transparent',
+                                                    borderColor: selectedTask.objectInfo?.data?.templateId === workflow.templateId ? 'var(--accent)' : 'transparent',
+                                                }}
+                                            >
+                                                <div className="text-[13px] font-medium" style={{ color: 'var(--text-primary)' }}>{workflow.name}</div>
+                                                {workflow.description && <div className="text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{workflow.description}</div>}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        return null;
+    };
+
+    // ── Logs panel ──
+    const renderLogsPanel = () => {
+        const statusColor = (status: string) => (
+            status === 'success' ? '#4CAF6D' : status === 'failure' ? '#e05252' : status === 'timeout' ? '#E8A030' : 'var(--text-muted)'
+        );
+        return (
+            <div className="flex-1 overflow-y-auto px-6 py-5">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-[15px] font-semibold truncate max-w-[50%]" style={{ color: 'var(--text-primary)' }}>
+                        Run Logs: {selectedTask.taskName}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                        <GhostButton icon={<IconRefresh size={14} />} onClick={() => { setSelectedLogId(null); fetchTaskLogs(selectedTask.taskId); }} disabled={isLoadingLogs || isTestingTask}>
+                            Refresh
+                        </GhostButton>
+                        <GhostButton
+                            icon={isTestingTask ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconPlayerPlay size={14} />}
+                            onClick={() => handleRunTask(selectedTask.taskId)}
+                            disabled={isTestingTask}
+                        >
+                            {isTestingTask ? 'Running…' : 'Run Task'}
+                        </GhostButton>
+                        <GhostButton icon={<IconAlarm size={14} />} onClick={() => { setIsViewingLogs(false); setSelectedLogId(null); }}>
+                            Manage Task
+                        </GhostButton>
+                    </div>
+                </div>
+
+                {isLoadingLogs ? (
+                    <div className="flex items-center justify-center py-10 gap-2" style={{ color: 'var(--text-muted)' }}>
+                        <IconLoader2 size={20} className="motion-safe:animate-spin motion-reduce:animate-none" /> Loading execution logs…
+                    </div>
+                ) : taskLogs.length === 0 ? (
+                    <div className="text-center py-10 rounded-[10px] border" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}>
+                        <IconNotes size={28} className="mx-auto mb-2 opacity-30" />
+                        <p className="text-[13px]">No execution logs found for this task</p>
+                        <p className="text-[11.5px] mt-1">Logs will appear here after task execution</p>
+                    </div>
+                ) : (
+                    <div className="rounded-[10px] border mb-4 overflow-hidden" style={{ borderColor: 'var(--border-subtle)' }}>
+                        <div className="overflow-y-auto" style={{ maxHeight: isLogsExpanded ? 600 : 250 }}>
+                            <table className="min-w-full">
+                                <thead className="sticky top-0" style={{ backgroundColor: 'var(--bg-sidebar)' }}>
+                                    <tr>
+                                        {['Execution Time', 'Status', 'Source'].map((h) => (
+                                            <th key={h} className="px-4 py-2 text-left text-[11px] font-medium uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>{h}</th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {taskLogs.map((log) => (
+                                        <tr
+                                            key={log.executionId}
+                                            onClick={() => setSelectedLogId(log.executionId)}
+                                            className="cursor-pointer transition-colors border-t"
+                                            style={{ borderColor: 'var(--border-subtle)', backgroundColor: selectedLogId === log.executionId ? 'var(--bg-active)' : 'transparent' }}
+                                        >
+                                            <td className="px-4 py-3 text-[13px]" style={{ color: 'var(--text-primary)' }}>{userFriendlyDate(log.executedAt)}</td>
+                                            <td className="px-4 py-3 text-[12.5px]">
+                                                <span className="px-2 py-0.5 rounded-full" style={{ backgroundColor: 'var(--bg-raised)', color: statusColor(log.status) }}>
+                                                    {formatRunStatus(log.status)}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
+                                                {log.source === 'manual-task-run' ? 'Manual Task Run' : log.source === 'scheduled-task' ? 'Scheduled Task' : log.source ?? 'Unknown'}
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                        <div className="flex justify-center py-1.5">
+                            <button onClick={() => setIsLogsExpanded(!isLogsExpanded)} style={{ color: 'var(--text-muted)' }} title={isLogsExpanded ? 'Collapse logs' : 'Expand logs'}>
+                                {isLogsExpanded ? <IconChevronUp size={20} /> : <IconChevronDown size={20} />}
+                            </button>
+                        </div>
+                    </div>
+                )}
+
+                {selectedLogId && (
+                    <div className="rounded-[10px] border p-4" style={{ borderColor: 'var(--border-subtle)' }}>
+                        <h3 className="text-[13.5px] font-medium mb-3 flex items-center gap-2" style={{ color: 'var(--text-primary)' }}>
+                            <IconNotes size={16} /> Execution Details
+                        </h3>
+                        {isLoadingLogDetails ? (
+                            <div className="flex items-center justify-center py-4 gap-2" style={{ color: 'var(--text-muted)' }}>
+                                <IconLoader2 size={18} className="motion-safe:animate-spin motion-reduce:animate-none" /> Loading details…
+                            </div>
+                        ) : selectedLogDetails ? (
+                            <div className="space-y-4 text-[13px]" style={{ color: 'var(--text-secondary)' }}>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div><span className="font-medium" style={{ color: 'var(--text-primary)' }}>Executed At:</span> {userFriendlyDate(selectedLogDetails.executedAt)}</div>
+                                    <div>
+                                        <span className="font-medium" style={{ color: 'var(--text-primary)' }}>Status:</span>{' '}
+                                        <span style={{ color: statusColor(selectedLogDetails.status) }}>
+                                            {formatRunStatus(selectedLogDetails.status)}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {selectedLogDetails.details?.error && (
+                                    <div className="rounded-[8px] p-3 border" style={{ backgroundColor: 'rgba(200,60,60,0.1)', borderColor: 'rgba(200,60,60,0.3)', color: '#e05252' }}>
+                                        <div className="font-medium">Error:</div>
+                                        <div className="mt-1">{selectedLogDetails.details.error}</div>
+                                        {selectedLogDetails.details.message && <div className="mt-1">{selectedLogDetails.details.message}</div>}
+                                    </div>
+                                )}
+
+                                {selectedLogDetails.detailsError && !selectedLogDetails.details && (
+                                    <div className="rounded-[8px] p-3 border text-[12.5px]" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-secondary)' }}>
+                                        <div className="font-medium" style={{ color: 'var(--text-primary)' }}>Details unavailable for this run</div>
+                                        <div className="mt-1 break-words" style={{ color: 'var(--text-muted)' }}>{selectedLogDetails.detailsError}</div>
+                                    </div>
+                                )}
+
+                                {selectedLogDetails.details?.result && (
+                                    // The run's tool calls as the same step rows the chat uses (parameters, Result, Raw / Raw log).
+                                    // A log with no tool steps falls back to the classic panel inside data-nui-agentlog, which
+                                    // scopes its restyle (conversation-view.css), so such a run shows what it always did.
+                                    <div className="text-neutral-900 dark:text-white">
+                                        <NewUIAgentLog
+                                            result={selectedLogDetails.details.result}
+                                            executedAt={selectedLogDetails.executedAt}
+                                            fallback={
+                                                <div data-nui-agentlog="true">
+                                                    {(() => {
+                                                        try {
+                                                            return (
+                                                                <AgentLogBlock
+                                                                    messageIsStreaming={false}
+                                                                    message={{
+                                                                        id: selectedLogDetails.executionId,
+                                                                        data: { state: { agentLog: { data: { handled: true, result: selectedLogDetails.details.result } } } },
+                                                                        role: 'assistant',
+                                                                        content: '',
+                                                                        type: 'execution-log',
+                                                                    }}
+                                                                    conversationId={selectedLogDetails.details.sessionId || 'unknown-session'}
+                                                                    width={() => window.innerWidth * 0.5}
+                                                                />
+                                                            );
+                                                        } catch {
+                                                            return (
+                                                                <div className="text-[12.5px] whitespace-pre-wrap overflow-auto max-h-[300px]">
+                                                                    {typeof selectedLogDetails.details.result === 'object'
+                                                                        ? JSON.stringify(selectedLogDetails.details.result, null, 2)
+                                                                        : selectedLogDetails.details.result}
+                                                                </div>
+                                                            );
+                                                        }
+                                                    })()}
+                                                </div>
+                                            }
+                                        />
+                                    </div>
+                                )}
+
+                                {selectedLogDetails.details?.startTime && (
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div><span className="font-medium" style={{ color: 'var(--text-primary)' }}>Started At:</span> {userFriendlyDate(selectedLogDetails.details.startTime)}</div>
+                                        {selectedLogDetails.details.completedAt && <div><span className="font-medium" style={{ color: 'var(--text-primary)' }}>Completed At:</span> {userFriendlyDate(selectedLogDetails.details.completedAt)}</div>}
+                                        {selectedLogDetails.details.failedAt && <div><span className="font-medium" style={{ color: 'var(--text-primary)' }}>Failed At:</span> {userFriendlyDate(selectedLogDetails.details.failedAt)}</div>}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="text-center py-6 rounded-[8px] border" role="status" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-muted)' }}>
+                                <IconExclamationCircle size={22} className="mx-auto mb-2 opacity-30" />
+                                <p className="text-[13px]">No details available for this execution</p>
+                                {logDetailsError && <p className="text-[11.5px] mt-1">{logDetailsError}</p>}
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    // ── Editor panel ──
+    const renderEditorPanel = () => (
+        <div className="flex-1 overflow-y-auto">
+            {isLoadingTask ? (
+                <div className="flex h-full flex-col items-center justify-center gap-3">
+                    <IconLoader2 size={26} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--accent)' }} />
+                    <p className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Loading task details…</p>
+                </div>
+            ) : (
+                <>
+                    <div className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-3 border-b px-6 py-3" style={{ backgroundColor: 'var(--bg-app)', borderColor: 'var(--border-subtle)' }}>
+                        <div className="min-w-0">
+                            <h2 className="truncate text-[16px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+                                {selectedTask.taskId ? (selectedTask.taskName || 'Edit Task') : 'New Task'}
+                            </h2>
+                            {selectedTask.taskId && <p className="mt-0.5 text-[12px]" style={{ color: 'var(--text-muted)' }}>Edit scheduled task</p>}
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
+                            <span id="scheduled-task-active-label" className="text-[13px] font-medium" style={{ color: 'var(--text-secondary)' }}>Active</span>
+                            <ToggleSwitch checked={selectedTask.active} onChange={(active) => setSelectedTask({ ...selectedTask, active })} aria-labelledby="scheduled-task-active-label" />
+                            {selectedTask.taskId && (
+                                <>
+                                    <GhostButton type="button" icon={isTestingTask ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconPlayerPlay size={14} />} onClick={() => handleRunTask(selectedTask.taskId)} disabled={isTestingTask}>
+                                        {isTestingTask ? 'Running…' : 'Run Task'}
+                                    </GhostButton>
+                                    <GhostButton type="button" icon={<IconNotes size={14} />} onClick={() => setIsViewingLogs(true)}>View Logs</GhostButton>
+                                </>
+                            )}
+                            <PrimaryButton type="button" icon={isSubmitting ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconDeviceFloppy size={14} />} onClick={handleSaveTask} disabled={isSubmitting}>
+                                {isSubmitting ? 'Saving…' : 'Save Task'}
+                            </PrimaryButton>
+                        </div>
+                    </div>
+
+                    <div className="space-y-7 px-6 py-5">
+                        {error && <div className="rounded-[8px] border p-3 text-[13px]" role="alert" style={{ backgroundColor: 'color-mix(in srgb, var(--text-error) 10%, transparent)', borderColor: 'var(--text-error)', color: 'var(--text-error)' }}>{error}</div>}
+
+                        <section aria-labelledby="scheduled-details-heading">
+                            <h3 id="scheduled-details-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Details</h3>
+                            <div className="grid gap-4">
+                                <div>
+                                    <FieldLabel htmlFor="scheduled-task-name">Task Name</FieldLabel>
+                                    <input id="scheduled-task-name" disabled={isDisabled()} title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''} type="text" value={selectedTask.taskName} onChange={(e) => setSelectedTask({ ...selectedTask, taskName: e.target.value })} className={textFieldClass} style={textFieldStyle} placeholder="Name your task" />
+                                </div>
+                                <div>
+                                    <FieldLabel htmlFor="scheduled-task-description">Description</FieldLabel>
+                                    <textarea id="scheduled-task-description" value={selectedTask.description} onChange={(e) => setSelectedTask({ ...selectedTask, description: e.target.value })} className={`${textFieldClass} h-auto py-2`} style={textFieldStyle} rows={2} placeholder="Describe what this task does" />
+                                </div>
+                                <div>
+                                    <FieldLabel htmlFor="scheduled-task-tags">Tags <span className="font-normal" style={{ color: 'var(--text-muted)' }}>(comma separated)</span></FieldLabel>
+                                    <input id="scheduled-task-tags" type="text" value={tagsInput} onChange={(e) => setTagsInput(e.target.value)} onBlur={commitTagsInput} className={textFieldClass} style={textFieldStyle} placeholder="maintenance, report, etc." />
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className={sectionClass} aria-labelledby="scheduled-instructions-heading" style={{ borderColor: 'var(--border-subtle)' }}>
+                            <h3 id="scheduled-instructions-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Instructions</h3>
+                            <div className="flex items-center gap-1.5">
+                                <FieldLabel htmlFor="scheduled-task-instructions">Task Instructions</FieldLabel>
+                                <InfoTooltip ariaLabel="About task instructions" maxWidth={380} text="These instructions are sent to the selected assistant, action, or workflow each time the task runs. Describe what it should do and the result you want. If you want something emailed to you, include your full email address here—don't just say ‘email me.’" />
+                            </div>
+                            <textarea id="scheduled-task-instructions" value={selectedTask.taskInstructions} onChange={(e) => setSelectedTask({ ...selectedTask, taskInstructions: e.target.value })} className={`${textFieldClass} h-auto py-2`} style={textFieldStyle} rows={4} placeholder="What should this task do each time it runs?" />
+                        </section>
+
+                        {!isDisabled() && <section className={sectionClass} aria-labelledby="scheduled-schedule-heading" style={{ borderColor: 'var(--border-subtle)' }}>
+                            <h3 id="scheduled-schedule-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Schedule</h3>
+                            <ScheduledTaskScheduleBuilder
+                                key={selectedTask.taskId || 'new'}
+                                value={selectedTask.cronExpression}
+                                onChange={(cronExpression) => setSelectedTask((prev) => ({ ...prev, cronExpression }))}
+                                dateRange={selectedTask.dateRange}
+                                onRangeChange={(range: ScheduleDateRange) => setSelectedTask((prev) => ({ ...prev, dateRange: range ? { ...range } : undefined }))}
+                                exclusionsEnabled={selectedTask.exclusionsEnabled}
+                                excludedDaysOfWeek={selectedTask.excludedDaysOfWeek}
+                                excludedWeeksOfMonth={selectedTask.excludedWeeksOfMonth}
+                                excludedMonths={selectedTask.excludedMonths}
+                                excludedDates={selectedTask.excludedDates}
+                                onExclusionsChange={(exclusions) => setSelectedTask((prev) => ({ ...prev, ...exclusions }))}
+                            />
+                        </section>}
+
+                        <section className={sectionClass} aria-labelledby="scheduled-runs-as-heading" style={{ borderColor: 'var(--border-subtle)' }}>
+                            <h3 id="scheduled-runs-as-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Runs as</h3>
+                            <div className="grid gap-4">
+                                <div title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''}>
+                                    <div className="flex items-center gap-1.5"><FieldLabel htmlFor="scheduled-task-type">Task Type</FieldLabel><InfoTooltip ariaLabel="About task type" maxWidth={360} text="Choose what this task will run: an assistant, an action, or a workflow. The selected type determines which item you can choose below." /></div>
+                                    <select id="scheduled-task-type" disabled={isDisabled()} value={selectedTask.taskType === 'actionSet' || selectedTask.taskType === 'apiTool' ? 'actions' : (selectedTask.taskType ?? '')} onChange={(e) => { const val = e.target.value; setNewActionSetActions([]); setNewActionSetName(''); if (val === 'actions') { setShowActionSelector(true); setActionSubMode('apiTool'); setSelectedTask({ ...selectedTask, objectInfo: { objectId: '', objectName: '' }, taskType: 'apiTool' }); return; } setSelectedTask({ ...selectedTask, objectInfo: { objectId: '', objectName: '' }, taskType: val as ScheduledTaskType }); }} className={`${textFieldClass} appearance-none`} style={textFieldStyle}>
+                                        <option value="">Select Task Type</option><option value="assistant">Assistant</option>{(featureFlags.actionSets || featureFlags.integrations) && <option value="actions">Action</option>}{featureFlags.assistantWorkflows && <option value="workflow">Workflow</option>}
+                                    </select>
+                                </div>
+                                <div title={isDisabled() ? 'This task has been preconfigured and cannot be changed.' : ''}>
+                                    <FieldLabel>Assistant or action</FieldLabel>
+                                    {getObjectSelector()}
+                                </div>
+                            </div>
+                        </section>
+
+                        <section className={sectionClass} aria-labelledby="scheduled-notifications-heading" style={{ borderColor: 'var(--border-subtle)' }}>
+                            <h3 id="scheduled-notifications-heading" className={sectionTitleClass} style={{ color: 'var(--text-primary)' }}>Notifications</h3>
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3"><ToggleSwitch id="notify-on-completion" checked={selectedTask.notifyOnCompletion ?? false} onChange={(checked) => setSelectedTask({ ...selectedTask, notifyOnCompletion: checked })} aria-label="Notify on successful completion" /><span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Notify on successful completion</span></div>
+                                <div className="flex items-center gap-3"><ToggleSwitch id="notify-on-failure" checked={selectedTask.notifyOnFailure ?? false} onChange={(checked) => setSelectedTask({ ...selectedTask, notifyOnFailure: checked })} aria-label="Notify on run failure" /><span className="text-[13px]" style={{ color: 'var(--text-secondary)' }}>Notify on run failure</span></div>
+                                {(selectedTask.notifyOnCompletion || selectedTask.notifyOnFailure) ? <div>
+                                    <div className="flex items-center gap-1.5"><FieldLabel htmlFor="scheduled-task-notification-emails">Notification Email Addresses</FieldLabel><InfoTooltip ariaLabel="About notification email addresses" maxWidth={360} text="Enter the full email addresses that should receive task completion or failure notifications. Separate multiple addresses with commas." /></div>
+                                    <input id="scheduled-task-notification-emails" type="text" value={notifyEmailsInput} onChange={(e) => setNotifyEmailsInput(e.target.value)} onBlur={commitNotifyEmailsInput} className={textFieldClass} style={textFieldStyle} placeholder="email1@example.com, email2@example.com" />
+                                    <p className="mt-1 text-[12px]" style={{ color: 'var(--text-muted)' }}>Enter email addresses separated by commas</p>
+                                    {invalidNotifyEmails.length > 0 && <p className="mt-1 text-[12px]" style={{ color: 'var(--text-error)' }}>Doesn&apos;t look like a valid email: {invalidNotifyEmails.join(', ')}</p>}
+                                </div> : <p className="text-[12px]" style={{ color: 'var(--text-muted)' }}>Enable a notification above to add recipient email addresses.</p>}
+                            </div>
+                        </section>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+
+    return (
+        <div
+            className="flex flex-col h-full w-full overflow-hidden"
+            style={{ backgroundColor: 'var(--bg-app)', fontFamily: 'Inter, sans-serif' }}
+        >
+            {/* Top bar */}
+            <div
+                className="sticky top-0 z-20 flex-shrink-0 flex items-center px-4 border-b gap-3"
+                style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-subtle)', height: 48 }}
+            >
+                <button
+                    type="button"
+                    aria-label="Back to chat"
+                    onClick={() => homeDispatch({ field: 'page', value: 'chat' })}
+                    className="flex items-center justify-center h-8 w-8 rounded-[8px] transition-colors flex-shrink-0"
+                    style={{ color: 'var(--text-muted)' }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)'; (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)'; }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
+                    title="Back to chat"
+                >
+                    <IconX size={16} />
+                </button>
+                <div className="flex items-center gap-2">
+                    <IconAlarm size={16} style={{ color: 'var(--text-muted)' }} />
+                    <span className="text-[14px] font-semibold" style={{ color: 'var(--text-primary)' }}>Scheduled Tasks</span>
+                    <InfoTooltip
+                        ariaLabel="About scheduled tasks"
+                        maxWidth={360}
+                        text="Scheduled tasks automate assistants, action sets, or workflows to run on a schedule you choose."
+                    />
+                </div>
+            </div>
+
+            {/* Body: list + detail */}
+            <div ref={paneContainerRef} className="flex flex-1 overflow-hidden" data-scheduled-task-resizing={isResizingPanes ? 'true' : undefined}>
+                {/* List pane */}
+                <div className="flex flex-col flex-shrink-0 overflow-hidden" style={{ width: taskListWidth }}>
+                    <div className="flex flex-col gap-2 px-4 py-3 flex-shrink-0">
+                        <div className="flex items-center justify-between gap-2">
+                            <SearchInput value={search} onChange={setSearch} placeholder="Search tasks…" fullWidth aria-label="Search scheduled tasks" onClear={() => setSearch('')} />
+                        </div>
+                        <PrimaryButton onClick={handleNewTask} icon={<IconPlus size={14} />} className="w-full">
+                            New Task
+                        </PrimaryButton>
+                        {availableTypes.length > 1 && (
+                            <select
+                                aria-label="Filter scheduled tasks by type"
+                                value={typeFilter}
+                                onChange={(e) => setTypeFilter(e.target.value)}
+                                className={`${textFieldClass} w-full appearance-none`}
+                                style={textFieldStyle}
+                            >
+                                {availableTypes.map((t) => (
+                                    <option key={t} value={t}>{t === 'All' ? 'All Types' : camelCaseToTitle(t)}</option>
+                                ))}
+                            </select>
+                        )}
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto px-2 py-2 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                        {isLoadingTasks ? (
+                            <div className="flex flex-col gap-2 px-2 pt-2">
+                                {[1, 2, 3].map((i) => (
+                                    <div key={i} className="h-[52px] rounded-[8px] motion-safe:animate-pulse motion-reduce:animate-none" style={{ backgroundColor: 'var(--bg-hover)' }} />
+                                ))}
+                            </div>
+                        ) : totalVisible === 0 ? (
+                            <EmptyState
+                                message={search ? 'No tasks match your search' : 'No scheduled tasks yet'}
+                                subMessage={!search ? 'Automate an assistant, action set, or workflow' : undefined}
+                                onAction={!search ? handleNewTask : undefined}
+                                actionLabel="Create your first task"
+                            />
+                        ) : (
+                            Object.entries(tasksByType)
+                                .filter(([type]) => typeFilter === 'All' || type === typeFilter)
+                                .map(([type, tasks]) => (
+                                    <div key={type} className="mb-3">
+                                        {typeFilter === 'All' && (
+                                            <div className="flex items-center gap-1.5 px-2 pt-2 pb-1">
+                                                <span className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                                                    {camelCaseToTitle(type)}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {tasks.map((task) => (
+                                            <TaskRow
+                                                key={task.taskId}
+                                                task={task}
+                                                isSelected={selectedTask.taskId === task.taskId}
+                                                isDeleting={isDeletingId === task.taskId}
+                                                onClick={() => handleLoadTask(task.taskId)}
+                                                onDelete={(e) => handleDeleteTask(task.taskId, e)}
+                                            />
+                                        ))}
+                                    </div>
+                                ))
+                        )}
+                    </div>
+                </div>
+
+                <div
+                    ref={splitterRef}
+                    role="separator"
+                    aria-orientation="vertical"
+                    aria-label="Resize scheduled task list and details"
+                    aria-valuemin={TASK_LIST_MIN_WIDTH}
+                    aria-valuemax={Math.max(TASK_LIST_MIN_WIDTH, availablePaneWidth - TASK_DETAIL_MIN_WIDTH - TASK_SPLITTER_WIDTH)}
+                    aria-valuenow={Math.round(taskListWidth)}
+                    tabIndex={0}
+                    className="new-ui-scheduled-task-splitter"
+                    data-dragging={isResizingPanes ? 'true' : undefined}
+                    onPointerDown={handleSplitterPointerDown}
+                    onPointerMove={handleSplitterPointerMove}
+                    onPointerUp={finishSplitterResize}
+                    onPointerCancel={finishSplitterResize}
+                    onLostPointerCapture={(event) => {
+                        if (isResizingPanesRef.current) finishSplitterResize(event);
+                    }}
+                    onKeyDown={handleSplitterKeyDown}
+                    style={{ flex: `0 0 ${TASK_SPLITTER_WIDTH}px` }}
+                >
+                    <div className="new-ui-scheduled-task-splitter-line" />
+                </div>
+
+                {/* Detail pane */}
+                <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+                    {isViewingLogs ? renderLogsPanel() : renderEditorPanel()}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default NewScheduledTasksView;

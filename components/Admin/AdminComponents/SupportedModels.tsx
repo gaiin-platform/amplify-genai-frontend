@@ -301,7 +301,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                 <div className="mr-4 mb-4">
                     <div className="w-full text-[1rem] text-center text-neutral-900 dark:text-neutral-300 font-bold">
                     Default Models 
-                    <span className="ml-2 mt-[-2px] text-sm text-[#0bb9f4]">(* Required) </span>
+                    <span className="ml-2 mt-[-2px] text-sm text-[#0284c7] dark:text-[#38bdf8]">(* Required) </span>
                     </div>
                     <div className="mt-4 flex flex-row justify-between mr-8"> 
                         <ModelDefaultSelect 
@@ -333,7 +333,6 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                             onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
                         />
 
-                        {Object.keys(featureFlags).includes('cachedDocuments') &&
                         <ModelDefaultSelect 
                             models={Object.values(availableModels).filter((m:SupportedModel) => 
                                     !m.id.includes('embedding') && (m.inputCachedTokenCost > 0 || m.inputWriteCachedTokenCost > 0))}
@@ -341,7 +340,7 @@ export const SupportedModelsTab: FC<Props> = ({availableModels, setAvailableMode
                             selectedKey='documentCaching'
                             description="This model is used when handling document context processing in chats when Retrieval Augmented Generation (RAG) is turned off. For optimal cost efficiency, choose a model with cached token support."
                             onSelect={(selected: SupportedModel, key: keyof DefaultModelsConfig) =>  handleUpdateDefaultModels(key, selected.id)}
-                        />}
+                        />
 
                         {Object.keys(featureFlags).includes('agentAssistantType') &&
                         <ModelDefaultSelect 
@@ -559,7 +558,7 @@ const ModelDefaultSelect: FC<SelectProps> = ({models, defaultModels, selectedKey
 
     return (
         <div className="flex flex-col gap-2 text-center text-[14px] " title={description}>
-            <label id={`${capitalize(selectedKey)}Model`} className="font-bold text-[#0bb9f4]">{label ?? `${camelToTitleCase(selectedKey)} Model`}</label>
+            <label id={`${capitalize(selectedKey)}Model`} className="font-bold text-[#0284c7] dark:text-[#38bdf8]">{label ?? `${camelToTitleCase(selectedKey)} Model`}</label>
             <select id="modelSelect" className={`mb-2 text-center rounded-lg border py-2 text-neutral-900 shadow focus:outline-none dark:bg-[#40414F] dark:text-neutral-100  custom-shadow
                                 ${!!selected ? 'border-neutral-500 dark:border-neutral-800 dark:border-opacity-50' : 'border-red-500' }`} 
                 value={selected?.name ?? ''}

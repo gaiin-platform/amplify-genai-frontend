@@ -1,7 +1,7 @@
 import React, { useState, useEffect, ReactNode, useContext, useRef } from 'react';
 import { CloseSidebarButton, OpenSidebarButton } from "@/components/Sidebar/components/OpenCloseButton";
 import { FloatingActionButtons } from "@/components/Sidebar/components/FloatingActionButtons";
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 interface TabProps {
     icon: ReactNode;

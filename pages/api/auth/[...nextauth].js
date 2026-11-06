@@ -3,10 +3,20 @@ import CognitoProvider from "next-auth/providers/cognito"
 import { signIn } from "next-auth/react";
 import { decodeJwt } from "jose";
 
+// Consecutive transient refresh failures (network blip, Cognito 5xx/429) tolerated — one per
+// session poll, ~60 s apart — before the user is signed out.
+const MAX_TRANSIENT_REFRESH_FAILURES = 3;
+const REFRESH_ATTEMPTS = 2;
+const REFRESH_RETRY_DELAY_MS = 500;
+
 export const authOptions = {
     // Configure one or more authentication providers
     session: {
-        maxAge: 3 * 60 * 60 // 3 hours - client-side inactivity tracker handles 1-hour timeout
+        // Rolling cookie lifetime (next-auth re-issues the JWT on every session poll). This is NOT
+        // the inactivity limit: the client-side SessionActivityTracker signs users out after
+        // 1 hour of inactivity. There is deliberately no absolute (login-time based) cap, since
+        // that signed active users out a few minutes after they stepped away.
+        maxAge: 3 * 60 * 60
     },
     providers: [
         CognitoProvider({
@@ -28,30 +38,34 @@ export const authOptions = {
             return true;
         },
         async jwt({ token, profile, account }) {
-            const SESSION_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours - client-side inactivity tracker handles 1-hour timeout
             const attr = process.env.IMMUTABLE_ID_ATTRIBUTE;
             if (profile && attr && profile[attr]) {
                 token.immutableId = profile[attr];
             }
             // Persist the OAuth access_token to the token right after signin
             if (account) {
-                // New token — stamp absolute session start time
-                token.sessionIssuedAt = Date.now();
                 token.accessTokenExpiresAt = account.expires_at * 1000;
                 token.accessToken = account.access_token;
                 token.refreshToken = account.refresh_token;
-            } else {
-                // Enforce absolute session lifetime — reject if older than maxAge regardless of rolling
-                if (token.sessionIssuedAt && (Date.now() - token.sessionIssuedAt) > SESSION_MAX_AGE_MS) {
-                    return { ...token, error: 'SessionExpiredError' };
-                }
-                if (Date.now() > token.accessTokenExpiresAt) {
-                    // Expired Cognito token — refresh it
-                    const newToken = await refreshAccessToken(token);
+                token.refreshFailures = 0;
+                delete token.error;
+            } else if (Date.now() > token.accessTokenExpiresAt) {
+                // Expired Cognito token — refresh it
+                const newToken = await refreshAccessToken(token);
+                if (!newToken.error) {
                     token.accessToken = newToken.accessToken;
                     token.accessTokenExpiresAt = newToken.accessTokenExpires;
                     token.refreshToken = newToken.refreshToken;
-                    token.error = newToken.error;
+                    token.refreshFailures = 0;
+                    delete token.error;
+                } else {
+                    // Keep the existing token (and its expiry) so the next session poll retries.
+                    // Only surface the error — which signs the user out — if Cognito rejected
+                    // the refresh token outright, or transient failures keep repeating.
+                    token.refreshFailures = (token.refreshFailures || 0) + 1;
+                    if (newToken.permanent || token.refreshFailures >= MAX_TRANSIENT_REFRESH_FAILURES) {
+                        token.error = 'RefreshAccessTokenError';
+                    }
                 }
             }
 
@@ -109,57 +123,58 @@ export const authOptions = {
     secret: process.env.NEXTAUTH_SECRET,
 }
 
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Exchanges the Cognito refresh token for a new access token.
+// On failure returns { error, permanent }:
+//   permanent: true  -> Cognito rejected the refresh token (revoked/expired/invalid): sign out.
+//   permanent: false -> network error, 5xx or 429: worth retrying later without signing out.
 export async function refreshAccessToken(token) {
-    try {
+    if (!token || !token.refreshToken) {
+        return { error: 'RefreshAccessTokenError', permanent: true };
+    }
 
-        if(!token || !token.refreshToken){
-            return token;
-        }
+    const url = `${process.env.COGNITO_DOMAIN}/oauth2/token`;
 
-        const url = `${process.env.COGNITO_DOMAIN}/oauth2/token`
+    for (let attempt = 1; attempt <= REFRESH_ATTEMPTS; attempt++) {
+        let transient = true;
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Authorization': `Basic ${Buffer.from(`${process.env.COGNITO_CLIENT_ID}:${process.env.COGNITO_CLIENT_SECRET}`).toString('base64')}`,
+                },
+                body: new URLSearchParams({
+                    grant_type: 'refresh_token',
+                    'refresh_token': token.refreshToken,
+                }),
+            });
 
-        const response = await fetch(url, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/x-www-form-urlencoded',
-                'Authorization': `Basic ${Buffer.from(`${process.env.COGNITO_CLIENT_ID}:${process.env.COGNITO_CLIENT_SECRET}`).toString('base64')}`,
-            },
-            body: new URLSearchParams({
-                grant_type: 'refresh_token',
-                'refresh_token': token.refreshToken,
-            }),
-        });
+            // A 4xx other than 408/429 means Cognito rejected the request itself (e.g. invalid_grant).
+            transient = !(response.status >= 400 && response.status < 500 && response.status !== 408 && response.status !== 429);
 
-        const refreshedTokens = await response.json()
+            const refreshedTokens = await response.json();
 
-        if (!response.ok || !refreshedTokens || !('access_token' in refreshedTokens)) {
-            console.error('Failed to refresh access token.', refreshedTokens);
-            throw refreshedTokens
-        }
+            if (!response.ok || !refreshedTokens || !refreshedTokens['access_token']) {
+                throw refreshedTokens;
+            }
 
-        const newAccessToken = refreshedTokens['access_token'];
-        if(!newAccessToken){
-            console.error("Failed to get a new access token.");
-        }
-        else {
             console.log("Got a new access token.");
-        }
 
-        let newRToken = refreshedTokens.refresh_token ? refreshedTokens.refresh_token : token.refreshToken;
-
-        return {
-            'accessToken': newAccessToken,
-            'accessTokenExpires': Date.now() + refreshedTokens.expires_in * 1000,
-            'refreshToken': newRToken, // Fall back to old refresh token
-        }
-    } catch (error) {
-        console.error('RefreshAccessTokenError', error)
-
-        return {
-            ...token,
-            error: 'RefreshAccessTokenError',
+            return {
+                'accessToken': refreshedTokens['access_token'],
+                'accessTokenExpires': Date.now() + refreshedTokens.expires_in * 1000,
+                'refreshToken': refreshedTokens.refresh_token ? refreshedTokens.refresh_token : token.refreshToken, // Fall back to old refresh token
+            };
+        } catch (error) {
+            console.error(`Failed to refresh access token (attempt ${attempt}/${REFRESH_ATTEMPTS}, ${transient ? 'transient' : 'permanent'}).`, error);
+            if (!transient) return { error: 'RefreshAccessTokenError', permanent: true };
+            if (attempt < REFRESH_ATTEMPTS) await sleep(REFRESH_RETRY_DELAY_MS);
         }
     }
+
+    return { error: 'RefreshAccessTokenError', permanent: false };
 }
 
 

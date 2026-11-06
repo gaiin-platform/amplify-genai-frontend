@@ -108,6 +108,13 @@ const prepAnyAssistantPrompts = (prompts: Prompt[]) => {
 export const exportData = async (conversations: Conversation[], prompts: Prompt[], folders: FolderInterface[]) => {
   const data = await createExport(conversations, folders, prompts, "export");
 
+  // A backup that silently leaves chats out is worse than no backup: let the user decide.
+  const missing: string[] = (data.history as any)?.missingRemoteIds ?? [];
+  if (missing.length > 0 && typeof window !== 'undefined' &&
+      !window.confirm(`${missing.length} cloud conversation${missing.length === 1 ? '' : 's'} could not be downloaded and will NOT be in this export. Download the export anyway?`)) {
+    return;
+  }
+
   const blob = new Blob([JSON.stringify(data, null, 2)], {
     type: 'application/json',
   });

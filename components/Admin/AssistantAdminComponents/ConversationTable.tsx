@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { IconFiles, IconX } from "@tabler/icons-react";
 import { FC, useContext, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";

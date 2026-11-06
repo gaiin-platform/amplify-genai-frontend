@@ -1,4 +1,5 @@
 import { doRequestOp } from "./doRequestOp";
+import { dedupeInFlight } from "./inFlight";
 import { storageGet, storageSet, storageRemove } from '@/utils/app/storage';
 
 const URL_PATH = "/amplifymin";
@@ -29,7 +30,8 @@ export const getAdminConfigs = async (lazyLoad: boolean = false) => {
     return await doRequestOp(op);
 }
 
-export const getFeatureFlags = async () => {
+// The UI preference banner and home both load flags at startup; overlapping calls share one request.
+export const getFeatureFlags = dedupeInFlight(async () => {
     const op = {
         method: 'GET',
         path: URL_PATH,
@@ -37,7 +39,7 @@ export const getFeatureFlags = async () => {
         service: SERVICE_NAME
     };
     return await doRequestOp(op);
-}
+});
 
 export const getUserAppConfigs = async () => {
     const op = {
@@ -65,6 +67,21 @@ export const getAvailableModels = async () => {
         path: "/available_models",
         op: "",
         service: "chat-billing"
+    };
+    return await doRequestOp(op);
+}
+
+/**
+ * Starts the embeddings for documents that were uploaded with RAG off and have none yet (a no-op for documents
+ * already embedded or in progress). Takes the saved content ids (global/ or global2/).
+ */
+export const startMissingEmbeddings = async (dataSources: string[]) => {
+    const op = {
+        data: { dataSources },
+        method: 'POST',
+        path: EMBEDDINGS_URL_PATH,
+        op: '/check-completion',
+        service: EMBEDDINGS_SERVICE_NAME
     };
     return await doRequestOp(op);
 }
@@ -111,7 +128,9 @@ export const embeddingDocumentStatus = async (dataSources: {key: string, type: s
     // Only make API call if there are non-cached items
     if (nonCachedDataSources.length > 0) {
         const op = {
-            data: { dataSources: dataSources },
+            // Completed sources are answered from the local cache above and merged back in
+            // below, so only the ones still unknown need a backend lookup.
+            data: { dataSources: nonCachedDataSources },
             method: 'POST',
             path: EMBEDDINGS_URL_PATH,
             op: '/status',

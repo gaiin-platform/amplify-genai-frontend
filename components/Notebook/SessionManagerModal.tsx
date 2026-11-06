@@ -8,8 +8,9 @@ import {
     LucideTrash2,
     LucideX,
 } from './LucideIcons';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import { formatDistanceToNow } from './relativeTime';
+import { outlineSmButtonClass, primaryButtonSmClass, secondaryBadgeClass } from './notebookUI';
 
 export interface SessionSummary {
     id: string;
@@ -63,15 +64,8 @@ export const SessionManagerModal = <T extends SessionSummary>({
     };
 
     return (
-        <Modal
-            title="Sessions"
-            onCancel={onClose}
-            showSubmit={false}
-            cancelLabel="Close"
-            width={() => 420}
-            height={() => Math.min(560, window.innerHeight * 0.85)}
-            content={
-                <div className="flex flex-col gap-3 p-2 text-neutral-800 dark:text-neutral-100">
+        <CreationModalShell title="Sessions" onClose={onClose}>
+                <div className="flex flex-col gap-3 p-2 text-[--text-primary]">
                     <div className="flex items-center justify-between">
                         <span className="flex items-center gap-2 font-semibold">
                             <LucideMessageSquare size={20} />
@@ -80,14 +74,14 @@ export const SessionManagerModal = <T extends SessionSummary>({
                         <button
                             onClick={() => setIsCreating(true)}
                             title="New session"
-                            className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                            className={outlineSmButtonClass}
                         >
                             <LucidePlus size={16} />
                         </button>
                     </div>
 
                     {isCreating && (
-                        <div className="rounded-lg border border-gray-200 p-3 dark:border-neutral-700">
+                        <div className="rounded-lg border border-[--border-subtle] p-3">
                             <input
                                 value={newTitle}
                                 onChange={(e) => setNewTitle(e.target.value)}
@@ -100,12 +94,12 @@ export const SessionManagerModal = <T extends SessionSummary>({
                                 }}
                                 placeholder="Type a title here..."
                                 autoFocus
-                                className="mb-2 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                                className="mb-2 w-full rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary]"
                             />
                             <div className="flex gap-2">
                                 <button
                                     onClick={create}
-                                    className="inline-flex h-8 items-center rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600"
+                                    className={primaryButtonSmClass}
                                 >
                                     New
                                 </button>
@@ -114,7 +108,7 @@ export const SessionManagerModal = <T extends SessionSummary>({
                                         setIsCreating(false);
                                         setNewTitle('');
                                     }}
-                                    className="inline-flex h-8 items-center rounded-md border border-gray-300 bg-white px-3 text-sm font-medium shadow-sm hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                                    className={outlineSmButtonClass}
                                 >
                                     Cancel
                                 </button>
@@ -123,11 +117,11 @@ export const SessionManagerModal = <T extends SessionSummary>({
                     )}
 
                     {loadingSessions ? (
-                        <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        <div className="py-8 text-center text-[--text-muted]">
                             Loading...
                         </div>
                     ) : sessions.length === 0 ? (
-                        <div className="py-8 text-center text-gray-500 dark:text-gray-400">
+                        <div className="py-8 text-center text-[--text-muted]">
                             <LucideMessageSquare size={48} className="mx-auto mb-4 opacity-50" />
                             <p className="text-sm">No chat sessions yet</p>
                             <p className="mt-2 text-xs">Create a session to start.</p>
@@ -140,8 +134,8 @@ export const SessionManagerModal = <T extends SessionSummary>({
                                     onClick={() => onSelect(session.id)}
                                     className={`cursor-pointer rounded-lg border p-3 transition-colors ${
                                         currentSessionId === session.id
-                                            ? 'border-purple-400 bg-purple-500/10 dark:border-purple-500/60'
-                                            : 'border-gray-200 hover:bg-gray-50 dark:border-neutral-700 dark:hover:bg-neutral-700/40'
+                                            ? 'border-[--accent]/60 bg-[--accent]/10'
+                                            : 'border-[--border-subtle] hover:bg-[--bg-hover]'
                                     }`}
                                 >
                                     {editingId === session.id ? (
@@ -160,12 +154,12 @@ export const SessionManagerModal = <T extends SessionSummary>({
                                                     }
                                                 }}
                                                 autoFocus
-                                                className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100"
+                                                className="w-full rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary]"
                                             />
                                             <div className="flex gap-2">
                                                 <button
                                                     onClick={saveEdit}
-                                                    className="inline-flex h-8 items-center rounded-md bg-purple-500 px-3 text-white shadow-sm hover:bg-purple-600"
+                                                    className="inline-flex h-8 items-center rounded-md bg-[--accent] px-3 text-[--accent-fg] shadow-sm hover:opacity-90"
                                                 >
                                                     <LucideCheck size={12} />
                                                 </button>
@@ -174,7 +168,7 @@ export const SessionManagerModal = <T extends SessionSummary>({
                                                         setEditingId(null);
                                                         setEditTitle('');
                                                     }}
-                                                    className="inline-flex h-8 items-center rounded-md border border-gray-300 bg-white px-3 shadow-sm hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                                                    className={outlineSmButtonClass}
                                                 >
                                                     <LucideX size={12} />
                                                 </button>
@@ -196,26 +190,26 @@ export const SessionManagerModal = <T extends SessionSummary>({
                                                             setEditTitle(session.title);
                                                         }}
                                                         title="Rename session"
-                                                        className="flex h-6 w-6 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white"
+                                                        className="flex h-6 w-6 items-center justify-center rounded-md text-[--text-muted] hover:bg-[--bg-hover] hover:text-[--text-secondary]"
                                                     >
                                                         <LucidePencil size={12} />
                                                     </button>
                                                     <button
                                                         onClick={() => onDelete(session)}
                                                         title="Delete session"
-                                                        className="flex h-6 w-6 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-red-600 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-red-400"
+                                                        className="flex h-6 w-6 items-center justify-center rounded-md text-[--text-muted] hover:bg-[--bg-hover] hover:text-[--text-error]"
                                                     >
                                                         <LucideTrash2 size={12} />
                                                     </button>
                                                 </div>
                                             </div>
-                                            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                            <div className="flex items-center gap-2 text-xs text-[--text-muted]">
                                                 <LucideClock size={12} />
                                                 {formatDistanceToNow(session.created)}
                                             </div>
                                             {session.message_count != null &&
                                                 session.message_count > 0 && (
-                                                    <span className="mt-2 inline-flex items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200">
+                                                    <span className={`mt-2 ${secondaryBadgeClass}`}>
                                                         {session.message_count} messages
                                                     </span>
                                                 )}
@@ -226,8 +220,7 @@ export const SessionManagerModal = <T extends SessionSummary>({
                         </div>
                     )}
                 </div>
-            }
-        />
+        </CreationModalShell>
     );
 };
 

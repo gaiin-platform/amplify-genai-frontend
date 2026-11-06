@@ -1,7 +1,7 @@
 import React, { useContext } from "react";
 import { IconAlertTriangle, IconChartBar } from "@tabler/icons-react";
 import { Message } from "@/types/chat";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 
 interface ModelRateLimitNotice {
     modelId?: string;

@@ -1,6 +1,6 @@
 import { FC, useContext, useState, useRef, useEffect } from 'react';
 import { IconRobot, IconUsers, IconSparkles, IconChevronDown, IconSettingsBolt, IconGitBranch, IconEdit } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Group, GroupAccessType } from '@/types/groups';
 import { Prompt } from '@/types/prompt';
 import { LayeredAssistant } from '@/types/layeredAssistant';

@@ -36,6 +36,7 @@ import { AttachedDocument } from '@/types/attacheddocument';
 import { getFileDownloadUrl } from '@/services/fileService';
 import { fetchImageFromPresignedUrl } from '@/utils/app/files';
 import { Logo } from '@/components/Logo/Logo';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 
 // Extend the Model type to include isDefault property
 interface Model extends BaseModel {
@@ -342,9 +343,21 @@ const AssistantPage = ({
 
       try {
         setLoadingMessage('Loading models...');
-        
+
+        // Models, account and the assistant lookup do not depend on each other, so start all
+        // three now and handle the results in the same order as before. The no-op catches
+        // stop a rejection from being reported as unhandled while an earlier step is awaited;
+        // each rejection still surfaces where its result is awaited below.
+        const trimmedSlug = typeof assistantSlug === 'string' ? assistantSlug.trim() : '';
+        const modelsRequest = getAvailableModels();
+        const accountRequest = getAccounts();
+        const assistantRequest = trimmedSlug ? lookupAssistant(assistantSlug as string) : null;
+        modelsRequest.catch(() => {});
+        accountRequest.catch(() => {});
+        assistantRequest?.catch(() => {});
+
         // Fetch available models
-        const modelsResponse = await getAvailableModels();
+        const modelsResponse = await modelsRequest;
         
         let modelsList: any[] = [];
         if (modelsResponse.success) {
@@ -389,7 +402,7 @@ const AssistantPage = ({
         }
 
         setLoadingMessage('Loading account...');
-        const accountResponse = await getAccounts();
+        const accountResponse = await accountRequest;
         if (accountResponse.success) {
             const defaultAccount = accountResponse.data.find((account: any) => account.isDefault);
             if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
@@ -405,7 +418,7 @@ const AssistantPage = ({
         }
         
         // lookupAssistant takes only the path as argument
-        const assistantResult = await lookupAssistant(assistantSlug);
+        const assistantResult = await assistantRequest!;
         // console.log("assistantResult", assistantResult);
         
         if (!assistantResult) {
@@ -558,7 +571,7 @@ const AssistantPage = ({
       // Send with disableTools to prevent re-triggering agent and allow backend to add assistant data sources
       const chatBody = {
         model: activeModel,
-        prompt: "You are an AI assistant responding to a user's question. You have been provided with: (1) an assistant's work log, and (2) reference documents via RAG retrieval. CRITICAL RULES: Only use information from these sources. If reference documents are provided in the conversation, you HAVE access to their content - use it. Never claim you lack access to provided information. Never make up information. If the provided sources don't contain the answer, explicitly state that. Always ground your response in the actual content provided to you.",
+        prompt: buildPromptWithInstruction("You are an AI assistant responding to a user's question. You have been provided with: (1) an assistant's work log, and (2) reference documents via RAG retrieval. CRITICAL RULES: Only use information from these sources. If reference documents are provided in the conversation, you HAVE access to their content - use it. Never claim you lack access to provided information. Never make up information. If the provided sources don't contain the answer, explicitly state that. Always ground your response in the actual content provided to you."),
         messages: agentMessagesArray,
         temperature: 0.5,
         maxTokens: 4000,

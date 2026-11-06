@@ -4,8 +4,8 @@ import { IconCloud, IconMessage,
     IconCloudFilled
 } from '@tabler/icons-react';
 
-import HomeContext from '@/pages/api/home/home.context';
-import { handleStorageSelection, saveStorageSettings } from '@/utils/app/conversationStorage';
+import HomeContext from '@/components/Home/home.context';
+import { handleStorageSelection, reconcileSelectedAfterStorageChange, saveStorageSettings } from '@/utils/app/conversationStorage';
 import { ConversationStorage } from "@/types/conversationStorage";
 import { saveConversations } from '@/utils/app/conversation';
 import React from 'react';
@@ -120,15 +120,15 @@ export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendi
               total: total,
             }
           });
-        }
+        },
+        () => conversationsRef.current, // the live list: chats created while this runs must survive
       );
 
       if (updatedConversations) {
         homeDispatch({field: 'conversations', value: updatedConversations});
         saveConversations(updatedConversations);
         if (selectedConversation) {
-          const updateSelected = updatedConversations.find((c) => c.id === selectedConversation.id);
-          homeDispatch({field: 'selectedConversation', value: updateSelected});
+          homeDispatch({field: 'selectedConversation', value: reconcileSelectedAfterStorageChange(selectedConversation, updatedConversations)});
         }
       }
 
@@ -200,7 +200,7 @@ export const ConversationsStorage: FC<Props> = ({ open, setUnsavedChanges, pendi
             <InfoBox
               content = { 
               <div className='w-full flex justify-center text-center'>
-                  <span className="ml-2 text-xs"> 
+                  <span className="ml-2 text-xs text-gray-700 dark:text-gray-300">
                   {"These are default settings that could be manually overwritten at the conversation level as indicated by the cloud icon."}
                   <br className='mb-2'></br>
                   {"If you are concerned with privacy, you can store your conversations locally, but they will not be available across multiple devices or browsers."}

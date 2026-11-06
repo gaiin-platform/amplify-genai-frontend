@@ -1,10 +1,11 @@
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { DataSource } from '@/types/chat';
 import { downloadDataSourceFile } from '@/utils/app/files';
 import { isBedrockKbDatasource, downloadBedrockKbFile, extractFileNameFromS3Uri, extractKbId } from '@/utils/app/bedrockKb';
 import { useSession } from 'next-auth/react';
 import React, { useContext, useState } from "react";
 import DOMPurify from 'dompurify';
+import { LOCATION_KEY_PRECEDENCE } from '@/utils/app/sourceLocation';
 interface Props {
     source: any;
     index: number;
@@ -22,26 +23,7 @@ function formatPropertyName(propertyName: string): string {
 
 function groupArrayValuesByKeys(array: Array<any>) {
     
-    // Define precedence order for location types (higher priority first)
-    const keyPrecedence: { [key: string]: number } = {
-        // Document structure (highest priority)
-        'slide_number': 1,
-        'page_number': 2,
-        'section_number': 3,
-        'section_title': 4,
-        
-        // Content structure
-        'paragraph_number': 5,
-        'line_number': 6,
-        
-        // Spreadsheet structure
-        'sheet_number': 7,
-        'sheet_name': 8,
-        'row_number': 9,
-        'cell_range': 10,
-        
-        // Other/unknown (lowest priority)
-    };
+    const keyPrecedence = LOCATION_KEY_PRECEDENCE;
     
     // Get all unique keys from all objects in the array
     const allKeys = Array.from(new Set(array.flatMap(obj => Object.keys(obj))));

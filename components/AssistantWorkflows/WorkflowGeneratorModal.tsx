@@ -2,7 +2,7 @@ import React, { useState, useContext } from 'react';
 import { IconLoader2, IconRobot, IconX, IconTools, IconCheck } from '@tabler/icons-react';
 import { AstWorkflow } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
 import { promptForData } from '@/utils/app/llm';
 import { Message, newMessage } from '@/types/chat';
@@ -268,7 +268,9 @@ Generate ONLY the JSON, no additional text.`;
 
   const modalContent = (
     <div className="flex flex-col" style={{ height: contentHeight }}>
-    <div className="space-y-4 pt-1 flex-1 min-h-0 overflow-y-auto pr-1">
+    {/* px-1, not pr-1: overflow-y-auto also clips horizontally, and the inputs' 2px focus ring is
+        drawn outside their box, so the left edge of the ring was cut off without left padding. */}
+    <div className="space-y-4 pt-1 flex-1 min-h-0 overflow-y-auto px-1">
       {error && (
         <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg">
           <div className="flex items-start gap-2">

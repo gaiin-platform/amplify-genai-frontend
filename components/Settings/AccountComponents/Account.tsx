@@ -1,7 +1,7 @@
 import React, { FC, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'next-i18next';
 import { IconTrashX, IconPlus, IconCheck, IconX, IconEdit, IconLoader2} from "@tabler/icons-react";
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { getAccounts, saveAccounts } from "@/services/accountService";
 import { Account, noCoaAccount } from "@/types/accounts";
 import { RateLimiter } from './RateLimit';

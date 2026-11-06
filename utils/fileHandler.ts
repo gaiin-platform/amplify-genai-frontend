@@ -1,7 +1,6 @@
 import { COMMON_DISALLOWED_FILE_EXTENSIONS, IMAGE_FILE_EXTENSIONS, VIDEO_FILE_EXTENSIONS } from './app/const';
 import { getMimeTypeFromExtension } from './app/fileTypeTranslations';
 import { handleFile } from '@/components/Chat/AttachFile';
-import { resolveRagEnabled } from '@/types/features';
 import { AttachedDocument } from '@/types/attacheddocument';
 import JSZip from 'jszip';
 import { IMAGE_FILE_TYPES, VIDEO_FILE_TYPES } from './app/const';
@@ -40,11 +39,15 @@ export interface FileProcessorOptions {
     // Services and configuration
     statsService: any;
     featureFlags: any;
-    ragOn?: boolean;
     uploadDocuments: boolean;
 
     // Optional parameters
     groupId?: string;
+    /**
+     * RAG at upload time is opt-in. Only callers that attach knowledge-base files to
+     * an assistant pass `false` here; every other caller (chat uploads) leaves it
+     * undefined and the file is never RAG'd.
+     */
     disableRag?: boolean;
     generateFileName?: (file: File) => string;
     props?: any;
@@ -290,7 +293,6 @@ export async function processZipFileAsync(
                     // Resolve RAG configuration
                     const ragEnabled = resolveRagConfiguration(
                         fileOptions.featureFlags,
-                        fileOptions.ragOn || false,
                         fileOptions.disableRag
                     );
                     const zipFileName = zipFile.name.replace(/\.zip$/i, '');
@@ -332,17 +334,17 @@ export async function processZipFileAsync(
 // PROCESSING UTILITIES
 // ============================================================================
 /**
- * Resolve RAG configuration based on feature flags and settings
+ * Resolve whether an upload should be RAG'd.
+ *
+ * RAG is opt-in: it is only on when the feature flag is on AND the caller explicitly
+ * passes `disableRag: false` (assistant knowledge-base uploads). Chat uploads never
+ * pass it, so they are never RAG'd.
  */
 export function resolveRagConfiguration(
     featureFlags: any,
-    ragOn: boolean,
     disableRag?: boolean
 ): boolean {
-    if (disableRag !== undefined) {
-        return featureFlags.ragEnabled && !disableRag;
-    }
-    return resolveRagEnabled(featureFlags, ragOn);
+    return !!featureFlags?.ragEnabled && disableRag === false;
 }
 /**
  * Generate a filename for pasted files that don't have names
@@ -367,7 +369,6 @@ export function processSingleFile(
         onSetAbortController,
         statsService,
         featureFlags,
-        ragOn = false,
         uploadDocuments,
         groupId,
         disableRag,
@@ -404,7 +405,7 @@ export function processSingleFile(
     // Log stats event
     statsService.attachFileEvent(processedFile, uploadDocuments);
     // Resolve RAG configuration
-    const ragEnabled = resolveRagConfiguration(featureFlags, ragOn, disableRag);
+    const ragEnabled = resolveRagConfiguration(featureFlags, disableRag);
     // Process the file
     handleFile(
         processedFile,

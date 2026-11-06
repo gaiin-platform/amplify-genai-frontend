@@ -14,7 +14,7 @@ import { TagsList } from "@/components/Chat/TagsList";
 import { Conversation } from "@/types/chat";
 import { getAssistant, isAssistant } from "@/utils/app/assistants";
 import { DEFAULT_ASSISTANT } from "@/types/assistant";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { Prompt } from "@/types/prompt";
 import { deleteAssistant } from "@/services/assistantService";
 import { DefaultModels } from "@/types/model";
@@ -441,7 +441,7 @@ interface Props {
         try {
             const allRemoteConvs = await fetchAllRemoteConversations(days);
             if (allRemoteConvs) {
-                const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch, getDefaultModel(DefaultModels.DEFAULT));
+                const newCloudFolders = await updateWithRemoteConversations(allRemoteConvs, conversations, folders, homeDispatch, () => conversationsRef.current);
                 const updatedFolders = [...folders, ...newCloudFolders.newfolders];
                 homeDispatch({ field: 'folders', value: updatedFolders });
                 saveFolders(updatedFolders);
@@ -644,7 +644,7 @@ interface Props {
                                     if (isRemoteConversation(item)) {
                                         try {
                                             const fullConv = await fetchRemoteConversation(item.id);
-                                            if (fullConv) uploadConversation({...fullConv, tags: item.tags}, foldersRef.current);
+                                            if (fullConv) uploadConversation({...fullConv, tags: item.tags, folderId: item.folderId ?? null}, foldersRef.current);
                                         } catch {
                                             console.log("Failed to update remote conversation with new tags")
                                         } 
@@ -657,7 +657,7 @@ interface Props {
                             if (isRemoteConversation(item)) {
                                 try {
                                     const fullConv = await fetchRemoteConversation(item.id);
-                                    if (fullConv) uploadConversation({...fullConv, tags: item.tags}, foldersRef.current);
+                                    if (fullConv) uploadConversation({...fullConv, tags: item.tags, folderId: item.folderId ?? null}, foldersRef.current);
                                 } catch {
                                     console.log("Failed to update remote conversation with updated tags")
                                 }

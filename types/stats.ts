@@ -7,6 +7,12 @@ import { ApiKey } from "./apikeys";
 import { Settings } from "./settings";
 
 export interface StatsServices {
+    uiLoadedEvent: (version: 'new' | 'classic', uiPreference?: string) => void;
+
+    pageViewedEvent: (page: string) => void;
+
+    trackEvent: (name: string, properties?: Record<string, any>) => void;
+
     marketItemPublishEvent: (
         publishingName: string,
         publishedDescription: string,
@@ -168,6 +174,12 @@ export interface StatsServices {
 
 
 export const noOpStatsServices:StatsServices = {
+
+    uiLoadedEvent: (version: 'new' | 'classic', uiPreference?: string) => {},
+
+    pageViewedEvent: (page: string) => {},
+
+    trackEvent: (name: string, properties?: Record<string, any>) => {},
 
     newConversationEvent: () => {},
 

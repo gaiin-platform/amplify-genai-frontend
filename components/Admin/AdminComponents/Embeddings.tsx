@@ -3,7 +3,7 @@ import { loadingIcon, titleLabel } from "../AdminUI";
 import { AdminConfigTypes, Embedding, EmbeddingsConfig } from "@/types/admin";
 import { userFriendlyDate } from "@/utils/app/date";
 import { getInFlightEmbeddings, terminateEmbedding } from "@/services/adminService";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 
 interface Props {
     refresh:  (type: AdminConfigTypes, click: () => void, loading: boolean, title?: string, top?: string) => JSX.Element

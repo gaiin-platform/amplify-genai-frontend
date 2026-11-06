@@ -20,7 +20,7 @@ import { getOperationIcon } from '@/utils/app/integrations';
 import { AstWorkflow, Step } from '@/types/assistantWorkflows';
 import { OpDef } from '@/types/op';
 import { AgentTool } from '@/types/agentTools';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import Checkbox from '@/components/ReusableComponents/CheckBox';
 import { ToolSelectorModal, ToolItem, ToolSelectorModalProps } from './ToolSelectorModal';
 import { ToolSelectorPanel } from './ToolSelectorPanel';

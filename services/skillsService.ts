@@ -8,6 +8,25 @@ import {
     ShareSkillConfig,
     SkillShare
 } from "@/types/skill";
+import { createTtlCache } from "./inFlight";
+import { postToChatProxy } from "@/utils/app/chatProxy";
+
+// The + menu's skills submenu remounts on every hover, and the assistant editor's skills panel
+// loads the same list. Callers on those paths opt in with `{ cached: true }`; the list is dropped
+// by every skill mutation below, and the TTL covers changes made in another tab.
+const SKILLS_LIST_TTL_MS = 60 * 1000;
+const skillListCaches = new Map<string, ReturnType<typeof createTtlCache<any>>>();
+const skillListCache = (chatEndpoint: string, includeShared: boolean) => {
+    const key = `${chatEndpoint}|${includeShared}`;
+    let cache = skillListCaches.get(key);
+    if (!cache) {
+        cache = createTtlCache<any>(SKILLS_LIST_TTL_MS);
+        skillListCaches.set(key, cache);
+    }
+    return cache;
+};
+const invalidateSkillListCaches = () => skillListCaches.forEach((cache) => cache.invalidate());
+const MUTATING_SKILL_ACTIONS = new Set(['create', 'update', 'delete', 'share', 'unshare']);
 
 /**
  * Send a skills request to the backend through the chat endpoint
@@ -17,6 +36,10 @@ const sendSkillsRequest = async <T = any>(
     action: string,
     data: any = {}
 ): Promise<SkillsResponse<T>> => {
+    const mutates = MUTATING_SKILL_ACTIONS.has(action);
+    // Dropped before the call (so a read started during it cannot be served stale) and again in
+    // `finally` (so a list read that began before the write cannot repopulate the cache).
+    if (mutates) invalidateSkillListCaches();
     try {
         if (!chatEndpoint) {
             throw new Error("Chat endpoint not configured");
@@ -31,13 +54,7 @@ const sendSkillsRequest = async <T = any>(
 
         // Routed through the server-side chat proxy, which attaches the
         // Cognito access token from the JWT cookie.
-        const response = await fetch('/api/chat/proxy', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ endpoint: chatEndpoint, body: requestBody })
-        });
+        const response = await postToChatProxy({ endpoint: chatEndpoint, body: requestBody });
 
         if (!response.ok) {
             const errorText = await response.text();
@@ -67,6 +84,8 @@ const sendSkillsRequest = async <T = any>(
             success: false,
             message: error instanceof Error ? error.message : 'Skills operation failed'
         };
+    } finally {
+        if (mutates) invalidateSkillListCaches();
     }
 };
 
@@ -81,8 +100,17 @@ export const createSkill = async (chatEndpoint: string, skillData: CreateSkillDa
  * Get all skills for the current user
  * @param includeShared Whether to include skills shared with the user
  */
-export const getUserSkills = async (chatEndpoint: string, includeShared: boolean = true): Promise<SkillsResponse<Skill[]>> => {
-    return sendSkillsRequest<Skill[]>(chatEndpoint, 'list', { includeShared });
+export const getUserSkills = async (
+    chatEndpoint: string,
+    includeShared: boolean = true,
+    options?: { cached?: boolean },
+): Promise<SkillsResponse<Skill[]>> => {
+    const cache = skillListCache(chatEndpoint, includeShared);
+    const fetchList = () => sendSkillsRequest<Skill[]>(chatEndpoint, 'list', { includeShared });
+    if (options?.cached) return cache.get(fetchList);
+    const result = await fetchList();
+    cache.set(result);
+    return result;
 };
 
 /**

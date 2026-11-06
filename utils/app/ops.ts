@@ -294,7 +294,8 @@ export const filterSupportedIntegrationOps = async (avilableOps: any[]) => {
     let integrationProviders:string[] = integrationProvidersList;
     let supportedIntegrations: string[] = [];
 
-    const integrationSupport = await getAvailableIntegrations();
+    // Read-only filter over a list that barely changes; share it with other callers.
+    const integrationSupport = await getAvailableIntegrations({ cached: true });
     if (integrationSupport && integrationSupport.success) {
             const data: IntegrationsMap = integrationSupport.data;
             supportedIntegrations = Object.values(data).flat().map((i: Integration) => i.id);

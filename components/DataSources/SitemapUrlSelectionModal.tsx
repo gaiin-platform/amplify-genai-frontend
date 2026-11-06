@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { IconX, IconCheck, IconMinus, IconSearch, IconFilter, IconGlobe, IconArrowRight, IconArrowLeft, IconSettings, IconAlertTriangle } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { useContext } from 'react';
 import ActionButton from '../ReusableComponents/ActionButton';
 

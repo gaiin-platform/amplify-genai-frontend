@@ -2,7 +2,7 @@ import React, { useContext, useEffect } from 'react';
 import { IconClock, IconRefresh, IconX, IconLoader2, IconAlarm } from '@tabler/icons-react';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
 import { createPortal } from 'react-dom';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { getScheduledTask } from '@/services/scheduledTasksService';
 import toast from 'react-hot-toast';
 import { ScheduledTask } from '@/types/scheduledTasks';

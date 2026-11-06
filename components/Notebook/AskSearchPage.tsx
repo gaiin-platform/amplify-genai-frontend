@@ -4,7 +4,9 @@ import rehypeRaw from 'rehype-raw';
 import rehypeSanitize, { defaultSchema } from 'rehype-sanitize';
 import { MemoizedReactMarkdown } from '@/components/Markdown/MemoizedReactMarkdown';
 import LatexBlock from '@/components/Chat/ChatContentBlocks/LatexBlock';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
+import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
+import { primaryButtonClass, outlineButtonClass, secondaryBadgeClass } from './notebookUI';
 import {
     LucideAlertCircle,
     LucideCheckCircle,
@@ -204,13 +206,6 @@ const parseRefFromDomId = (href: string): { type: RefType; id: string } | null =
 const scoreFor = (r: SearchResult): number =>
     r.relevance ?? r.similarity ?? r.score ?? 0;
 
-// Shared button/badge classes mirroring the reference shadcn sizes.
-const primaryButtonClass =
-    'inline-flex h-9 items-center justify-center gap-2 rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50';
-const outlineButtonClass =
-    'inline-flex h-9 items-center justify-center gap-2 rounded-md border border-gray-300 bg-white px-4 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700';
-const secondaryBadgeClass =
-    'inline-flex items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200';
 
 interface Props {
     // Clicking a source result title (or a `source:` citation) opens the
@@ -508,20 +503,6 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
 
     const answerRendered = useMemo(() => (answer ? renderAnswer(answer) : null), [answer]);
 
-    const tabButton = (value: Tab, icon: React.ReactNode, label: string) => (
-        <button
-            onClick={() => setTab(value)}
-            className={`inline-flex h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-lg border px-4 text-sm font-medium transition-all ${
-                tab === value
-                    ? 'border-gray-200 bg-white text-gray-900 shadow-sm dark:border-neutral-600 dark:bg-[#2b2c36] dark:text-gray-100'
-                    : 'border-transparent text-gray-500 dark:text-gray-400'
-            }`}
-        >
-            {icon}
-            {label}
-        </button>
-    );
-
     // `onClick` is optional so this still renders a static chip anywhere the
     // caller can't resolve type/id (kept for defensiveness, though every
     // current call site now passes a handler).
@@ -541,7 +522,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                     e.stopPropagation();
                     onClick();
                 }}
-                className="mx-0.5 inline-flex h-5 min-w-[20px] cursor-pointer items-center justify-center rounded-full bg-purple-500/20 px-1.5 text-[11px] font-semibold text-purple-700 transition-colors hover:bg-purple-500/30 dark:bg-purple-400/20 dark:text-purple-200 dark:hover:bg-purple-400/30"
+                className="mx-0.5 inline-flex h-5 min-w-[20px] cursor-pointer items-center justify-center rounded-full bg-[--accent]/20 px-1.5 text-[11px] font-semibold text-[--accent] transition-colors hover:bg-[--accent]/30"
             >
                 {label}
             </button>
@@ -549,7 +530,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
             <span
                 key={key}
                 title={title}
-                className="mx-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-purple-500/20 px-1.5 text-[11px] font-semibold text-purple-700 dark:bg-purple-400/20 dark:text-purple-200"
+                className="mx-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[--accent]/20 px-1.5 text-[11px] font-semibold text-[--accent]"
             >
                 {label}
             </span>
@@ -557,30 +538,33 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
 
     return (
         <div className="w-full space-y-6">
-            <h1 className="text-xl font-bold md:text-2xl">Ask and Search</h1>
+            <h1 className="text-[16px] font-semibold">Ask and Search</h1>
 
             {/* Mode tabs */}
             <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[--text-muted]">
                     Choose a mode
                 </p>
-                <div className="flex w-full max-w-xl gap-1 rounded-xl border border-gray-200 bg-gray-100/80 p-1 shadow-sm dark:border-neutral-700 dark:bg-neutral-800/80">
-                    {tabButton(
-                        'ask',
-                        <LucideMessageCircleQuestion size={16} />,
-                        'Ask',
-                    )}
-                    {tabButton('search', <LucideSearch size={16} />, 'Search')}
+                <div className="w-full max-w-xl">
+                    <SegmentedControl
+                        items={[
+                            { id: 'ask', label: 'Ask', icon: <LucideMessageCircleQuestion size={16} /> },
+                            { id: 'search', label: 'Search', icon: <LucideSearch size={16} /> },
+                        ]}
+                        value={tab}
+                        onChange={(id) => setTab(id as Tab)}
+                        aria-label="Choose a mode"
+                    />
                 </div>
             </div>
 
             {tab === 'ask' ? (
-                <div className="flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
+                <div className="flex flex-col gap-6 rounded-xl border border-[--border-subtle] bg-[--bg-raised] py-6 shadow-sm">
                     <div className="flex flex-col gap-1.5 px-6">
                         <h2 className="text-lg font-semibold leading-none">
                             Ask Your Knowledge Base
                         </h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-[--text-muted]">
                             The LLM will answer your query based on the documents in your
                             knowledge base.
                         </p>
@@ -609,16 +593,16 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                 rows={3}
                                 disabled={asking}
                                 placeholder="Enter your question..."
-                                className="w-full resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-gray-100 dark:placeholder-gray-500"
+                                className="w-full resize-none rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm shadow-sm placeholder:text-[--text-muted] outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent] disabled:opacity-50 text-[--text-primary]"
                             />
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-[--text-muted]">
                                 Press Cmd/Ctrl+Enter to submit
                             </p>
                         </div>
 
                         {/* Models Display */}
                         {!defaultsLoading && !hasEmbedding ? (
-                            <div className="flex items-center gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-600 dark:bg-amber-950/20 dark:text-amber-500">
+                            <div className="flex items-center gap-2 rounded-md bg-[--bg-active] p-3 text-sm text-[--text-secondary]">
                                 <LucideAlertCircle size={16} className="flex-none" />
                                 <span>
                                     You can&apos;t use this feature because you have no embedding
@@ -629,7 +613,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                             !defaultsLoading && (
                                 <>
                                     {!hasChatModel && !customModels && (
-                                        <div className="flex items-center gap-2 rounded-md bg-amber-50 p-3 text-sm text-amber-600 dark:bg-amber-950/20 dark:text-amber-500">
+                                        <div className="flex items-center gap-2 rounded-md bg-[--bg-active] p-3 text-sm text-[--text-secondary]">
                                             <LucideAlertCircle size={16} className="flex-none" />
                                             <span>
                                                 {canSelectModel
@@ -650,7 +634,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                     {canSelectModel && (
                                         <div className="space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                <span className="text-xs text-[--text-muted]">
                                                     {customModels
                                                         ? 'Using Custom Models'
                                                         : 'Using Default Models'}
@@ -658,7 +642,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                 <button
                                                     onClick={() => setShowAdvanced(true)}
                                                     disabled={asking}
-                                                    className="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:pointer-events-none disabled:opacity-50 dark:text-gray-200 dark:hover:bg-neutral-700"
+                                                    className="inline-flex items-center rounded-md px-2 py-1 text-sm font-medium text-[--text-secondary] transition-colors hover:bg-[--bg-hover] disabled:pointer-events-none disabled:opacity-50"
                                                 >
                                                     <LucideSettings size={12} className="mr-1" />
                                                     Advanced
@@ -717,7 +701,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                 <LucideSave size={16} />
                                                 Save to Notebooks
                                                 {savedNotice && (
-                                                    <span className="text-xs text-emerald-600 dark:text-emerald-400">
+                                                    <span className="text-xs text-[--text-secondary]">
                                                         Saved
                                                     </span>
                                                 )}
@@ -729,7 +713,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                         )}
 
                         {askError && (
-                            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                            <div className="flex items-start gap-2 rounded-md border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                                 <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                                 <span>{askError}</span>
                             </div>
@@ -739,19 +723,19 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                             Answer card; our /search/ask/simple flow is non-streaming, so
                             the strategy/intermediate-answer sections never apply. */}
                         {asking && (
-                            <div className="mt-6 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                            <div className="mt-6 flex items-center gap-2 text-sm text-[--text-muted]">
                                 <LucideLoader2 size={16} className="animate-spin" />
                                 <span>Processing your question...</span>
                             </div>
                         )}
 
                         {answerRendered && (
-                            <div className="mt-6 flex flex-col gap-6 rounded-xl border border-purple-500 bg-white py-6 shadow-sm dark:bg-[#2b2c36]">
+                            <div className="mt-6 flex flex-col gap-6 rounded-xl border border-[--accent] bg-[--bg-raised] py-6 shadow-sm">
                                 <div className="px-6">
-                                    <h3 className="flex items-center gap-2 text-base font-semibold leading-none">
+                                    <h3 className="flex items-center gap-2 text-[14px] font-semibold leading-none">
                                         <LucideCheckCircle
                                             size={16}
-                                            className="text-purple-600 dark:text-purple-400"
+                                            className="text-[--accent]"
                                         />
                                         Final Answer
                                     </h3>
@@ -818,8 +802,8 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                     </MemoizedReactMarkdown>
 
                                     {answerCitations.length > 0 && (
-                                        <div className="mt-4 border-t border-gray-200 pt-3 dark:border-neutral-700">
-                                            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                        <div className="mt-4 border-t border-[--border-subtle] pt-3">
+                                            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[--text-muted]">
                                                 Sources cited
                                             </div>
                                             <ol className="space-y-1 text-sm">
@@ -836,7 +820,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                             onClick={() => openCitation(c.type, c.id)}
                                                             className="truncate text-left hover:underline"
                                                         >
-                                                            <span className="text-gray-400 dark:text-gray-500">
+                                                            <span className="text-[--text-muted]">
                                                                 {labelForType(c.type)}:
                                                             </span>{' '}
                                                             {c.label}
@@ -845,7 +829,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                 ))}
                                             </ol>
                                             {citationLoadError && (
-                                                <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                                                <p className="mt-2 text-xs text-[--text-error]">
                                                     {citationLoadError}
                                                 </p>
                                             )}
@@ -857,10 +841,10 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                     </div>
                 </div>
             ) : (
-                <div className="flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]">
+                <div className="flex flex-col gap-6 rounded-xl border border-[--border-subtle] bg-[--bg-raised] py-6 shadow-sm">
                     <div className="flex flex-col gap-1.5 px-6">
                         <h2 className="text-lg font-semibold leading-none">Search</h2>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                        <p className="text-sm text-[--text-muted]">
                             Search your knowledge base for specific keywords or concepts
                         </p>
                     </div>
@@ -882,7 +866,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                     disabled={searching}
                                     placeholder="Enter search query..."
                                     autoComplete="off"
-                                    className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm shadow-sm placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 disabled:opacity-50 dark:border-neutral-600 dark:bg-[#40414f] dark:text-gray-100 dark:placeholder-gray-500"
+                                    className="h-9 flex-1 rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 text-sm shadow-sm placeholder:text-[--text-muted] outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent] disabled:opacity-50 text-[--text-primary]"
                                 />
                                 <button
                                     onClick={handleSearch}
@@ -897,7 +881,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                     Search
                                 </button>
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="text-xs text-[--text-muted]">
                                 Press Enter to search
                             </p>
                         </div>
@@ -910,7 +894,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                     Search Type
                                 </span>
                                 {!hasEmbedding && !defaultsLoading && (
-                                    <div className="flex items-center gap-2 text-sm text-amber-600 dark:text-amber-500">
+                                    <div className="flex items-center gap-2 text-sm text-[--text-secondary]">
                                         <LucideAlertCircle size={16} className="flex-none" />
                                         <span>
                                             Vector search requires an embedding model. Only text
@@ -926,7 +910,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                             checked={searchType === 'text'}
                                             onChange={() => setSearchType('text')}
                                             disabled={searching}
-                                            className="h-4 w-4 accent-purple-500"
+                                            className="h-4 w-4 accent-[--accent]"
                                         />
                                         Text Search
                                     </label>
@@ -934,7 +918,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                         className={`flex items-center gap-2 text-sm font-normal ${
                                             hasEmbedding
                                                 ? 'cursor-pointer'
-                                                : 'cursor-not-allowed text-gray-400 dark:text-gray-500'
+                                                : 'cursor-not-allowed text-[--text-muted]'
                                         }`}
                                     >
                                         <input
@@ -943,7 +927,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                             checked={searchType === 'vector'}
                                             onChange={() => setSearchType('vector')}
                                             disabled={!hasEmbedding || searching}
-                                            className="h-4 w-4 accent-purple-500"
+                                            className="h-4 w-4 accent-[--accent]"
                                         />
                                         Vector Search
                                     </label>
@@ -962,7 +946,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                             checked={searchSources}
                                             onChange={(e) => setSearchSources(e.target.checked)}
                                             disabled={searching}
-                                            className="h-4 w-4 accent-purple-500"
+                                            className="h-4 w-4 accent-[--accent]"
                                         />
                                         Search Sources
                                     </label>
@@ -972,7 +956,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                             checked={searchNotes}
                                             onChange={(e) => setSearchNotes(e.target.checked)}
                                             disabled={searching}
-                                            className="h-4 w-4 accent-purple-500"
+                                            className="h-4 w-4 accent-[--accent]"
                                         />
                                         Search Notes
                                     </label>
@@ -981,7 +965,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                         </div>
 
                         {searchError && (
-                            <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                            <div className="flex items-start gap-2 rounded-md border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                                 <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                                 <span>{searchError}</span>
                             </div>
@@ -994,7 +978,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                     <h3 className="text-sm font-medium">
                                         {searchResponse.total_count} results found
                                     </h3>
-                                    <span className="inline-flex items-center rounded-md border border-gray-300 px-2 py-0.5 text-xs font-medium dark:border-neutral-600">
+                                    <span className="inline-flex items-center rounded-md border border-[--border-subtle] px-2 py-0.5 text-xs font-medium text-[--text-secondary]">
                                         {searchResponse.search_type === 'text'
                                             ? 'Text Search'
                                             : 'Vector Search'}
@@ -1002,7 +986,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                 </div>
 
                                 {searchResponse.results.length === 0 ? (
-                                    <div className="rounded-xl border border-gray-200 bg-white px-6 py-6 text-center text-sm text-gray-500 shadow-sm dark:border-neutral-700 dark:bg-[#343541] dark:text-gray-400">
+                                    <div className="rounded-xl border border-[--border-subtle] bg-[--bg-raised] px-6 py-6 text-center text-sm text-[--text-muted] shadow-sm">
                                         No results found for &quot;{searchQuery}&quot;
                                     </div>
                                 ) : (
@@ -1017,7 +1001,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                             return (
                                                 <div
                                                     key={`${r.parent_id}-${idx}`}
-                                                    className="rounded-xl border border-gray-200 bg-white px-6 py-4 shadow-sm dark:border-neutral-700 dark:bg-[#343541]"
+                                                    className="rounded-xl border border-[--border-subtle] bg-[--bg-raised] px-6 py-4 shadow-sm"
                                                 >
                                                     <div className="flex items-start justify-between gap-4">
                                                         <div className="flex-1">
@@ -1028,7 +1012,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                                             id: r.parent_id!,
                                                                         } as SourceListItem)
                                                                     }
-                                                                    className="text-left font-medium text-purple-600 hover:underline dark:text-purple-400"
+                                                                    className="text-left font-medium text-[--accent] hover:underline"
                                                                 >
                                                                     {r.title || '(untitled)'}
                                                                 </button>
@@ -1049,7 +1033,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                         <div className="mt-3">
                                                             <button
                                                                 onClick={() => toggleMatches(idx)}
-                                                                className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                                                                className="flex items-center gap-2 text-sm text-[--text-muted] hover:text-[--text-primary]"
                                                             >
                                                                 <LucideChevronDown size={16} />
                                                                 Matches ({matchCount})
@@ -1059,7 +1043,7 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
                                                                     {matches.map((m, i) => (
                                                                         <MemoizedReactMarkdown
                                                                             key={i}
-                                                                            className="prose prose-sm dark:prose-invert max-w-none break-words border-l-2 border-gray-200 py-1 pl-6 text-sm dark:border-neutral-600"
+                                                                            className="prose prose-sm dark:prose-invert max-w-none break-words border-l-2 border-[--border-subtle] py-1 pl-6 text-sm"
                                                                             remarkPlugins={[
                                                                                 remarkGfm,
                                                                             ]}
@@ -1143,29 +1127,24 @@ export const AskSearchPage = ({ onOpenSource }: Props) => {
             )}
 
             {viewingInsight && (
-                <Modal
+                <CreationModalShell
                     title="Source Insight"
-                    onCancel={() => setViewingInsight(null)}
-                    showSubmit={false}
-                    cancelLabel="Close"
-                    width={() => Math.min(768, window.innerWidth * 0.9)}
-                    height={() => window.innerHeight * 0.85}
-                    content={
-                        <div className="flex flex-col gap-3 p-2 text-neutral-800 dark:text-neutral-100">
-                            <div>
-                                <span className={secondaryBadgeClass}>
-                                    {viewingInsight.insight_type}
-                                </span>
-                            </div>
-                            <MemoizedReactMarkdown
-                                className="prose prose-sm dark:prose-invert max-w-none break-words"
-                                remarkPlugins={[remarkGfm]}
-                            >
-                                {viewingInsight.content}
-                            </MemoizedReactMarkdown>
+                    onClose={() => setViewingInsight(null)}
+                >
+                    <div className="flex flex-col gap-3 p-2 text-[--text-primary]">
+                        <div>
+                            <span className={secondaryBadgeClass}>
+                                {viewingInsight.insight_type}
+                            </span>
                         </div>
-                    }
-                />
+                        <MemoizedReactMarkdown
+                            className="prose prose-sm dark:prose-invert max-w-none break-words"
+                            remarkPlugins={[remarkGfm]}
+                        >
+                            {viewingInsight.content}
+                        </MemoizedReactMarkdown>
+                    </div>
+                </CreationModalShell>
             )}
 
             {showAdvanced && (

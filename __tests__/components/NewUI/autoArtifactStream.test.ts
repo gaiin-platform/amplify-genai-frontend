@@ -1,0 +1,111 @@
+import { describe, expect, it } from 'vitest';
+import { appendAutoArtifactChunk, mergeAutoArtifactMessage, replaceConversationById } from '@/components/NewUI/shared/autoArtifactStream';
+import { conversationWithCompressedMessages, conversationWithUncompressedMessages } from '@/utils/app/conversation';
+
+describe('appendAutoArtifactChunk', () => {
+  it('routes artifact contents and assistant commentary across split markers', () => {
+    const first = appendAutoArtifactChunk('', 'State,Capital\nAlabama,Montgomery\n<', false);
+    expect(first.artifactText).toBe('State,Capital\nAlabama,Montgomery\n');
+    expect(first.assistantText).toBe('');
+    expect(first.buffer).toBe('<');
+    expect(first.inAssistantText).toBe(false);
+
+    const second = appendAutoArtifactChunk(first.buffer, '>What would you like me to do with this data?<', first.inAssistantText);
+    expect(second.artifactText).toBe('');
+    expect(second.assistantText).toBe('What would you like me to do with this data?');
+    expect(second.inAssistantText).toBe(true);
+    expect(second.buffer).toBe('<');
+
+    const third = appendAutoArtifactChunk(second.buffer, '/>State,Capital\nAlabama,Montgomery', second.inAssistantText, true);
+    expect(third.assistantText).toBe('');
+    expect(third.artifactText).toBe('State,Capital\nAlabama,Montgomery');
+    expect(third.inAssistantText).toBe(false);
+  });
+
+  it('updates the originating assistant message by id without losing messages appended during generation', () => {
+    const original = {
+      id: 'conv-1',
+      name: 'Conversation',
+      messages: [
+        { id: 'assistant-1', role: 'assistant', content: 'before', data: { state: {} } },
+        { id: 'user-2', role: 'user', content: 'new turn', data: {} },
+        { id: 'assistant-2', role: 'assistant', content: 'new answer', data: {} },
+      ],
+    } as any;
+
+    const updated = mergeAutoArtifactMessage(original, 'assistant-1', {
+      content: 'before\n\nDone.',
+      artifactStatus: 'complete',
+      artifactDetails: [{ artifactId: 'artifact-1', version: 1 }],
+    });
+
+    expect(updated.messages).toHaveLength(3);
+    expect(updated.messages[0].content).toBe('before\n\nDone.');
+    expect(updated.messages[0].data.artifactStatus).toBe('complete');
+    expect(updated.messages[0].data.artifacts).toEqual([{ artifactId: 'artifact-1', version: 1 }]);
+    expect(updated.messages[1].content).toBe('new turn');
+    expect(updated.messages[2].content).toBe('new answer');
+
+    const persisted = conversationWithCompressedMessages(updated);
+    const restored = conversationWithUncompressedMessages(persisted);
+    expect(restored.messages[0].data.artifacts[0].artifactId).toBe('artifact-1');
+    expect(restored.messages[0].content).toBe('before\n\nDone.');
+    expect(restored.messages).toHaveLength(3);
+  });
+
+  it('records a failed artifact request, then clears it and does not duplicate the detail on a successful retry', () => {
+    const original = {
+      id: 'conv-1',
+      messages: [{ id: 'assistant-1', role: 'assistant', content: 'before', data: {} }],
+    } as any;
+    const detail = { artifactId: 'artifact-1', version: 1 };
+
+    const failed = mergeAutoArtifactMessage(original, 'assistant-1', {
+      artifactStatus: 'cancelled',
+      artifactDetails: [detail],
+      artifactResume: { prompt: 'write it', type: 'document' },
+      artifactError: 'Request blocked (403)',
+    });
+    expect(failed.messages[0].data.artifactError).toBe('Request blocked (403)');
+    expect(failed.messages[0].data.artifacts).toEqual([detail]);
+
+    const untouched = mergeAutoArtifactMessage(failed, 'assistant-1', { content: 'more' });
+    expect(untouched.messages[0].data.artifactError).toBe('Request blocked (403)');
+
+    const retried = mergeAutoArtifactMessage(failed, 'assistant-1', {
+      artifactStatus: 'complete',
+      artifactDetails: [detail],
+      artifactError: null,
+    });
+    expect(retried.messages[0].data.artifactError).toBeUndefined();
+    expect(retried.messages[0].data.artifacts).toEqual([detail]);
+    expect('artifactError' in retried.messages[0].data).toBe(false);
+  });
+
+  it('splits the artifact end marker and excludes commentary from artifact text', () => {
+    const first = appendAutoArtifactChunk('', '# Report\ncontent\n<>Summary begins here<', false);
+    expect(first.artifactText).toBe('# Report\ncontent\n');
+    expect(first.assistantText).toBe('Summary begins here');
+    expect(first.buffer).toBe('<');
+    expect(first.inAssistantText).toBe(true);
+
+    const second = appendAutoArtifactChunk(first.buffer, '/>More artifact', first.inAssistantText, true);
+    expect(second.artifactText).toBe('More artifact');
+    expect(second.assistantText).toBe('');
+    expect(second.inAssistantText).toBe(false);
+  });
+});
+
+describe('replaceConversationById', () => {
+  it('writes the streamed conversation back by id without touching the chat the user opened since', () => {
+    const source = { id: 'source', name: 'Source', messages: [] } as any;
+    const opened = { id: 'new-chat', name: 'New Conversation', messages: [] } as any;
+    const finished = { ...source, artifacts: { a1: [{ artifactId: 'a1' }] } };
+
+    const all = replaceConversationById([source, opened], finished, (c) => ({ ...c, condensed: true }) as any);
+
+    expect(all).toHaveLength(2);
+    expect(all[0]).toMatchObject({ id: 'source', condensed: true, artifacts: { a1: [{ artifactId: 'a1' }] } });
+    expect(all[1]).toBe(opened);
+  });
+});

@@ -1,7 +1,7 @@
 // src/hooks/useChatService.js
 import {incrementalJSONtoCSV} from "@/utils/app/incrementalCsvParser";
 import {useContext} from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import {killRequest as killReq, MetaHandler, sendChatRequestWithDocuments} from '../services/chatService';
 import {ChatBody, CustomFunction, JsonSchema, newMessage} from "@/types/chat";
 import {ColumnsSpec, generateCSVSchema} from "@/utils/app/csv";
@@ -147,6 +147,9 @@ export function useChatService() {
         const targetEndpoint = chatBody.endpoint || chatEndpoint;
 
         response = sendChatRequestWithDocuments(targetEndpoint, chatBody, abortSignal, metaHandler).catch((e) => {
+            // AbortError is thrown by the fetch when the user intentionally stops
+            // the request (via killChatRequest / controller.abort()). Don't alert.
+            if (e?.name === 'AbortError') return Promise.reject(e);
             if(chatBody.assistantId){
                 alert("The assistant you sent the message to is currently unavailable. Please try again in a minute.");
             }

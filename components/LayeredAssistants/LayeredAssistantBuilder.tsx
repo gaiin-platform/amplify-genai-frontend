@@ -14,7 +14,7 @@ import { AssistantModal } from '@/components/Promptbar/components/AssistantModal
 import Search from '@/components/Search/Search';
 import toast from 'react-hot-toast';
 import { Message } from '@/types/chat';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Prompt } from '@/types/prompt';
 import { isAssistant, getAssistant } from '@/utils/app/assistants';
 import { promptForData } from '@/utils/app/llm';
@@ -1905,7 +1905,7 @@ Generate the JSON now:`;
     return createPortal(
         <div
             ref={overlayRef}
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm"
+            className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/60 backdrop-blur-sm"
             onClick={handleOverlayClick}
         >
             <div

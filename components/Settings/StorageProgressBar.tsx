@@ -1,6 +1,6 @@
 import { FC, useContext, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 export const StorageProgressBar: FC = () => {
   const { state: { storageProcessing } } = useContext(HomeContext);

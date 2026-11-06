@@ -1,0 +1,2419 @@
+/**
+ * NewAssistantsView — New UI replacement for AssistantGallery.
+ * Four tabs: My Assistants | Shared with Me | Teams | Layered Assistants
+ * (Prompt Templates moved to Settings → Customize → Prompt Templates)
+ *
+ * Design tokens from styles/globals.css:
+ *   --bg-app, --bg-sidebar, --bg-raised, --bg-hover, --bg-active
+ *   --border-subtle, --text-primary, --text-secondary, --text-muted, --accent
+ */
+
+import React, { useContext, useState, useMemo, useRef, useEffect, useCallback } from 'react';
+import {
+    IconX,
+    IconRobot,
+    IconSparkles,
+    IconUsers,
+    IconGitBranch,
+    IconLoader2,
+    IconSearch,
+    IconPlus,
+    IconPencil,
+    IconTrash,
+    IconShare,
+    IconSettings,
+    IconChevronRight,
+    IconEye,
+    IconEyeOff,
+    IconCopy,
+    IconCopyPlus,
+    IconChartBar,
+    IconMailFast,
+    IconApi,
+    IconClock,
+    IconWorld,
+    IconFiles,
+    IconBrandGoogleDrive,
+    IconBolt,
+    IconTemplate,
+} from '@tabler/icons-react';
+import HomeContext from '@/components/Home/home.context';
+import { useDebouncedSearchTracking, useTrack } from '@/components/NewUI/shared/UiAnalytics';
+import { Prompt } from '@/types/prompt';
+import { Group, GroupAccessType, GroupUpdateType } from '@/types/groups';
+import { LayeredAssistant } from '@/types/layeredAssistant';
+import { Assistant, AssistantDefinition, AssistantProviderID, DEFAULT_ASSISTANT } from '@/types/assistant';
+import { startConversationWithTemplate } from '@/components/NewUI/shared/promptConversation';
+import { isAssistant, getAssistants } from '@/utils/app/assistants';
+import { deleteAssistant, deleteLayeredAssistant, saveLayeredAssistant } from '@/services/assistantService';
+import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
+import { NEW_UI_SETTINGS_EVENT } from '@/components/NewUI/shared/newUISettingsEvents';
+import { writeAmplifyHelperPrefill } from '@/components/NewUI/shared/amplifyHelperPrefill';
+import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import { useSession } from 'next-auth/react';
+import { getUserIdentifier } from '@/utils/app/data';
+import { getClassifiedSharedItems, invalidateSharedItemsCache, ClassifiedShareItem } from '@/components/NewUI/shared/sharedItemClassifier';
+import { loadSharedItem } from '@/services/shareService';
+import { importData } from '@/utils/app/importExport';
+import { saveFolders } from '@/utils/app/folders';
+import { saveConversations } from '@/utils/app/conversation';
+import { DefaultModels } from '@/types/model';
+import { NewUIAssistantCreationModal } from './NewUIAssistantCreationModal';
+import type { AssistantAccessType } from './assistant/assistantTypeSwitch';
+import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
+import { AssistantConfigSummary } from '@/components/NewUI/shared/AssistantConfigSummary';
+import { resolveSourceOpenTarget } from '@/components/NewUI/shared/assistantConfigModel';
+import type { SummaryDataSource } from '@/components/NewUI/shared/assistantConfigModel';
+import { getFileDownloadUrl } from '@/services/fileService';
+import { RowActionButton } from '@/components/NewUI/shared/RowActionButton';
+import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
+import ReactDOM from 'react-dom';
+import { savePrompts } from '@/utils/app/prompts';
+import { AssistantCapability, AssistantCapabilityKind, getAssistantCapabilities } from '@/utils/app/assistantCapabilities';
+import { alphaGroupKey } from '@/utils/app/alphaGroups';
+import { saveDisplayPrefsToServer } from '@/components/NewUI/shared/userDisplayPrefs';
+import {
+    getSharedAssistantIdentity,
+    getSharedShareIdentity,
+    isReceivedSharedAssistant,
+    readDismissedSharedAssistantIds,
+    type SharedAssistantProvenance,
+} from '@/components/NewUI/shared/sharedAssistantCard';
+import toast from 'react-hot-toast';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
+import { NewGroupManagementModal } from './assistant/NewGroupManagementModal';
+import { NewGroupAssistantInsightsModal } from './assistant/NewGroupAssistantInsightsModal';
+import { canViewInsights } from './assistant/groupInsightsModel';
+import { AssistantIconImage } from '@/components/NewUI/shared/AssistantIconImage';
+import { AssistantIconRef, layeredIconRef, promptIconRef } from './assistant/assistantIconModel';
+import { updateGroupAssistants, saveGroupLayeredAssistant, deleteGroupLayeredAssistant } from '@/services/groupsService';
+import { NewLayeredAssistantBuilder } from './assistant/layered/NewLayeredAssistantBuilder';
+import { readLayeredSettings } from './assistant/layeredAssistantDataModel';
+import AmplifyHelperAssistant from './AmplifyHelperAssistant';
+import {
+    AMPLIFY_HELPER_MARKER,
+    createAmplifyHelperAssistant,
+} from '@/components/NewUI/shared/amplifyHelperGuide';
+import { getBrandName } from '@/utils/whiteLabel/branding';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { useNotebookFeatureFlag } from '@/components/NewUI/shared/notebookFeatureFlag';
+import {
+    canDeleteAssistantPrompt,
+    getDeletableAssistantId,
+    isSelectedAssistantDeleted,
+    promptsAfterAssistantDelete,
+} from './assistant/assistantDeletion';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+
+type MainTab = 'individual' | 'shared' | 'group' | 'layered' | 'amplifyHelper';
+
+const ASSISTANT_TYPES_INFO =
+    'My Assistants: assistants you created or imported, which you own and can edit. ' +
+    'Shared with Me: assistants other people shared with you; they are read-only until you import a copy. ' +
+    'Groups: assistants managed by a group you belong to, available to all of its members. ' +
+    'Layered Assistants: a router that reads your prompt and automatically picks the best assistant from a set you choose to answer it.';
+
+type ShareProvenance = SharedAssistantProvenance;
+
+const readScannedShareKeys = (storageKey: string): Set<string> => {
+    try {
+        const parsed = JSON.parse(localStorage.getItem(storageKey) ?? '[]');
+        return new Set(Array.isArray(parsed) ? parsed.filter((k): k is string => typeof k === 'string') : []);
+    } catch {
+        return new Set();
+    }
+};
+
+const writeScannedShareKeys = (storageKey: string, keys: Set<string>): void => {
+    try {
+        localStorage.setItem(storageKey, JSON.stringify(Array.from(keys)));
+    } catch {
+        // Storage full / unavailable: the scan simply repeats next visit.
+    }
+};
+
+const shareProvenance = (prompt: Prompt): ShareProvenance | undefined => {
+    const value = prompt.data?.sharedAssistant as ShareProvenance | undefined;
+    return value?.sharedBy ? value : undefined;
+};
+
+// ── Shared row component ──────────────────────────────────────────────────────
+
+interface RowProps {
+    icon?: React.ReactNode;
+    /** The assistant's uploaded icon. Replaces `icon` (or the robot) once it loads; until then, and on any failure, `icon` shows. */
+    customIcon?: AssistantIconRef;
+    name: string;
+    description?: string;
+    onClick: () => void;
+    onEdit?: (e: React.MouseEvent) => void;
+    onShare?: (e: React.MouseEvent) => void;
+    onDelete?: (e: React.MouseEvent) => void;
+    onPreview?: (e: React.MouseEvent) => void;
+    isDeleting?: boolean;
+    /** Optional access-type pill badge (Private / Shared / URL) */
+    accessBadge?: { label: string; bg: string; color: string };
+    /** Indicates an owned copy that originated from a received share. */
+    sharedBy?: string;
+    onCopy?: (e: React.MouseEvent) => void;
+    /** Open the editor prefilled from this (own) assistant to save a variation as a new one. */
+    onDuplicate?: (e: React.MouseEvent) => void;
+    onHide?: (e: React.MouseEvent) => void;
+    /** Open the group assistant's dashboard + conversations (group admins, analysis enabled). */
+    onInsights?: (e: React.MouseEvent) => void;
+    /** What the assistant has configured (files, drive, tools, workflow…), shown as quiet icons by the name. */
+    capabilities?: AssistantCapability[];
+}
+
+const CAPABILITY_ICON: Record<AssistantCapabilityKind, React.ComponentType<{ size?: number; stroke?: number }>> = {
+    agent: IconBolt,
+    email: IconMailFast,
+    api: IconApi,
+    scheduled: IconClock,
+    website: IconWorld,
+    drive: IconBrandGoogleDrive,
+    workflow: IconTemplate,
+    files: IconFiles,
+};
+
+/** Quiet, muted indicators — present for scanning, never competing with the name. */
+const CapabilityIcons: React.FC<{ items: AssistantCapability[] }> = ({ items }) => (
+    <span className="flex items-center gap-2.5 mt-1" style={{ color: 'var(--text-muted)', opacity: 0.75 }}>
+        {items.map((item) => {
+            const Icon = CAPABILITY_ICON[item.kind];
+            // agent/workflow already say what they are; the others show a count when they have one
+            const text = item.kind === 'agent' || item.kind === 'workflow' ? undefined : item.label;
+            return (
+                <span key={item.kind} title={item.tooltip} aria-label={item.tooltip} className="inline-flex items-center gap-0.5 text-[11px] leading-none">
+                    <Icon size={13} stroke={1.75} />
+                    {text}
+                </span>
+            );
+        })}
+    </span>
+);
+
+/** Hairline letter divider between A–Z groups; deliberately faint. */
+const LetterDivider: React.FC<{ letter: string }> = ({ letter }) => (
+    <div className="flex items-center gap-2 px-3 pt-3 pb-1" role="presentation" aria-hidden="true">
+        <span className="text-[10px] font-semibold tracking-wider" style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{letter}</span>
+        <span className="flex-1 h-px" style={{ backgroundColor: 'var(--border-subtle)', opacity: 0.6 }} />
+    </div>
+);
+
+const AssistantPromptPreview: React.FC<{
+    prompt: Prompt;
+    sharedBy: string;
+    note?: string;
+    onClose: () => void;
+    onCopy?: () => void;
+}> = ({ prompt, sharedBy, note, onClose, onCopy }) => {
+    const panelRef = useRef<HTMLDivElement>(null);
+    const { state: { availableModels } } = useContext(HomeContext);
+    // A shared assistant's files are not the viewer's own: the backend lets them download one only
+    // through the read grant the share created, and says no otherwise. Websites open directly.
+    const openDocument = useCallback(async (source: SummaryDataSource) => {
+        const target = resolveSourceOpenTarget(source);
+        if (target.kind === 'invalid') throw new Error('This item has no address to open.');
+        if (target.kind === 'url') {
+            window.open(target.url, '_blank', 'noopener,noreferrer');
+            return;
+        }
+        let result: { success: boolean; downloadUrl?: string } | undefined;
+        try {
+            result = await getFileDownloadUrl(target.key, target.groupId);
+        } catch {
+            result = undefined;
+        }
+        if (!result?.success || !result.downloadUrl) {
+            throw new Error(`Couldn’t open “${source.name}”. You may not have access to this file yet, or it was removed.`);
+        }
+        window.open(result.downloadUrl, '_blank', 'noopener,noreferrer');
+    }, []);
+    const modelName = useCallback(
+        (modelId: string) => (availableModels as Record<string, { name?: string }> | undefined)?.[modelId]?.name,
+        [availableModels],
+    );
+
+    useEffect(() => {
+        const panel = panelRef.current;
+        panel?.focus();
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.stopImmediatePropagation();
+                onClose();
+            } else if (event.key === 'Tab' && panel) {
+                const focusable = Array.from(panel.querySelectorAll<HTMLElement>(
+                    'button:not([disabled]),[href],input:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
+                ));
+                if (!focusable.length) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+        };
+        document.addEventListener('keydown', handleKeyDown, true);
+        return () => document.removeEventListener('keydown', handleKeyDown, true);
+    }, [onClose]);
+
+    return ReactDOM.createPortal(
+        <div
+            className="fixed inset-0 flex items-center justify-center p-4"
+            style={{ zIndex: 10001, background: 'rgba(0,0,0,0.5)' }}
+            data-new-ui-shell="true"
+            onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+        >
+            <section
+                ref={panelRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="shared-assistant-preview-title"
+                tabIndex={-1}
+                className="flex flex-col w-full max-w-[760px] max-h-[min(720px,90dvh)] rounded-[12px] border outline-none"
+                style={{ background: 'var(--bg-raised)', borderColor: 'var(--border-subtle)', color: 'var(--text-primary)' }}
+                onMouseDown={(event) => event.stopPropagation()}
+            >
+                <header className="flex items-start justify-between gap-4 px-5 py-4 border-b" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <div className="min-w-0">
+                        <h2 id="shared-assistant-preview-title" className="text-[16px] font-semibold truncate">{prompt.name}</h2>
+                        {prompt.description && <p className="text-[13px] mt-1" style={{ color: 'var(--text-secondary)' }}>{prompt.description}</p>}
+                        <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Shared by {sharedBy}</p>
+                        {note && note !== prompt.name && <p className="text-[12px] mt-1" style={{ color: 'var(--text-muted)' }}>Share note: {note}</p>}
+                    </div>
+                    <button type="button" onClick={onClose} aria-label="Close assistant preview" className="flex items-center justify-center w-8 h-8 rounded-[6px]" style={{ color: 'var(--text-secondary)' }}>
+                        <IconX size={17} />
+                    </button>
+                </header>
+                <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4">
+                    <AssistantConfigSummary prompt={prompt} modelName={modelName} onOpenDocument={openDocument} />
+                </div>
+                <footer className="flex justify-end gap-2 px-5 py-3 border-t" style={{ borderColor: 'var(--border-subtle)' }}>
+                    <button type="button" onClick={onClose} className="h-9 px-4 rounded-[7px] text-[13px]" style={{ color: 'var(--text-secondary)', background: 'var(--bg-hover)' }}>Close</button>
+                    {onCopy && (
+                        <button type="button" onClick={onCopy} className="flex items-center gap-2 h-9 px-4 rounded-[7px] text-[13px] font-medium" style={{ color: 'var(--accent-fg)', background: 'var(--accent)' }}>
+                            <IconCopy size={14} /> Make a copy
+                        </button>
+                    )}
+                </footer>
+            </section>
+        </div>,
+        document.body
+    );
+};
+
+const AssistantRow: React.FC<RowProps> = ({
+    icon,
+    customIcon,
+    name,
+    description,
+    onClick,
+    onEdit,
+    onShare,
+    onDelete,
+    onPreview,
+    onCopy,
+    onDuplicate,
+    onHide,
+    onInsights,
+    isDeleting,
+    accessBadge,
+    sharedBy,
+    capabilities,
+}) => {
+    const [hovered, setHovered] = useState(false);
+
+    return (
+        <div
+            className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] cursor-pointer transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+            role="button"
+            tabIndex={0}
+            aria-label={description ? name + ': ' + description : name}
+            style={{ backgroundColor: hovered ? 'var(--bg-hover)' : 'transparent' }}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
+            onClick={onClick}
+            onKeyDown={(e) => {
+                if (e.target !== e.currentTarget) return;
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onClick();
+                }
+            }}
+        >
+            {/* Icon square */}
+            <div
+                className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-[8px]"
+                style={{ backgroundColor: 'var(--bg-raised)' }}
+            >
+                {customIcon ? (
+                    <div className="w-full h-full overflow-hidden rounded-[8px] flex items-center justify-center">
+                        <AssistantIconImage
+                            icon={customIcon}
+                            fallback={icon || <IconRobot size={18} style={{ color: 'var(--text-muted)' }} />}
+                        />
+                    </div>
+                ) : (
+                    icon || <IconRobot size={18} style={{ color: 'var(--text-muted)' }} />
+                )}
+            </div>
+
+            {/* Name + description */}
+            <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 min-w-0">
+                    <p
+                        className="text-[14px] font-medium truncate"
+                        style={{ color: 'var(--text-primary)' }}
+                    >
+                        {name}
+                    </p>
+                    {accessBadge && (
+                        <span
+                            className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                            style={{ background: accessBadge.bg, color: accessBadge.color }}
+                        >
+                            {accessBadge.label}
+                        </span>
+                    )}
+                    {sharedBy && (
+                        <span
+                            className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                            style={{ background: 'var(--bg-active)', color: 'var(--accent)' }}
+                            title={`Received from ${sharedBy}`}
+                        >
+                            Shared
+                        </span>
+                    )}
+                </div>
+                {description && (
+                    <p
+                        className="text-[12px] truncate"
+                        style={{ color: 'var(--text-secondary)' }}
+                    >
+                        {description}
+                    </p>
+                )}
+                {capabilities && capabilities.length > 0 && <CapabilityIcons items={capabilities} />}
+                {sharedBy && (
+                    <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)' }}>
+                        {sharedBy}
+                    </p>
+                )}
+            </div>
+
+            {/* Hover actions */}
+            <div
+                className={`flex items-center gap-1 transition-opacity duration-100 ${hovered ? 'opacity-100' : 'opacity-0 pointer-events-none'} focus-within:opacity-100 focus-within:pointer-events-auto`}
+                onClick={(e) => e.stopPropagation()}
+            >
+                <button
+                    className="flex items-center gap-1 h-[28px] px-2.5 rounded-[6px] text-[12px] transition-colors"
+                    style={{
+                        backgroundColor: 'var(--bg-hover)',
+                        color: 'var(--text-secondary)',
+                    }}
+                    onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                        (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                    }}
+                    onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                        (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+                    }}
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        onClick();
+                    }}
+                    title={`Chat with ${name}`}
+                >
+                    Chat
+                    <IconChevronRight size={12} />
+                </button>
+
+                {onCopy && (
+                    <RowActionButton aria-label={`Make a copy of ${name}`} title="Make a copy" onClick={onCopy}>
+                        <IconCopy size={14} />
+                    </RowActionButton>
+                )}
+                {onPreview && (
+                    <RowActionButton aria-label={`View prompt for ${name}`} title="View prompt" onClick={onPreview}>
+                        <IconEye size={14} />
+                    </RowActionButton>
+                )}
+                {onHide && (
+                    <RowActionButton aria-label={`Hide ${name}`} title="Hide" onClick={onHide}>
+                        <IconEyeOff size={14} />
+                    </RowActionButton>
+                )}
+                {onDuplicate && (
+                    <RowActionButton aria-label={`Duplicate ${name}`} title="Duplicate" onClick={onDuplicate}>
+                        <IconCopyPlus size={14} />
+                    </RowActionButton>
+                )}
+                {onInsights && (
+                    <RowActionButton aria-label={`View insights for ${name}`} title="Insights" onClick={onInsights}>
+                        <IconChartBar size={14} />
+                    </RowActionButton>
+                )}
+                {onEdit && (
+                    <RowActionButton aria-label={`Edit ${name}`} title="Edit" onClick={onEdit}>
+                        <IconPencil size={14} />
+                    </RowActionButton>
+                )}
+                {onShare && (
+                    <RowActionButton aria-label={`Share ${name}`} title="Share" onClick={onShare}>
+                        <IconShare size={14} />
+                    </RowActionButton>
+                )}
+                {onDelete && (
+                    <RowActionButton
+                        aria-label={isDeleting ? `Deleting ${name}` : `Delete ${name}`}
+                        title="Delete"
+                        danger
+                        onClick={onDelete}
+                        disabled={isDeleting}
+                    >
+                        {isDeleting
+                            ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" />
+                            : <IconTrash size={14} />
+                        }
+                    </RowActionButton>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// ── Section heading ───────────────────────────────────────────────────────────
+
+const SectionHeading: React.FC<{ label: string; count?: number }> = ({ label, count }) => (
+    <div className="flex items-center gap-2 px-3 pt-5 pb-1.5">
+        <span
+            className="text-[11px] font-semibold uppercase tracking-wider"
+            style={{ color: 'var(--text-muted)' }}
+        >
+            {label}
+        </span>
+        {count !== undefined && (
+            <span
+                className="text-[11px] px-1.5 py-0.5 rounded-full"
+                style={{
+                    backgroundColor: 'var(--bg-raised)',
+                    color: 'var(--text-muted)',
+                }}
+            >
+                {count}
+            </span>
+        )}
+    </div>
+);
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+
+const EmptyState: React.FC<{ message: string; subMessage?: string; onAction?: () => void; actionLabel?: string }> = ({
+    message,
+    subMessage,
+    onAction,
+    actionLabel,
+}) => (
+    <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
+        <IconRobot size={32} className="mb-4 opacity-20" style={{ color: 'var(--text-muted)' }} />
+        <p className="text-[14px] font-medium mb-1" style={{ color: 'var(--text-secondary)' }}>
+            {message}
+        </p>
+        {subMessage && (
+            <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+                {subMessage}
+            </p>
+        )}
+        {onAction && actionLabel && (
+            <button
+                onClick={onAction}
+                className="mt-4 flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                style={{ backgroundColor: 'var(--accent)' }}
+            >
+                <IconPlus size={14} />
+                {actionLabel}
+            </button>
+        )}
+    </div>
+);
+
+// ── Search input ──────────────────────────────────────────────────────────────
+
+const SearchInput: React.FC<{ value: string; onChange: (v: string) => void; placeholder?: string }> = ({
+    value,
+    onChange,
+    placeholder = 'Search…',
+}) => (
+    <div className="relative">
+        <IconSearch
+            size={15}
+            className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            style={{ color: 'var(--text-muted)' }}
+        />
+        <input
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className="h-[34px] pl-9 pr-3 rounded-[8px] text-[13px] border focus:outline-none w-[200px] transition-colors"
+            style={{
+                backgroundColor: 'var(--bg-raised)',
+                borderColor: 'var(--border-subtle)',
+                color: 'var(--text-primary)',
+            }}
+        />
+    </div>
+);
+
+// ── Tab 1: My Assistants ──────────────────────────────────────────────────────
+
+const MyAssistantsTab: React.FC = () => {
+    const {
+        state: {
+            prompts,
+            statsService,
+            availableModels,
+            selectedAssistant,
+            featureFlags,
+            groups,
+            amplifyUsers,
+        },
+        dispatch: homeDispatch,
+        handleNewConversation,
+    } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+    useEffect(() => { promptsRef.current = prompts; }, [prompts]);
+
+    const groupsRef = useRef(groups);
+    useEffect(() => { groupsRef.current = groups; }, [groups]);
+
+    const [search, setSearch] = useState('');
+    useDebouncedSearchTracking(search, 'Assistants Searched');
+    // Unified creation modal (replaces two-step NewAssistantTypeSelector + AssistantModal flow)
+    const [showCreationModal, setShowCreationModal] = useState(false);
+    // Edit mode: open creation modal pre-populated with the selected assistant
+    const [editingAssistant, setEditingAssistant] = useState<Prompt | null>(null);
+    const [promptToHide, setPromptToHide] = useState<Prompt | null>(null);
+    // Share modal
+    const [assistantForShare, setAssistantForShare] = useState<Prompt | null>(null);
+    const [previewPrompt, setPreviewPrompt] = useState<Prompt | null>(null);
+    const [copyingAssistant, setCopyingAssistant] = useState<{ prompt: Prompt; provenance: ShareProvenance } | null>(null);
+    // Duplicate: the creation modal in copy mode (no share provenance) for one of the user's own assistants
+    const [duplicatingAssistant, setDuplicatingAssistant] = useState<Prompt | null>(null);
+    // Set when the duplicate came from an edit that tried to switch group <-> regular: the kind of
+    // assistant the copy should be (drives its card, header and "(Group copy)" name).
+    const [duplicateTarget, setDuplicateTarget] = useState<AssistantAccessType | undefined>(undefined);
+    // Delete confirm dialog
+    const [confirmDeleteAssistant, setConfirmDeleteAssistant] = useState<Prompt | null>(null);
+    // prompt.id of the row whose backend delete is in flight (null = idle)
+    const [deletingPromptId, setDeletingPromptId] = useState<string | null>(null);
+    const [dismissedSharedAssistantIds, setDismissedSharedAssistantIds] = useState<string[]>(readDismissedSharedAssistantIds);
+    const [hidingSharedAssistant, setHidingSharedAssistant] = useState(false);
+
+    const handleHideSharedAssistant = async (prompt: Prompt) => {
+        if (!isReceivedSharedAssistant(prompt)) {
+            toast.error('Only read-only received assistants can be hidden.');
+            return;
+        }
+        const identities = getSharedAssistantIdentity(prompt);
+        if (!identities.length) {
+            toast.error('Could not identify this shared assistant. Please try again.');
+            return;
+        }
+        setHidingSharedAssistant(true);
+        const dismissed = Array.from(new Set([...dismissedSharedAssistantIds, ...identities]));
+        const saved = await saveDisplayPrefsToServer({ dismissedSharedAssistantIds: dismissed });
+        setHidingSharedAssistant(false);
+        if (!saved) {
+            // saveDisplayPrefsToServer mirrors optimistically; roll back this pref
+            // so a failed save never looks hidden on a later remount.
+            try {
+                const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+                if (dismissedSharedAssistantIds.length) {
+                    settings.dismissedSharedAssistantIds = dismissedSharedAssistantIds;
+                } else {
+                    delete settings.dismissedSharedAssistantIds;
+                }
+                localStorage.setItem('settings', JSON.stringify(settings));
+            } catch {
+                // The server remains authoritative if local storage is unavailable.
+            }
+            toast.error('Could not hide this assistant across devices. Please try again.');
+            return;
+        }
+        setDismissedSharedAssistantIds(dismissed);
+        const visiblePrompts = promptsRef.current.filter((item) => item.id !== prompt.id);
+        promptsRef.current = visiblePrompts;
+        homeDispatch({ field: 'prompts', value: visiblePrompts });
+        savePrompts(visiblePrompts);
+        setPromptToHide(null);
+        toast.success(`${prompt.name} hidden`);
+    };
+
+    const canEdit = (p: Prompt) => !p.data?.noEdit;
+    const resolveSharedBy = (identifier: string): string => {
+        if (!identifier) return 'Unknown';
+        if (amplifyUsers?.[identifier]) return amplifyUsers[identifier];
+        const entry = Object.entries(amplifyUsers ?? {}).find(
+            ([, value]) => value?.toLowerCase() === identifier.toLowerCase()
+        );
+        return entry?.[1] || identifier;
+    };
+
+    // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts/assistants marked
+    // data.hidden unless featureFlags.overrideInvisiblePrompts is set.
+    const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
+
+    // My Assistants includes recipient-owned copies of shared assistants. Original
+    // imported records remain read-only in Shared with Me until copied by the user.
+    const allAssistants = useMemo(() =>
+        prompts
+            .filter((p: Prompt) =>
+                isAssistant(p) &&
+                !p.groupId &&
+                (canEdit(p) || !!shareProvenance(p) || p.data?.noEdit === true) &&
+                isVisible(p) &&
+                !(isReceivedSharedAssistant(p) && getSharedAssistantIdentity(p).some((id) => dismissedSharedAssistantIds.includes(id)))
+            )
+            .sort((a: Prompt, b: Prompt) => a.name.localeCompare(b.name)),
+        [prompts, featureFlags.overrideInvisiblePrompts, dismissedSharedAssistantIds]
+    );
+
+    const filtered = useMemo(() => {
+        if (!search.trim()) return allAssistants;
+        const q = search.toLowerCase();
+        return allAssistants.filter((p: Prompt) => {
+            const provenance = shareProvenance(p);
+            return p.name.toLowerCase().includes(q) ||
+                (p.description && p.description.toLowerCase().includes(q)) ||
+                (provenance && resolveSharedBy(provenance.sharedBy).toLowerCase().includes(q));
+        });
+    }, [allAssistants, search]);
+
+    const openCopyAssistant = (prompt: Prompt, provenance: ShareProvenance) => {
+        setCopyingAssistant({ prompt, provenance });
+    };
+
+    const handleStartConversation = (p: Prompt) => {
+        if (isAssistant(p) && p.data) {
+            homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
+        }
+        statsService.startConversationEvent(p);
+        // New-UI variant: names the chat 'New Conversation' so it stays out of the
+        // sidebar / Chats list until the first message is sent (the classic util
+        // names it "Chat with <name> <timestamp>"). Applies the custom instruction itself.
+        startConversationWithTemplate(
+            handleNewConversation,
+            homeDispatch,
+            promptsRef.current,
+            p,
+            availableModels,
+        );
+        homeDispatch({ field: 'page', value: 'chat' });
+    };
+
+    // Open the unified creation modal (replaced two-step selector + AssistantModal flow)
+    const handleNewAssistantClick = () => {
+        setShowCreationModal(true);
+    };
+
+    const handleEditAssistant = (e: React.MouseEvent, p: Prompt) => {
+        e.stopPropagation();
+        setEditingAssistant(p);
+    };
+
+    const handleDuplicateAssistant = (e: React.MouseEvent, p: Prompt) => {
+        e.stopPropagation();
+        setDuplicateTarget(undefined);
+        setDuplicatingAssistant(p);
+    };
+
+    // The editor can't turn a group assistant into a regular one (or back); it hands the source
+    // here and we swap the edit modal for the same copy modal Duplicate uses.
+    const handleConvertToCopy = (source: Prompt, target: AssistantAccessType) => {
+        setEditingAssistant(null);
+        setDuplicateTarget(target);
+        setDuplicatingAssistant(source);
+    };
+
+    const handleShareAssistant = (e: React.MouseEvent, p: Prompt) => {
+        e.stopPropagation();
+        setAssistantForShare(p);
+    };
+
+    /**
+     * Delete an assistant for real.
+     *
+     * The backend call comes FIRST and the local removal only happens once it succeeds.
+     * Removing the row locally on its own looks like a successful delete but is undone on
+     * the next load: home.tsx re-seeds `prompts` from `listAssistants()` (syncAssistants),
+     * so the assistant reappears after a refresh or re-login.
+     */
+    const handleDeleteAssistant = async (p: Prompt) => {
+        setConfirmDeleteAssistant(null);
+
+        const assistantId = getDeletableAssistantId(p);
+
+        // Persist the delete server-side before touching local state. An assistant with no
+        // assistantId only ever existed locally (imported), so there is nothing to call.
+        if (assistantId && canDeleteAssistantPrompt(p)) {
+            setDeletingPromptId(p.id);
+            let deleted = false;
+            try {
+                deleted = await deleteAssistant(assistantId);
+            } catch (e) {
+                console.error('Failed to delete assistant:', e);
+            } finally {
+                setDeletingPromptId(null);
+            }
+            if (!deleted) {
+                // Leave the row in place — a silent local removal here is exactly the bug
+                // that made deleted assistants come back.
+                toast.error(`Failed to delete ${p.name}. Please try again.`);
+                return;
+            }
+        }
+
+        statsService.deletePromptEvent(p);
+
+        // Drop every row that pointed at this assistant, not just the one that was clicked
+        // (older versions are separate prompts sharing one assistantId).
+        const updatedPrompts = promptsAfterAssistantDelete(promptsRef.current, p);
+        homeDispatch({ field: 'prompts', value: updatedPrompts });
+        savePrompts(updatedPrompts);
+
+        // A deleted assistant must not stay selected, or the next send routes an
+        // assistantId the backend can no longer resolve.
+        if (isSelectedAssistantDeleted(selectedAssistant, p)) {
+            homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+        }
+
+        // Only reached once the delete actually persisted, so this confirms the real thing.
+        toast.success(`${p.name} deleted`);
+    };
+
+    // Derive the access-type badge for a row: Private / Shared / URL
+    const getAccessBadge = (p: Prompt): { label: string; bg: string; color: string } => {
+        const def = p.data?.assistant?.definition as AssistantDefinition | undefined;
+        const astPath = def?.astPath || (def?.data?.astPath as string | undefined);
+        const astPathData = def?.data?.astPathData as AstPathData | undefined;
+        if (!astPath) {
+            return { label: 'Private', bg: 'var(--bg-active)', color: 'var(--text-muted)' };
+        }
+        if (astPathData?.isPublic === false) {
+            return {
+                label: 'Shared',
+                bg: 'rgba(217,119,87,0.12)',
+                color: 'var(--accent)',
+            };
+        }
+        return { label: 'URL', bg: 'rgba(58,167,100,0.12)', color: '#3aa764' };
+    };
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Header row */}
+            <div
+                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
+                style={{ borderColor: 'var(--border-subtle)' }}
+            >
+                <SearchInput value={search} onChange={setSearch} placeholder="Search assistants…" />
+                <button
+                    onClick={handleNewAssistantClick}
+                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: 'var(--accent)' }}
+                >
+                    <IconPlus size={14} />
+                    New Assistant
+                </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto px-3 py-2">
+                {filtered.length === 0 ? (
+                    !search ? (
+                        <EmptyState
+                            message="No assistants yet"
+                            subMessage="Create your first assistant to get started"
+                            onAction={handleNewAssistantClick}
+                            actionLabel="Create your first assistant"
+                        />
+                    ) : (
+                        <EmptyState message="No assistants match your search" />
+                    )
+                ) : (
+                    filtered.map((p: Prompt, i: number) => (
+                        <React.Fragment key={p.id}>
+                        {(i === 0 || alphaGroupKey(p.name) !== alphaGroupKey(filtered[i - 1].name)) && <LetterDivider letter={alphaGroupKey(p.name)} />}
+                        <AssistantRow
+                            capabilities={getAssistantCapabilities(p)}
+                            customIcon={promptIconRef(p)}
+                            name={p.name}
+                            description={p.description}
+                            accessBadge={getAccessBadge(p)}
+                            sharedBy={shareProvenance(p) ? `Shared by ${resolveSharedBy(shareProvenance(p)!.sharedBy)}` : p.data?.noEdit ? 'Shared with you' : undefined}
+                            onClick={() => handleStartConversation(p)}
+                            onPreview={isReceivedSharedAssistant(p) ? (e) => { e.stopPropagation(); setPreviewPrompt(p); } : undefined}
+                            onCopy={isReceivedSharedAssistant(p) ? (e) => {
+                                e.stopPropagation();
+                                openCopyAssistant(p, shareProvenance(p)!);
+                            } : undefined}
+                            onHide={isReceivedSharedAssistant(p) ? (e) => {
+                                e.stopPropagation();
+                                setPromptToHide(p);
+                            } : undefined}
+                            onDuplicate={p.data?.noEdit || isReceivedSharedAssistant(p) ? undefined : (e) => handleDuplicateAssistant(e, p)}
+                            onEdit={p.data?.noEdit ? undefined : (e) => handleEditAssistant(e, p)}
+                            onShare={p.data?.noShare ? undefined : (e) => handleShareAssistant(e, p)}
+                            onDelete={p.data?.noDelete ? undefined : (e) => {
+                                e.stopPropagation();
+                                setConfirmDeleteAssistant(p);
+                            }}
+                            isDeleting={deletingPromptId === p.id}
+                        />
+                        </React.Fragment>
+                    ))
+                )}
+            </div>
+            {/* Blocks the list while the backend delete is in flight so it can't double-fire */}
+            <NewUILoadingStatus open={!!deletingPromptId} message="Deleting assistant…" />
+
+            {/* Create new assistant modal */}
+            {showCreationModal && (
+                <NewUIAssistantCreationModal
+                    onClose={() => setShowCreationModal(false)}
+                />
+            )}
+
+            {copyingAssistant && (
+                <NewUIAssistantCreationModal
+                    copyingAssistant={copyingAssistant.prompt}
+                    copyProvenance={copyingAssistant.provenance}
+                    onClose={() => setCopyingAssistant(null)}
+                />
+            )}
+
+            {/* Duplicate — same modal as "Make a copy", prefilled from the user's own assistant */}
+            {duplicatingAssistant && (
+                <NewUIAssistantCreationModal
+                    copyingAssistant={duplicatingAssistant}
+                    copyTargetAccess={duplicateTarget}
+                    onClose={() => { setDuplicatingAssistant(null); setDuplicateTarget(undefined); }}
+                />
+            )}
+
+            {previewPrompt && (
+                <AssistantPromptPreview
+                    prompt={previewPrompt}
+                    sharedBy={resolveSharedBy(shareProvenance(previewPrompt)?.sharedBy ?? '')}
+                    note={shareProvenance(previewPrompt)?.note}
+                    onClose={() => setPreviewPrompt(null)}
+                    onCopy={shareProvenance(previewPrompt) ? () => {
+                        openCopyAssistant(previewPrompt, shareProvenance(previewPrompt)!);
+                        setPreviewPrompt(null);
+                    } : undefined}
+                />
+            )}
+
+            {/* Edit existing assistant — new-UI creation modal in edit mode */}
+            {editingAssistant && (
+                <NewUIAssistantCreationModal
+                    editingAssistant={editingAssistant}
+                    onRequestCopy={handleConvertToCopy}
+                    onClose={() => setEditingAssistant(null)}
+                />
+            )}
+
+            {/* Share assistant modal */}
+            {assistantForShare && typeof document !== 'undefined' && ReactDOM.createPortal(
+                <NewUIShareModal
+                    assistantId={assistantForShare.data?.assistant?.definition?.assistantId}
+                    assistantName={assistantForShare.name}
+                    onClose={() => setAssistantForShare(null)}
+                />,
+                document.body
+            )}
+
+            {promptToHide && (
+                <ConfirmDialog
+                    isOpen={!!promptToHide}
+                    title="Hide shared assistant?"
+                    message={
+                        <>
+                            <strong style={{ color: 'var(--text-primary)' }}>{promptToHide.name}</strong> will be hidden from My Assistants on all your devices. This will not delete the original assistant, and you can re-import it from Shared with Me.
+                        </>
+                    }
+                    confirmLabel={hidingSharedAssistant ? 'Hiding…' : 'Hide'}
+                    confirmDisabled={hidingSharedAssistant}
+                    variant="neutral"
+                    onConfirm={() => handleHideSharedAssistant(promptToHide)}
+                    onCancel={() => { if (!hidingSharedAssistant) setPromptToHide(null); }}
+                />
+            )}
+
+            {/* Delete confirmation dialog */}
+            <ConfirmDialog
+                isOpen={!!confirmDeleteAssistant}
+                title="Delete assistant?"
+                message={
+                    <>
+                        Are you sure you want to delete{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>
+                            {confirmDeleteAssistant?.name ?? 'this assistant'}
+                        </strong>
+                        ? This cannot be undone.
+                    </>
+                }
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    const p = confirmDeleteAssistant;
+                    if (p) handleDeleteAssistant(p);
+                    else setConfirmDeleteAssistant(null);
+                }}
+                onCancel={() => setConfirmDeleteAssistant(null)}
+            />
+        </div>
+    );
+};
+
+// ── Tab 1b: Shared with Me ────────────────────────────────────────────────────
+
+const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) => {
+    const {
+        state: { prompts, statsService, availableModels, featureFlags, conversations, folders, amplifyUsers },
+        dispatch: homeDispatch,
+        handleNewConversation,
+        getDefaultModel,
+    } = useContext(HomeContext);
+
+    // Resolve a share identifier (UUID, username, or email) to a human-readable
+    // display name using the amplifyUsers map.  Tries direct lookup first, then a
+    // case-insensitive reverse lookup, then falls back to the raw identifier.
+    const resolveSharedBy = (identifier: string): string => {
+        if (!identifier) return 'Unknown';
+        if (amplifyUsers?.[identifier]) return amplifyUsers[identifier];
+        // Reverse: find the entry whose value matches the identifier
+        const entry = Object.entries(amplifyUsers ?? {}).find(
+            ([, v]) => v?.toLowerCase() === identifier.toLowerCase()
+        );
+        if (entry) return entry[1] || entry[0];
+        return identifier;
+    };
+
+    const promptsRef = useRef(prompts);
+    useEffect(() => { promptsRef.current = prompts; }, [prompts]);
+
+    const { data: session } = useSession();
+    const user = getUserIdentifier(session?.user) ?? '';
+
+    const [search, setSearch] = useState('');
+
+    // ── Pending (not yet imported) share bundles ───────────────────────────
+    const [pendingShares, setPendingShares] = useState<ClassifiedShareItem[] | null>(null);
+    const [pendingLoading, setPendingLoading] = useState(false);
+    const [dismissedSharedAssistantIds, setDismissedSharedAssistantIds] = useState<string[]>(readDismissedSharedAssistantIds);
+    const [pendingError, setPendingError] = useState<string | null>(null);
+    const [importingKey, setImportingKey] = useState<string | null>(null);
+    const [previewLoadingKey, setPreviewLoadingKey] = useState<string | null>(null);
+    const [previewError, setPreviewError] = useState<string | null>(null);
+    const [pendingPreview, setPendingPreview] = useState<{ prompt: Prompt; provenance: ShareProvenance } | null>(null);
+    const [copyingAssistant, setCopyingAssistant] = useState<{ prompt: Prompt; provenance: ShareProvenance } | null>(null);
+
+    // Re-arm the alive ref on every mount (Rule 16 — StrictMode mounts twice).
+    const aliveRef = useRef(true);
+    useEffect(() => {
+        aliveRef.current = true;
+        return () => { aliveRef.current = false; };
+    }, []);
+
+    const loadPendingShares = useCallback(async () => {
+        if (!user) return;
+        setPendingLoading(true);
+        setPendingError(null);
+        try {
+            const classified = await getClassifiedSharedItems(user);
+            if (!aliveRef.current) return;
+            setPendingShares(classified.assistants);
+
+            const dismissedIds = readDismissedSharedAssistantIds();
+            setDismissedSharedAssistantIds(dismissedIds);
+            const promptsWithHiddenImports = promptsRef.current.filter((prompt) =>
+                !isReceivedSharedAssistant(prompt) ||
+                !getSharedAssistantIdentity(prompt).some((id) => dismissedIds.includes(id))
+            );
+            if (promptsWithHiddenImports.length !== promptsRef.current.length) {
+                promptsRef.current = promptsWithHiddenImports;
+                homeDispatch({ field: 'prompts', value: promptsWithHiddenImports });
+                savePrompts(promptsWithHiddenImports);
+            }
+
+            // Migrate imported shares saved before we recorded provenance.
+            let migratedPrompts = promptsRef.current;
+            const hasLegacyImports = migratedPrompts.some((prompt) =>
+                isAssistant(prompt) && prompt.data?.noEdit === true && !shareProvenance(prompt)
+            );
+            if (hasLegacyImports) {
+                // Each share is only ever downloaded once for this scan. Without a record of what
+                // was already examined, a legacy import that never matches any share kept
+                // `hasLegacyImports` true, so every visit re-downloaded every received bundle.
+                const scannedStorageKey = `amplify_legacy_share_scan:${user}`;
+                const scannedShareKeys = readScannedShareKeys(scannedStorageKey);
+                let scannedChanged = false;
+                for (const share of classified.assistants) {
+                    if (scannedShareKeys.has(share.item.key)) continue;
+                    let bundle = share.bundle;
+                    if (!bundle) {
+                        try {
+                            const response = await loadSharedItem(share.item.key);
+                            if (response.success) bundle = JSON.parse(response.item);
+                            scannedShareKeys.add(share.item.key);
+                            scannedChanged = true;
+                        } catch {
+                            // Legacy records remain visible with a generic attribution.
+                            // A failed request is not recorded, so it is retried next time.
+                        }
+                    } else {
+                        scannedShareKeys.add(share.item.key);
+                        scannedChanged = true;
+                    }
+                    if (!bundle) continue;
+                    const sharedPrompts = (bundle.prompts ?? []).filter((prompt) => isAssistant(prompt));
+                    const ids = new Set(sharedPrompts.map((prompt) => prompt.id));
+                    const assistantIds = new Set(sharedPrompts.map((prompt) => prompt.data?.assistant?.definition?.assistantId).filter(Boolean));
+                    migratedPrompts = migratedPrompts.map((prompt) => {
+                        if (!isAssistant(prompt) || shareProvenance(prompt) ||
+                            (!ids.has(prompt.id) && !assistantIds.has(prompt.data?.assistant?.definition?.assistantId))) return prompt;
+                        return {
+                            ...prompt,
+                            data: {
+                                ...prompt.data,
+                                sharedAssistant: {
+                                    sharedBy: share.item.sharedBy,
+                                    sharedAt: share.item.sharedAt,
+                                    note: share.item.note,
+                                    shareIdentity: getSharedShareIdentity(share.item),
+                                    sourcePromptId: prompt.id,
+                                    ...(prompt.data?.assistant?.definition?.assistantId
+                                        ? { sourceAssistantId: prompt.data.assistant.definition.assistantId }
+                                        : {}),
+                                },
+                                noEdit: true,
+                                noCopy: true,
+                                noShare: true,
+                                noDelete: true,
+                            },
+                        };
+                    });
+                }
+                if (scannedChanged) writeScannedShareKeys(scannedStorageKey, scannedShareKeys);
+            }
+            if (migratedPrompts !== promptsRef.current && aliveRef.current) {
+                promptsRef.current = migratedPrompts;
+                homeDispatch({ field: 'prompts', value: migratedPrompts });
+                savePrompts(migratedPrompts);
+            }
+        } catch {
+            invalidateSharedItemsCache();
+            if (aliveRef.current) {
+                setPendingError('Could not load shared assistants. Please try again.');
+                setPendingShares([]);
+            }
+        } finally {
+            if (aliveRef.current) setPendingLoading(false);
+        }
+    }, [user]);
+
+    useEffect(() => {
+        if (pendingShares === null && !pendingLoading) {
+            loadPendingShares();
+        }
+    }, [pendingShares, pendingLoading, loadPendingShares]);
+
+    useEffect(() => {
+        const syncDismissedIds = () => setDismissedSharedAssistantIds(readDismissedSharedAssistantIds());
+        window.addEventListener('storage', syncDismissedIds);
+        return () => window.removeEventListener('storage', syncDismissedIds);
+    }, []);
+
+    // Shared originals remain read-only; imported records are surfaced from My Assistants.
+    const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
+
+    // A pending share is "already imported" if any prompt from its bundle already
+    // exists in state.prompts (match by prompt.id).  Null-bundle items are treated
+    // as not imported (conservative — we can't confirm without the bundle).
+    // Hidden imports are no longer "imported": a sync/reseed may briefly restore
+    // them, so ignore those when deciding what to offer under Pending Imports.
+    const pendingNotImported = useMemo(() => {
+        if (!pendingShares) return [];
+        const activePrompts = prompts.filter((prompt: Prompt) =>
+            !isReceivedSharedAssistant(prompt) ||
+            !getSharedAssistantIdentity(prompt).some((id) => dismissedSharedAssistantIds.includes(id))
+        );
+        const receivedSourceIds = new Set(
+            activePrompts
+                .map((prompt: Prompt) => shareProvenance(prompt)?.sourceAssistantId)
+                .filter((id): id is string => Boolean(id))
+        );
+        const receivedPromptIds = new Set(
+            activePrompts
+                .map((prompt: Prompt) => shareProvenance(prompt)?.sourcePromptId)
+                .filter((id): id is string => Boolean(id))
+        );
+        return pendingShares.filter((csi) => {
+            const alreadyImported = activePrompts.some((prompt: Prompt) => {
+                const provenance = shareProvenance(prompt);
+                return provenance?.sharedBy === csi.item.sharedBy &&
+                    provenance.sharedAt === csi.item.sharedAt &&
+                    provenance.note === csi.item.note;
+            });
+            if (alreadyImported) return false;
+            const shareIdentity = getSharedShareIdentity(csi.item);
+            if (csi.bundle === null) {
+                return !activePrompts.some((prompt: Prompt) =>
+                    isReceivedSharedAssistant(prompt) && getSharedAssistantIdentity(prompt).includes(shareIdentity)
+                );
+            }
+            const assistantPrompts = (csi.bundle.prompts ?? []).filter((prompt) => isAssistant(prompt));
+            const sourceIds = assistantPrompts.map((prompt) => prompt.data?.assistant?.definition?.assistantId).filter(Boolean);
+            const sourcePromptIds = assistantPrompts.map((prompt) => prompt.id);
+            return !sourceIds.some((id) => receivedSourceIds.has(id)) &&
+                !sourcePromptIds.some((id) => receivedPromptIds.has(id));
+        });
+    }, [pendingShares, prompts, dismissedSharedAssistantIds]);
+
+    // ── Search filtering ───────────────────────────────────────────────────
+    const filteredPending = useMemo(() => {
+        if (!search.trim()) return pendingNotImported;
+        const q = search.toLowerCase();
+        return pendingNotImported.filter((csi) =>
+            csi.item.note.toLowerCase().includes(q) ||
+            csi.item.sharedBy.toLowerCase().includes(q) ||
+            resolveSharedBy(csi.item.sharedBy).toLowerCase().includes(q)
+        );
+    }, [pendingNotImported, search]);
+
+    const openPendingPreview = async (csi: ClassifiedShareItem) => {
+        setPreviewError(null);
+        setPreviewLoadingKey(csi.item.key);
+        try {
+            let bundle = csi.bundle;
+            if (!bundle) {
+                const result = await loadSharedItem(csi.item.key);
+                if (!result.success) throw new Error('This share may have been deleted.');
+                bundle = JSON.parse(result.item);
+            }
+            const sharedPrompt = (bundle?.prompts ?? []).find((prompt: Prompt) => isAssistant(prompt));
+            if (!sharedPrompt) throw new Error('This share does not contain an assistant prompt.');
+            const provenance: ShareProvenance = {
+                sharedBy: csi.item.sharedBy,
+                sharedAt: csi.item.sharedAt,
+                note: csi.item.note,
+                shareIdentity: getSharedShareIdentity(csi.item),
+                sourceAssistantId: sharedPrompt.data?.assistant?.definition?.assistantId,
+                sourcePromptId: sharedPrompt.id,
+            };
+            setPendingPreview({ prompt: sharedPrompt, provenance });
+        } catch (error) {
+            setPreviewError(error instanceof Error ? error.message : 'Could not load the shared prompt.');
+        } finally {
+            setPreviewLoadingKey(null);
+        }
+    };
+
+    const handleStartConversation = (p: Prompt) => {
+        if (isAssistant(p) && p.data) {
+            homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
+        }
+        statsService.startConversationEvent(p);
+        // New-UI variant: names the chat 'New Conversation' so it stays out of the
+        // sidebar / Chats list until the first message is sent (the classic util
+        // names it "Chat with <name> <timestamp>"). Applies the custom instruction itself.
+        startConversationWithTemplate(
+            handleNewConversation,
+            homeDispatch,
+            promptsRef.current,
+            p,
+            availableModels,
+        );
+        homeDispatch({ field: 'page', value: 'chat' });
+    };
+
+    const handleImportPendingShare = async (csi: ClassifiedShareItem) => {
+        setImportingKey(csi.item.key);
+        try {
+            // Load bundle if not already in memory.
+            let bundle = csi.bundle;
+            if (!bundle) {
+                const res = await loadSharedItem(csi.item.key);
+                if (!res.success) {
+                    toast.error('Could not load this share — it may have been deleted.');
+                    return;
+                }
+                bundle = JSON.parse(res.item);
+            }
+            if (!bundle) return;
+            if (!bundle.prompts?.some((prompt) => isAssistant(prompt))) {
+                toast.error('This share does not contain an assistant.');
+                return;
+            }
+
+            const defaultModel = getDefaultModel(DefaultModels.DEFAULT);
+            const merged = importData(bundle, conversations, promptsRef.current, folders, defaultModel);
+
+            // importData puts oldPrompts first when deduplicating by id, so a
+            // server-synced version (which may have noEdit:false if syncAssistants ran
+            // before this import) can silently win.  Force noEdit:true on every prompt
+            // that came from this share bundle so it always lands in "Shared with Me".
+            const bundlePromptIds = new Set((bundle.prompts ?? []).map((p) => p.id));
+            const finalPrompts = merged.prompts.map((p: Prompt) => {
+                if (bundlePromptIds.has(p.id) && isAssistant(p)) {
+                    const sourceAssistantId = p.data?.assistant?.definition?.assistantId;
+                    const provenance: ShareProvenance = {
+                        sharedBy: csi.item.sharedBy,
+                        sharedAt: csi.item.sharedAt,
+                        note: csi.item.note,
+                        shareIdentity: getSharedShareIdentity(csi.item),
+                        ...(sourceAssistantId ? { sourceAssistantId } : {}),
+                        sourcePromptId: p.id,
+                    };
+                    return {
+                        ...p,
+                        data: {
+                            ...p.data,
+                            sharedAssistant: provenance,
+                            noEdit: true,
+                            noCopy: true,
+                            noShare: true,
+                            noDelete: true,
+                        },
+                    };
+                }
+                return p;
+            });
+
+            // Re-importing a previously hidden share un-hides it on all devices.
+            const reimportedIds = new Set(finalPrompts
+                .filter((p: Prompt) => bundlePromptIds.has(p.id) && isAssistant(p))
+                .flatMap((p: Prompt) => getSharedAssistantIdentity(p)));
+            const currentDismissed = readDismissedSharedAssistantIds();
+            const remainingDismissed = currentDismissed.filter((id) => !reimportedIds.has(id));
+            if (remainingDismissed.length !== currentDismissed.length) {
+                const saved = await saveDisplayPrefsToServer({ dismissedSharedAssistantIds: remainingDismissed });
+                if (!saved) {
+                    try {
+                        const settings = JSON.parse(localStorage.getItem('settings') || '{}');
+                        settings.dismissedSharedAssistantIds = currentDismissed;
+                        localStorage.setItem('settings', JSON.stringify(settings));
+                    } catch {
+                        // The server remains authoritative if local storage is unavailable.
+                    }
+                    toast.error('Could not import this assistant. Please try again.');
+                    return;
+                }
+                setDismissedSharedAssistantIds(remainingDismissed);
+            }
+
+            homeDispatch({ field: 'conversations', value: merged.history });
+            saveConversations(merged.history);
+            homeDispatch({ field: 'folders', value: merged.folders });
+            saveFolders(merged.folders);
+            homeDispatch({ field: 'prompts', value: finalPrompts });
+            savePrompts(finalPrompts);
+
+            const importedName = bundle.prompts?.find((p) => isAssistant(p))?.name;
+            toast.success(`${importedName ? `"${importedName}"` : 'Assistant'} imported. You can find it in My Assistants.`);
+
+            // Invalidate cache so Pending Imports refreshes, then show My Assistants.
+            invalidateSharedItemsCache();
+            setPendingShares(null);
+            onImported?.();
+        } catch {
+            toast.error('An unexpected error occurred. Please try again.');
+        } finally {
+            setImportingKey(null);
+        }
+    };
+
+    const nothingAtAll = filteredPending.length === 0;
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Header row */}
+            <div
+                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
+                style={{ borderColor: 'var(--border-subtle)' }}
+            >
+                <SearchInput
+                    value={search}
+                    onChange={setSearch}
+                    placeholder="Search shared assistants…"
+                />
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto px-3 py-2">
+                {/* Error state for pending load */}
+                {pendingError && (
+                    <div
+                        className="flex items-center gap-2 px-4 py-3 mb-3 rounded-[8px] border"
+                        style={{ background: 'var(--bg-raised)', borderColor: 'var(--border-subtle)' }}
+                    >
+                        <span className="text-[13px] flex-1" style={{ color: 'var(--text-secondary)' }}>
+                            {pendingError}
+                        </span>
+                        <button
+                            onClick={() => { setPendingShares(null); setPendingError(null); }}
+                            className="text-[13px] font-medium hover:opacity-80 transition-opacity flex-shrink-0"
+                            style={{ color: 'var(--accent)' }}
+                        >
+                            Retry
+                        </button>
+                    </div>
+                )}
+
+                {previewError && (
+                    <div className="mx-3 mt-2 rounded-[8px] border px-3 py-2 text-[12px]" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-error)' }} role="alert">
+                        {previewError}
+                    </div>
+                )}
+
+                <NewUILoadingStatus
+                    open={pendingLoading}
+                    variant="inline"
+                    message="Loading shared assistants…"
+                />
+
+                {previewError && (
+                    <div className="mx-3 mt-2 rounded-[8px] border px-3 py-2 text-[12px]" style={{ borderColor: 'var(--border-subtle)', color: 'var(--text-error)' }} role="alert">
+                        {previewError}
+                    </div>
+                )}
+
+                {pendingPreview && (
+                    <AssistantPromptPreview
+                        prompt={pendingPreview.prompt}
+                        sharedBy={resolveSharedBy(pendingPreview.provenance.sharedBy)}
+                        note={pendingPreview.provenance.note}
+                        onClose={() => setPendingPreview(null)}
+                        onCopy={() => {
+                            setCopyingAssistant({ prompt: pendingPreview.prompt, provenance: pendingPreview.provenance });
+                            setPendingPreview(null);
+                        }}
+                    />
+                )}
+                {copyingAssistant && (
+                    <NewUIAssistantCreationModal
+                        copyingAssistant={copyingAssistant.prompt}
+                        copyProvenance={copyingAssistant.provenance}
+                        onClose={() => setCopyingAssistant(null)}
+                    />
+                )}
+
+                {/* Both sections empty → global empty state */}
+                {!pendingLoading && pendingShares !== null && nothingAtAll && !pendingError && (
+                    !search ? (
+                        <EmptyState
+                            message="No shared assistants"
+                            subMessage="Assistants that others share with you will appear here"
+                        />
+                    ) : (
+                        <EmptyState message="No shared assistants match your search" />
+                    )
+                )}
+
+                {/* ── Pending imports section ── */}
+                {!pendingLoading && filteredPending.length > 0 && (
+                    <div>
+                        <SectionHeading label="Pending Imports" count={filteredPending.length} />
+                        {filteredPending.map((csi) => {
+                            const isImporting = importingKey === csi.item.key;
+                            return (
+                                <div
+                                    key={csi.item.key}
+                                    className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] transition-colors duration-100"
+                                    style={{ backgroundColor: 'transparent' }}
+                                    onMouseEnter={(e) => {
+                                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                                    }}
+                                >
+                                    {/* Icon square */}
+                                    <div
+                                        className="flex-shrink-0 flex items-center justify-center w-10 h-10 rounded-[8px]"
+                                        style={{ backgroundColor: 'var(--bg-raised)' }}
+                                    >
+                                        <IconShare size={18} style={{ color: 'var(--text-muted)' }} />
+                                    </div>
+
+                                    {/* Content */}
+                                    <div className="flex-1 min-w-0">
+                                        <p
+                                            className="text-[14px] font-medium truncate"
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            {csi.item.note || 'Untitled share'}
+                                        </p>
+                                        <p
+                                            className="text-[12px] truncate"
+                                            style={{ color: 'var(--text-secondary)' }}
+                                        >
+                                            Shared by {resolveSharedBy(csi.item.sharedBy)}
+                                        </p>
+                                    </div>
+
+                                    <button
+                                        onClick={() => void openPendingPreview(csi)}
+                                        disabled={previewLoadingKey === csi.item.key}
+                                        aria-label={`View prompt for ${csi.item.note || 'shared assistant'}`}
+                                        className="flex-shrink-0 flex items-center gap-1.5 h-[28px] px-3 rounded-[6px] text-[12px] font-medium"
+                                        style={{ color: 'var(--text-secondary)', background: 'var(--bg-active)' }}
+                                    >
+                                        {previewLoadingKey === csi.item.key ? <IconLoader2 size={12} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={13} />}
+                                        View prompt
+                                    </button>
+                                    {/* Import button */}
+                                    <button
+                                        onClick={() => !isImporting && handleImportPendingShare(csi)}
+                                        disabled={!!importingKey}
+                                        aria-label={`Import assistant from ${resolveSharedBy(csi.item.sharedBy)}`}
+                                        className="flex-shrink-0 flex items-center gap-1.5 h-[28px] px-3 rounded-[6px] text-[12px] font-medium transition-colors"
+                                        style={{
+                                            background: isImporting ? 'var(--bg-active)' : 'var(--accent)',
+                                            color: isImporting ? 'var(--text-muted)' : 'var(--accent-fg)',
+                                            cursor: importingKey ? 'default' : 'pointer',
+                                            opacity: importingKey && !isImporting ? 0.5 : 1,
+                                        }}
+                                    >
+                                        {isImporting ? (
+                                            <IconLoader2
+                                                size={12}
+                                                className="motion-safe:animate-spin motion-reduce:animate-none"
+                                            />
+                                        ) : (
+                                            'Import →'
+                                        )}
+                                    </button>
+                                </div>
+                            );
+                        })}
+                    </div>
+                )}
+
+            </div>
+        </div>
+    );
+};
+
+// ── Tab 2: Group Assistants ───────────────────────────────────────────────────
+
+const GroupAssistantsTab: React.FC = () => {
+    const {
+        state: { groups, prompts, statsService, featureFlags, availableModels, selectedAssistant },
+        dispatch: homeDispatch,
+        handleNewConversation,
+    } = useContext(HomeContext);
+
+    const promptsRef = useRef(prompts);
+    useEffect(() => { promptsRef.current = prompts; }, [prompts]);
+
+    const groupsRef = useRef(groups);
+    useEffect(() => { groupsRef.current = groups; }, [groups]);
+
+    // Unified creation modal for new group assistants
+    const [showGroupCreationModal, setShowGroupCreationModal] = useState(false);
+    // Edit a group assistant in the unified creation modal (edit mode + Group settings)
+    const [editingGroupAssistant, setEditingGroupAssistant] = useState<Prompt | null>(null);
+    // The editor can't turn a group assistant into a regular one: it hands the source here and we
+    // open the same copy modal Duplicate uses, preselected to the kind the user asked for.
+    const [groupAssistantCopy, setGroupAssistantCopy] = useState<{ source: Prompt; target: AssistantAccessType } | null>(null);
+    // Dashboard + conversations for one group assistant
+    const [insightsFor, setInsightsFor] = useState<{ group: Group; assistant: Prompt } | null>(null);
+    const [confirmDeleteGroupAst, setConfirmDeleteGroupAst] = useState<{ group: Group; assistant: Prompt } | null>(null);
+    const [deletingGroupAstId, setDeletingGroupAstId] = useState<string | null>(null);
+    // New-UI group management modal (gear icon on group header)
+    const [managingGroup, setManagingGroup] = useState<Group | null>(null);
+
+    const { data: session } = useSession();
+    const userIdentifier = getUserIdentifier(session?.user);
+
+    const [search, setSearch] = useState('');
+
+    const hasAdminAccess = (group: Group) => {
+        if (!userIdentifier) return false;
+        const access = group.members?.[userIdentifier];
+        return access === GroupAccessType.ADMIN || access === GroupAccessType.WRITE;
+    };
+
+    /**
+     * Delete a group assistant for real. Like the My Assistants delete, the backend call comes first
+     * and the row only leaves local state once it succeeds (Guide §5 rule 24) — group assistants are
+     * removed through the groups API, which also drops them from the group's list.
+     */
+    const handleDeleteGroupAssistant = async (group: Group, p: Prompt) => {
+        setConfirmDeleteGroupAst(null);
+        const assistantId = getDeletableAssistantId(p);
+        if (!assistantId) {
+            toast.error(`${p.name} can’t be deleted because it has no assistant id.`);
+            return;
+        }
+        setDeletingGroupAstId(p.id);
+        let deleted = false;
+        try {
+            const result = await updateGroupAssistants({
+                group_id: group.id,
+                update_type: GroupUpdateType.REMOVE,
+                assistants: [assistantId],
+            });
+            deleted = !!result?.success;
+        } catch (e) {
+            console.error('Failed to delete group assistant:', e);
+        } finally {
+            setDeletingGroupAstId(null);
+        }
+        if (!deleted) {
+            toast.error(`Failed to delete ${p.name}. Please try again.`);
+            return;
+        }
+
+        statsService.deletePromptEvent(p);
+        homeDispatch({
+            field: 'groups',
+            value: groupsRef.current.map((g: Group) =>
+                g.id === group.id
+                    ? { ...g, assistants: (g.assistants ?? []).filter((a: Prompt) => getDeletableAssistantId(a) !== assistantId) }
+                    : g,
+            ),
+        });
+        const updatedPrompts = promptsAfterAssistantDelete(promptsRef.current, p);
+        homeDispatch({ field: 'prompts', value: updatedPrompts });
+        savePrompts(updatedPrompts);
+        if (isSelectedAssistantDeleted(selectedAssistant, p)) {
+            homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+        }
+        toast.success(`${p.name} deleted`);
+    };
+
+    const handleStartConversation = (p: Prompt) => {
+        if (isAssistant(p) && p.data) {
+            homeDispatch({ field: 'selectedAssistant', value: p.data.assistant });
+        }
+        statsService.startConversationEvent(p);
+        // New-UI variant: names the chat 'New Conversation' so it stays out of the
+        // sidebar / Chats list until the first message is sent (the classic util
+        // names it "Chat with <name> <timestamp>"). Applies the custom instruction itself.
+        startConversationWithTemplate(
+            handleNewConversation,
+            homeDispatch,
+            promptsRef.current,
+            p,
+            availableModels,
+        );
+        homeDispatch({ field: 'page', value: 'chat' });
+    };
+
+    const handleStartLayeredConversation = (la: LayeredAssistant) => {
+        if (!la.assistantId) return;
+        const syntheticAssistant: Assistant = {
+            id: la.assistantId,
+            definition: {
+                name: la.name,
+                description: la.description,
+                assistantId: la.assistantId,
+                instructions: '',
+                tools: [],
+                tags: [],
+                fileKeys: [],
+                dataSources: [],
+                provider: AssistantProviderID.AMPLIFY,
+                data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
+            },
+        };
+        handleNewConversation({
+            prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
+            assistant: syntheticAssistant,
+        });
+        homeDispatch({ field: 'page', value: 'chat' });
+    };
+
+    // ── Layered assistants of a group ───────────────────────────────────────
+    const [layeredBuilder, setLayeredBuilder] = useState<{ group: Group; initial?: LayeredAssistant } | null>(null);
+    const [layeredInsights, setLayeredInsights] = useState<{ group: Group; la: LayeredAssistant } | null>(null);
+    const [confirmDeleteGroupLA, setConfirmDeleteGroupLA] = useState<{ group: Group; la: LayeredAssistant } | null>(null);
+    const [deletingGroupLAId, setDeletingGroupLAId] = useState<string | null>(null);
+
+    // Admins must see/manage ALL of a group's assistants (including hidden ones), so editors get the
+    // unfiltered group from context, not the display-filtered copy the list renders from.
+    const originalGroup = (group: Group): Group => groupsRef.current.find((g: Group) => g.id === group.id) ?? group;
+
+    /** Group layered assistants are written through the groups API; the id and timestamp come back. */
+    const saveGroupLayered = async (group: Group, la: LayeredAssistant): Promise<LayeredAssistant | null> => {
+        try {
+            const withGroup: LayeredAssistant = { ...la, groupId: group.id };
+            const result = await saveGroupLayeredAssistant(group.id, withGroup);
+            if (!(result?.success && result.data?.assistantId)) return null;
+            const saved: LayeredAssistant = {
+                ...withGroup,
+                assistantId: result.data.assistantId,
+                updatedAt: result.data.updatedAt,
+                astPath: la.astPath,
+                astPathData: la.astPathData,
+            };
+            const updatedGroups = groupsRef.current.map((g: Group) => {
+                if (g.id !== group.id) return g;
+                const existing = g.layeredAssistants ?? [];
+                const has = existing.some((x: LayeredAssistant) => x.assistantId === saved.assistantId);
+                return { ...g, layeredAssistants: has ? existing.map((x: LayeredAssistant) => (x.assistantId === saved.assistantId ? saved : x)) : [...existing, saved] };
+            });
+            // The builder may save twice in one session (new + publish link); the second save must see the first.
+            groupsRef.current = updatedGroups;
+            homeDispatch({ field: 'groups', value: updatedGroups });
+            return saved;
+        } catch (e) {
+            console.error('Failed to save group layered assistant:', e);
+            return null;
+        }
+    };
+
+    /** Backend first; the row only leaves local state once the delete persisted (Guide §5 rule 24). */
+    const handleDeleteGroupLayered = async (group: Group, la: LayeredAssistant) => {
+        setConfirmDeleteGroupLA(null);
+        if (!la.assistantId) return;
+        setDeletingGroupLAId(la.assistantId);
+        let deleted = false;
+        try {
+            const result = await deleteGroupLayeredAssistant(group.id, la.assistantId);
+            deleted = !!result?.success;
+        } catch (e) {
+            console.error('Failed to delete group layered assistant:', e);
+        } finally {
+            setDeletingGroupLAId(null);
+        }
+        if (!deleted) {
+            toast.error(`Failed to delete ${la.name}. Please try again.`);
+            return;
+        }
+        const updatedGroups = groupsRef.current.map((g: Group) =>
+            g.id === group.id ? { ...g, layeredAssistants: (g.layeredAssistants ?? []).filter((x: LayeredAssistant) => x.assistantId !== la.assistantId) } : g,
+        );
+        groupsRef.current = updatedGroups;
+        homeDispatch({ field: 'groups', value: updatedGroups });
+        if (selectedAssistant?.definition?.assistantId === la.assistantId) {
+            homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+        }
+        toast.success(`${la.name} deleted`);
+    };
+
+    // Mirrors Promptbar.tsx's visiblePrompts filter: hide prompts/assistants marked
+    // data.hidden unless featureFlags.overrideInvisiblePrompts is set.
+    const isVisible = (p: Prompt) => featureFlags.overrideInvisiblePrompts || !p.data?.hidden;
+
+    const filteredGroups = useMemo(() => {
+        return groups
+            .map((group: Group) => ({
+                ...group,
+                assistants: (group.assistants ?? []).filter(isVisible),
+            }))
+            .filter((group: Group) => {
+                const hasAssistants = group.assistants && group.assistants.length > 0;
+                const hasLAs = group.layeredAssistants && group.layeredAssistants.length > 0;
+                const isAdmin = hasAdminAccess(group);
+                if (!hasAssistants && !hasLAs && !isAdmin) return false;
+
+                if (!search.trim()) return true;
+                const q = search.toLowerCase();
+                return (
+                    group.name.toLowerCase().includes(q) ||
+                    group.assistants.some((a: Prompt) =>
+                        a.name.toLowerCase().includes(q) ||
+                        (a.description && a.description.toLowerCase().includes(q))
+                    ) ||
+                    (group.layeredAssistants?.some((la: LayeredAssistant) =>
+                        la.name.toLowerCase().includes(q) ||
+                        (la.description && la.description.toLowerCase().includes(q))
+                    ) ?? false)
+                );
+            });
+    }, [groups, search, userIdentifier, featureFlags]);
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Header */}
+            <div
+                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
+                style={{ borderColor: 'var(--border-subtle)' }}
+            >
+                <SearchInput value={search} onChange={setSearch} placeholder="Search groups…" />
+                <button
+                    onClick={() => setShowGroupCreationModal(true)}
+                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: 'var(--accent)' }}
+                >
+                    <IconPlus size={14} />
+                    New Assistant
+                </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto px-3 py-2">
+                {filteredGroups.length === 0 ? (
+                    <EmptyState
+                        message={search ? 'No group assistants match your search' : 'No group assistants available'}
+                    />
+                ) : (
+                    filteredGroups.map((group: Group) => {
+                        const gAssistants = search.trim()
+                            ? group.assistants.filter((a: Prompt) => {
+                                const q = search.toLowerCase();
+                                return a.name.toLowerCase().includes(q) ||
+                                    (a.description && a.description.toLowerCase().includes(q));
+                            })
+                            : group.assistants;
+
+                        const gLAs = search.trim()
+                            ? (group.layeredAssistants || []).filter((la: LayeredAssistant) => {
+                                const q = search.toLowerCase();
+                                return la.name.toLowerCase().includes(q) ||
+                                    (la.description && la.description.toLowerCase().includes(q));
+                            })
+                            : (group.layeredAssistants || []);
+
+                        const isAdmin = hasAdminAccess(group);
+                        const total = gAssistants.length + gLAs.length;
+
+                        return (
+                            <div key={group.id} className="mb-4">
+                                {/* Group section header */}
+                                <div
+                                    className="flex items-center justify-between px-3 py-2 rounded-[8px]"
+                                    style={{ backgroundColor: 'var(--bg-raised)' }}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <IconUsers size={15} style={{ color: 'var(--text-muted)' }} />
+                                        <span
+                                            className="text-[13px] font-semibold"
+                                            style={{ color: 'var(--text-primary)' }}
+                                        >
+                                            {group.name}
+                                        </span>
+                                        <span
+                                            className="text-[11px] px-1.5 py-0.5 rounded-full"
+                                            style={{
+                                                backgroundColor: 'var(--bg-hover)',
+                                                color: 'var(--text-muted)',
+                                            }}
+                                        >
+                                            {total}
+                                        </span>
+                                    </div>
+                                    {isAdmin && (
+                                      <div className="flex items-center gap-1">
+                                        {featureFlags.assistantAdminInterface && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setLayeredBuilder({ group: originalGroup(group) })}
+                                                className="flex items-center gap-1 h-[26px] px-2 rounded-[6px] text-[12px] transition-colors hover:bg-[--bg-active] hover:text-[--text-primary] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+                                                style={{ color: 'var(--text-muted)' }}
+                                                title={`Add a layered assistant to ${group.name}`}
+                                                aria-label={`Add a layered assistant to ${group.name}`}
+                                            >
+                                                <IconGitBranch size={13} />
+                                                <IconPlus size={11} />
+                                            </button>
+                                        )}
+                                        <button
+                                            onClick={() => {
+                                                setManagingGroup(originalGroup(group));
+                                            }}
+                                            className="flex items-center justify-center h-[26px] w-[26px] rounded-[6px] transition-colors"
+                                            style={{ color: 'var(--text-muted)' }}
+                                            onMouseEnter={(e) => {
+                                                (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
+                                                (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                                                (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                                            }}
+                                            title="Manage Group"
+                                        >
+                                            <IconSettings size={14} />
+                                        </button>
+                                      </div>
+                                    )}
+                                </div>
+
+                                {/* Assistants */}
+                                <div className="pl-2 mt-1">
+                                    {gAssistants.map((a: Prompt) => (
+                                        <AssistantRow
+                                            key={a.id}
+                                            customIcon={promptIconRef(a)}
+                                            name={a.name}
+                                            description={a.description}
+                                            onClick={() => handleStartConversation(a)}
+                                            onEdit={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
+                                                e.stopPropagation();
+                                                setEditingGroupAssistant(a);
+                                            } : undefined}
+                                            onInsights={featureFlags.assistantAdminInterface && isAdmin &&
+                                                canViewInsights(group, (a.data?.assistant?.definition?.data ?? a.data) as { supportConvAnalysis?: boolean })
+                                                ? (e) => {
+                                                    e.stopPropagation();
+                                                    setInsightsFor({ group, assistant: a });
+                                                } : undefined}
+                                            onDelete={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
+                                                e.stopPropagation();
+                                                setConfirmDeleteGroupAst({ group, assistant: a });
+                                            } : undefined}
+                                            isDeleting={deletingGroupAstId === a.id}
+                                        />
+                                    ))}
+                                    {gLAs.map((la: LayeredAssistant) => (
+                                        <AssistantRow
+                                            key={la.assistantId ?? la.name}
+                                            customIcon={layeredIconRef(la)}
+                                            icon={<IconGitBranch size={18} style={{ color: 'var(--text-muted)' }} />}
+                                            name={la.name}
+                                            description={la.description}
+                                            onClick={() => handleStartLayeredConversation(la)}
+                                            onEdit={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
+                                                e.stopPropagation();
+                                                setLayeredBuilder({ group: originalGroup(group), initial: la });
+                                            } : undefined}
+                                            onInsights={featureFlags.assistantAdminInterface && isAdmin && la.assistantId &&
+                                                canViewInsights(group, readLayeredSettings(la))
+                                                ? (e) => {
+                                                    e.stopPropagation();
+                                                    setLayeredInsights({ group: originalGroup(group), la });
+                                                } : undefined}
+                                            onDelete={featureFlags.assistantAdminInterface && isAdmin ? (e) => {
+                                                e.stopPropagation();
+                                                setConfirmDeleteGroupLA({ group, la });
+                                            } : undefined}
+                                            isDeleting={deletingGroupLAId === la.assistantId}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        );
+                    })
+                )}
+            </div>
+
+            {/* Unified creation modal for new group assistants */}
+            {showGroupCreationModal && (
+                <NewUIAssistantCreationModal
+                    onClose={() => setShowGroupCreationModal(false)}
+                />
+            )}
+
+            {/* Edit a group assistant — unified creation modal in edit mode */}
+            {editingGroupAssistant && (
+                <NewUIAssistantCreationModal
+                    editingAssistant={editingGroupAssistant}
+                    onRequestCopy={(source, target) => {
+                        setEditingGroupAssistant(null);
+                        setGroupAssistantCopy({ source, target });
+                    }}
+                    onManageGroup={(group) => {
+                        // One modal at a time: swap the editor for the group's settings (unfiltered group, as the gear does).
+                        setEditingGroupAssistant(null);
+                        setManagingGroup(originalGroup(group));
+                    }}
+                    onClose={() => setEditingGroupAssistant(null)}
+                />
+            )}
+
+            {/* "Make a copy as a regular assistant" — same modal Duplicate uses */}
+            {groupAssistantCopy && (
+                <NewUIAssistantCreationModal
+                    copyingAssistant={groupAssistantCopy.source}
+                    copyTargetAccess={groupAssistantCopy.target}
+                    onClose={() => setGroupAssistantCopy(null)}
+                />
+            )}
+
+            {layeredBuilder && (
+                <NewLayeredAssistantBuilder
+                    group={layeredBuilder.group}
+                    initialData={layeredBuilder.initial}
+                    onSave={(la) => saveGroupLayered(layeredBuilder.group, la)}
+                    onClose={() => setLayeredBuilder(null)}
+                />
+            )}
+
+            {layeredInsights && (
+                <NewGroupAssistantInsightsModal
+                    group={layeredInsights.group}
+                    layeredAssistant={layeredInsights.la}
+                    onClose={() => setLayeredInsights(null)}
+                />
+            )}
+
+            <ConfirmDialog
+                isOpen={!!confirmDeleteGroupLA}
+                title="Delete layered assistant?"
+                message={
+                    <>
+                        <strong style={{ color: 'var(--text-primary)' }}>{confirmDeleteGroupLA?.la.name}</strong>{' '}
+                        will be removed for everyone in{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>{confirmDeleteGroupLA?.group.name}</strong>. This cannot be undone.
+                    </>
+                }
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    const target = confirmDeleteGroupLA;
+                    if (target) handleDeleteGroupLayered(target.group, target.la);
+                    else setConfirmDeleteGroupLA(null);
+                }}
+                onCancel={() => setConfirmDeleteGroupLA(null)}
+            />
+
+            {insightsFor && (
+                <NewGroupAssistantInsightsModal
+                    group={insightsFor.group}
+                    assistant={insightsFor.assistant}
+                    onClose={() => setInsightsFor(null)}
+                />
+            )}
+
+            <ConfirmDialog
+                isOpen={!!confirmDeleteGroupAst}
+                title="Delete group assistant?"
+                message={
+                    <>
+                        <strong style={{ color: 'var(--text-primary)' }}>{confirmDeleteGroupAst?.assistant.name}</strong>{' '}
+                        will be removed for everyone in{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>{confirmDeleteGroupAst?.group.name}</strong>. This cannot be undone.
+                    </>
+                }
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    const target = confirmDeleteGroupAst;
+                    if (target) handleDeleteGroupAssistant(target.group, target.assistant);
+                    else setConfirmDeleteGroupAst(null);
+                }}
+                onCancel={() => setConfirmDeleteGroupAst(null)}
+            />
+
+            {/* New-UI group management modal (gear icon) */}
+            {managingGroup && (
+                <NewGroupManagementModal
+                    group={managingGroup}
+                    onClose={() => setManagingGroup(null)}
+                />
+            )}
+        </div>
+    );
+};
+
+// ── Tab 3 (was Tab 4): Layered Assistants ────────────────────────────────────
+// NOTE: Prompt Templates tab was removed from this view (Phase N).
+// It now lives in Settings → Customize → Prompt Templates (PromptTemplatesSection.tsx).
+
+const LayeredAssistantsTab: React.FC = () => {
+    const {
+        state: { layeredAssistants, syncingLayeredAssistants },
+        dispatch: homeDispatch,
+        handleNewConversation,
+    } = useContext(HomeContext);
+
+    const [search, setSearch] = useState('');
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [confirmDeleteLA, setConfirmDeleteLA] = useState<LayeredAssistant | null>(null);
+    // The New UI layered-assistant builder: `{}` = create, `{ initial }` = edit.
+    const [builder, setBuilder] = useState<{ initial?: LayeredAssistant } | null>(null);
+    // The builder can save twice in one session (new + publish link), so read the latest list.
+    const layeredRef = useRef(layeredAssistants);
+    useEffect(() => { layeredRef.current = layeredAssistants; }, [layeredAssistants]);
+
+    const filtered = useMemo(() => {
+        if (!search.trim()) return layeredAssistants;
+        const q = search.toLowerCase();
+        return layeredAssistants.filter((la: LayeredAssistant) =>
+            la.name.toLowerCase().includes(q) ||
+            (la.description && la.description.toLowerCase().includes(q))
+        );
+    }, [layeredAssistants, search]);
+
+    /** Persist a personal layered assistant; returns the saved record (with its id) or null on failure. */
+    const handleSave = async (la: LayeredAssistant): Promise<LayeredAssistant | null> => {
+        try {
+            const result = await saveLayeredAssistant(la);
+            if (!(result?.success && result.data?.assistantId)) return null;
+            const saved: LayeredAssistant = { ...la, assistantId: result.data.assistantId };
+            const current: LayeredAssistant[] = layeredRef.current;
+            const updated = current.some((x) => x.assistantId === saved.assistantId)
+                ? current.map((x) => (x.assistantId === saved.assistantId ? saved : x))
+                : [...current, saved];
+            layeredRef.current = updated;
+            homeDispatch({ field: 'layeredAssistants', value: updated });
+            return saved;
+        } catch (e) {
+            console.error('Failed to save layered assistant:', e);
+            return null;
+        }
+    };
+
+    const handleSelect = (la: LayeredAssistant) => {
+        if (!la.assistantId) return;
+        const syntheticAssistant: Assistant = {
+            id: la.assistantId,
+            definition: {
+                name: la.name,
+                description: la.description,
+                assistantId: la.assistantId,
+                instructions: '',
+                tools: [],
+                tags: [],
+                fileKeys: [],
+                dataSources: [],
+                provider: AssistantProviderID.AMPLIFY,
+                data: { isLayeredAssistant: true, ...(la.model ? { model: la.model } : {}) },
+            },
+        };
+        handleNewConversation({
+            prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
+            assistant: syntheticAssistant,
+        });
+        homeDispatch({ field: 'page', value: 'chat' });
+    };
+
+    const handleEdit = (la: LayeredAssistant) => setBuilder({ initial: la });
+
+    const handleCreateNew = () => setBuilder({});
+
+    const handleDelete = async (la: LayeredAssistant) => {
+        if (!la.assistantId) return;
+        setDeletingId(la.assistantId);
+        try {
+            const result = await deleteLayeredAssistant(la.assistantId);
+            if (result?.success) {
+                homeDispatch({
+                    field: 'layeredAssistants',
+                    value: layeredAssistants.filter((x: LayeredAssistant) => x.assistantId !== la.assistantId),
+                });
+                toast.success(`${la.name} deleted`);
+            } else {
+                // Never remove the row on a failed delete — it would reappear on refresh.
+                toast.error(`Failed to delete ${la.name}. Please try again.`);
+            }
+        } catch (e) {
+            console.error('Failed to delete layered assistant:', e);
+            toast.error(`Failed to delete ${la.name}. Please try again.`);
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
+    return (
+        <div className="flex flex-col h-full overflow-hidden">
+            {/* Header */}
+            <div
+                className="flex items-center justify-between px-6 py-3 flex-shrink-0 border-b"
+                style={{ borderColor: 'var(--border-subtle)' }}
+            >
+                <SearchInput value={search} onChange={setSearch} placeholder="Search layered assistants…" />
+                <button
+                    onClick={handleCreateNew}
+                    className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium text-white transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: 'var(--accent)' }}
+                >
+                    <IconPlus size={14} />
+                    New Layered Assistant
+                </button>
+            </div>
+
+            {/* List */}
+            <div className="flex-1 overflow-y-auto px-3 py-2">
+                {syncingLayeredAssistants ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3">
+                        <IconLoader2 size={24} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--text-muted)' }} />
+                        <p className="text-[13px]" style={{ color: 'var(--text-muted)' }}>
+                            Loading layered assistants…
+                        </p>
+                    </div>
+                ) : filtered.length === 0 ? (
+                    <EmptyState
+                        message={search ? 'No layered assistants match your search' : 'No layered assistants yet'}
+                        subMessage={!search ? 'Create one to get started' : undefined}
+                        onAction={!search ? handleCreateNew : undefined}
+                        actionLabel="New Layered Assistant"
+                    />
+                ) : (
+                    filtered.map((la: LayeredAssistant) => (
+                        <AssistantRow
+                            key={la.assistantId ?? la.name}
+                            customIcon={layeredIconRef(la)}
+                            icon={<IconGitBranch size={18} style={{ color: 'var(--text-muted)' }} />}
+                            name={la.name}
+                            description={la.description}
+                            onClick={() => handleSelect(la)}
+                            onEdit={(e) => {
+                                e.stopPropagation();
+                                handleEdit(la);
+                            }}
+                            onDelete={(e) => {
+                                e.stopPropagation();
+                                setConfirmDeleteLA(la);
+                            }}
+                            isDeleting={deletingId === la.assistantId}
+                        />
+                    ))
+                )}
+            </div>
+
+            {builder && (
+                <NewLayeredAssistantBuilder
+                    initialData={builder.initial}
+                    onSave={handleSave}
+                    onClose={() => setBuilder(null)}
+                />
+            )}
+
+            {/* Delete confirmation dialog for layered assistants */}
+            <ConfirmDialog
+                isOpen={!!confirmDeleteLA}
+                title="Delete assistant?"
+                message={
+                    <>
+                        Are you sure you want to delete{' '}
+                        <strong style={{ color: 'var(--text-primary)' }}>
+                            {confirmDeleteLA?.name ?? 'this assistant'}
+                        </strong>
+                        ? This cannot be undone.
+                    </>
+                }
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    const la = confirmDeleteLA;
+                    setConfirmDeleteLA(null);
+                    if (la) handleDelete(la);
+                }}
+                onCancel={() => setConfirmDeleteLA(null)}
+            />
+        </div>
+    );
+};
+
+// ── Main component ────────────────────────────────────────────────────────────
+
+export const NewAssistantsView: React.FC = () => {
+    const {
+        state: { groups, syncingPrompts, syncingLayeredAssistants, layeredAssistants, userDocumentationUrl, supportEmail },
+        dispatch: homeDispatch,
+        handleNewConversation,
+    } = useContext(HomeContext);
+    const stableFeatureFlags = useStableFeatureFlags();
+    const notebookEnabled = useNotebookFeatureFlag();
+    const helperEnabled = stableFeatureFlags.amplifyHelper === true;
+
+    // Assistants always opens on My Assistants; tab changes only persist while this view is open.
+    const [activeTab, setActiveTab] = useState<MainTab>('individual');
+
+    const shouldShowGroupTab = true; // Show the empty state so every user can create a group.
+    const shouldShowLayeredTab = true; // Always show so first-time users can discover and create layered assistants
+    const helperDestinations = useMemo(() => {
+        const destinations = new Set<string>([
+            'settings:connectors',
+            'settings:promptTemplates',
+            'settings:customInstructions',
+            'settings:mcp',
+            'page:assistantGallery',
+            'page:chats',
+            'page:library',
+        ]);
+        if (stableFeatureFlags.createAssistantWorkflows) destinations.add('page:workflows');
+        if (stableFeatureFlags.scheduledTasks) destinations.add('page:scheduledTasks');
+        if (notebookEnabled) destinations.add('page:notebook');
+        return destinations;
+    }, [stableFeatureFlags.createAssistantWorkflows, stableFeatureFlags.scheduledTasks, notebookEnabled]);
+
+    const handleAmplifyHelperNavigation = useCallback((destination: { kind: 'settings' | 'page'; value: string }) => {
+        if (destination.kind === 'settings') {
+            window.dispatchEvent(new CustomEvent(NEW_UI_SETTINGS_EVENT, { detail: { section: destination.value } }));
+            return;
+        }
+        homeDispatch({ field: 'page', value: destination.value as any });
+    }, [homeDispatch]);
+
+    const handleAmplifyHelperStartChat = useCallback((topicQuestion?: string) => {
+        writeAmplifyHelperPrefill(topicQuestion);
+        const helper = createAmplifyHelperAssistant();
+        homeDispatch({ field: 'selectedAssistant', value: helper });
+        handleNewConversation({
+            prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
+            assistant: helper,
+            data: { [AMPLIFY_HELPER_MARKER]: true },
+        });
+        homeDispatch({ field: 'page', value: 'chat' });
+    }, [handleNewConversation, homeDispatch]);
+
+    const track = useTrack();
+    useEffect(() => {
+        track('Assistants Tab Viewed', { 'Tab': activeTab });
+    }, [activeTab, track]);
+
+    const changeTab = (tab: MainTab) => {
+        setActiveTab(tab);
+        // Keep legacy localStorage key in sync so AssistantGallery state is not lost
+        localStorage.setItem('activeAssistantGalleryTab', tab);
+        homeDispatch({ field: 'activeAssistantGalleryTab', value: tab });
+    };
+
+    // A disabled helper must never remain selected or restore from localStorage.
+    useEffect(() => {
+        if (activeTab === 'amplifyHelper' && !helperEnabled) changeTab('individual');
+        else if (activeTab === 'layered' && !shouldShowLayeredTab) changeTab('individual');
+    }, [shouldShowLayeredTab, activeTab, helperEnabled]);
+
+    const tabs: { id: MainTab; label: string; icon: React.ReactNode; visible: boolean }[] = [
+        {
+            id: 'individual',
+            label: 'My Assistants',
+            icon: <IconRobot size={15} />,
+            visible: true,
+        },
+        {
+            id: 'shared',
+            label: 'Shared with Me',
+            icon: <IconUsers size={15} />,
+            visible: true,
+        },
+        {
+            id: 'group',
+            label: syncingPrompts ? 'Loading Groups…' : 'Groups',
+            icon: syncingPrompts
+                ? <IconLoader2 size={15} className="motion-safe:animate-spin motion-reduce:animate-none" />
+                : <IconUsers size={15} />,
+            visible: shouldShowGroupTab,
+        },
+        {
+            id: 'layered',
+            label: syncingLayeredAssistants ? 'Loading Layered…' : 'Layered Assistants',
+            icon: syncingLayeredAssistants
+                ? <IconLoader2 size={15} className="motion-safe:animate-spin motion-reduce:animate-none" />
+                : <IconGitBranch size={15} />,
+            visible: shouldShowLayeredTab,
+        },
+        {
+            id: 'amplifyHelper',
+            label: `${getBrandName()} Helper`,
+            icon: <IconSparkles size={15} />,
+            visible: helperEnabled,
+        },
+        // 'templates' tab removed — Prompt Templates moved to Settings → Customize
+    ];
+
+    return (
+        <div
+            data-new-ui-assistants="true"
+            className="flex flex-col h-full w-full overflow-hidden"
+            style={{ backgroundColor: 'var(--bg-app)', fontFamily: 'Inter, sans-serif' }}
+        >
+            {/* ── Sticky tab bar ── */}
+            <div
+                className="flex-shrink-0 flex items-center px-4 border-b"
+                style={{
+                    backgroundColor: 'var(--bg-sidebar)',
+                    borderColor: 'var(--border-subtle)',
+                    height: 48,
+                }}
+            >
+                {/* Back/close button */}
+                <button
+                    onClick={() => homeDispatch({ field: 'page', value: 'chat' })}
+                    className="flex items-center justify-center h-8 w-8 rounded-[8px] mr-3 transition-colors flex-shrink-0"
+                    style={{ color: 'var(--text-muted)' }}
+                    onMouseEnter={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
+                        (e.currentTarget as HTMLElement).style.color = 'var(--text-primary)';
+                    }}
+                    onMouseLeave={(e) => {
+                        (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent';
+                        (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                    }}
+                    title="Back to chat"
+                >
+                    <IconX size={16} />
+                </button>
+
+                {/* Tabs */}
+                <div className="flex items-center h-full gap-1">
+                    {tabs
+                        .filter((t) => t.visible)
+                        .map((tab) => {
+                            const isActive = activeTab === tab.id;
+                            return (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => changeTab(tab.id)}
+                                    className="relative flex items-center gap-1.5 h-full px-3 text-[13px] transition-colors"
+                                    style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-muted)' }}
+                                    onMouseEnter={(e) => {
+                                        if (!isActive) {
+                                            (e.currentTarget as HTMLElement).style.color = 'var(--text-secondary)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!isActive) {
+                                            (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)';
+                                        }
+                                    }}
+                                >
+                                    {tab.icon}
+                                    <span>{tab.label}</span>
+                                    {isActive && (
+                                        <span
+                                            className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-full"
+                                            style={{ backgroundColor: 'var(--accent)' }}
+                                        />
+                                    )}
+                                </button>
+                            );
+                        })}
+                </div>
+
+                <div className="ml-2 flex items-center flex-shrink-0">
+                    <InfoTooltip
+                        ariaLabel="About the different kinds of assistants"
+                        maxWidth={380}
+                        text={ASSISTANT_TYPES_INFO}
+                    />
+                </div>
+            </div>
+
+            {/* ── Tab content ── */}
+            <div className="flex-1 overflow-hidden">
+                {activeTab === 'individual' && <MyAssistantsTab />}
+                {activeTab === 'shared' && <SharedWithMeTab onImported={() => changeTab('individual')} />}
+                {activeTab === 'group' && shouldShowGroupTab && <GroupAssistantsTab />}
+                {activeTab === 'layered' && shouldShowLayeredTab && <LayeredAssistantsTab />}
+                {activeTab === 'amplifyHelper' && helperEnabled && (
+                    <AmplifyHelperAssistant
+                        onStartChat={handleAmplifyHelperStartChat}
+                        enabledDestinations={helperDestinations}
+                        onNavigate={handleAmplifyHelperNavigation}
+                        documentationUrl={userDocumentationUrl}
+                        supportEmail={supportEmail}
+                    />
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default NewAssistantsView;

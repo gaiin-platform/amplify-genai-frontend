@@ -1,6 +1,6 @@
 import React, { useContext, useEffect, useState } from 'react';
 import { IconChartHistogram, IconLoader2, IconChevronLeft, IconChevronRight } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { RateLimit, normalizeRateLimits } from '@/types/rateLimit';
 import { getUserMtdCosts, UserMtdCosts } from '@/services/mtdCostService';
 

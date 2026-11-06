@@ -27,7 +27,7 @@ import {throttle} from '@/utils/data/throttle';
 import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { normalizeRateLimits } from '@/types/rateLimit';
 import { RateLimitUtilization } from '@/components/Layout/RateLimitUtilization';
 
@@ -62,6 +62,8 @@ import { downloadDataSourceFile } from '@/utils/app/files';
 import React from 'react';
 import { PromptHighlightedText } from './PromptHighlightedText';
 import { getSettings } from '@/utils/app/settings';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
+import { isDeploymentFeatureAvailable } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { checkAvailableModelId, filterModels } from '@/utils/app/models';
 import { promptForData } from '@/utils/app/llm';
 import cloneDeep from 'lodash/cloneDeep';
@@ -82,6 +84,9 @@ interface Props {
 
 export const Chat = memo(({stopConversationRef}: Props) => {
         const {t} = useTranslation('chat');
+        const stableFeatureFlags = useStableFeatureFlags();
+        const highlighterAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'promptHighlighter');
+        const artifactsAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'artifacts');
 
         const {
             state: {
@@ -113,7 +118,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             handleUpdateConversation,
             dispatch: homeDispatch,
             handleUpdateSelectedConversation,
-            getDefaultModel, handleForkConversation
+            getDefaultModel, handleForkConversation, handleSelectConversation
         } = useContext(HomeContext);
 
         // there should be a model id now since on fetchModels, I set it
@@ -411,8 +416,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         useEffect(() => {
             settingRef.current = getSettings(featureFlags);
             if (settingRef.current) {
-                // Re-derive any time featureFlags arrive/change so async admin defaults
-                // (from fetchUserAppConfigs) are honoured even after plugins was first set
+                // Re-derive on server flag changes. Feature plugin options are always
+                // normalized off for permanently removed user controls.
                 if (!plugins || featureFlags.smartMessages !== undefined) {
                     setPlugins(getActivePlugins(settingRef.current, featureFlags));
                 }
@@ -1114,10 +1119,8 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             saveConversations(updatedConversations);
 
             if (updatedConversations.length > 0) {
-                homeDispatch({
-                    field: 'selectedConversation',
-                    value: updatedConversations[updatedConversations.length - 1],
-                });
+                // the list holds stubs / compressed copies; open the real chat (a stub here is overwritten by the next message)
+                handleSelectConversation(updatedConversations[updatedConversations.length - 1]);
 
             } else {
                 homeDispatch({
@@ -1266,7 +1269,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
         return (
             <>
             {selectedConversation && selectedConversation.messages?.length > 0 && 
-            featureFlags.highlighter && settingRef.current.featureOptions.includeHighlighter && 
+            highlighterAvailable && featureFlags.highlighter &&
                 <PromptHighlightedText 
                 onSend={(message) => {
                     setCurrentMessage(message);
@@ -1276,10 +1279,10 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             }
             
             {/* Main container with CSS Grid for strict 50/50 split when artifacts are open */}
-            <div className={`flex h-full ${featureFlags.artifacts && isArtifactOpen ? 'grid grid-cols-2 gap-0' : ' w-full'}`}>
+            <div className={`flex h-full ${artifactsAvailable && featureFlags.artifacts && isArtifactOpen ? 'grid grid-cols-2 gap-0' : ' w-full'}`}>
                 
                 {/* Chat Area */}
-                <div className={`relative ${featureFlags.artifacts && isArtifactOpen ? 'overflow-hidden' : 'flex-1'} bg-neutral-100 dark:bg-[#343541]`}>
+                <div className={`relative ${artifactsAvailable && featureFlags.artifacts && isArtifactOpen ? 'overflow-hidden' : 'flex-1'} bg-neutral-100 dark:bg-[#343541]`}>
                     { modelError ? (
                         <ErrorMessageDiv error={modelError}/>  
                     ) : (
@@ -1815,7 +1818,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
             </div>
 
             {/* Artifacts Panel - only show when artifacts are open */}
-            {(featureFlags.artifacts && isArtifactOpen) &&  (
+            {(artifactsAvailable && featureFlags.artifacts && isArtifactOpen) &&  (
                 <Artifacts 
                     artifactIndex={artifactIndex}    
                 />

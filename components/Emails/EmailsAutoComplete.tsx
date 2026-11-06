@@ -1,5 +1,5 @@
 import React, { useState, FC, useRef, useEffect, useContext } from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 interface EmailModalProps {
     input: string;
