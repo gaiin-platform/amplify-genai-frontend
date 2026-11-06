@@ -161,7 +161,7 @@ export const RagMigrationTab: FC = () => {
       await load();
       if (!alive) return;
       const current = statusRef.current;
-      const active = workingRef.current || busyRef.current
+      const active = workingRef.current || busyRef.current || !!current?.counting
         || ((current?.pipeline.planned ?? 0) + (current?.pipeline.building ?? 0)) > 0;
       timer = setTimeout(tick, active ? FAST_POLL_MS : POLL_MS);       // one request at a time; faster while something is happening
     };
@@ -189,6 +189,8 @@ export const RagMigrationTab: FC = () => {
     setBusy(null);
     if (!result.success) {
       setNotice(result.error ?? 'That did not work');
+    } else if (action === 'refresh_inventory' && result.data?.counting) {
+      // another count is already running (for example one started before you left this page); the page keeps checking and shows it when done
     } else if (result.data?.errors?.length) {
       setNotice(`Finished with ${result.data.errors.length} problem(s): ${result.data.errors[0].error}`);
     } else if (action === 'preview_cleanup') {
@@ -352,7 +354,7 @@ export const RagMigrationTab: FC = () => {
   const autoCounted = useRef(false);
   useEffect(() => {
     // also when the saved counts predate the breakdown by assistant type and source
-    if (status && (!status.inventory || !status.inventory.facets) && !autoCounted.current) {
+    if (status && !status.counting && (!status.inventory || !status.inventory.facets) && !autoCounted.current) {
       autoCounted.current = true;
       perform('inventory', 'refresh_inventory');
     }
@@ -366,7 +368,7 @@ export const RagMigrationTab: FC = () => {
   const nextStep = mode === 'pick' && step === 1 ? 3 : step + 1;
   const previousStep = mode === 'pick' && step === 3 ? 1 : step - 1;
   const statusLine = notice || busy ? <StatusLine busy={!!busy}>{busy ? 'Working…' : notice}</StatusLine> : null;
-  const counting = busy === 'inventory' || (!inventory && !error);
+  const counting = busy === 'inventory' || !!status.counting || (!inventory && !error);
   const nothingToStart = !!estimate && estimate.documents === 0 && !pipeline?.planned;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -402,7 +404,7 @@ export const RagMigrationTab: FC = () => {
               {counting ? 'Counting…' : `Counted ${ago(inventory?.generatedAt, now)}`}
               {!counting && changedSince && <b style={{ color: '#d97706', marginLeft: 6 }}>Out of date: things changed since. Refresh counts.</b>}
             </span>
-            <Button disabled={!!busy && busy !== 'inventory'} loading={busy === 'inventory'} onClick={() => perform('inventory', 'refresh_inventory')}>Refresh counts</Button>
+            <Button disabled={(!!busy && busy !== 'inventory') || (!!status.counting && busy !== 'inventory')} loading={busy === 'inventory' || !!status.counting} onClick={() => perform('inventory', 'refresh_inventory')}>Refresh counts</Button>
           </div>
         </div>
         {!inventory ? (

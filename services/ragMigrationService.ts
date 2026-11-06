@@ -271,6 +271,7 @@ export interface MigrationStatus {
   costs?: MigrationCosts | null;
   inventory: MigrationInventory | null;
   inventoryAgeSeconds: number | null;
+  counting?: boolean;                 // a count of the documents is running right now (started by any visit to this page)
   pipeline: Record<DocStatus, number>;
   inSecretSweepWindow: boolean;
   failures: MigrationDoc[];
