@@ -94,7 +94,7 @@ export const LayeredPublishPanel: React.FC<LayeredPublishPanelProps> = ({ value,
                 }
                 const result = await lookupAssistant(path);
                 if (seq !== checkSeq.current) return;
-                if (result.success && !(assistantId && result.assistantId === assistantId)) {
+                if ((result.success && !(assistantId && result.assistantId === assistantId)) || (!result.success && result.inUse)) {
                     emit({ available: false, checking: false, error: 'This link is already in use by another assistant.' });
                 } else {
                     emit({ available: true, checking: false, error: '' });

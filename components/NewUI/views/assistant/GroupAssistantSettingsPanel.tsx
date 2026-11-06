@@ -45,6 +45,8 @@ export interface GroupAssistantSettingsPanelProps {
     settings: GroupSettings;
     setSettings: React.Dispatch<React.SetStateAction<GroupSettings>>;
     group: { id: string; name: string; groupTypes: string[]; supportConvAnalysis: boolean };
+    /** The "Publish at a link" setting (see GroupAssistantUrlSection); omitted when publishing isn't available. */
+    urlSection?: React.ReactNode;
 }
 
 const sectionTitle: React.CSSProperties = {
@@ -89,6 +91,7 @@ export const GroupAssistantSettingsPanel: React.FC<GroupAssistantSettingsPanelPr
     settings,
     setSettings,
     group,
+    urlSection,
 }) => {
     const baseId = useId();
     const [trackingBlocked, setTrackingBlocked] = useState(false);
@@ -125,6 +128,14 @@ export const GroupAssistantSettingsPanel: React.FC<GroupAssistantSettingsPanelPr
             </SettingRow>
 
             <div style={divider} />
+
+            {/* ── Publish at a link ──────────────────────────────────── */}
+            {urlSection && (
+                <>
+                    {urlSection}
+                    <div style={divider} />
+                </>
+            )}
 
             {/* ── Conversation tracking & analysis ───────────────────── */}
             {group.supportConvAnalysis ? (
