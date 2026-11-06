@@ -40,6 +40,7 @@ import {
   IconUsers,
   IconWorld,
 } from '@tabler/icons-react';
+import { ChatStatusIndicator } from '@/components/NewUI/chat/ChatStatusIndicator';
 import { DisclosureChevron } from '@/components/NewUI/shared/DisclosureChevron';
 import { integrationIcon } from '@/components/NewUI/shared/integrationIcon';
 import {
@@ -756,12 +757,7 @@ export const ThinkingRow: React.FC<ThinkingRowProps> = ({ active, children }) =>
   const bodyId = useId();
   const hasBody = !!children;
 
-  const inner = (
-    <>
-      <span className="nui-thinking-dot" aria-hidden="true" />
-      <span className="nui-thinking-label">Thinking…</span>
-    </>
-  );
+  const inner = <ChatStatusIndicator label="Thinking…" source="thinking" active={active} />;
 
   return (
     <div className="nui-thinking" data-active={active ? 'true' : 'false'}>

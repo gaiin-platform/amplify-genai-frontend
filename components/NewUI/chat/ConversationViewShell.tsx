@@ -27,6 +27,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { IconArrowDown } from '@tabler/icons-react';
 import { Chat } from '@/components/Chat/Chat';
 import { ConversationHeader } from './ConversationHeader';
@@ -39,6 +40,8 @@ import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import { NewUISelectionReplyLayer } from './NewUISelectionReplyLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
 import { NewUIToolStepsLayer } from './NewUIToolStepsLayer';
+import { NewUIStatusExitLayer } from './NewUIStatusExitLayer';
+import { ChatStatusIndicator } from './ChatStatusIndicator';
 import { NewUITruncationNoticeLayer } from './NewUITruncationNoticeLayer';
 import { ArtifactPanelLayer } from './ArtifactPanelLayer';
 import { ArtifactSplitterLayer } from './ArtifactSplitterLayer';
@@ -90,6 +93,8 @@ function setNativeValue(element: HTMLTextAreaElement, value: string) {
 
 /** Distance from bottom before the jump-to-latest button appears. */
 const SCROLL_THRESHOLD = 200;
+/** Stable React keys for the portal hosts injected into the classic status markup. */
+let statusHostSeq = 0;
 
 /**
  * Height of the ConversationHeader overlay, in px. Used to inset the shell so
@@ -225,6 +230,11 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
 
   const hasFiredRef = useRef(false);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
+  // DOM nodes injected into React-owned markup, each hosting a <ChatStatusIndicator> portal:
+  //   loadingHosts  — one per visible PromptStatus card (source="status")
+  //   awaitingHost  — the empty-turn row (source="awaiting")
+  const [loadingHosts, setLoadingHosts] = useState<HTMLElement[]>([]);
+  const [awaitingHost, setAwaitingHost] = useState<HTMLElement | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
 
   // ── "Stopped Before Completing." indicator ───────────────────────────────
@@ -333,6 +343,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
     const INDICATOR_CLASS = 'new-ui-awaiting-answer';
     const removeAll = () => {
       document.querySelectorAll<HTMLElement>(`.${INDICATOR_CLASS}`).forEach((el) => el.remove());
+      setAwaitingHost(null);
     };
 
     if (!showAwaitingAnswer) {
@@ -359,6 +370,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       // aria-hidden: the sr-only live region at the end of the shell announces it.
       el.setAttribute('aria-hidden', 'true');
       host.prepend(el);
+      setAwaitingHost(el);
     };
 
     let observer: MutationObserver | null = null;
@@ -1536,6 +1548,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
         if (row.querySelector(`.${LOADING_TEXT_CLASS}`)) return;
         const span = document.createElement('span');
         span.className = LOADING_TEXT_CLASS;
+        span.dataset.nuiHostId = String(++statusHostSeq);
         // aria-hidden: screen readers use the aria-live region on the
         // .rounded-xl.shadow-lg ancestor (injected by the effect above).
         span.setAttribute('aria-hidden', 'true');
@@ -1557,6 +1570,16 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
         });
     };
 
+    /** Mirror the injected spans into state so each can host a portal. No-op when unchanged. */
+    const syncHosts = () => {
+      const next = Array.from(
+        document.querySelectorAll<HTMLElement>(`.${LOADING_TEXT_CLASS}`),
+      );
+      setLoadingHosts((prev) =>
+        prev.length === next.length && prev.every((h, i) => h === next[i]) ? prev : next,
+      );
+    };
+
     const startObserving = () => {
       const chatContainer = document.querySelector('.chatcontainer');
       if (!chatContainer) {
@@ -1565,9 +1588,11 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       }
       // Inject immediately in case PromptStatus is already mounted
       injectLoadingText();
+      syncHosts();
       observer = new MutationObserver(() => {
         injectLoadingText();
         cleanupOrphanedText();
+        syncHosts();
       });
       observer.observe(chatContainer, { childList: true, subtree: true });
     };
@@ -1581,6 +1606,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       document
         .querySelectorAll<HTMLElement>(`.${LOADING_TEXT_CLASS}`)
         .forEach((el) => el.remove());
+      setLoadingHosts([]);
     };
   }, []);
 
@@ -1718,9 +1744,9 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       </div>
 
       {/* Phase 66 — accessible announcement for the pre-response window.
-          The visible "Sending…" label is CSS ::after content on ChatLoader, which
-          screen readers do not announce; and PromptStatus's aria-live host (injected
-          by the effect above) does not exist yet during this window. This polite
+          The visible "Sending…" label is a <ChatStatusIndicator> inside ChatLoader, which
+          is deliberately not a live region of its own; and PromptStatus's aria-live host
+          (injected by the effect above) does not exist yet during this window. This polite
           live region covers the gap per wiki §9 standing rule 15. Emptying it when
           the window ends stops the message being re-announced. */}
       <span className="sr-only" aria-live="polite">
@@ -1759,6 +1785,21 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
           compact, human-readable step rows (live from `status`, saved from
           `data.state.agentLog`) and a single aria-live announcer. */}
       <NewUIToolStepsLayer />
+
+      {/* Fades + collapses a removed "Thinking…" row so the reply glides up instead of jumping */}
+      <NewUIStatusExitLayer />
+
+      {/* The one status indicator, rendered into the nodes injected above (the classic
+          PromptStatus card's "Thinking…" and the empty-turn "Thinking…"). */}
+      {loadingHosts.map((host) =>
+        createPortal(
+          <ChatStatusIndicator label="Thinking…" source="status" />,
+          host,
+          host.dataset.nuiHostId,
+        ),
+      )}
+      {awaitingHost &&
+        createPortal(<ChatStatusIndicator label="Thinking…" source="awaiting" />, awaitingHost)}
 
       {/* Artifact panel header overlay — injects a sticky header into #artifactsTab
           with title/version dropdown, download button, expand, and close.
