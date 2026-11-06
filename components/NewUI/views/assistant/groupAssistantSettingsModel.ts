@@ -61,7 +61,8 @@ export const UNMANAGED_DATA_KEYS = [
 
 /**
  * Also kept for a *group* assistant: its email-event setup. The editor hides that panel for group
- * assistants, so without this an edit would silently delete it.
+ * assistants, so without this an edit would silently delete it. (Its published link is not kept
+ * blindly — the editor manages it; see `groupPublishModel`.)
  */
 export const GROUP_PRESERVED_DATA_KEYS = ['emailEvents'] as const;
 

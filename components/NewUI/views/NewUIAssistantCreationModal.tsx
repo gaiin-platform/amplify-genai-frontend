@@ -47,7 +47,6 @@ import {
     IconBrain,
     IconPlugConnected,
     IconTemplate,
-    IconLoader2,
     IconCheck,
     IconX,
     IconCopy,
@@ -66,7 +65,7 @@ import { Prompt } from '@/types/prompt';
 import { MessageType, newMessage } from '@/types/chat';
 import { DefaultModels } from '@/types/model';
 import { Group, GroupAccessType, GroupUpdateType } from '@/types/groups';
-import { AstPathData, isAstPathDataChanged } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
+import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { DriveFilesDataSources } from '@/types/integrations';
 import { SkillReference, SkillSelectionMode } from '@/types/skill';
@@ -82,6 +81,16 @@ import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { checkSlugSystemTerms, cleanSlug, validateSlug } from '@/components/NewUI/views/assistant/assistantPathRules';
 import { buildThinkingFields, readEnforcedEffort } from '@/components/NewUI/views/assistant/enforcedEffortModel';
 import { GroupAssistantSettingsPanel } from '@/components/NewUI/views/assistant/GroupAssistantSettingsPanel';
+import { AssistantPublishLinkSection } from '@/components/NewUI/views/assistant/AssistantPublishLinkSection';
+import { AssistantPathField } from '@/components/NewUI/views/assistant/AssistantPathField';
+import {
+    ACCESS_KIND_KEY,
+    GENERATED_PATH_PATTERN,
+    deriveAccessKind,
+    isPublishedLink,
+    isRestrictedLink,
+    planAssistantPath,
+} from '@/components/NewUI/views/assistant/assistantLinkModel';
 import {
     GroupSettings,
     buildGroupData,
@@ -113,7 +122,6 @@ import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import { EmailChipsInput } from '@/components/NewUI/shared/EmailChipsInput';
 import { SignInRequiredNote } from '@/components/NewUI/shared/SignInRequiredNote';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
-import { SegmentedControl } from '@/components/NewUI/shared/SegmentedControl';
 import { AssistantEmailEventsPanel } from '@/components/NewUI/views/assistant/AssistantEmailEventsPanel';
 import { addEventTemplate } from '@/services/emailEventService';
 import { compareEmailEventTemplates, formatEmailEventTemplate, safeEmailEventTag } from '@/utils/app/assistantEmailEvents';
@@ -175,7 +183,6 @@ const SLUG_CHECK_DEBOUNCE_MS = 2_000;
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type AccessModel = 'private' | 'managed' | 'collaborative';
-type ManagedSubOption = 'specific' | 'public';
 type TeamMode = 'existing' | 'new';
 
 export interface NewUIAssistantCreationModalProps {
@@ -491,10 +498,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     // In edit mode, derive initial access type from the existing assistant.
     const deriveInitialAccessType = (): AccessModel => {
         if (editingAssistant) {
-            if (editingAssistant.groupId) return 'collaborative';
             const def = editingAssistant.data?.assistant?.definition as AssistantDefinition | undefined;
-            if (def?.astPath || (def?.data?.astPath as string | undefined)) return 'managed';
-            return 'private';
+            return deriveAccessKind({
+                groupId: editingAssistant.groupId ?? undefined,
+                astPath: def?.astPath || (def?.data?.astPath as string | undefined),
+                accessKind: def?.data?.[ACCESS_KIND_KEY] as string | undefined,
+            });
         }
         // Copies begin as private, recipient-owned assistants unless the caller picked a kind.
         if (isCopyMode) return copyTargetAccess ?? 'private';
@@ -537,13 +546,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         setAccessType(value);
     };
 
-    // Managed URL sub-state
-    const [subOption, setSubOption] = useState<ManagedSubOption>('public');
+    // 'I manage it' sub-state: the people it is shared with
     const [emailList, setEmailList] = useState<string[]>([]);
     /** Emails already on the allow-list when editing — only newly added people get a share on save. */
     const alreadyAllowedEmails = useRef<string[]>([]);
-    /** The path and access settings as loaded (edit mode), to tell "unchanged" from "needs re-registering" on save. */
-    const loadedPath = useRef<{ path: string; data: AstPathData } | null>(null);
     const [slug, setSlug] = useState('');
     const generatedRestrictedPath = useRef(`a-${uuidv4().replace(/-/g, '')}`);
     const [slugError, setSlugError] = useState('');
@@ -570,6 +576,22 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
     const [newTeamName, setNewTeamName] = useState('');
     const [selectedMemberEmails, setSelectedMemberEmails] = useState<string[]>([]);
     const [newMemberAccessMap, setNewMemberAccessMap] = useState<Record<string, GroupAccessType>>({});
+
+    // "Publish at a link" — offered by every access type. Seeded from the stored definition, so an edit that
+    // doesn't touch the setting keeps the link; switching it off and saving unpublishes.
+    const storedDef = isEditMode
+        ? (editingAssistant?.data?.assistant?.definition as AssistantDefinition | undefined)
+        : undefined;
+    const storedAstPath = storedDef ? (storedDef.astPath ?? (storedDef.data?.astPath as string | undefined)) : undefined;
+    const storedAstPathData = storedDef?.data?.astPathData as AstPathData | undefined;
+    const publishedNow = isPublishedLink(deriveInitialAccessType(), storedAstPath);
+    const [publishEnabled, setPublishEnabled] = useState<boolean>(publishedNow);
+    /** Published, but only people with access (you; for 'I manage it', the shared people) can open it. */
+    const [linkRestricted, setLinkRestricted] = useState<boolean>(
+        publishedNow && isRestrictedLink(deriveInitialAccessType(), storedAstPathData),
+    );
+    /** The slug input is live (and being availability-checked) whenever the link switch is on. */
+    const pathInputActive = publishEnabled && !!featureFlags.assistantPathPublishing;
 
     // Slug availability check state
     const [isCheckingSlug, setIsCheckingSlug] = useState(false);
@@ -845,28 +867,25 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         }
         const astPath = isEditMode ? (def.astPath ?? ((def.data as any)?.astPath as string | undefined)) : undefined;
         if (astPath) {
-            generatedRestrictedPath.current = astPath.toLowerCase();
-            const applyPathData = (astPathData?: { isPublic?: boolean; accessTo?: { amplifyGroups?: string[]; users?: string[] } }) => {
-                if (astPathData) {
-                    loadedPath.current = {
-                        path: astPath.toLowerCase(),
-                        data: {
-                            isPublic: astPathData.isPublic !== false,
-                            accessTo: { amplifyGroups: astPathData.accessTo?.amplifyGroups ?? [], users: astPathData.accessTo?.users ?? [] },
-                        },
-                    };
+            // An internal restricted key can be reused as-is; a published name must not become a hidden key.
+            if (GENERATED_PATH_PATTERN.test(astPath)) generatedRestrictedPath.current = astPath.toLowerCase();
+            const kind = deriveAccessKind({
+                groupId: editingAssistant?.groupId ?? undefined,
+                astPath,
+                accessKind: (def.data as any)?.[ACCESS_KIND_KEY],
+            });
+            const applyPathData = (astPathData?: { isPublic?: boolean; accessTo?: { users?: string[] } }) => {
+                const accessToUsers = astPathData?.accessTo?.users;
+                if (Array.isArray(accessToUsers)) {
+                    setEmailList(accessToUsers);
+                    alreadyAllowedEmails.current = accessToUsers;
                 }
-                if (astPathData?.isPublic === false) {
-                    setSubOption('specific');
-                    const accessToUsers = astPathData?.accessTo?.users;
-                    if (Array.isArray(accessToUsers)) {
-                        setEmailList(accessToUsers);
-                        alreadyAllowedEmails.current = accessToUsers;
-                    }
-                } else {
-                    setSubOption('public');
+                const published = isPublishedLink(kind, astPath);
+                setPublishEnabled(published);
+                setLinkRestricted(published && isRestrictedLink(kind, astPathData as AstPathData | undefined));
+                if (published) {
                     setSlug(astPath);
-                    // Existing public path is already registered — skip re-checking.
+                    // Existing path is already registered — skip re-checking.
                     setSlugAvailable(true);
                     setSlugCheckMessage('Current path');
                 }
@@ -1062,6 +1081,10 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     setSlugError('Path is already in use by another assistant');
                     setSlugAvailable(false);
                 }
+            } else if (result.inUse) {
+                // Registered to someone else (e.g. a restricted link we aren't allowed to open).
+                setSlugError('Path is already in use by another assistant');
+                setSlugAvailable(false);
             } else {
                 setSlugAvailable(true);
                 setSlugCheckMessage('Available');
@@ -1075,7 +1098,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
     // Debounce public path checks; cleanup cancels the timer and supersedes in-flight work.
     useEffect(() => {
-        if (accessType !== 'managed' || subOption !== 'public') {
+        if (!pathInputActive) {
             slugCheckRequestSeq.current += 1;
             setIsCheckingSlug(false);
             return;
@@ -1091,7 +1114,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             window.clearTimeout(timer);
             slugCheckRequestSeq.current += 1;
         };
-    }, [slug, slugError, slugAvailable, accessType, subOption, checkSlugAvailability]);
+    }, [slug, slugError, slugAvailable, pathInputActive, checkSlugAvailability]);
 
     // ── Attachment download handler ───────────────────────────────────────
     /**
@@ -1340,13 +1363,14 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         if (isGroupEdit && hasPendingGroupTypeUploads(groupSettings)) return false;
         // Group settings are seeded from the group; saving without it would wipe them (group types, question).
         if (isGroupEdit && !editGroup) return false;
+        // 'I manage it' needs someone to share with, or a published link — otherwise it is just 'Just for me'.
         if (accessType === 'managed') {
             if (!featureFlags.assistantPathPublishing) return false;
-            if (subOption === 'specific') {
-                if (emailList.length === 0) return false;
-            } else if (!slug.trim() || !!validateSlug(slug) || isCheckingSlug || slugAvailable !== true) {
-                return false;
-            }
+            if (emailList.length === 0 && !(publishEnabled && !linkRestricted)) return false;
+        }
+        // A published link must be a checked, available path.
+        if (publishEnabled && featureFlags.assistantPathPublishing) {
+            if (!slug.trim() || !!validateSlug(slug) || isCheckingSlug || slugAvailable !== true) return false;
         }
         // Editing keeps the assistant's existing group, so there is no group to choose.
         if (accessType === 'collaborative' && !isGroupEdit) {
@@ -1497,14 +1521,20 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 ? (editingAssistant!.data?.assistant?.definition as AssistantDefinition | undefined)
                 : undefined;
 
-            // Persisted on the definition too: the backend's add_path only stores `astPath`, so without
-            // this a restricted ("Specific people") assistant reloads as a public URL assistant.
-            const pathAccess: AstPathData | undefined =
-                accessType === 'managed'
-                    ? subOption === 'public'
-                        ? { isPublic: true, accessTo: { amplifyGroups: [], users: [] } }
-                        : { isPublic: false, accessTo: { amplifyGroups: [], users: emailList } }
-                    : undefined;
+            // The published link (or, for 'I manage it' without one, the internal key its people open it by):
+            // kept, changed or taken down according to the "Publish at a link" setting. Without the
+            // publishing feature the setting is hidden, so the stored link stands.
+            const linkFeature = !!featureFlags.assistantPathPublishing;
+            const pathPlan = planAssistantPath({
+                kind: accessType,
+                publish: linkFeature ? publishEnabled : publishedNow,
+                linkRestricted: linkFeature ? linkRestricted : isRestrictedLink(accessType, storedAstPathData),
+                slug: linkFeature ? slug : (storedAstPath ?? ''),
+                emails: emailList,
+                generatedPath: generatedRestrictedPath.current,
+                existingPath: storedAstPath,
+                existingAstPathData: storedAstPathData,
+            });
 
             const storedOperations = buildStoredOperations(selectedApis || [], apiInfo);
 
@@ -1599,12 +1629,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                     ...(isGroupEdit && groupId
                         ? buildGroupData(groupSettings, groupContext, groupId, existingDef?.data as Record<string, any> | undefined)
                         : {}),
-                    ...(pathAccess ? { astPathData: pathAccess } : {}),
+                    ...pathPlan.data,
+                    // A path alone reads back as 'I manage it'; this keeps a published 'Just for me' one private.
+                    ...(accessType === 'private' && pathPlan.hasPath ? { [ACCESS_KIND_KEY]: 'private' } : {}),
                 } as any,
                 // The restricted path is an internal lookup key; only public access exposes a user-chosen URL.
-                ...(accessType === 'managed'
-                    ? { astPath: subOption === 'public' ? slug.toLowerCase() : generatedRestrictedPath.current }
-                    : {}),
+                ...(pathPlan.data.astPath ? { astPath: pathPlan.data.astPath } : {}),
             };
 
             // 4b. Icon. `data` is rebuilt above, so the icon is written explicitly — and absent once removed.
@@ -1627,6 +1657,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             const schedulesEnabled = !!featureFlags.scheduledTasks;
             const schedulesBeforeSave = schedulesEnabled && isEditMode && !!existingDef?.assistantId;
             let scheduleFailures: string[] = [];
+            let linkFailed = false;
             const hasDriveFiles = totalSelectionCount(asDriveSelection(integrationDataSources)) > 0;
             const driveAllowed = accessType !== 'collaborative' && !groupId;
             // Schedule work (and its loader) happens only when a refresh is wanted or a task already exists, and
@@ -1642,7 +1673,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 : { websites: '', driveFiles: '' };
             const scheduleWork = hasRescanWork(wantedSchedules, (def.data as any)?.scheduledTaskIds as RescanTaskIds | undefined);
             const scheduleChanged = rescanSignatureChanged(savedSchedules, wantedSchedules);
-            const syncSchedules = (assistantIdForTasks: string) =>
+            const syncSchedules =(assistantIdForTasks: string) =>
                 syncRescanTasks(
                     {
                         existing: (def.data as any)?.scheduledTaskIds as RescanTaskIds | undefined,
@@ -1791,44 +1822,27 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 }
             }
 
-            // 6b. Register an internal restricted path or the user-chosen public URL.
-            if (accessType === 'managed') {
-                const formattedPath = subOption === 'public' ? slug.toLowerCase() : generatedRestrictedPath.current!;
-                const astPathData = pathAccess!;
-                // Only when the path or who may use it differs from what was loaded (always for a new assistant,
-                // and when the loaded settings could not be read).
-                const pathChanged = !isEditMode || !loadedPath.current
-                    || loadedPath.current.path !== formattedPath
-                    || isAstPathDataChanged(astPathData, loadedPath.current.data);
-
+            // 6b. Register the new link (or audience). The save above kept the old path (if any), so a failure
+            // leaves the assistant exactly as it was published; the assistant itself is saved — and, when new,
+            // now exists — so carry on and say so rather than abort and let a retry create a second copy.
+            if (pathPlan.register) {
+                const { path: newPath, astPathData: newPathData } = pathPlan.register;
+                if (newPathData.isPublic) setLoadingMessage(`Publishing assistant to /assistants/${newPath}…`);
                 try {
-                    if (pathChanged) {
-                        if (subOption === 'public') {
-                            setLoadingMessage(`Publishing assistant to /assistants/${formattedPath}…`);
-                        }
-                        const pathResult = await addAssistantPath(
-                            assistantId,
-                            formattedPath,
-                            undefined,
-                            astPathData.isPublic,
-                            astPathData.accessTo
-                        );
-                        if (!pathResult.success) {
-                            setSaveError('Unable to save assistant access settings. Please try again.');
-                            setIsSaving(false);
-                            setLoadingMessage('');
-                            return;
-                        }
-                    }
-                    def.astPath = formattedPath;
-                    (def.data as any).astPath = formattedPath;
-                    (def.data as any).astPathData = astPathData;
+                    const pathResult = await addAssistantPath(
+                        assistantId,
+                        newPath,
+                        groupId ?? undefined,
+                        newPathData.isPublic,
+                        newPathData.accessTo,
+                    );
+                    if (!pathResult?.success) throw new Error(pathResult?.message ?? 'add path failed');
+                    def.astPath = newPath;
+                    (def.data as any).astPath = newPath;
+                    (def.data as any).astPathData = newPathData;
                 } catch (pathErr) {
                     console.error('Error saving assistant path:', pathErr);
-                    setSaveError('Unable to save assistant access settings. Please try again.');
-                    setIsSaving(false);
-                    setLoadingMessage('');
-                    return;
+                    linkFailed = true;
                 }
             }
 
@@ -1849,7 +1863,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             await handleUpdateAssistantPrompt(aPrompt, prompts, homeDispatch, selectedAssistant);
 
             // 7b. "Specific people" must reach each person's Shared-with-me, not just the path allow-list.
-            if (accessType === 'managed' && subOption === 'specific') {
+            if (accessType === 'managed') {
                 const known = new Set(alreadyAllowedEmails.current.map((e) => e.toLowerCase()));
                 const newRecipients = emailList.filter((e) => !known.has(e.toLowerCase()));
                 if (newRecipients.length > 0) {
@@ -1903,6 +1917,9 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             }
 
             setLoadingMessage('');
+            if (linkFailed) {
+                toast.error('The assistant was saved, but its link couldn’t be updated and may be unavailable. Open it and save again to retry.', { duration: 8000 });
+            }
             if (scheduleFailures.length > 0) {
                 toast.error('The assistant was saved, but its refresh schedule couldn’t be set up. Open it and save again to retry.', { duration: 8000 });
             }
@@ -1914,6 +1931,47 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
             setLoadingMessage('');
         }
     };
+
+    /** "Publish at a link" for the given access type — the same switch everywhere, worded for who can open it. */
+    const linkSectionFor = (kind: AccessModel) => featureFlags.assistantPathPublishing ? (
+        <AssistantPublishLinkSection
+            enabled={publishEnabled}
+            onEnabledChange={setPublishEnabled}
+            description={
+                kind === 'collaborative'
+                    ? 'Give this assistant its own page at a short address. Members of this group can open it from the link.'
+                    : kind === 'managed'
+                        ? 'Give this assistant its own page at a short address. People who open it can use it but can’t edit it.'
+                        : 'Give this assistant its own page at a short address. Only you can edit it.'
+            }
+            audience={kind === 'collaborative' ? undefined : {
+                restricted: linkRestricted,
+                onChange: setLinkRestricted,
+                anyone: {
+                    title: 'Anyone with the link',
+                    description: 'Anyone you give the link to can open and use this assistant.',
+                },
+                restrictedOption: kind === 'managed'
+                    ? {
+                        title: 'Only people I’ve shared it with',
+                        description: 'You and the people listed above. Everyone else is turned away.',
+                    }
+                    : {
+                        title: 'Only me',
+                        description: 'A short, stable address for your own use. Nobody else can open it.',
+                    },
+            }}
+            isPublishedNow={publishedNow}
+            field={{
+                value: slug,
+                onChange: handleSlugChange,
+                error: slugError,
+                checking: isCheckingSlug,
+                available: slugAvailable,
+                availableMessage: slugCheckMessage,
+            }}
+        />
+    ) : undefined;
 
     /** Folders + files picked from every drive service, for the method button. */
     const driveSelectionCount = totalSelectionCount(asDriveSelection(integrationDataSources));
@@ -1982,7 +2040,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
 
                 const numCards = visibleCards.length;
                 const activeIdx = visibleCards.findIndex((c) => c.value === accessType);
-                const showPanel = accessType !== 'private';
+                const showPanel = accessType !== 'private' || !!linkSectionFor('private');
 
                 // Arrow centers under the active card (using card-center percentage)
                 // Formula: (activeIdx + 0.5) / numCards * 100%
@@ -2099,112 +2157,42 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                         padding: 16,
                                     }}
                                 >
-                                    {/* ── Managed URL config ─────────────────── */}
+                                    {/* ── Just for me: only the optional link ─────────────── */}
+                                    {accessType === 'private' && linkSectionFor('private')}
+
+                                    {/* ── I manage it: who it is shared with, then the optional link ─────── */}
                                     {accessType === 'managed' && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                                            <SegmentedControl
-                                                items={[
-                                                    { id: 'specific', label: 'Specific people' },
-                                                    { id: 'public', label: 'Anyone with the link' },
-                                                ]}
-                                                value={subOption}
-                                                onChange={(value) => setSubOption(value as ManagedSubOption)}
-                                                aria-label="Managed assistant access"
-                                            />
-
-                                            {subOption === 'specific' && (
-                                                <div>
-                                                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
-                                                        <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                                                            Who has access <span style={{ color: '#e05252' }}>*</span>
-                                                        </label>
-                                                        <InfoTooltip
-                                                            text="People you add can use this assistant, view its instructions, and make a copy they can edit. They can’t edit the original. Choose a Group assistant if others need to edit or manage it."
-                                                            ariaLabel="Who has access permissions"
-                                                            maxWidth={320}
-                                                        />
-                                                    </div>
-                                                    <EmailChipsInput
-                                                        selected={emailList}
-                                                        onChange={setEmailList}
-                                                        allEmails={Object.values(amplifyUsers as Record<string, string>)}
-                                                        currentUserEmail={session?.user?.email ?? undefined}
-                                                        fontSize={12}
-                                                        inputId="assistant-access-emails"
-                                                        ariaLabel="Who has access — email addresses"
-                                                    />
-                                                    <SignInRequiredNote action="access" fontSize={11} />
-                                                </div>
-                                            )}
-
-                                            {subOption === 'public' && (
-                                                <div>
-                                                    <label style={{ display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>
-                                                        URL path<span style={{ color: '#e05252' }}> *</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                                            <div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+                                                    <label htmlFor="assistant-access-emails" style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                                                        Share with specific people
                                                     </label>
-                                                    <div style={{ position: 'relative' }}>
-                                                        <input
-                                                            type="text"
-                                                            value={slug}
-                                                            onChange={(e) => handleSlugChange(e.target.value)}
-                                                            placeholder="my-assistant"
-                                                            maxLength={40}
-                                                            style={{
-                                                                ...fieldStyle,
-                                                                fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                                                                fontSize: 13,
-                                                                paddingRight: 34,
-                                                                borderColor: slugError
-                                                                    ? '#e05252'
-                                                                    : slugAvailable === true
-                                                                        ? '#3aa764'
-                                                                        : 'var(--border-subtle)',
-                                                            }}
-                                                        />
-                                                        {/* Inline status icon */}
-                                                        {slug && (
-                                                            <span
-                                                                style={{
-                                                                    position: 'absolute',
-                                                                    right: 10,
-                                                                    top: '50%',
-                                                                    transform: 'translateY(-50%)',
-                                                                    lineHeight: 0,
-                                                                    pointerEvents: 'none',
-                                                                }}
-                                                            >
-                                                                {isCheckingSlug ? (
-                                                                    <IconLoader2
-                                                                        size={14}
-                                                                        className="motion-safe:animate-spin motion-reduce:animate-none"
-                                                                        style={{ color: 'var(--text-muted)' }}
-                                                                    />
-                                                                ) : slugAvailable === true ? (
-                                                                    <IconCheck size={14} style={{ color: '#3aa764' }} />
-                                                                ) : slugError ? (
-                                                                    <IconAlertTriangle size={14} style={{ color: '#e05252' }} />
-                                                                ) : null}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {/* Status messages below the input */}
-                                                    {slugError ? (
-                                                        <p style={{ fontSize: 11, color: '#e05252', margin: '4px 0 0' }}>{slugError}</p>
-                                                    ) : isCheckingSlug ? (
-                                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                                                            Checking availability…
-                                                        </p>
-                                                    ) : slugAvailable === true ? (
-                                                        <p style={{ fontSize: 11, color: '#3aa764', margin: '4px 0 0' }}>
-                                                            {slugCheckMessage} — will be at {typeof window !== 'undefined' ? window.location.origin : ''}/assistants/{slug}
-                                                        </p>
-                                                    ) : slug && !slugError && slugAvailable === null ? (
-                                                        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>
-                                                            We’ll check availability after you stop typing.
-                                                        </p>
-                                                    ) : null}
+                                                    <InfoTooltip
+                                                        text="People you add can use this assistant, view its instructions, and make a copy they can edit. They can’t edit the original. Choose a Group assistant if others need to edit or manage it."
+                                                        ariaLabel="Who has access permissions"
+                                                        maxWidth={320}
+                                                    />
                                                 </div>
-                                            )}
+                                                <EmailChipsInput
+                                                    selected={emailList}
+                                                    onChange={setEmailList}
+                                                    allEmails={Object.values(amplifyUsers as Record<string, string>)}
+                                                    currentUserEmail={session?.user?.email ?? undefined}
+                                                    fontSize={12}
+                                                    inputId="assistant-access-emails"
+                                                    ariaLabel="Share with specific people — email addresses"
+                                                />
+                                                <SignInRequiredNote action="access" fontSize={11} />
+                                                {emailList.length === 0 && !(publishEnabled && !linkRestricted) && (
+                                                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0' }}>
+                                                        Add at least one person, or publish at a link below that anyone can open.
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div style={{ paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+                                                {linkSectionFor('managed')}
+                                            </div>
                                         </div>
                                     )}
 
@@ -2440,6 +2428,13 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                                             You will be the admin.
                                                         </p>
                                                     </div>
+                                                </div>
+                                            )}
+
+                                            {/* Optional: give the new team assistant its own page */}
+                                            {linkSectionFor('collaborative') && (
+                                                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
+                                                    {linkSectionFor('collaborative')}
                                                 </div>
                                             )}
                                         </div>
@@ -2882,6 +2877,7 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                                         groupTypes: groupContext.groupTypes,
                                         supportConvAnalysis: groupContext.supportConvAnalysis,
                                     }}
+                                    urlSection={linkSectionFor('collaborative')}
                                 />
                             </CapabilityCard>
                         </div>
