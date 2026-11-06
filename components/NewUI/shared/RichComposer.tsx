@@ -26,6 +26,7 @@ import React, {
   forwardRef,
   useImperativeHandle,
 } from 'react';
+import { PHONE_MEDIA_QUERY } from '@/components/NewUI/shared/useMediaQuery';
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -338,8 +339,9 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
 
     // Auto-focus on mount
     useEffect(() => {
-      // Not on touch: focusing raises the keyboard, covering the page before the user asked.
-      if (autoFocus && !window.matchMedia('(hover: none) and (pointer: coarse)').matches) {
+      // Not on a phone: focusing raises the keyboard, covering the page before the user
+      // asked. Tablets keep it (they're in the desktop layout, with room for the keyboard).
+      if (autoFocus && !window.matchMedia(PHONE_MEDIA_QUERY).matches) {
         editorRef.current?.focus();
       }
     }, [autoFocus]);

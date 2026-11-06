@@ -454,7 +454,11 @@ const FileRow: React.FC<FileRowProps> = ({
             </span>
 
             {/* Status: under the name on phones, where a badge beside it cut the name to a few letters */}
-            <div className="flex items-center gap-1 w-[100px] justify-end flex-shrink-0 max-md:order-last max-md:w-full max-md:pl-12 max-md:justify-start max-md:empty:hidden">
+            <div className={`flex items-center gap-1 w-[100px] justify-end flex-shrink-0 max-md:order-last max-md:w-full max-md:justify-start max-md:empty:hidden ${
+                // Lines the status up under the name: tile (36px) + gap (12px), plus the
+                // delete-mode checkbox (20px, 40px on touch) and its gap.
+                isDeleteMode ? 'max-md:pl-20 touch:max-md:pl-[100px]' : 'max-md:pl-12'
+            }`}>
                 {!hasFetched ? (
                     <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--text-muted)' }} />
                 ) : (

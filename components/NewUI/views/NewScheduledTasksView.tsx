@@ -50,6 +50,7 @@ import {
 
 import HomeContext from '@/components/Home/home.context';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { RowActionsMenu } from '@/components/NewUI/shared/RowActionsMenu';
 import { SearchInput } from '@/components/NewUI/shared/SearchInput';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
@@ -245,8 +246,8 @@ const TaskRow: React.FC<{
             >
                 {isDeleting ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconTrash size={14} />}
             </button>
-            {/* Touch: behind a menu, because delete has no confirmation and the hover-only
-                button above would otherwise be an invisible tap target. */}
+            {/* Phones and touch: the hover-only button above would be an invisible tap
+                target, so delete sits behind a menu. Either way it asks for confirmation. */}
             <RowActionsMenu
                 aria-label={'Actions for ' + (task.taskName || 'task')}
                 busy={isDeleting}
@@ -379,6 +380,8 @@ export const NewScheduledTasksView: React.FC = () => {
     const [mobilePane, setMobilePane] = useState<'list' | 'detail'>(initTask ? 'detail' : 'list');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+    // The task awaiting delete confirmation (deleting is permanent).
+    const [taskPendingDelete, setTaskPendingDelete] = useState<ScheduledTaskPreview | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [isViewingLogs, setIsViewingLogs] = useState(false);
     const [isLoadingLogs, setIsLoadingLogs] = useState(false);
@@ -567,8 +570,7 @@ export const NewScheduledTasksView: React.FC = () => {
         }
     };
 
-    const handleDeleteTask = async (taskId: string, e: React.MouseEvent) => {
-        e.stopPropagation();
+    const handleDeleteTask = async (taskId: string) => {
         setIsDeletingId(taskId);
         const result = await deleteScheduledTask(taskId);
         if (result.success) {
@@ -1560,7 +1562,10 @@ export const NewScheduledTasksView: React.FC = () => {
                                                 isSelected={selectedTask.taskId === task.taskId}
                                                 isDeleting={isDeletingId === task.taskId}
                                                 onClick={() => handleLoadTask(task.taskId)}
-                                                onDelete={(e) => handleDeleteTask(task.taskId, e)}
+                                                onDelete={(e) => {
+                                                    e.stopPropagation();
+                                                    setTaskPendingDelete(task);
+                                                }}
                                             />
                                         ))}
                                     </div>
@@ -1609,6 +1614,19 @@ export const NewScheduledTasksView: React.FC = () => {
                     {isViewingLogs ? renderLogsPanel() : renderEditorPanel()}
                 </div>
             </div>
+
+            <ConfirmDialog
+                isOpen={taskPendingDelete !== null}
+                title="Delete scheduled task?"
+                message={`Are you sure you want to delete "${taskPendingDelete?.taskName || 'Untitled task'}"? This cannot be undone.`}
+                confirmLabel="Delete"
+                onConfirm={() => {
+                    const task = taskPendingDelete;
+                    setTaskPendingDelete(null);
+                    if (task) void handleDeleteTask(task.taskId);
+                }}
+                onCancel={() => setTaskPendingDelete(null)}
+            />
         </div>
     );
 };
