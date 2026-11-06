@@ -39,7 +39,6 @@ import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import { NewUISelectionReplyLayer } from './NewUISelectionReplyLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
 import { NewUIToolStepsLayer } from './NewUIToolStepsLayer';
-import { NewUITokenCostInfoLayer } from './NewUITokenCostInfoLayer';
 import { NewUITruncationNoticeLayer } from './NewUITruncationNoticeLayer';
 import { ArtifactPanelLayer } from './ArtifactPanelLayer';
 import { ArtifactSplitterLayer } from './ArtifactSplitterLayer';
@@ -1752,7 +1751,6 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       {/* Sources disclosure — replaces ChatSourcesBlock's ExpansionComponent
           with a compact, accessible pill + flat source-card panel. */}
       <NewUISourcesLayer />
-      <NewUITokenCostInfoLayer />
 
       {/* "Cut off at the length limit" / "no answer" notice + Continue under the reply */}
       <NewUITruncationNoticeLayer />

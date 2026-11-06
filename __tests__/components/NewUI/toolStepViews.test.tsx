@@ -14,7 +14,9 @@ import {
   ThinkingRow,
   ToolStepDetails,
   ToolStepGroup,
+  ToolResultSection,
   ToolStepRow,
+  rawLogOwnerId,
 } from '@/components/NewUI/chat/ToolStepViews';
 import type { ToolStep } from '@/components/NewUI/shared/toolSteps';
 
@@ -109,6 +111,78 @@ describe('ToolStepDetails', () => {
 
   it('keeps raw error text in the panel', () => {
     expect(html(<ToolStepDetails args={{}} errorDetail="boom" />)).toContain('boom');
+  });
+});
+
+describe('ToolStepDetails — Result', () => {
+  const email = (n: number) => ({
+    conversationId: `conv-${n}`,
+    subject: `Subject ${n}`,
+    from: { emailAddress: { name: `Sender ${n}`, address: `s${n}@example.com` } },
+    receivedDateTime: '2026-10-15T14:02:11Z',
+    hasAttachments: false,
+    isDraft: false,
+  });
+  const list = { success: true, data: Array.from({ length: 11 }, (_, i) => email(i + 1)) };
+
+  it('shows a list as a one-line summary plus one collapsed line per item, with no raw fields', () => {
+    const out = html(<ToolStepDetails args={{ top: 11 }} result={list} resultSummary="11 messages" />);
+    expect(out).toContain('Result · 11 messages');
+    expect(out.match(/class="nui-result-line"/g)).toHaveLength(11);
+    expect(out).toContain('Subject 1 — Sender 1');
+    // every item is closed: none of its fields are rendered
+    expect(out).not.toMatch(/conversationId|hasAttachments|isDraft|conv-1/);
+    expect(out.match(/aria-expanded="false"/g)).toHaveLength(11);
+    // one grid in the whole panel: the parameters
+    expect(out.match(/<dl/g)).toHaveLength(1);
+  });
+
+  it('counts the items itself when the row has no summary', () => {
+    expect(html(<ToolResultSection result={[{ name: 'a' }]} />)).toContain('Result · 1 item');
+    expect(html(<ToolResultSection result={[]} />)).toContain('Result · 0 items');
+  });
+
+  it('shows an object result as the same key / value grid, and text as text', () => {
+    const obj = html(<ToolResultSection result={{ id: 'abc', ok: true, nested: { a: 1 } }} />);
+    const cells = Array.from(obj.matchAll(/<(dt|dd)>([^<]*)<\/\1>/g)).map((m) => [m[1], m[2]]);
+    expect(cells).toEqual([['dt', 'id'], ['dd', 'abc'], ['dt', 'ok'], ['dd', 'true'], ['dt', 'nested'], ['dd', '{&quot;a&quot;:1}']]);
+    const text = html(<ToolResultSection result={'plain <b>text</b>'} />);
+    expect(text).toContain('plain &lt;b&gt;text&lt;/b&gt;');
+    expect(text).not.toContain('<b>');
+  });
+
+  it('omits the Result section when the step has no result, and does not say "No parameters" next to one', () => {
+    expect(html(<ToolStepDetails args={{ top: 1 }} />)).not.toContain('Result');
+    expect(html(<ToolStepDetails args={{}} result={{ id: 1 }} />)).not.toContain('No parameters');
+  });
+
+  it('offers Raw for the step, and Raw log only when the whole log is passed', () => {
+    const plain = html(<ToolStepDetails args={{ top: 1 }} result={[]} tool="microsoftListMessages" />);
+    expect(plain).toMatch(/aria-pressed="false"[^>]*>Raw<\/button>/);
+    expect(plain).not.toContain('Raw log');
+    const withLog = html(<ToolStepDetails args={{ top: 1 }} tool="x" rawLog={[{ role: 'user', content: 'hi' }]} />);
+    expect(withLog).toContain('Raw log');
+    // JSON is not shown until asked for: the user prompt does not appear by default
+    expect(withLog).not.toContain('&quot;role&quot;');
+  });
+
+  it('uses no card chrome: no bordered boxes, no robot / terminal-style headings', () => {
+    const out = html(<ToolStepDetails args={{ top: 11 }} result={list} resultSummary="11 messages" rawLog={[]} />);
+    expect(out).not.toMatch(/User Prompt|Execute:|Arguments:|Total Token Cost|border-gray/);
+  });
+});
+
+describe('rawLogOwnerId', () => {
+  it('is the last step that uses the plain parameters / result panel', () => {
+    const steps: ToolStep[] = [
+      step({ id: 'a' }),
+      step({ id: 'b' }),
+      step({ id: 'c', mcp: { toolName: 't' } }),
+      step({ id: 'd', detail: { code: 'x' } }),
+    ];
+    expect(rawLogOwnerId(steps)).toBe('b');
+    expect(rawLogOwnerId([step({ id: 'c', mcp: { toolName: 't' } })])).toBeUndefined();
+    expect(rawLogOwnerId([])).toBeUndefined();
   });
 });
 

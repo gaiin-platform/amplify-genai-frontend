@@ -5605,6 +5605,21 @@
   display: none !important;
 }
 
+/* The classic "Reasoning / Actions" disclosure (AgentLogBlock) repeats every tool call the step rows
+   already show — now with their results too. The layer sets data-agentlog-takeover="true" only while
+   the message's agent-log calls all have rows, and only the disclosure is hidden: the generated-files
+   list that shares AgentLogBlock's wrapper stays. With no files, the (empty) wrapper goes too, so its
+   top margin leaves no gap. (The files list is `wrapper > .pointer-events-auto > ul > li`; the
+   disclosure never has a direct <ul>.) Scheduled Tasks run logs have no step rows and are untouched. */
+[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-agentlog-takeover="true"])
+  .mt-3.pointer-events-none > .pointer-events-auto.max-w-full.overflow-hidden {
+  display: none !important;
+}
+[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-agentlog-takeover="true"])
+  .mt-3.pointer-events-none:has(> .pointer-events-auto.max-w-full.overflow-hidden):not(:has(> .pointer-events-auto > ul > li)) {
+  display: none !important;
+}
+
 /* Spacing is owned by this one container:
      --nui-ts-gap       between step rows (and the group)
      --nui-ts-wait-gap  around the "Thinking…" row while the answer is pending.
@@ -5827,7 +5842,10 @@
 
 .nui-step-details .nui-step-params dt {
   color: var(--text-muted);
-  overflow-wrap: anywhere;
+  /* The key column sizes to its longest key (capped at 40% above) and a key wraps only at its own
+     word boundaries — "conversationId" is never split mid-word. Values below can wrap anywhere. */
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .nui-step-details .nui-step-params dd {
@@ -5996,6 +6014,102 @@
 
 .nui-mcp-note {
   margin-top: 0;
+}
+
+/* ── A tool's Result: same container and grid as the parameters, hairline-separated ── */
+.nui-step-params + .nui-result,
+.nui-step-params-empty + .nui-result {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.nui-step-details > .nui-result:first-child .nui-code-title {
+  padding-right: 28px; /* clear of the floating copy button */
+}
+
+/* List results: one line per item, opening to its fields. No boxes, no nested cards. */
+.nui-result-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.nui-result-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: calc(100% + 4px); /* hover bleed 4px to the left only, so no sideways scroll */
+  margin: 0 0 0 -4px;
+  padding: 2px 4px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s ease;
+}
+
+.nui-result-line:hover {
+  background: var(--bg-hover);
+}
+
+.nui-result-line:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.nui-result-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A plain value (nothing to open) is just a line of text. */
+div.nui-result-line.nui-result-plain {
+  width: 100%;
+  margin: 0;
+  padding: 2px 0;
+  cursor: default;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* An opened item's fields: the same grid, indented under the chevron. */
+.nui-step-details .nui-step-params.nui-result-fields {
+  margin: 4px 0 8px 16px !important;
+}
+
+/* ── Raw / Raw log: small muted text buttons; JSON in the same monospace container ── */
+.nui-step-raw-toggles {
+  display: flex;
+  gap: 14px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.nui-step-raw-toggles .nui-step-link {
+  color: var(--text-muted);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.nui-step-raw-toggles .nui-step-link:hover {
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+.nui-step-raw-toggles .nui-step-link[aria-pressed="true"] {
+  color: var(--text-primary);
+}
+
+.nui-step-details .nui-step-raw {
+  padding-right: 24px !important; /* clear of the copy button */
 }
 
 /* ── Group body: rows indented under the header, no box, no left border ── */
