@@ -910,7 +910,8 @@ export const NewHome: React.FC = () => {
                 <div className="flex items-center gap-3 mb-8 justify-center">
                   <AmplifyLogo size={40} radius={6} />
                   <h1
-                    className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
+                    // Phones: 32px and one line, so the heading doesn't wrap and sit off-centre.
+                    className="text-[32px] sm:text-[40px] whitespace-nowrap text-[--text-primary] leading-none tracking-[-0.01em] text-center"
                     style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
                   >
                     How can I help?
@@ -920,20 +921,6 @@ export const NewHome: React.FC = () => {
             </div>
           </div>
         </div>
-        {/* Greeting */}
-        {isHalloween ? (
-          <HalloweenGreeting />
-        ) : (
-          <div className="flex items-center gap-3 mb-8 justify-center">
-            <AmplifyLogo size={40} radius={6} />
-            <h1
-              className="text-[32px] sm:text-[40px] whitespace-nowrap text-[--text-primary] leading-none tracking-[-0.01em] text-center"
-              style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
-            >
-              How can I help?
-            </h1>
-          </div>
-        )}
 
         {/* Composer box — flex column: rail | textarea | toolbar. Rail is pinned
             above the text area; only the text area scrolls; the toolbar is

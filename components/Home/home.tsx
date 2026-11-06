@@ -1845,12 +1845,13 @@ const Home = ({
                 />
                 {selectedConversation && (
                     <main
-                        className={`flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
+                        // app-safe-area: safe-area insets, and the shell height while the iOS
+                        // keyboard is open (see KeyboardViewportFit / globals.css).
+                        className={`app-safe-area flex h-screen w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                         // 100dvh tracks the *visible* viewport on mobile (URL bar / toolbars),
                         // so the composer cap isn't taller than what's on screen. Browsers
                         // without dvh drop this declaration and keep h-screen (100vh).
                         style={{ height: '100dvh' }}
-                        className={`app-safe-area flex h-screen supports-[height:100dvh]:h-[100dvh] w-screen flex-col text-sm text-white dark:text-white ${lightMode}`}
                     >
                         {/* ── NEW UI LAYOUT ── gated: New UI renders only while the New UI rollout
                             flag is confirmed enabled (see NewUiRolloutGate); 'pending' renders nothing. */}
