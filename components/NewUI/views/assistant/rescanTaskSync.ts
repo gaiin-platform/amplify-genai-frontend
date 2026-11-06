@@ -14,6 +14,7 @@
  */
 
 import type { AttachedDocument } from '@/types/attacheddocument';
+import { websiteScheduleRows } from './refreshScheduleModel';
 import type { DriveRescanSchedule } from '@/components/Promptbar/components/AssistantModalComponents/AssistantDriveDataSources';
 
 export type RescanTaskKind = 'websites' | 'driveFiles';
@@ -105,6 +106,43 @@ export const syncRescanTasks = async (input: RescanSyncInput, deps: RescanTaskDe
 
     return { ids: compact({ websites, driveFiles }), failed };
 };
+
+/**
+ * What the user has asked to be refreshed, as comparable text. Cron strings are not compared: the website
+ * one depends on the current time, so it differs between two reads of the same settings.
+ *   - `websites`: each scheduled website and its frequency; `''` when none is scheduled.
+ *   - `driveFiles`: the drive schedule when it is on and there are drive files, else `''`;
+ *     `null` when it cannot be compared (not loaded, or drive refresh is not offered).
+ */
+export interface RescanSignature { websites: string; driveFiles: string | null }
+
+export const rescanSignature = (input: {
+    websiteUrls: unknown[];
+    driveSchedule: DriveRescanSchedule | null;
+    hasDriveFiles: boolean;
+    driveAllowed: boolean;
+}): RescanSignature => {
+    const websites = websiteScheduleRows(input.websiteUrls)
+        .filter((row) => row.scanFrequency !== null)
+        .map((row) => `${row.sourceUrl}|${row.scanFrequency}`)
+        .sort()
+        .join('\n');
+    const schedule = input.driveSchedule;
+    const driveFiles = !input.driveAllowed || schedule === null
+        ? null
+        : schedule.enabled && schedule.frequency !== 'none' && input.hasDriveFiles
+            ? [schedule.frequency, schedule.time, schedule.dayOfWeek, schedule.dayOfMonth].join('|')
+            : '';
+    return { websites, driveFiles };
+};
+
+/** A schedule was attached, removed or changed. A drive schedule that cannot be compared never counts. */
+export const rescanSignatureChanged = (before: RescanSignature, after: RescanSignature): boolean =>
+    before.websites !== after.websites || (after.driveFiles !== null && before.driveFiles !== after.driveFiles);
+
+/** Nothing is wanted and no task exists, so there is nothing to create, update or delete. */
+export const hasRescanWork = (sig: RescanSignature, existing: RescanTaskIds | undefined): boolean =>
+    !!sig.websites || !!existing?.websites || (sig.driveFiles !== null && (!!sig.driveFiles || !!existing?.driveFiles));
 
 export const sameTaskIds = (a: RescanTaskIds | undefined, b: RescanTaskIds | undefined): boolean =>
     (a?.websites ?? '') === (b?.websites ?? '') && (a?.driveFiles ?? '') === (b?.driveFiles ?? '');

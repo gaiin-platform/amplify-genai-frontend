@@ -4639,6 +4639,69 @@
   line-height: 1.3;
 }
 
+/* ── Card wrapper: the card plus its optional excerpt underneath ── */
+.nui-src-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* ── Card: where in the document the text came from (right-aligned, muted) ── */
+.nui-src-location {
+  flex-shrink: 0;
+  margin-left: auto;
+  padding-left: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+/* ── Card: show / hide the retrieved text ── */
+.nui-src-excerpt-toggle {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: transform 0.15s ease, background-color 0.12s ease;
+  transform: rotate(-90deg);
+}
+
+.nui-src-excerpt-toggle[data-open="true"] {
+  transform: rotate(0deg);
+}
+
+.nui-src-excerpt-toggle:hover {
+  background: var(--bg-hover);
+}
+
+.nui-src-excerpt-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ── Retrieved text under an expanded card ── */
+.nui-src-excerpt {
+  margin: 0 2px 2px 34px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--border-subtle);
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+  max-height: 180px;
+  overflow-y: auto;
+  overflow-wrap: anywhere;
+}
+
 /* ── Card: external-link icon — visible on hover ── */
 .nui-src-ext-icon {
   flex-shrink: 0;

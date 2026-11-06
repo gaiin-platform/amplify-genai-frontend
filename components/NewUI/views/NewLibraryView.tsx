@@ -294,7 +294,8 @@ const FileRow: React.FC<FileRowProps> = ({
     const status = embeddingStatus?.[key];
     const isPolling = pollingFiles.has(file.id);
     const hasFetched = fetchedKeys.has(key);
-    const action = hasFetched && status ? getFileAction(file.createdAt, status, embeddingStatus?.metadata?.[key]) : null;
+    // "Chat Only" (not_found) files were never meant to be embedded, so there is nothing to refresh or regenerate.
+    const action = hasFetched && status && status !== 'not_found' ? getFileAction(file.createdAt, status, embeddingStatus?.metadata?.[key]) : null;
     const canReprocess = !disableSupportReprocess(file.type);
 
     useEffect(() => {
