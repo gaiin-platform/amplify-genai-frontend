@@ -52,6 +52,7 @@ import { ConversationRow } from './ConversationRow';
 import { FolderRow } from './FolderRow';
 import { AccountMenu } from './AccountMenu';
 import { useIsTouch } from '@/components/NewUI/shared/useMediaQuery';
+import { setMobileTopBarSlot } from '@/components/NewUI/shared/mobileTopBarSlot';
 import { getUserChatFolders } from '@/components/NewUI/shared/chatFolderHelpers';
 import NoticeDialog from '@/components/NewUI/shared/NoticeDialog';
 import { IconButton } from '@/components/NewUI/shared/IconButton';
@@ -847,7 +848,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
     (currentNavId && navItems.find((item) => item.id === currentNavId)?.label) || 'Amplify';
   const mobileTopBar = (
     <div
-      className="flex items-center gap-1 h-12 px-1 w-full flex-shrink-0 bg-[--bg-sidebar] border-b border-[--border-subtle]"
+      className="relative z-30 flex items-center gap-1 h-12 px-1 w-full flex-shrink-0 bg-[--bg-sidebar] border-b border-[--border-subtle]"
       style={{ fontFamily: 'Inter, sans-serif' }}
     >
       <button
@@ -858,7 +859,10 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
       >
         <IconMenu2 size={22} />
       </button>
-      <div className="flex-1 min-w-0 truncate text-center text-[15px] font-medium text-[--text-primary]">
+      {/* A page can fill this slot with its own header (the chat does, so phones show one
+          bar instead of two); the default title only shows while it's empty. */}
+      <div ref={setMobileTopBarSlot} className="peer flex flex-1 min-w-0 items-center empty:hidden" />
+      <div className="flex-1 min-w-0 truncate text-center text-[15px] font-medium text-[--text-primary] peer-[:not(:empty)]:hidden">
         {mobileTitle}
       </div>
       <button
@@ -986,7 +990,8 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
         ref={sidebarRef}
         {...(isMobile ? { role: 'dialog', 'aria-modal': true, 'aria-label': 'Navigation' } : {})}
         className={isMobile
-          ? 'fixed inset-y-0 left-0 z-50 flex flex-col w-[min(85vw,320px)] bg-[--bg-sidebar] shadow-xl'
+          // Too short for the pinned header and footer to leave Recents any room: scroll it all.
+          ? 'fixed inset-y-0 left-0 z-50 flex flex-col w-[min(85vw,320px)] bg-[--bg-sidebar] shadow-xl [@media(max-height:480px)]:overflow-y-auto [@media(max-height:480px)]:[&>*]:flex-shrink-0'
           : 'relative flex flex-col flex-shrink-0 bg-[--bg-sidebar] border-r border-[--border-subtle] self-stretch transition-colors duration-200'}
         style={isMobile
           ? {
@@ -1049,7 +1054,7 @@ export const NewSidebar: React.FC<NewSidebarProps> = ({ email, name, username })
         <div
           ref={recentsScrollRef}
           onScroll={handleRecentsScroll}
-          className="new-ui-sidebar-recents flex-1 overflow-y-auto overflow-x-hidden"
+          className={`new-ui-sidebar-recents flex-1 overflow-y-auto overflow-x-hidden ${isMobile ? '[@media(max-height:480px)]:flex-none [@media(max-height:480px)]:overflow-y-visible' : ''}`}
         >
           {/* Pinned section — only rendered when at least one conversation is pinned */}
           {pinned.length > 0 && (

@@ -430,6 +430,7 @@ const ActionRow: React.FC<ActionRowProps> = ({
   return (
     <div
       className="new-ui-msg-action-row"
+      data-role={slot.role}
       style={rowStyle}
       onMouseEnter={() => onHoverChange(slot.key, true)}
       onMouseLeave={() => onHoverChange(slot.key, false)}

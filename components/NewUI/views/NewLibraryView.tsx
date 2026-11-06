@@ -93,6 +93,7 @@ import {
     resolveArtifactRenameKeys,
 } from '@/components/NewUI/shared/artifactRename';
 import { getAllArtifacts, getArtifact } from '@/services/artifactsService';
+import { RowActionsMenu } from '@/components/NewUI/shared/RowActionsMenu';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // sanitizePageKey / buildLibraryQuery live in shared/libraryQuery.ts so the
@@ -331,7 +332,7 @@ const FileRow: React.FC<FileRowProps> = ({
 
     return (
         <div
-            className="group flex items-center gap-3 px-4 py-2.5 rounded-[8px] transition-colors duration-100 cursor-default"
+            className="group flex items-center max-md:flex-wrap gap-3 max-md:gap-y-1 px-4 py-2.5 rounded-[8px] transition-colors duration-100 cursor-default"
             style={{ backgroundColor: hovered ? 'var(--bg-hover)' : 'transparent' }}
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
@@ -339,7 +340,7 @@ const FileRow: React.FC<FileRowProps> = ({
             {/* Select checkbox (delete mode) */}
             {isDeleteMode && (
                 <button
-                    className="flex-shrink-0 flex items-center justify-center w-5 h-5"
+                    className="flex-shrink-0 flex items-center justify-center w-5 h-5 touch:w-10 touch:h-10"
                     onClick={(e) => { e.stopPropagation(); onToggleSelect(); }}
                     title={isSelected ? 'Deselect' : 'Select'}
                 >
@@ -377,7 +378,7 @@ const FileRow: React.FC<FileRowProps> = ({
 
             {/* Name + tags */}
             <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1 min-w-0">
+                <div className={`flex items-center gap-1 min-w-0 ${isRenaming ? 'max-md:flex-wrap' : ''}`}>
                     {isRenaming ? (
                         <>
                             <input
@@ -397,14 +398,14 @@ const FileRow: React.FC<FileRowProps> = ({
                                 }}
                                 aria-label={'Rename ' + file.name}
                                 placeholder={fileExtension ? editableName : undefined}
-                                className="min-w-0 flex-1 rounded-[4px] border px-1 text-[13px] font-medium focus:outline-none focus-visible:ring-2"
+                                className="min-w-0 flex-1 max-md:basis-full max-md:h-9 rounded-[4px] border px-1 text-[13px] font-medium focus:outline-none focus-visible:ring-2"
                                 style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)' }}
                             />
                             <div className="flex items-center gap-1 flex-shrink-0">
-                                <button type="button" disabled={isSavingRename} aria-label="Save filename" title="Save" onMouseDown={(event) => event.preventDefault()} onClick={() => void commitRename()} className="flex items-center justify-center h-6 px-2 rounded-[5px] text-[11px] font-medium disabled:opacity-50" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}>
+                                <button type="button" disabled={isSavingRename} aria-label="Save filename" title="Save" onMouseDown={(event) => event.preventDefault()} onClick={() => void commitRename()} className="flex items-center justify-center h-6 touch:h-9 px-2 touch:px-3 rounded-[5px] text-[11px] font-medium disabled:opacity-50" style={{ backgroundColor: 'var(--accent)', color: 'var(--accent-fg)' }}>
                                     {isSavingRename ? <IconLoader2 size={12} className="motion-safe:animate-spin motion-reduce:animate-none" /> : 'Save'}
                                 </button>
-                                <button type="button" disabled={isSavingRename} aria-label="Cancel rename" title="Cancel" onMouseDown={(event) => event.preventDefault()} onClick={() => { setRenameValue(editableName); setIsRenaming(false); }} className="flex items-center justify-center h-6 px-2 rounded-[5px] text-[11px] font-medium disabled:opacity-50" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-hover)' }}>
+                                <button type="button" disabled={isSavingRename} aria-label="Cancel rename" title="Cancel" onMouseDown={(event) => event.preventDefault()} onClick={() => { setRenameValue(editableName); setIsRenaming(false); }} className="flex items-center justify-center h-6 touch:h-9 px-2 touch:px-3 rounded-[5px] text-[11px] font-medium disabled:opacity-50" style={{ color: 'var(--text-secondary)', backgroundColor: 'var(--bg-hover)' }}>
                                     Cancel
                                 </button>
                             </div>
@@ -424,7 +425,7 @@ const FileRow: React.FC<FileRowProps> = ({
                                 setRenameValue(editableName);
                                 setIsRenaming(true);
                             }}
-                            className="flex-shrink-0 flex items-center justify-center h-5 w-5 touch:h-8 touch:w-8 rounded-[4px] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto touch:opacity-100 touch:pointer-events-auto"
+                            className="flex-shrink-0 flex items-center justify-center h-5 w-5 rounded-[4px] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-visible:opacity-100 focus-visible:pointer-events-auto max-md:hidden touch:hidden"
                             style={{ color: 'var(--text-muted)' }}
                         >
                             <IconPencil size={13} />
@@ -462,8 +463,8 @@ const FileRow: React.FC<FileRowProps> = ({
                 {formatDate(file.createdAt)}
             </span>
 
-            {/* Status */}
-            <div className="flex items-center gap-1 w-[100px] justify-end flex-shrink-0">
+            {/* Status: under the name on phones, where a badge beside it cut the name to a few letters */}
+            <div className="flex items-center gap-1 w-[100px] justify-end flex-shrink-0 max-md:order-last max-md:w-full max-md:pl-12 max-md:justify-start max-md:empty:hidden">
                 {!hasFetched ? (
                     <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" style={{ color: 'var(--text-muted)' }} />
                 ) : (
@@ -479,7 +480,7 @@ const FileRow: React.FC<FileRowProps> = ({
                         type="button"
                         aria-label={'Refresh status for ' + file.name}
                        onClick={(e) => { e.stopPropagation(); onStatusRefresh(); }}
-                        className="flex items-center justify-center h-5 w-5 rounded-[4px] transition-colors"
+                        className="flex items-center justify-center h-5 w-5 touch:h-9 touch:w-9 rounded-[4px] transition-colors"
                         style={{ color: 'var(--text-muted)' }}
                         onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#6090D8'; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
@@ -498,7 +499,7 @@ const FileRow: React.FC<FileRowProps> = ({
                                 onReprocess();
                             }
                         }}
-                        className="flex items-center justify-center h-5 w-5 rounded-[4px] transition-colors"
+                        className="flex items-center justify-center h-5 w-5 touch:h-9 touch:w-9 rounded-[4px] transition-colors"
                         style={{ color: 'var(--text-muted)' }}
                         onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#E8A030'; }}
                         onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = 'var(--text-muted)'; }}
@@ -511,7 +512,7 @@ const FileRow: React.FC<FileRowProps> = ({
 
             {/* Hover actions */}
             <div
-                className={`flex items-center gap-1 transition-opacity duration-100 focus-within:opacity-100 focus-within:pointer-events-auto ${
+                className={`flex items-center gap-1 max-md:hidden touch:hidden transition-opacity duration-100 focus-within:opacity-100 focus-within:pointer-events-auto ${
                     hovered && !isDeleteMode ? 'opacity-100' : 'opacity-0 pointer-events-none'
                 }`}
                 onClick={(e) => e.stopPropagation()}
@@ -571,6 +572,20 @@ const FileRow: React.FC<FileRowProps> = ({
                     <IconTrash size={14} />
                 </button>
             </div>
+
+            {/* Phones and touch: the hover-only actions, in a menu */}
+            {!isDeleteMode && !isRenaming && (
+                <RowActionsMenu
+                    aria-label={'Actions for ' + file.name}
+                    items={[
+                        { label: 'Preview', icon: <IconEye size={15} />, onClick: (e) => onPreview(e.currentTarget.getBoundingClientRect()) },
+                        { label: 'Rename', icon: <IconPencil size={15} />, onClick: () => { setRenameValue(editableName); setIsRenaming(true); } },
+                        { label: 'Download', icon: <IconDownload size={15} />, onClick: onDownload },
+                        { label: 'Attach to new chat', icon: <IconPaperclip size={15} />, onClick: onAttachToConversation },
+                        { label: 'Delete', icon: <IconTrash size={15} />, danger: true, onClick: onDelete },
+                    ]}
+                />
+            )}
         </div>
     );
 };
@@ -631,11 +646,11 @@ const ArtifactLibraryRow: React.FC<{
     const createdLabel = formatArtifactCreated(item.created);
 
     return (
-        <div className="group flex items-center gap-3 rounded-[9px] border px-4 py-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
+        <div className="group flex items-center max-md:flex-wrap gap-3 rounded-[9px] border px-4 py-3 max-md:px-3" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }}>
             <div className="h-9 w-9 flex-shrink-0 flex items-center justify-center rounded-[8px]" style={{ color: 'var(--accent)', backgroundColor: 'var(--bg-active)' }}><IconLibrary size={17} /></div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 max-md:basis-[calc(100%-48px)]">
                 {isRenaming ? (
-                    <div className="flex items-center gap-1 min-w-0">
+                    <div className="flex items-center gap-1 min-w-0 max-md:flex-wrap">
                         <input
                             ref={inputRef}
                             value={draft}
@@ -650,13 +665,13 @@ const ArtifactLibraryRow: React.FC<{
                                 if (event.key === 'Escape') cancel();
                             }}
                             aria-label={'Rename ' + item.name}
-                            className="min-w-0 flex-1 rounded-[4px] border px-1 text-[13px] font-medium focus:outline-none focus-visible:ring-2"
+                            className="min-w-0 flex-1 max-md:basis-full max-md:h-9 rounded-[4px] border px-1 text-[13px] font-medium focus:outline-none focus-visible:ring-2"
                             style={{ borderColor: 'var(--accent)', backgroundColor: 'var(--bg-app)', color: 'var(--text-primary)' }}
                         />
-                        <button type="button" disabled={isSaving} aria-label="Save artifact name" title="Save" onMouseDown={(event) => event.preventDefault()} onClick={() => void commit()} className="flex items-center justify-center h-6 px-2 rounded-[5px] text-[12px] font-medium disabled:opacity-60" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}>
+                        <button type="button" disabled={isSaving} aria-label="Save artifact name" title="Save" onMouseDown={(event) => event.preventDefault()} onClick={() => void commit()} className="flex items-center justify-center h-6 touch:h-9 px-2 touch:px-3 rounded-[5px] text-[12px] font-medium disabled:opacity-60" style={{ color: 'var(--accent-fg)', backgroundColor: 'var(--accent)' }}>
                             {isSaving ? <IconLoader2 size={12} className="motion-safe:animate-spin motion-reduce:animate-none" /> : 'Save'}
                         </button>
-                        <button type="button" disabled={isSaving} aria-label="Cancel rename" title="Cancel" onMouseDown={(event) => event.preventDefault()} onClick={cancel} className="flex items-center justify-center h-6 px-2 rounded-[5px] border text-[12px] disabled:opacity-60" style={buttonStyle}>
+                        <button type="button" disabled={isSaving} aria-label="Cancel rename" title="Cancel" onMouseDown={(event) => event.preventDefault()} onClick={cancel} className="flex items-center justify-center h-6 touch:h-9 px-2 touch:px-3 rounded-[5px] border text-[12px] disabled:opacity-60" style={buttonStyle}>
                             Cancel
                         </button>
                     </div>
@@ -678,7 +693,7 @@ const ArtifactLibraryRow: React.FC<{
                 <p className="truncate text-[12px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{item.nuiType} · v{item.artifact.version}{sourceLabel ? ` · ${sourceLabel}` : ''}</p>
             </div>
             {createdLabel && (
-                <time dateTime={createdLabel.iso} title={createdLabel.title} data-new-ui-artifact-created="true" className="flex-shrink-0 w-[92px] text-right leading-tight">
+                <time dateTime={createdLabel.iso} title={createdLabel.title} data-new-ui-artifact-created="true" className="flex-shrink-0 w-[92px] text-right leading-tight max-md:w-auto max-md:mr-auto max-md:text-left">
                     <span className="block text-[12px]" style={{ color: 'var(--text-secondary)' }}>{createdLabel.date}</span>
                     {createdLabel.time && <span className="block text-[11px] mt-0.5" style={{ color: 'var(--text-muted)' }}>{createdLabel.time}</span>}
                 </time>
@@ -1301,18 +1316,19 @@ export const NewLibraryView: React.FC = () => {
         >
             {/* ── Top bar ───────────────────────────────────────────────────── */}
             <div
-                // Wraps on mobile: title row, then tabs + actions, then a full-width search.
-                className="flex-shrink-0 flex flex-wrap items-center justify-between gap-y-2 px-4 md:px-6 py-2 md:py-0 min-h-[56px] border-b"
+                // Wraps on mobile: tabs + actions, then a full-width search.
+                className="flex-shrink-0 flex flex-wrap items-center justify-between gap-2 md:gap-x-0 px-4 md:px-6 py-2 md:py-0 min-h-[56px] border-b"
                 style={{
                     backgroundColor: 'var(--bg-sidebar)',
                     borderColor: 'var(--border-subtle)',
                 }}
             >
-                {/* Left: close + title */}
-                <div className="flex items-center gap-3">
+                {/* Left: close + title. Phones: the top bar names the page and the drawer
+                    navigates, so these two go and the controls below flow into one row. */}
+                <div className="flex items-center gap-3 max-md:contents">
                     <button
                         onClick={() => dispatch({ field: 'page', value: 'chat' })}
-                        className="flex items-center justify-center h-8 w-8 rounded-[8px] transition-colors flex-shrink-0"
+                        className="flex items-center justify-center h-8 w-8 rounded-[8px] transition-colors flex-shrink-0 max-md:hidden"
                         style={{ color: 'var(--text-muted)' }}
                         onMouseEnter={(e) => {
                             (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
@@ -1327,7 +1343,7 @@ export const NewLibraryView: React.FC = () => {
                         <IconX size={16} />
                     </button>
                     <h1
-                        className="text-[17px] font-semibold tracking-tight"
+                        className="text-[17px] font-semibold tracking-tight max-md:hidden"
                         style={{ color: 'var(--text-primary)', fontFamily: '"Newsreader", "Georgia", serif' }}
                     >
                         Library
@@ -1340,8 +1356,8 @@ export const NewLibraryView: React.FC = () => {
                 </div>
 
                 {/* Right: search + actions */}
-                <div className="flex flex-wrap items-center gap-2 max-md:w-full">
-                    <div className="flex items-center rounded-[8px] border p-0.5" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }} role="tablist" aria-label="Library content">
+                <div className="flex flex-wrap items-center gap-2 max-md:contents">
+                    <div className="flex items-center rounded-[8px] border p-0.5 max-md:order-first max-md:mr-auto" style={{ borderColor: 'var(--border-subtle)', backgroundColor: 'var(--bg-raised)' }} role="tablist" aria-label="Library content">
                         <button type="button" role="tab" aria-selected={libraryMode === 'files'} onClick={() => setLibraryMode('files')} className="h-[28px] touch:h-9 px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'files' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Files</button>
                         <button type="button" role="tab" aria-selected={libraryMode === 'artifacts'} onClick={() => setLibraryMode('artifacts')} className="h-[28px] touch:h-9 px-2.5 rounded-[6px] text-[12px]" style={{ backgroundColor: libraryMode === 'artifacts' ? 'var(--bg-active)' : 'transparent', color: 'var(--text-secondary)' }}>Artifacts</button>
                     </div>
@@ -1509,9 +1525,9 @@ export const NewLibraryView: React.FC = () => {
                 className="flex-shrink-0 flex items-center gap-3 px-4 py-2 border-b"
                 style={{ borderColor: 'var(--border-subtle)' }}
             >
-                {isDeleteMode && <div className="w-5 flex-shrink-0" />}
+                {isDeleteMode && <div className="w-5 touch:w-10 flex-shrink-0" />}
                 <div className="w-9 flex-shrink-0" />
-                <div className="flex-1">
+                <div className="flex-1 min-w-0">
                     {sortableHeader('Name', 'name')}
                 </div>
                 <div className="hidden sm:block w-[80px] text-right flex-shrink-0">
@@ -1520,11 +1536,11 @@ export const NewLibraryView: React.FC = () => {
                 <div className="hidden md:block w-[90px] text-right flex-shrink-0">
                     {sortableHeader('Date', 'createdAt')}
                 </div>
-                <div className="w-[100px] text-right flex-shrink-0">
+                <div className="w-[100px] max-md:w-auto text-right flex-shrink-0">
                     {sortableHeader('Status', 'status')}
                 </div>
                 {/* Actions spacer */}
-                <div className="flex-shrink-0" style={{ width: SORT_ACTION_WIDTH }} />
+                <div className="flex-shrink-0 max-md:hidden touch:!w-8" style={{ width: SORT_ACTION_WIDTH }} />
             </div>
 
             {/* ── File list ─────────────────────────────────────────────────── */}

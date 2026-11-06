@@ -291,7 +291,10 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
 
     // Auto-focus on mount
     useEffect(() => {
-      if (autoFocus) editorRef.current?.focus();
+      // Not on touch: focusing raises the keyboard, covering the page before the user asked.
+      if (autoFocus && !window.matchMedia('(hover: none) and (pointer: coarse)').matches) {
+        editorRef.current?.focus();
+      }
     }, [autoFocus]);
 
     // Keep track of whether editor has visible content (for placeholder visibility)

@@ -491,7 +491,9 @@ export const ConversationRow: React.FC<ConversationRowProps> = ({
             before:bg-gradient-to-r
             ${isSelected
               ? 'before:from-transparent before:to-[--bg-active]'
-              : 'before:from-transparent before:to-[--bg-hover]'
+              : isHovered || isMenuOpen
+                ? 'before:from-transparent before:to-[--bg-hover]'
+                : 'before:from-transparent before:to-[--bg-sidebar]' /* always shown on touch, over an unhovered row */
             }
           `}
         >

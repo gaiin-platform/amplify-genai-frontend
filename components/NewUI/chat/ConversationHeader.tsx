@@ -6,8 +6,13 @@
  *
  * Rendered by ConversationViewShell as an overlay on top of Chat.tsx's own header
  * (which is hidden via CSS). Zero Chat.tsx logic changes.
+ *
+ * On phones it renders into the mobile top bar's slot instead, so the chat has one
+ * header bar rather than two: the title fills the bar, Share becomes an icon, and the
+ * assistant tag shrinks to its icon with the name at the top of the title menu.
  */
 import React, { useContext, useEffect, useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import {
   IconChevronDown,
   IconPencil,
@@ -17,6 +22,7 @@ import {
 } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
 import { useConversationAssistant } from '@/components/NewUI/shared/useConversationAssistant';
+import { useMobileTopBarSlot } from '@/components/NewUI/shared/mobileTopBarSlot';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
@@ -25,7 +31,15 @@ import {
   MarkdownExportMenuItems,
 } from '@/components/NewUI/shared/ArtifactExportMenu';
 
-export const ConversationHeader: React.FC = () => {
+interface ConversationHeaderProps {
+  /**
+   * The shell is mounted but off-screen behind NewHome. Its overlay header goes with it,
+   * but the phone header renders elsewhere, into the top bar, so it has to stand down.
+   */
+  hidden?: boolean;
+}
+
+export const ConversationHeader: React.FC<ConversationHeaderProps> = ({ hidden = false }) => {
   const {
     state: { selectedConversation, lightMode },
     handleUpdateConversation,
@@ -35,6 +49,9 @@ export const ConversationHeader: React.FC = () => {
   // Resolved per-conversation assistant — survives the first send and a reload,
   // unlike the global `selectedAssistant` field. See useConversationAssistant.
   const { assistantName } = useConversationAssistant();
+
+  const mobileTopBarSlot = useMobileTopBarSlot();
+  const compact = mobileTopBarSlot !== null;
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [renaming, setRenaming] = useState(false);
@@ -109,29 +126,41 @@ export const ConversationHeader: React.FC = () => {
 
   // Menu item style
   const menuItemCls =
-    'w-full flex items-center gap-2.5 px-3 h-[34px] text-[14px] rounded-[8px] ' +
+    'w-full flex items-center gap-2.5 px-3 h-[34px] touch:h-11 text-[14px] rounded-[8px] ' +
     'text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] transition-colors text-left';
+
+  const wrapBar = (content: React.ReactNode) =>
+    compact ? (
+      hidden ? null : ReactDOM.createPortal(
+        <div className="flex flex-1 min-w-0 items-center">{content}</div>,
+        mobileTopBarSlot,
+      )
+    ) : (
+      <div
+        className="new-ui-header"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: 52,
+          zIndex: 30,
+          background: 'var(--bg-app)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 20px 0 24px',
+          pointerEvents: 'auto',
+        }}
+      >
+        {content}
+      </div>
+    );
 
   return (
     <>
     <NewUILoadingStatus open={downloadBusy} variant="overlay" message="Preparing download…" />
-    <div
-      className="new-ui-header"
-      style={{
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        height: 52,
-        zIndex: 30,
-        background: 'var(--bg-app)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 20px 0 24px',
-        pointerEvents: 'auto',
-      }}
-    >
+    {wrapBar(<>
       {/* ── Left: title trigger ── */}
       <div className="flex items-center gap-2 min-w-0 flex-1">
         {renaming ? (
@@ -141,7 +170,7 @@ export const ConversationHeader: React.FC = () => {
             onChange={(e) => setRenameValue(e.target.value)}
             onKeyDown={handleRenameKeyDown}
             onBlur={handleRenameCommit}
-            className="text-[15px] font-[500] bg-transparent border-b border-[--border-subtle] outline-none text-[--text-primary] max-w-[40ch]"
+            className={`text-[15px] font-[500] bg-transparent border-b border-[--border-subtle] outline-none text-[--text-primary] ${compact ? 'w-full min-w-0' : 'max-w-[40ch]'}`}
             style={{ lineHeight: 1.4 }}
           />
         ) : (
@@ -151,12 +180,12 @@ export const ConversationHeader: React.FC = () => {
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((o) => !o)}
-            className="flex items-center gap-1 rounded-[8px] touch:min-h-[36px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
+            className="flex items-center gap-1 min-w-0 rounded-[8px] touch:min-h-[36px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[--text-secondary]"
             style={{
               padding: '3px 8px',
-              margin: '0 -8px',
+              margin: compact ? 0 : '0 -8px',
               background: menuOpen ? 'var(--bg-hover)' : 'transparent',
-              maxWidth: '40ch',
+              maxWidth: compact ? '100%' : '40ch',
             }}
             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'var(--bg-hover)'; }}
             onMouseLeave={(e) => {
@@ -164,7 +193,7 @@ export const ConversationHeader: React.FC = () => {
             }}
           >
             <span
-              className="text-[15px] font-[500] text-[--text-primary] truncate"
+              className="text-[15px] font-[500] text-[--text-primary] truncate min-w-0"
               style={{ maxWidth: '40ch' }}
               title={title}
             >
@@ -183,7 +212,15 @@ export const ConversationHeader: React.FC = () => {
 
         {/* Assistant tag — the conversation is answered by this assistant.
             Accent-tinted so it reads as an active attachment, not a filter. */}
-        {assistantName && (
+        {assistantName && compact && (
+          <IconSparkles
+            size={15}
+            className="flex-shrink-0"
+            style={{ color: 'var(--accent)' }}
+            aria-label={`Assistant in use: ${assistantName}`}
+          />
+        )}
+        {assistantName && !compact && (
           <div
             className="flex items-center gap-1.5 px-2 py-0.5 rounded-[6px] text-[12px] flex-shrink-0"
             style={{
@@ -202,6 +239,16 @@ export const ConversationHeader: React.FC = () => {
 
       {/* ── Right: Share chat button ── */}
       <div className="flex items-center gap-2.5 flex-shrink-0">
+        {compact ? (
+          <button
+            type="button"
+            onClick={handleShare}
+            aria-label="Share this conversation"
+            className="w-11 h-11 flex items-center justify-center rounded-[8px] text-[--text-secondary] active:bg-[--bg-hover]"
+          >
+            <IconShare size={20} />
+          </button>
+        ) : (
         <button
           type="button"
           onClick={handleShare}
@@ -221,6 +268,7 @@ export const ConversationHeader: React.FC = () => {
         >
           Share chat
         </button>
+        )}
       </div>
 
       {/* ── Title dropdown menu ── */}
@@ -228,9 +276,18 @@ export const ConversationHeader: React.FC = () => {
         <div
           ref={menuRef}
           role="menu"
-          className="absolute top-[calc(100%+4px)] left-6 w-[240px] rounded-[12px] py-[6px] shadow-[0_12px_32px_rgba(0,0,0,0.4)] border border-[--border-subtle] z-50"
+          className={`absolute top-[calc(100%+4px)] ${compact ? 'left-2' : 'left-6'} w-[240px] rounded-[12px] py-[6px] shadow-[0_12px_32px_rgba(0,0,0,0.4)] border border-[--border-subtle] z-50`}
           style={{ background: 'var(--bg-raised)' }}
         >
+          {compact && assistantName && (
+            <>
+              <div className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-[--text-primary]">
+                <IconSparkles size={15} className="flex-shrink-0" style={{ color: 'var(--accent)' }} />
+                <span className="min-w-0 truncate">{assistantName}</span>
+              </div>
+              <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+            </>
+          )}
           <button
             role="menuitem"
             className={menuItemCls}
@@ -278,6 +335,7 @@ export const ConversationHeader: React.FC = () => {
           </button>
         </div>
       )}
+    </>)}
 
       {/* Delete confirmation dialog */}
       <ConfirmDialog
@@ -296,7 +354,6 @@ export const ConversationHeader: React.FC = () => {
         onConfirm={confirmDelete}
         onCancel={() => setConfirmDeleteOpen(false)}
       />
-    </div>
 
     {/* Share modal — rendered outside the header div so it isn't clipped */}
     {showShareModal && selectedConversation && (

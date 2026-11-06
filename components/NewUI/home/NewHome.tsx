@@ -807,7 +807,7 @@ export const NewHome: React.FC = () => {
           <div className="flex items-center gap-3 mb-8 justify-center">
             <AmplifyLogo size={40} radius={6} />
             <h1
-              className="text-[40px] text-[--text-primary] leading-none tracking-[-0.01em] text-center"
+              className="text-[32px] sm:text-[40px] whitespace-nowrap text-[--text-primary] leading-none tracking-[-0.01em] text-center"
               style={{ fontFamily: '"Newsreader", "Georgia", serif', fontWeight: 400 }}
             >
               How can I help?

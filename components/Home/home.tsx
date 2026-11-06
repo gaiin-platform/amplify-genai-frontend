@@ -110,6 +110,7 @@ import { UIPreferenceBanner, getUIPreference, setUIPreference, type UIPreference
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { NotebookFeatureGate } from '@/components/NewUI/shared/NotebookFeatureGate';
 import { NewUiRolloutGate } from '@/components/NewUI/shared/NewUiRolloutGate';
+import { KeyboardViewportFit } from '@/components/NewUI/shared/KeyboardViewportFit';
 import { UiAnalytics } from '@/components/NewUI/shared/UiAnalytics';
 import { isClassicUiSwitchAllowed } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { NewAssistantsView } from '@/components/NewUI/views/NewAssistantsView';
@@ -1549,6 +1550,12 @@ const Home = ({
     }, [dataDisclosure]);
 
 
+    // The chat shell stays mounted behind NewHome while a conversation is empty, so a
+    // first message can be injected the moment it's sent (see the render below).
+    const chatShellHidden = (selectedConversation?.messages?.length ?? 0) === 0
+        && !isConversationStreaming(messageIsStreaming, getStreamingConversationIds(), selectedConversation?.id)
+        && !pendingNewConversationSend;
+
     if (session) {                          // dont want to go here if its null
         if (featureFlags.dataDisclosure && hasAcceptedDataDisclosure === false  && window.location.hostname !== 'localhost') {
                 return (
@@ -1729,6 +1736,7 @@ const Home = ({
                                 {/* Renders nothing — prunes leftover empty placeholder chats
                                     once after load so refreshing never grows Recents. */}
                                 <BlankConversationCleanup />
+                                <KeyboardViewportFit />
                                 {/* Renders nothing — tags all Mixpanel events with UI Version=new
                                     and emits UI Loaded / Page Viewed. */}
                                 <UiAnalytics variant="new" />
@@ -1780,7 +1788,7 @@ const Home = ({
                                         it blind is an unhandled TypeError that blanks the whole app;
                                         treating unknown as "no messages" shows the landing page and
                                         lets the repair effect (~line 748) re-fetch. */}
-                                    {page === 'chat' && (!selectedConversation || ((selectedConversation.messages?.length ?? 0) === 0 && !isConversationStreaming(messageIsStreaming, getStreamingConversationIds(), selectedConversation?.id) && !pendingNewConversationSend)) && (
+                                    {page === 'chat' && (!selectedConversation || chatShellHidden) && (
                                         <NewHome />
                                     )}
                                     {/* ConversationViewShell is always mounted while page=chat AND a
@@ -1795,7 +1803,7 @@ const Home = ({
                                     {page === 'chat' && selectedConversation && (
                                         <div
                                             key={selectedConversation.id}
-                                            style={((selectedConversation.messages?.length ?? 0) === 0 && !isConversationStreaming(messageIsStreaming, getStreamingConversationIds(), selectedConversation?.id) && !pendingNewConversationSend) ? {
+                                            style={chatShellHidden ? {
                                                 position: 'fixed',
                                                 top: 0,
                                                 left: '-100vw',
@@ -1809,7 +1817,7 @@ const Home = ({
                                                 overflow: 'hidden',
                                             }}
                                         >
-                                            <ConversationViewShell stopConversationRef={stopConversationRef} />
+                                            <ConversationViewShell stopConversationRef={stopConversationRef} hidden={chatShellHidden} />
                                         </div>
                                     )}
                                     {page === 'home' && (

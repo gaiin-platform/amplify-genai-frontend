@@ -166,7 +166,7 @@ export const MarkdownExportMenuItems: React.FC<MarkdownExportMenuItemsProps> = (
   };
 
   const menuItemCls =
-    'w-full flex items-center gap-2.5 px-3 h-[34px] text-[14px] rounded-[8px] ' +
+    'w-full flex items-center gap-2.5 px-3 h-[34px] touch:h-11 text-[14px] rounded-[8px] ' +
     'text-[--text-secondary] hover:bg-[--bg-hover] hover:text-[--text-primary] transition-colors text-left';
   const exportOptionCls = `${menuItemCls} pl-6`;
 

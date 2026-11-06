@@ -50,6 +50,7 @@ import {
 
 import HomeContext from '@/components/Home/home.context';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
+import { RowActionsMenu } from '@/components/NewUI/shared/RowActionsMenu';
 import { SearchInput } from '@/components/NewUI/shared/SearchInput';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
 import { ScheduledTaskScheduleBuilder } from '@/components/NewUI/shared/ScheduledTaskScheduleBuilder';
@@ -236,7 +237,7 @@ const TaskRow: React.FC<{
             <button
                 type="button"
                 aria-label={'Delete ' + (task.taskName || 'task')}
-                className="flex-shrink-0 flex items-center justify-center h-[26px] w-[26px] rounded-[6px] transition-opacity"
+                className="flex-shrink-0 flex items-center justify-center h-[26px] w-[26px] rounded-[6px] transition-opacity max-md:hidden touch:hidden"
                 style={{ color: '#e05252', opacity: hovered || isSelected ? 1 : 0 }}
                 onClick={onDelete}
                 title="Delete task"
@@ -244,6 +245,13 @@ const TaskRow: React.FC<{
             >
                 {isDeleting ? <IconLoader2 size={14} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconTrash size={14} />}
             </button>
+            {/* Touch: behind a menu, because delete has no confirmation and the hover-only
+                button above would otherwise be an invisible tap target. */}
+            <RowActionsMenu
+                aria-label={'Actions for ' + (task.taskName || 'task')}
+                busy={isDeleting}
+                items={[{ label: 'Delete', icon: <IconTrash size={15} />, danger: true, onClick: onDelete }]}
+            />
         </div>
     );
 };
@@ -1455,7 +1463,7 @@ export const NewScheduledTasksView: React.FC = () => {
         >
             {/* Top bar */}
             <div
-                className="sticky top-0 z-20 flex-shrink-0 flex items-center px-4 border-b gap-3"
+                className="sticky top-0 z-20 flex-shrink-0 flex items-center px-4 border-b gap-3 max-md:hidden"
                 style={{ backgroundColor: 'var(--bg-sidebar)', borderColor: 'var(--border-subtle)', height: 48 }}
             >
                 <button
@@ -1489,12 +1497,21 @@ export const NewScheduledTasksView: React.FC = () => {
                     style={{ width: isNarrow ? '100%' : taskListWidth }}
                 >
                     <div className="flex flex-col gap-2 px-4 py-3 flex-shrink-0">
-                        <div className="flex items-center justify-between gap-2">
+                        {/* Phones: search and New share a row, and the page's title row is gone
+                            (the top bar names the page), so its info tip moves here. */}
+                        <div className="flex items-center justify-between gap-2 md:flex-col md:items-stretch">
                             <SearchInput value={search} onChange={setSearch} placeholder="Search tasks…" fullWidth aria-label="Search scheduled tasks" onClear={() => setSearch('')} />
+                            <PrimaryButton onClick={handleNewTask} icon={<IconPlus size={14} className="max-md:hidden" />} className="md:w-full flex-shrink-0">
+                                <span>New<span className="max-md:hidden"> Task</span></span>
+                            </PrimaryButton>
+                            {isNarrow && (
+                                <InfoTooltip
+                                    ariaLabel="About scheduled tasks"
+                                    maxWidth={360}
+                                    text="Scheduled tasks automate assistants, action sets, or workflows to run on a schedule you choose."
+                                />
+                            )}
                         </div>
-                        <PrimaryButton onClick={handleNewTask} icon={<IconPlus size={14} />} className="w-full">
-                            New Task
-                        </PrimaryButton>
                         {availableTypes.length > 1 && (
                             <select
                                 aria-label="Filter scheduled tasks by type"

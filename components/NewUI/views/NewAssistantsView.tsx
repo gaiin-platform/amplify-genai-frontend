@@ -60,6 +60,7 @@ import { resolveSourceOpenTarget } from '@/components/NewUI/shared/assistantConf
 import type { SummaryDataSource } from '@/components/NewUI/shared/assistantConfigModel';
 import { getFileDownloadUrl } from '@/services/fileService';
 import { RowActionButton } from '@/components/NewUI/shared/RowActionButton';
+import { RowActionsMenu, type RowMenuItem } from '@/components/NewUI/shared/RowActionsMenu';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import ReactDOM from 'react-dom';
 import { savePrompts } from '@/utils/app/prompts';
@@ -281,6 +282,18 @@ const AssistantRow: React.FC<RowProps> = ({
 }) => {
     const [hovered, setHovered] = useState(false);
 
+    // The hover cluster below, for phones and touch. The row itself opens the chat.
+    const menuItems: RowMenuItem[] = [
+        onCopy && { label: 'Make a copy', icon: <IconCopy size={15} />, onClick: onCopy },
+        onPreview && { label: 'View prompt', icon: <IconEye size={15} />, onClick: onPreview },
+        onHide && { label: 'Hide', icon: <IconEyeOff size={15} />, onClick: onHide },
+        onDuplicate && { label: 'Duplicate', icon: <IconCopyPlus size={15} />, onClick: onDuplicate },
+        onInsights && { label: 'Insights', icon: <IconChartBar size={15} />, onClick: onInsights },
+        onEdit && { label: 'Edit', icon: <IconPencil size={15} />, onClick: onEdit },
+        onShare && { label: 'Share', icon: <IconShare size={15} />, onClick: onShare },
+        onDelete && { label: 'Delete', icon: <IconTrash size={15} />, danger: true, disabled: isDeleting, onClick: onDelete },
+    ].filter(Boolean) as RowMenuItem[];
+
     return (
         <div
             className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] cursor-pointer transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
@@ -327,7 +340,7 @@ const AssistantRow: React.FC<RowProps> = ({
                     </p>
                     {accessBadge && (
                         <span
-                            className="flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                            className={`flex-shrink-0 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${accessBadge.label === 'Private' ? 'max-md:hidden' : ''}`}
                             style={{ background: accessBadge.bg, color: accessBadge.color }}
                         >
                             {accessBadge.label}
@@ -360,7 +373,7 @@ const AssistantRow: React.FC<RowProps> = ({
 
             {/* Hover actions */}
             <div
-                className={`flex items-center gap-1 transition-opacity duration-100 ${hovered ? 'opacity-100' : 'opacity-0 pointer-events-none'} focus-within:opacity-100 focus-within:pointer-events-auto`}
+                className={`flex items-center gap-1 max-md:hidden touch:hidden transition-opacity duration-100 ${hovered ? 'opacity-100' : 'opacity-0 pointer-events-none'} focus-within:opacity-100 focus-within:pointer-events-auto`}
                 onClick={(e) => e.stopPropagation()}
             >
                 <button
@@ -437,6 +450,7 @@ const AssistantRow: React.FC<RowProps> = ({
                     </RowActionButton>
                 )}
             </div>
+            <RowActionsMenu aria-label={`Actions for ${name}`} items={menuItems} />
         </div>
     );
 };
@@ -783,8 +797,8 @@ const MyAssistantsTab: React.FC = () => {
                     className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium whitespace-nowrap flex-shrink-0 text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: 'var(--accent)' }}
                 >
-                    <IconPlus size={14} />
-                    New Assistant
+                    <IconPlus size={14} className="max-md:hidden" />
+                    <span>New<span className="max-md:hidden"> Assistant</span></span>
                 </button>
             </div>
 
@@ -1387,7 +1401,7 @@ const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) 
                             return (
                                 <div
                                     key={csi.item.key}
-                                    className="group relative flex items-center gap-3 px-3 py-2.5 rounded-[8px] transition-colors duration-100"
+                                    className="group relative flex items-center max-md:flex-wrap gap-3 px-3 py-2.5 rounded-[8px] transition-colors duration-100"
                                     style={{ backgroundColor: 'transparent' }}
                                     onMouseEnter={(e) => {
                                         (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
@@ -1404,8 +1418,8 @@ const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) 
                                         <IconShare size={18} style={{ color: 'var(--text-muted)' }} />
                                     </div>
 
-                                    {/* Content */}
-                                    <div className="flex-1 min-w-0">
+                                    {/* Content (phones: the buttons wrap onto their own line) */}
+                                    <div className="flex-1 min-w-0 max-md:basis-[calc(100%-52px)]">
                                         <p
                                             className="text-[14px] font-medium truncate"
                                             style={{ color: 'var(--text-primary)' }}
@@ -1424,7 +1438,7 @@ const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) 
                                         onClick={() => void openPendingPreview(csi)}
                                         disabled={previewLoadingKey === csi.item.key}
                                         aria-label={`View prompt for ${csi.item.note || 'shared assistant'}`}
-                                        className="flex-shrink-0 flex items-center gap-1.5 h-[28px] px-3 rounded-[6px] text-[12px] font-medium"
+                                        className="flex-shrink-0 flex items-center gap-1.5 h-[28px] touch:h-9 px-3 rounded-[6px] text-[12px] font-medium max-md:ml-[52px]"
                                         style={{ color: 'var(--text-secondary)', background: 'var(--bg-active)' }}
                                     >
                                         {previewLoadingKey === csi.item.key ? <IconLoader2 size={12} className="motion-safe:animate-spin motion-reduce:animate-none" /> : <IconEye size={13} />}
@@ -1435,7 +1449,7 @@ const SharedWithMeTab: React.FC<{ onImported?: () => void }> = ({ onImported }) 
                                         onClick={() => !isImporting && handleImportPendingShare(csi)}
                                         disabled={!!importingKey}
                                         aria-label={`Import assistant from ${resolveSharedBy(csi.item.sharedBy)}`}
-                                        className="flex-shrink-0 flex items-center gap-1.5 h-[28px] px-3 rounded-[6px] text-[12px] font-medium transition-colors"
+                                        className="flex-shrink-0 flex items-center gap-1.5 h-[28px] touch:h-9 px-3 rounded-[6px] text-[12px] font-medium transition-colors"
                                         style={{
                                             background: isImporting ? 'var(--bg-active)' : 'var(--accent)',
                                             color: isImporting ? 'var(--text-muted)' : 'var(--accent-fg)',
@@ -1707,8 +1721,8 @@ const GroupAssistantsTab: React.FC = () => {
                     className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium whitespace-nowrap flex-shrink-0 text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: 'var(--accent)' }}
                 >
-                    <IconPlus size={14} />
-                    New Assistant
+                    <IconPlus size={14} className="max-md:hidden" />
+                    <span>New<span className="max-md:hidden"> Assistant</span></span>
                 </button>
             </div>
 
@@ -1770,7 +1784,7 @@ const GroupAssistantsTab: React.FC = () => {
                                             <button
                                                 type="button"
                                                 onClick={() => setLayeredBuilder({ group: originalGroup(group) })}
-                                                className="flex items-center gap-1 h-[26px] px-2 rounded-[6px] text-[12px] transition-colors hover:bg-[--bg-active] hover:text-[--text-primary] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
+                                                className="flex items-center gap-1 h-[26px] touch:h-9 px-2 touch:px-3 rounded-[6px] text-[12px] transition-colors hover:bg-[--bg-active] hover:text-[--text-primary] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]"
                                                 style={{ color: 'var(--text-muted)' }}
                                                 title={`Add a layered assistant to ${group.name}`}
                                                 aria-label={`Add a layered assistant to ${group.name}`}
@@ -1783,7 +1797,7 @@ const GroupAssistantsTab: React.FC = () => {
                                             onClick={() => {
                                                 setManagingGroup(originalGroup(group));
                                             }}
-                                            className="flex items-center justify-center h-[26px] w-[26px] rounded-[6px] transition-colors"
+                                            className="flex items-center justify-center h-[26px] w-[26px] touch:h-9 touch:w-9 rounded-[6px] transition-colors"
                                             style={{ color: 'var(--text-muted)' }}
                                             onMouseEnter={(e) => {
                                                 (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-active)';
@@ -2078,8 +2092,8 @@ const LayeredAssistantsTab: React.FC = () => {
                     className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium whitespace-nowrap flex-shrink-0 text-white transition-opacity hover:opacity-90"
                     style={{ backgroundColor: 'var(--accent)' }}
                 >
-                    <IconPlus size={14} />
-                    New Layered Assistant
+                    <IconPlus size={14} className="max-md:hidden" />
+                    <span>New<span className="max-md:hidden"> Layered Assistant</span></span>
                 </button>
             </div>
 
@@ -2226,16 +2240,19 @@ export const NewAssistantsView: React.FC = () => {
         else if (activeTab === 'layered' && !shouldShowLayeredTab) changeTab('individual');
     }, [shouldShowLayeredTab, activeTab, helperEnabled]);
 
-    const tabs: { id: MainTab; label: string; icon: React.ReactNode; visible: boolean }[] = [
+    // shortLabel: phones, so every tab fits without hiding one off the edge of the strip.
+    const tabs: { id: MainTab; label: string; shortLabel?: string; icon: React.ReactNode; visible: boolean }[] = [
         {
             id: 'individual',
             label: 'My Assistants',
+            shortLabel: 'Mine',
             icon: <IconRobot size={15} />,
             visible: true,
         },
         {
             id: 'shared',
             label: 'Shared with Me',
+            shortLabel: 'Shared',
             icon: <IconUsers size={15} />,
             visible: true,
         },
@@ -2250,6 +2267,7 @@ export const NewAssistantsView: React.FC = () => {
         {
             id: 'layered',
             label: syncingLayeredAssistants ? 'Loading Layered…' : 'Layered Assistants',
+            shortLabel: 'Layered',
             icon: syncingLayeredAssistants
                 ? <IconLoader2 size={15} className="motion-safe:animate-spin motion-reduce:animate-none" />
                 : <IconGitBranch size={15} />,
@@ -2258,6 +2276,7 @@ export const NewAssistantsView: React.FC = () => {
         {
             id: 'amplifyHelper',
             label: 'Amplify Helper',
+            shortLabel: 'Helper',
             icon: <IconSparkles size={15} />,
             visible: helperEnabled,
         },
@@ -2272,7 +2291,7 @@ export const NewAssistantsView: React.FC = () => {
         >
             {/* ── Sticky tab bar ── */}
             <div
-                className="flex-shrink-0 flex items-center px-4 border-b"
+                className="flex-shrink-0 flex items-center px-4 max-md:px-1 border-b"
                 style={{
                     backgroundColor: 'var(--bg-sidebar)',
                     borderColor: 'var(--border-subtle)',
@@ -2282,7 +2301,7 @@ export const NewAssistantsView: React.FC = () => {
                 {/* Back/close button */}
                 <button
                     onClick={() => homeDispatch({ field: 'page', value: 'chat' })}
-                    className="flex items-center justify-center h-8 w-8 rounded-[8px] mr-3 transition-colors flex-shrink-0"
+                    className="flex items-center justify-center h-8 w-8 rounded-[8px] mr-3 transition-colors flex-shrink-0 max-md:hidden"
                     style={{ color: 'var(--text-muted)' }}
                     onMouseEnter={(e) => {
                         (e.currentTarget as HTMLElement).style.backgroundColor = 'var(--bg-hover)';
@@ -2307,7 +2326,7 @@ export const NewAssistantsView: React.FC = () => {
                                 <button
                                     key={tab.id}
                                     onClick={() => changeTab(tab.id)}
-                                    className="relative flex items-center gap-1.5 h-full px-3 text-[13px] transition-colors whitespace-nowrap flex-shrink-0"
+                                    className="relative flex items-center gap-1.5 h-full px-3 max-md:px-2.5 text-[13px] transition-colors whitespace-nowrap flex-shrink-0"
                                     style={{ color: isActive ? 'var(--text-primary)' : 'var(--text-muted)' }}
                                     onMouseEnter={(e) => {
                                         if (!isActive) {
@@ -2320,8 +2339,9 @@ export const NewAssistantsView: React.FC = () => {
                                         }
                                     }}
                                 >
-                                    {tab.icon}
-                                    <span>{tab.label}</span>
+                                    <span className="flex max-md:hidden">{tab.icon}</span>
+                                    <span className={tab.shortLabel ? 'max-md:hidden' : undefined}>{tab.label}</span>
+                                    {tab.shortLabel && <span className="md:hidden">{tab.shortLabel}</span>}
                                     {isActive && (
                                         <span
                                             className="absolute bottom-0 left-0 right-0 h-[2px] rounded-t-full"
@@ -2333,7 +2353,7 @@ export const NewAssistantsView: React.FC = () => {
                         })}
                 </div>
 
-                <div className="ml-2 flex items-center flex-shrink-0">
+                <div className="ml-2 max-md:mr-3 flex items-center flex-shrink-0">
                     <InfoTooltip
                         ariaLabel="About the different kinds of assistants"
                         maxWidth={380}

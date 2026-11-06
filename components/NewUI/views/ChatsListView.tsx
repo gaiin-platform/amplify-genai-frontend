@@ -68,6 +68,7 @@ import { updateWithRemoteConversations } from '@/utils/app/conversationStorage';
 import { savePrompts } from '@/utils/app/prompts';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { RowActionsMenu } from '@/components/NewUI/shared/RowActionsMenu';
 import { NewUIShareModal } from '@/components/NewUI/chat/NewUIShareModal';
 import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
 import { FilterMenu } from '@/components/NewUI/shared/FilterMenu';
@@ -417,9 +418,9 @@ export const ChatsListView: React.FC = () => {
             style={{ fontFamily: 'Inter, sans-serif' }}
         >
             {/* Page header */}
-            <div className="flex flex-wrap items-center justify-between gap-y-3 px-4 pt-5 pb-4 md:px-8 md:pt-10 md:pb-6 flex-shrink-0">
+            <div className="flex flex-wrap items-center justify-between gap-y-3 px-4 pt-3 pb-3 md:px-8 md:pt-10 md:pb-6 flex-shrink-0">
                 <h1
-                    className="text-[24px] md:text-[28px] text-[--text-primary] font-normal leading-none tracking-[-0.01em] max-md:w-full"
+                    className="text-[28px] text-[--text-primary] font-normal leading-none tracking-[-0.01em] max-md:hidden"
                     style={{ fontFamily: '"Newsreader", "Georgia", serif' }}
                 >
                     Chats and tasks
@@ -461,7 +462,7 @@ export const ChatsListView: React.FC = () => {
                     {/* New chat */}
                     <button
                         onClick={() => handleNewConversation({ prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT) })}
-                        className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium bg-[--text-primary] text-[--bg-app] hover:opacity-90 transition-opacity whitespace-nowrap flex-shrink-0"
+                        className="flex items-center gap-1.5 h-[34px] px-4 rounded-[8px] text-[13px] font-medium bg-[--text-primary] text-[--bg-app] hover:opacity-90 transition-opacity whitespace-nowrap flex-shrink-0 max-md:hidden"
                     >
                         <IconPlus size={14} />
                         New
@@ -470,7 +471,7 @@ export const ChatsListView: React.FC = () => {
             </div>
 
             {/* Tab strip */}
-            <div className="px-4 md:px-8 pb-4 flex-shrink-0">
+            <div className="px-4 md:px-8 pb-1 md:pb-4 flex-shrink-0">
                 <SegmentedControl
                     items={TAB_ITEMS}
                     value={activeTab}
@@ -534,7 +535,7 @@ export const ChatsListView: React.FC = () => {
                                 />
                             </div>
                         )}
-                        <div className="w-[92px] text-right flex-shrink-0">
+                        <div className="w-[92px] max-md:w-auto text-right flex-shrink-0">
                             <SortableHeader
                                 label="Date"
                                 sortKey="date"
@@ -543,8 +544,8 @@ export const ChatsListView: React.FC = () => {
                                 onSort={toggleSort}
                             />
                         </div>
-                        {/* Hover-action spacer */}
-                        <div className="flex-shrink-0" style={{ width: ACTION_CELL_WIDTH }} />
+                        {/* Hover-action spacer (rows use a ⋯ menu on phones and touch) */}
+                        <div className="flex-shrink-0 max-md:hidden touch:!w-8" style={{ width: ACTION_CELL_WIDTH }} />
                     </div>
                 </div>
             )}
@@ -683,7 +684,7 @@ export const ChatsListView: React.FC = () => {
                                         {/* Open button */}
                                         <span
                                             className={`
-                        flex-shrink-0 flex items-center gap-1 h-[28px] px-3 rounded-[6px]
+                        flex-shrink-0 flex items-center gap-1 h-[28px] px-3 rounded-[6px] max-md:hidden
                         text-[12px] font-medium transition-colors
                         ${openingKey === csi.item.key
                                                     ? 'bg-[--bg-raised] text-[--text-muted]'
@@ -806,7 +807,7 @@ const MyChatRow: React.FC<MyChatRowProps> = ({
 
     return (
         <div
-            className={`group w-full flex items-center gap-3 px-3 h-[48px] rounded-[8px] ${rowBg} transition-colors duration-100`}
+            className={`group w-full flex items-center gap-3 px-3 h-[48px] max-md:h-[56px] rounded-[8px] ${rowBg} transition-colors duration-100`}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => { if (!keepHighlight) setIsHovered(false); }}
         >
@@ -832,8 +833,14 @@ const MyChatRow: React.FC<MyChatRowProps> = ({
                         size={16}
                         className="flex-shrink-0 text-[--text-muted]"
                     />
-                    <span className="min-w-0 text-[14px] text-[--text-primary] truncate">
-                        {conversation.name || 'New Conversation'}
+                    <span className="min-w-0 max-md:flex max-md:flex-col">
+                        <span className="block text-[14px] text-[--text-primary] truncate">
+                            {conversation.name || 'New Conversation'}
+                        </span>
+                        {/* Phones: the date moves under the name so the name gets the width */}
+                        <span className="md:hidden text-[12px] text-[--text-muted]">
+                            {relativeDate(conversation.date)}
+                        </span>
                     </span>
                     {isPinned && (
                         <IconPinFilled
@@ -856,14 +863,14 @@ const MyChatRow: React.FC<MyChatRowProps> = ({
             )}
 
             {/* ── Date cell ── */}
-            <span className="w-[92px] flex-shrink-0 text-right text-[13px] text-[--text-muted] select-none">
+            <span className="max-md:hidden w-[92px] flex-shrink-0 text-right text-[13px] text-[--text-muted] select-none">
                 {relativeDate(conversation.date)}
             </span>
 
             {/* ── Hover-action cell — reserved width so the columns stay aligned ── */}
             <div
                 className={`
-                    flex-shrink-0 flex items-center justify-end gap-1
+                    flex-shrink-0 flex items-center justify-end gap-1 max-md:hidden touch:hidden
                     transition-opacity duration-100 motion-reduce:transition-none
                     ${actionVisibility}
                 `}
@@ -946,6 +953,19 @@ const MyChatRow: React.FC<MyChatRowProps> = ({
                         <IconTrash size={14} />
                     </button>
             </div>
+
+            {/* Phones and touch: the same actions, in a menu */}
+            {!isRenaming && (
+                <RowActionsMenu
+                    aria-label={`Actions for ${conversation.name || 'conversation'}`}
+                    items={[
+                        { label: isPinned ? 'Unpin' : 'Pin', icon: isPinned ? <IconPinnedOff size={15} /> : <IconPin size={15} />, onClick: () => onTogglePin(conversation) },
+                        { label: 'Rename', icon: <IconPencil size={15} />, onClick: startRename },
+                        { label: 'Share', icon: <IconShare size={15} />, onClick: () => setShowShareModal(true) },
+                        { label: 'Delete', icon: <IconTrash size={15} />, danger: true, onClick: () => setConfirmDeleteOpen(true) },
+                    ]}
+                />
+            )}
 
             {/* Share modal — portalled to document.body */}
             {showShareModal && typeof document !== 'undefined' && ReactDOM.createPortal(

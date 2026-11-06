@@ -889,6 +889,13 @@ pre:has(div.codeblock) {
   padding-left: env(safe-area-inset-left);
 }
 
+/* Set by KeyboardViewportFit while the iOS keyboard is open: fit the visible area. The
+   keyboard covers the home indicator, so its inset would only leave a gap above the keys. */
+html[data-keyboard-open] .app-safe-area {
+  height: var(--keyboard-visual-height) !important;
+  padding-bottom: 0;
+}
+
 /* iOS Safari zooms the page when focusing a field whose font-size is < 16px,
    and doesn't zoom back out. Touch devices only, so desktop sizing is unchanged. */
 @media (hover: none) and (pointer: coarse) {
@@ -897,6 +904,14 @@ pre:has(div.codeblock) {
   .new-ui-action-btn {
     width: 36px !important;
     height: 36px !important;
+  }
+  /* The larger buttons center their icons further from the edge; pull the row out so
+     the icons, not the invisible hit areas, line up with the message text. */
+  .new-ui-msg-action-row[data-role='assistant'] {
+    margin-left: -10px;
+  }
+  .new-ui-msg-action-row[data-role='user'] {
+    margin-right: -10px;
   }
   /* ...and reserve room for the taller row below each message (desktop sizes these
      for a 24px row in conversation-view.css), so it doesn't overlap the next turn. */

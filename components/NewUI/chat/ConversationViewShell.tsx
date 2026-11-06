@@ -30,6 +30,7 @@ import React, {
 import { IconArrowDown } from '@tabler/icons-react';
 import { Chat } from '@/components/Chat/Chat';
 import { ConversationHeader } from './ConversationHeader';
+import { useMobileTopBarSlot } from '@/components/NewUI/shared/mobileTopBarSlot';
 import { ConversationComposer } from './ConversationComposer';
 import { NewUIMessageActionsLayer } from './NewUIMessageActionsLayer';
 import { NewUIUserMessageMarkdownLayer } from './NewUIUserMessageMarkdownLayer';
@@ -66,6 +67,8 @@ import { skillSelectionOptions, getConversationSkillSelection } from '@/componen
 
 interface ConversationViewShellProps {
   stopConversationRef: MutableRefObject<boolean>;
+  /** Mounted but off-screen behind NewHome (the conversation is still empty). */
+  hidden?: boolean;
 }
 
 /** Inject value into a React-controlled textarea via native setter trick. */
@@ -153,6 +156,7 @@ function countUserMessages(container: HTMLElement) {
 
 const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
   stopConversationRef,
+  hidden,
 }) => {
   const {
     state: { messageIsStreaming, selectedConversation, featureFlags, selectedAssistant, status },
@@ -209,6 +213,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
   const hasFiredRef = useRef(false);
   const [showJumpBtn, setShowJumpBtn] = useState(false);
   const shellRef = useRef<HTMLDivElement>(null);
+  const mobileTopBarSlot = useMobileTopBarSlot();
 
   // ── "Stopped Before Completing." indicator ───────────────────────────────
   // Tracks which message element was cut short by the user clicking Stop.
@@ -1615,7 +1620,8 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
         // The bottom inset is managed imperatively via --nui-composer-inset
         // (set by the ResizeObserver effect above) so the scrollbar track also
         // ends above the composer, regardless of the composer's height.
-        paddingTop: HEADER_H,
+        // On phones the header lives in the mobile top bar, above this shell.
+        paddingTop: mobileTopBarSlot ? 0 : HEADER_H,
       }}
       {...dropHandlers}
     >
@@ -1631,7 +1637,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       )}
 
       {/* Header overlay — hides Chat's own sticky header via CSS */}
-      <ConversationHeader />
+      <ConversationHeader hidden={hidden} />
 
       {/* Composer overlay — position:absolute at bottom (handled inside ConversationComposer) */}
       <ConversationComposer
