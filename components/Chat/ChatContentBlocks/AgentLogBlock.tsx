@@ -23,7 +23,7 @@ import { getAgentLog } from '@/utils/app/agent';
 const flattenText = (children: React.ReactNode): string =>
   React.Children.toArray(children).map((c) => (typeof c === 'string' || typeof c === 'number') ? String(c) : '').join('');
 
-const TableCell = (Tag: 'td' | 'th') => ({ node, children, ...props }: any) => {
+const ResultTableCell = ({ tag: Tag, node, children, ...props }: any) => {
   const short = flattenText(children).trim().length <= 14;
   return (
     <Tag
@@ -35,15 +35,15 @@ const TableCell = (Tag: 'td' | 'th') => ({ node, children, ...props }: any) => {
   );
 };
 
-const resultTableComponents = {
-  table: ({ node, children, ...props }: any) => (
-    <div className="w-full overflow-x-auto">
-      <table {...props}>{children}</table>
-    </div>
-  ),
-  td: TableCell('td'),
-  th: TableCell('th'),
-};
+const ResultTable = ({ node, children, ...props }: any) => (
+  <div className="w-full overflow-x-auto">
+    <table {...props}>{children}</table>
+  </div>
+);
+const ResultTd = (props: any) => <ResultTableCell tag="td" {...props} />;
+const ResultTh = (props: any) => <ResultTableCell tag="th" {...props} />;
+
+const resultTableComponents = { table: ResultTable, td: ResultTd, th: ResultTh };
 
 // Response type from the server
 interface AgentLogData {
