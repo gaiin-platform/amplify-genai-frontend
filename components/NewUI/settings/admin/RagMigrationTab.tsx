@@ -21,7 +21,7 @@ const POLL_MS = 10_000;
 const FAST_POLL_MS = 3_000;           // while documents are being created or old embeddings are being removed
 type AssistantResult = { assistants?: number; updated?: string[]; failed?: { assistantId: string; error: string }[] };
 
-/** One plain sentence on what a Move references / Roll back / Update assistants press did, including the assistants. */
+/** One plain sentence on what a Move references / Roll back press did, including the assistants. */
 const referencesMessage = (action: MigrationAction, data: { cutover?: number; restored?: number; assistants?: AssistantResult } | undefined): string => {
   const a = data?.assistants ?? {};
   const failed = a.failed?.length ?? 0;
@@ -29,8 +29,7 @@ const referencesMessage = (action: MigrationAction, data: { cutover?: number; re
     ? ` ${fmt(a.updated?.length ?? 0)} of ${fmt(a.assistants)} assistant(s) now store the ${action === 'rollback' ? 'old' : 'new'} document ids.${failed ? ` ${fmt(failed)} could not be updated (${a.failed?.[0]?.error}); they keep working, and “Update assistants” tries again.` : ''}`
     : ' No assistant stores these documents.';
   if (action === 'cutover') return `Moved the references of ${fmt(data?.cutover)} document(s). Library files and assistants use the new embeddings now.${assistants}`;
-  if (action === 'rollback') return `Rolled back ${fmt(data?.restored)} reference(s) to the old embeddings.${assistants}`;
-  return `Checked the assistants for ${action === 'update_assistants' ? 'moved documents' : ''}.${assistants}`;
+  return `Rolled back ${fmt(data?.restored)} reference(s) to the old embeddings.${assistants}`;
 };
 
 const TRACKED_STORAGE = 'ragMigration.trackedDocuments';
@@ -150,6 +149,7 @@ export const RagMigrationTab: FC = () => {
   }, [applyConfig]);
 
   const workingRef = useRef(false);                      // a run is starting documents (set below, read by the poll)
+  const busyRef = useRef(false);                         // an action (such as removing old embeddings) is in flight
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -157,7 +157,7 @@ export const RagMigrationTab: FC = () => {
       await load();
       if (!alive) return;
       const current = statusRef.current;
-      const active = workingRef.current || !!current?.config.cleanupRequested
+      const active = workingRef.current || busyRef.current
         || ((current?.pipeline.planned ?? 0) + (current?.pipeline.building ?? 0)) > 0;
       timer = setTimeout(tick, active ? FAST_POLL_MS : POLL_MS);       // one request at a time; faster while something is happening
     };
@@ -180,6 +180,7 @@ export const RagMigrationTab: FC = () => {
     setBusy(label);
     setNotice(null);
     const before = statusRef.current;
+    if (action === 'cleanup') setCleanRun({ baseline: before?.pipeline.cleaned ?? 0, total: Math.min(200, before?.pipeline.cutover ?? 0) });   // the exact total arrives with the answer
     const result = await runMigrationAction(action, extra);
     setBusy(null);
     if (!result.success) {
@@ -189,11 +190,13 @@ export const RagMigrationTab: FC = () => {
     } else if (action === 'preview_cleanup') {
       setCleanupPreview(result.data as CleanupPreview);
     } else if (action === 'cleanup') {
+      const outcomes = (result.data?.outcomes ?? {}) as Record<string, number>;
+      const skipped = Object.entries(outcomes).filter(([name]) => name !== 'cleaned').reduce((sum, [, n]) => sum + n, 0);
       setCleanRun({ baseline: before?.pipeline.cleaned ?? 0, total: result.data?.eligible ?? 0 });
-      setNotice(`Cleanup started for ${fmt(result.data?.eligible)} document(s). It runs in the background, about a minute for a few documents; “Old embeddings removed” counts up as each one finishes.`);
+      setNotice(`Removed the old embeddings of ${fmt(outcomes.cleaned ?? 0)} of ${fmt(result.data?.eligible)} document(s).${skipped ? ` ${fmt(skipped)} were skipped; “Preview cleanup” shows why.` : ''}`);
     } else if (action === 'clear_queue') {
       setNotice(`Took ${fmt(result.data?.removed)} waiting document(s) out of the queue.`);
-    } else if (action === 'cutover' || action === 'rollback' || action === 'update_assistants') {
+    } else if (action === 'cutover' || action === 'rollback') {
       setNotice(referencesMessage(action, result.data));
     } else if (action === 'rebuild') {
       const skipped = result.data?.skipped?.length ? `, ${result.data.skipped.length} skipped (${result.data.skipped[0].reason})` : '';
@@ -201,7 +204,7 @@ export const RagMigrationTab: FC = () => {
     }
     setVersion((v) => v + 1);
     if (action === 'refresh_inventory') setChangedSince(false);
-    else if (result.success && ['cutover', 'rollback', 'update_assistants', 'cleanup', 'rebuild'].includes(action)) setChangedSince(true);
+    else if (result.success && ['cutover', 'rollback', 'cleanup', 'rebuild'].includes(action)) setChangedSince(true);
     await load();
     return result.success;
   };
@@ -237,6 +240,7 @@ export const RagMigrationTab: FC = () => {
   }, []);
   const run = useMigrationRun(getStatus, getSettings, load);
   workingRef.current = run.state === 'running';
+  busyRef.current = !!busy;
   // Progress of the documents this run started, from the saved counts (no lookup per document, so it stays cheap for thousands).
   const runDone = Math.min(run.started, Math.max(0, finishedCount(pipeline) - run.baseline));
   const runFailed = run.started ? pipeline?.failed ?? 0 : 0;
@@ -627,8 +631,7 @@ export const RagMigrationTab: FC = () => {
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <Button disabled={!!busy || !pipeline?.cutover} loading={busy === 'preview'} onClick={() => perform('preview', 'preview_cleanup')}>Preview cleanup</Button>
             <Button
-              disabled={!!busy || !pipeline?.cutover || !status.legacyCleanupConfigured} loading={busy === 'cleanup' || !!status.config.cleanupRequested}
-              title={status.legacyCleanupConfigured ? undefined : 'The legacy cleanup function is not deployed'}
+              disabled={!!busy || !pipeline?.cutover} loading={busy === 'cleanup'}
               onClick={() => perform('cleanup', 'cleanup', {}, `Remove the old PostgreSQL embeddings of every document whose references have moved? Only documents whose new embeddings exist are cleaned. This cannot be undone and rollback will no longer be possible for them.`)}
             >
               Remove old embeddings
@@ -636,7 +639,7 @@ export const RagMigrationTab: FC = () => {
           </div>
           {cleanRun && (() => {
             const removed = Math.min(cleanRun.total, Math.max(0, (pipeline?.cleaned ?? 0) - cleanRun.baseline));
-            const running = !!status.config.cleanupRequested;
+            const running = busy === 'cleanup';
             return (
               <div style={{ margin: '12px 0', padding: 14, border: '1px solid var(--accent)', borderRadius: 10 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 8 }}>

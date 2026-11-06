@@ -26,9 +26,6 @@ export interface MigrationConfig {
   autoCutover: boolean;
   migrateOnAccess: boolean;
   maxDocs: number | null;
-  planRequested: boolean;
-  inventoryRequested: boolean;
-  cleanupRequested: boolean;
   lastError?: string | null;
   lastTick?: number | null;
   lastPlan?: { at: number; considered: number; added: number } | null;
@@ -207,7 +204,6 @@ export interface OrphanRemoval {
 export interface CleanupPreview {
   switched: number;
   ready: number;
-  legacyCleanupConfigured: boolean;
   note: string;
   documents: { contentKey: string; childFiles?: number; ready: boolean; blockers: string[] }[];
 }
@@ -242,7 +238,6 @@ export interface MigrationStatus {
   inventory: MigrationInventory | null;
   inventoryAgeSeconds: number | null;
   pipeline: Record<DocStatus, number>;
-  legacyCleanupConfigured: boolean;
   inSecretSweepWindow: boolean;
   failures: MigrationDoc[];
   queues?: QueueDepths;
@@ -252,9 +247,9 @@ export interface MigrationStatus {
 }
 
 export type MigrationAction =
-  | 'migrate' | 'plan' | 'refresh_inventory' | 'retry_failed'
+  | 'migrate' | 'refresh_inventory' | 'retry_failed'
   | 'cutover' | 'rollback' | 'cleanup' | 'dismiss_error'
-  | 'update_assistants' | 'assistant_usage' | 'lookup' | 'rebuild' | 'preview_cleanup' | 'browse' | 'search' | 'clear_queue' | 'orphans' | 'remove_orphans';
+  | 'assistant_usage' | 'lookup' | 'rebuild' | 'preview_cleanup' | 'browse' | 'search' | 'clear_queue' | 'orphans' | 'remove_orphans';
 
 export interface MigrationSettingsPatch {
   scope?: MigrationScope;
@@ -283,9 +278,6 @@ const call = async <T>(op: string, data: any, enablePolling = false): Promise<Re
 };
 
 export const getMigrationStatus = () => call<MigrationStatus>('/status', {});
-
-export const listMigrationDocs = (status: DocStatus, limit = 50) =>
-  call<MigrationDoc[]>('/docs', { status, limit });
 
 export const updateMigrationSettings = (patch: MigrationSettingsPatch) => call<void>('/settings', patch);
 
