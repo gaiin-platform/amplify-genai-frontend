@@ -33,17 +33,16 @@ export const workflowMessageData = (workflow: ConversationWorkflow | null): { wo
   workflow ? { workflowTemplateId: workflow.templateId } : {};
 
 /**
- * Why a workflow can't be attached right now (same rules as the classic input), or undefined when it can.
- * A workflow replaces the assistant's own tooling, so it can't sit beside an assistant's workflow/actions
- * or beside connector actions.
+ * Why a workflow can't be attached right now, or undefined when it can. A workflow replaces the
+ * assistant's own tooling, so it can't sit beside an assistant's workflow or built-in actions (the
+ * classic input blocks the same combinations). Connector actions are not a block: attaching either
+ * one detaches the other.
  */
 export const workflowBlockReason = (opts: {
   assistantData?: { workflowTemplateId?: string; baseWorkflowTemplateId?: string; operations?: unknown[]; builtInOperations?: unknown[] } | null;
-  hasConnectorActions: boolean;
 }): string | undefined => {
   const data = opts.assistantData;
   if (data?.workflowTemplateId || data?.baseWorkflowTemplateId) return 'This assistant already has a workflow';
   if ((data?.operations?.length ?? 0) > 0 || (data?.builtInOperations?.length ?? 0) > 0) return 'This assistant has built-in actions';
-  if (opts.hasConnectorActions) return 'Remove connector actions first';
   return undefined;
 };

@@ -162,12 +162,6 @@ export const NewHome: React.FC = () => {
     selectedWorkflowRef.current = next;
     setSelectedWorkflow(next);
   }, [selectedConversation?.id, selectedConversation?.data?.nuiWorkflow]);
-  const updateSelectedWorkflow = useCallback((workflow: ConversationWorkflow | null) => {
-    selectedWorkflowRef.current = workflow;
-    setSelectedWorkflow(workflow);
-    if (selectedConversation) handleUpdateSelectedConversation(withConversationWorkflow(selectedConversation, workflow));
-  }, [handleUpdateSelectedConversation, selectedConversation]);
-
   const updateSelectedSkillIds = useCallback((skillIds: string[]) => {
     const next = getConversationSkillSelection(withConversationSkillSelection({}, skillIds)).skillIds;
     selectedSkillIdsRef.current = next;
@@ -586,6 +580,27 @@ export const NewHome: React.FC = () => {
   }, []);
 
   const [selectedActions, setSelectedActions] = useState<SelectedAction[]>([]);
+  const selectedActionsRef = useRef(selectedActions);
+  selectedActionsRef.current = selectedActions;
+  // A chat carries a workflow OR connector actions, never both: attaching one detaches the other.
+  // (Home keeps the actions in state until send, so only the workflow touches the conversation here.)
+  const updateSelectedWorkflow = useCallback((workflow: ConversationWorkflow | null) => {
+    if (workflow && selectedActionsRef.current.length > 0) {
+      selectedActionsRef.current = [];
+      setSelectedActions([]);
+    }
+    selectedWorkflowRef.current = workflow;
+    setSelectedWorkflow(workflow);
+    if (selectedConversation) handleUpdateSelectedConversation(withConversationWorkflow(selectedConversation, workflow));
+  }, [handleUpdateSelectedConversation, selectedConversation]);
+  const updateSelectedActions = useCallback((actions: SelectedAction[]) => {
+    selectedActionsRef.current = actions;
+    setSelectedActions(actions);
+    if (actions.length > 0 && selectedWorkflowRef.current) {
+      updateSelectedWorkflow(null);
+    }
+  }, [updateSelectedWorkflow]);
+
 
   // ── Send ──────────────────────────────────────────────────────────────────
   const handleSend = (markdown: string) => {
@@ -1033,7 +1048,7 @@ export const NewHome: React.FC = () => {
                 attachedLibraryIds={attachedDocs.map((d) => d.id)}
                 onAddIntegrationFile={(file) => addFileToRail(file)}
                 selectedActions={selectedActions}
-                onActionsChange={setSelectedActions}
+                onActionsChange={updateSelectedActions}
                 selectedSkillIds={selectedSkillIds}
                 onSkillIdsChange={updateSelectedSkillIds}
                 selectedWorkflow={selectedWorkflow}

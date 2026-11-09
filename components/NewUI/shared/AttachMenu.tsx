@@ -1717,13 +1717,13 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const showWorkflows = !!featureFlags.assistantWorkflows && Boolean(onWorkflowChange) && (workflowTemplates?.length ?? 0) > 0;
   const workflowBlocked = workflowBlockReason({
     assistantData: isDefaultAssistant ? null : selectedAssistant?.definition?.data,
-    hasConnectorActions: selectedActions.length > 0,
   });
   const hasGroup1 = showFiles || showLibrary || showAssistant || showSkills;
   const hasGroup2 = showConnectors || showWorkflows;
 
-  // A workflow can't coexist with an assistant's own workflow/actions or with connector actions
-  // (the classic input blocks the combination). If either appears after one is attached, drop it.
+  // A workflow can't coexist with an assistant's own workflow/actions (the classic input blocks it too).
+  // If such an assistant is picked after a workflow is attached, drop the workflow. Connector actions are
+  // different: the composer swaps them with the workflow atomically (see updateSelectedActions).
   useEffect(() => {
     if (!selectedWorkflow || !onWorkflowChange || !workflowBlocked) return;
     onWorkflowChange(null);

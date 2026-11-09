@@ -273,15 +273,29 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   );
   const selectedWorkflowRef = useRef(selectedWorkflow);
   selectedWorkflowRef.current = selectedWorkflow;
-  const updateSelectedWorkflow = useCallback(
-    (workflow: ConversationWorkflow | null) => {
+  // A chat carries a workflow OR connector actions, never both. Attaching one detaches the other, and
+  // both land in ONE conversation write: two back-to-back writes each start from the same stale
+  // snapshot, so the second silently undoes the first.
+  const applyToolSelection = useCallback(
+    (actions: SelectedAction[], workflow: ConversationWorkflow | null) => {
+      selectedActionsRef.current = actions;
+      setSelectedActions(actions);
       selectedWorkflowRef.current = workflow;
       setSelectedWorkflow(workflow);
       const conversation = selectedConversationRef.current;
       if (conversation)
-        handleUpdateSelectedConversation(withConversationWorkflow(conversation, workflow));
+        handleUpdateSelectedConversation(
+          withConversationWorkflow(withConversationConnectorActions(conversation, actions), workflow),
+        );
     },
     [handleUpdateSelectedConversation],
+  );
+  const updateSelectedWorkflow = useCallback(
+    (workflow: ConversationWorkflow | null) => {
+      const replacesActions = !!workflow && selectedActionsRef.current.length > 0;
+      applyToolSelection(replacesActions ? [] : selectedActionsRef.current, workflow);
+    },
+    [applyToolSelection],
   );
   useEffect(() => {
     const next = getConversationWorkflow(selectedConversationRef.current);
@@ -292,15 +306,10 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   selectedActionsRef.current = selectedActions;
   const updateSelectedActions = useCallback(
     (actions: SelectedAction[]) => {
-      selectedActionsRef.current = actions;
-      setSelectedActions(actions);
-      const conversation = selectedConversationRef.current;
-      if (!conversation) return;
-      handleUpdateSelectedConversation(
-        withConversationConnectorActions(conversation, actions),
-      );
+      const replacesWorkflow = actions.length > 0 && !!selectedWorkflowRef.current;
+      applyToolSelection(actions, replacesWorkflow ? null : selectedWorkflowRef.current);
     },
-    [handleUpdateSelectedConversation],
+    [applyToolSelection],
   );
 
   // The shell is keyed by conversation id, but keep this explicit so a future
