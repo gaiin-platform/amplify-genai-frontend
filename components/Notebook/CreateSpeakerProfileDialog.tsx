@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { LucidePlus, LucideTrash2 } from './LucideIcons';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import {
     NotebookModel,
     SpeakerProfile,
@@ -29,7 +29,7 @@ const EMPTY_SPEAKER: SpeakerVoice = {
 const MAX_SPEAKERS = 4;
 
 const inputClass =
-    'rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100';
+    'rounded border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary]';
 
 export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Props) => {
     const [name, setName] = useState(initial?.name ?? '');
@@ -142,28 +142,19 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
     );
 
     return (
-        <Modal
+        <CreationModalShell
             title={initial ? 'Edit Speaker Profile' : 'Create Speaker Profile'}
-            onCancel={onClose}
-            onSubmit={handleSubmit}
-            submitLabel={
-                submitting
-                    ? initial
-                        ? 'Saving…'
-                        : 'Creating…'
-                    : initial
-                      ? 'Save Changes'
-                      : 'Create'
-            }
-            disableSubmit={!canSubmit}
-            width={() => Math.min(680, window.innerWidth * 0.95)}
-            height={() => Math.min(660, window.innerHeight * 0.9)}
-            content={
-                <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
+            onClose={onClose}
+            onSave={handleSubmit}
+            saveLabel={initial ? 'Save Changes' : 'Create'}
+            isSaving={submitting}
+            saveDisabled={!canSubmit}
+        >
+                <div className="flex flex-col gap-4 p-2 text-[--text-primary]">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium">
-                                Profile name <span className="text-red-500">*</span>
+                                Profile name <span className="text-[--text-error]">*</span>
                             </label>
                             <input
                                 type="text"
@@ -188,7 +179,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
 
                     <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium">
-                            Voice model <span className="text-red-500">*</span>
+                            Voice model <span className="text-[--text-error]">*</span>
                         </label>
                         {modelSelect(voiceModel, setVoiceModel, false)}
                     </div>
@@ -198,7 +189,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
                             <div className="text-sm font-semibold">
                                 Speakers ({speakers.length}/{MAX_SPEAKERS})
                             </div>
-                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                            <div className="text-xs text-[--text-muted]">
                                 Configure 1–4 voices for this profile.
                             </div>
                         </div>
@@ -206,7 +197,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
                             type="button"
                             onClick={addSpeaker}
                             disabled={speakers.length >= MAX_SPEAKERS}
-                            className="flex h-8 items-center gap-1.5 rounded-lg border border-gray-300 px-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-600 dark:text-gray-200 dark:hover:bg-white/5"
+                            className="flex h-8 items-center gap-1.5 rounded-lg border border-[--border-subtle] px-2.5 text-sm text-[--text-secondary] transition-colors hover:bg-[--bg-hover] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             <LucidePlus size={16} />
                             Add speaker
@@ -216,7 +207,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
                     {speakers.map((s, i) => (
                         <div
                             key={i}
-                            className="flex flex-col gap-3 rounded-lg border border-gray-200 p-3 dark:border-neutral-700"
+                            className="flex flex-col gap-3 rounded-lg border border-[--border-subtle] p-3"
                         >
                             <div className="flex items-center justify-between">
                                 <span className="text-sm font-semibold">Speaker {i + 1}</span>
@@ -225,7 +216,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
                                     onClick={() => removeSpeaker(i)}
                                     disabled={speakers.length <= 1}
                                     title="Remove speaker"
-                                    className="flex h-7 w-7 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                                    className="flex h-7 w-7 items-center justify-center rounded-md text-[--text-muted] transition-colors hover:bg-[--bg-hover] hover:text-[--text-error] disabled:cursor-not-allowed disabled:opacity-40"
                                 >
                                     <LucideTrash2 size={16} />
                                 </button>
@@ -233,7 +224,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                 <div className="flex flex-col gap-1">
                                     <label className="text-sm font-medium">
-                                        Name <span className="text-red-500">*</span>
+                                        Name <span className="text-[--text-error]">*</span>
                                     </label>
                                     <input
                                         type="text"
@@ -245,7 +236,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
                                 </div>
                                 <div className="flex flex-col gap-1">
                                     <label className="text-sm font-medium">
-                                        Voice ID <span className="text-red-500">*</span>
+                                        Voice ID <span className="text-[--text-error]">*</span>
                                     </label>
                                     <input
                                         type="text"
@@ -260,7 +251,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
                             </div>
                             <div className="flex flex-col gap-1">
                                 <label className="text-sm font-medium">
-                                    Backstory <span className="text-red-500">*</span>
+                                    Backstory <span className="text-[--text-error]">*</span>
                                 </label>
                                 <textarea
                                     rows={2}
@@ -274,7 +265,7 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
                             </div>
                             <div className="flex flex-col gap-1">
                                 <label className="text-sm font-medium">
-                                    Personality <span className="text-red-500">*</span>
+                                    Personality <span className="text-[--text-error]">*</span>
                                 </label>
                                 <textarea
                                     rows={2}
@@ -299,10 +290,9 @@ export const CreateSpeakerProfileDialog = ({ initial, onClose, onCreated }: Prop
                         </div>
                     ))}
 
-                    {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
+                    {error && <div className="text-sm text-[--text-error]">{error}</div>}
                 </div>
-            }
-        />
+        </CreationModalShell>
     );
 };
 

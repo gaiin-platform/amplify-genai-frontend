@@ -11,7 +11,7 @@ import { exportData, importData } from '@/utils/app/importExport';
 import { Conversation } from '@/types/chat';
 import { LatestExportFormat, SupportedExportFormats } from '@/types/export';
 
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 import {ChatbarSettings} from "@/components/Chatbar/components/ChatbarSettings";
 
@@ -24,6 +24,7 @@ import {ShareAnythingModal} from "@/components/Share/ShareAnythingModal";
 import {Prompt} from "@/types/prompt";
 import {FolderInterface} from "@/types/folder";
 import { getIsLocalStorageSelection } from '@/utils/app/conversationStorage';
+import { conversationWithUncompressedMessages } from '@/utils/app/conversation';
 import { getFullTimestamp } from '@/utils/app/date';
 import { DefaultModels } from '@/types/model';
 import toast from 'react-hot-toast';
@@ -75,9 +76,11 @@ export const SettingsBar = () => {
     const handleImportConversations = (data: SupportedExportFormats) => {
         const { history, folders, prompts }: LatestExportFormat = importData(data, conversationsRef.current, promptsRef.current, foldersRef.current, getDefaultModel(DefaultModels.DEFAULT));
         homeDispatch({ field: 'conversations', value: history });
+        // history entries are compressed / stubs; the open chat must be the real thing or the next message overwrites it
+        const last = history[history.length - 1];
         homeDispatch({
             field: 'selectedConversation',
-            value: history[history.length - 1],
+            value: last ? conversationWithUncompressedMessages(last) : last,
         });
         homeDispatch({ field: 'folders', value: folders });
         homeDispatch({ field: 'prompts', value: prompts });

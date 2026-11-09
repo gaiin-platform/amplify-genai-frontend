@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { FC, ReactElement, useContext, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 

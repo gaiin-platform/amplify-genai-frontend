@@ -1,6 +1,7 @@
 import { FC, useContext } from 'react';
 import { Amplify } from './Avatars';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
+import { ChatStatusIndicator } from '@/components/NewUI/chat/ChatStatusIndicator';
 
 interface Props { }
 
@@ -16,7 +17,7 @@ export const ChatLoader: FC<Props> = () => {
         <div className={`${selectedArtifacts ? "ml-[18px]" : ""} min-w-[40px] items-end`}>
           <Amplify/>
         </div>
-        <span className="animate-pulse cursor-default mt-1">▍</span>
+        <ChatStatusIndicator label="Sending…" source="sending" />
       </div>
     </div>
   );

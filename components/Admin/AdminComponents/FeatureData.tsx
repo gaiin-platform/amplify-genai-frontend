@@ -16,7 +16,7 @@ import { calculateMd5, uploadFileAsAdmin } from "@/utils/app/admin";
 import { deletePptx, uploadPptx } from "@/services/adminService";
 import toast from "react-hot-toast";
 import { generateTimestamp } from "@/utils/app/date";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import Search from "@/components/Search";
 import { useSession } from "next-auth/react";
@@ -459,7 +459,7 @@ export const FeatureDataTab: FC<Props> = ({admins, ampGroups, amplifyUsers, ampl
                                 disabled={isAddingAst !== ''}
                                 >
                                 {isAddingAst === ast ? <>{loadingIcon()}</>
-                                : <IconPlus className="icon-pop-group text-blue-400" size={18}/> }
+                                : <IconPlus className="icon-pop-group text-blue-600 dark:text-blue-400" size={18}/> }
                                 {"Assistant Copy"}
                                     
                             </button>}

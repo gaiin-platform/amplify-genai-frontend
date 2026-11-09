@@ -1,6 +1,6 @@
 import { FC, useContext, useState } from 'react';
 import { IconGitBranch, IconEdit, IconTrash, IconLoader2, IconRobot, IconSearch } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import {
     LayeredAssistant,
     LayeredAssistantNode,

@@ -24,6 +24,17 @@ export const compressMessages = (messages: Message[]) => {
     } 
   }
 
+/** Like uncompressMessages, but returns null when the blob cannot be read (instead of an empty chat). */
+export const tryUncompressMessages = (compressedData: number[]): Message[] | null => {
+  if (!compressedData || compressedData.length === 0) return [];
+  try {
+    const parsed = JSON.parse(lzwUncompress(compressedData));
+    return Array.isArray(parsed) ? parsed as Message[] : null;
+  } catch {
+    return null;
+  }
+}
+
 export const scrubMessages = (messages: Message[], removeDS: boolean = true) => {
   return (cloneDeep(messages)).map((m:Message) => {// remove any extra configuration data from the messages
     if (m.data && removeDS) {

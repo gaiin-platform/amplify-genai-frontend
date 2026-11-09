@@ -1,0 +1,271 @@
+/**
+ * WorkflowTemplatePicker — Capabilities → Workflow Template, in the new UI.
+ *
+ * Replaces `components/AssistantWorkflows/AssistantWorkflowSelector` at this call
+ * site. That component is untouched and still serves the classic editor
+ * (NEW_UI_GUIDE §1); this is a new front end over the same service.
+ *
+ * Two things the old selector did that are deliberately dropped:
+ *
+ *   - Its own bold "Base Assistant Workflow Template" heading, which duplicated
+ *     the CapabilityCard header directly above it.
+ *   - A permanently-rendered `<AssistantWorkflowBuilder isOpen={false}>`. The
+ *     builder self-guards with `if (!isOpen) return null`, but mounting it always
+ *     still runs its effects; here it is early-returned instead (guide §5.2).
+ */
+
+import React, { useContext, useEffect, useRef, useState } from 'react';
+import { IconPlus } from '@tabler/icons-react';
+import NewUILoadingStatus from '@/components/NewUI/shared/NewUILoadingStatus';
+import { useSession } from 'next-auth/react';
+import HomeContext from '@/components/Home/home.context';
+import { AstWorkflow } from '@/types/assistantWorkflows';
+import { listAstWorkflowTemplates } from '@/services/assistantWorkflowService';
+import { getUserIdentifier, snakeCaseToTitleCase } from '@/utils/app/data';
+import { AssistantWorkflowBuilder } from '@/components/AssistantWorkflows/AssistantWorkflowBuilder';
+
+export interface WorkflowTemplatePickerProps {
+    /** `data.baseWorkflowTemplateId` on the assistant definition. */
+    selectedTemplateId: string | undefined;
+    /** Empty selection arrives as `''`; the modal maps that to `undefined`. */
+    onTemplateChange: (workflowTemplateId: string) => void;
+    /**
+     * Reports the selected template's display name whenever it is known — after a pick, and when
+     * the list loads with an already-selected id (so an older assistant gets its name backfilled).
+     * The host stores it on the assistant: a viewer who is neither the owner nor on a public
+     * template cannot look the name up (`/get-workflow-template` resolves by owner or public only).
+     */
+    onTemplateNameResolved?: (name: string) => void;
+    disabled?: boolean;
+}
+
+const selectStyle: React.CSSProperties = {
+    width: '100%',
+    boxSizing: 'border-box',
+    borderRadius: 8,
+    border: '1px solid var(--border-subtle)',
+    background: 'var(--bg-app)',
+    color: 'var(--text-primary)',
+    padding: '8px 12px',
+    fontSize: 14,
+    fontFamily: 'Inter, ui-sans-serif, sans-serif',
+    outline: 'none',
+    cursor: 'pointer',
+    transition: 'border-color 120ms ease',
+};
+
+const hintStyle: React.CSSProperties = {
+    fontSize: 12,
+    color: 'var(--text-muted)',
+    margin: '6px 0 0',
+};
+
+const uniqueBaseTemplates = (
+    templates: AstWorkflow[],
+    selectedTemplateId: string | undefined,
+    user: string | null,
+): AstWorkflow[] => {
+    const sortedTemplates = templates
+        .filter((template) => template.isBaseTemplate === true)
+        .sort((a, b) => {
+            const aName = snakeCaseToTitleCase(a.name);
+            const bName = snakeCaseToTitleCase(b.name);
+            const nameOrder = aName.localeCompare(bName, undefined, { sensitivity: 'base' });
+            if (nameOrder !== 0) return nameOrder;
+
+            // Keep the selected ID if duplicate public/owned templates share a label;
+            // otherwise prefer the user's own template, then a stable ID order.
+            const aPriority = (a.templateId === selectedTemplateId ? 2 : 0) + (a.user === user ? 1 : 0);
+            const bPriority = (b.templateId === selectedTemplateId ? 2 : 0) + (b.user === user ? 1 : 0);
+            return bPriority - aPriority || a.templateId.localeCompare(b.templateId);
+        });
+
+    const seenNames = new Set<string>();
+    return sortedTemplates.filter((template) => {
+        const displayName = snakeCaseToTitleCase(template.name);
+        const nameKey = displayName.toLowerCase().replace(/[^a-z0-9]/g, '') || template.templateId;
+        if (seenNames.has(nameKey)) return false;
+        seenNames.add(nameKey);
+        return true;
+    });
+};
+
+export const WorkflowTemplatePicker: React.FC<WorkflowTemplatePickerProps> = ({
+    selectedTemplateId,
+    onTemplateChange,
+    onTemplateNameResolved,
+    disabled = false,
+}) => {
+    const { data: session } = useSession();
+    const user = getUserIdentifier(session?.user);
+    const { state: { featureFlags, amplifyUsers } } = useContext(HomeContext);
+
+    const [templates, setTemplates] = useState<AstWorkflow[] | null>(null);
+    const [builderOpen, setBuilderOpen] = useState(false);
+    const selectedTemplateIdRef = useRef(selectedTemplateId);
+    const userRef = useRef(user);
+    selectedTemplateIdRef.current = selectedTemplateId;
+    userRef.current = user;
+
+    // Re-armed in the effect body, not by the initial value: StrictMode mounts →
+    // unmounts → remounts, and a `useRef(true)` + unmount-only cleanup latches
+    // false forever, stranding the loading state (guide §16).
+    const alive = useRef(true);
+    useEffect(() => {
+        alive.current = true;
+        return () => { alive.current = false; };
+    }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        const load = async () => {
+            try {
+                const response = await listAstWorkflowTemplates(true, true);
+                if (cancelled || !alive.current) return;
+                const availableTemplates = response.success ? response.data?.templates ?? [] : [];
+                setTemplates(uniqueBaseTemplates(availableTemplates, selectedTemplateIdRef.current, userRef.current));
+            } catch {
+                if (!cancelled && alive.current) setTemplates([]);
+            }
+        };
+        load();
+        return () => { cancelled = true; };
+    }, []);
+
+    const allowCreation = Boolean(featureFlags.createAssistantWorkflows);
+    const loading = templates === null;
+    const isEmpty = !loading && templates.length === 0;
+    const selected = templates?.find((template) => template.templateId === selectedTemplateId);
+
+    const resolvedName = selected ? snakeCaseToTitleCase(selected.name) : undefined;
+    const onNameResolvedRef = useRef(onTemplateNameResolved);
+    onNameResolvedRef.current = onTemplateNameResolved;
+    useEffect(() => {
+        if (resolvedName) onNameResolvedRef.current?.(resolvedName);
+    }, [resolvedName]);
+
+    // Guide §5.2 — one modal at a time, as an early return below every hook.
+    if (builderOpen) {
+        return (
+            <AssistantWorkflowBuilder
+                isOpen
+                onClose={() => setBuilderOpen(false)}
+                onRegister={(template) => {
+                    if (!template.isBaseTemplate) return;
+                    setTemplates((prev) => uniqueBaseTemplates([...(prev ?? []), template], template.templateId, userRef.current));
+                    onTemplateChange(template.templateId);
+                }}
+            />
+        );
+    }
+
+    const describe = (template: AstWorkflow): string => {
+        const owner = template.user && template.user !== user
+            ? ` — provided by ${amplifyUsers?.[template.user] || template.user}`
+            : '';
+        return `${template.description ?? ''}${owner}`;
+    };
+
+    return (
+        <div>
+            <label
+                htmlFor="ast-workflow-template"
+                style={{
+                    display: 'block',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--text-secondary)',
+                    marginBottom: 6,
+                }}
+            >
+                Base template
+            </label>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {loading ? (
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <NewUILoadingStatus
+                            open
+                            message="Loading base workflow templates…"
+                            variant="inline"
+                        />
+                    </div>
+                ) : (
+                    <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+                        <select
+                            id="ast-workflow-template"
+                            value={selectedTemplateId ?? ''}
+                            disabled={isEmpty || disabled}
+                            onChange={(event) => onTemplateChange(event.target.value)}
+                            style={{
+                                ...selectStyle,
+                                opacity: isEmpty || disabled ? 0.5 : 1,
+                                cursor: isEmpty || disabled ? 'not-allowed' : 'pointer',
+                            }}
+                            onFocus={(event) => { event.target.style.borderColor = 'var(--accent)'; }}
+                            onBlur={(event) => { event.target.style.borderColor = 'var(--border-subtle)'; }}
+                        >
+                            <option value="">{isEmpty ? 'No templates available' : 'No template'}</option>
+                            {templates?.map((template) => (
+                                <option
+                                    key={template.templateId}
+                                    value={template.templateId}
+                                    title={describe(template)}
+                                >
+                                    {snakeCaseToTitleCase(template.name)}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                {allowCreation && !disabled && (
+                    <button
+                        type="button"
+                        id="baseAssistantWorkflowTemplateAdd"
+                        aria-label="Create a new workflow template"
+                        title="Create a new workflow template"
+                        onClick={() => setBuilderOpen(true)}
+                        style={{
+                            flexShrink: 0,
+                            display: 'grid',
+                            placeItems: 'center',
+                            width: 36,
+                            height: 36,
+                            borderRadius: 8,
+                            border: '1px solid var(--border-subtle)',
+                            background: 'var(--bg-app)',
+                            color: 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            transition: 'background 120ms ease, color 120ms ease, border-color 120ms ease',
+                        }}
+                        onMouseEnter={(event) => {
+                            const el = event.currentTarget;
+                            el.style.background = 'var(--bg-hover)';
+                            el.style.color = 'var(--accent)';
+                            el.style.borderColor = 'color-mix(in srgb, var(--accent) 40%, var(--border-subtle))';
+                        }}
+                        onMouseLeave={(event) => {
+                            const el = event.currentTarget;
+                            el.style.background = 'var(--bg-app)';
+                            el.style.color = 'var(--text-secondary)';
+                            el.style.borderColor = 'var(--border-subtle)';
+                        }}
+                    >
+                        <IconPlus size={16} />
+                    </button>
+                )}
+            </div>
+
+            {selected?.description ? (
+                <p style={hintStyle}>{describe(selected)}</p>
+            ) : (
+                <p style={hintStyle}>
+                    A base template makes this an Agent (v4) assistant and fixes the steps it runs.
+                </p>
+            )}
+        </div>
+    );
+};
+
+export default WorkflowTemplatePicker;

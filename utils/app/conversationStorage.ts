@@ -1,18 +1,16 @@
-import { ConversationStorage } from "@/types/conversationStorage";
+import { ConversationStorage, DEFAULT_CONVERSATION_STORAGE } from "@/types/conversationStorage";
 import { Conversation } from "@/types/chat";
-import { deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, fetchRemoteConversation, uploadConversation } from "@/services/remoteConversationService";
+import { cancelPendingUpload, getHeldBlankConversationIds, releaseHeldBlankConversations, deleteMultipleRemoteConversations, deleteRemoteConversation, fetchMultipleRemoteConversations, getPendingDeleteIds, getUnsavedConversations, uploadConversation } from "@/services/remoteConversationService";
+import { storageGet } from "./storage";
 import cloneDeep from 'lodash/cloneDeep';
-import { conversationWithCompressedMessages, conversationWithUncompressedMessages, isLocalConversation, isRemoteConversation, remoteForConversationHistory, saveConversations } from "./conversation";
+import { conversationWithCompressedMessages, conversationWithUncompressedMessages, isConversationDeleted, isLocalConversation, isRemoteConversation, remoteForConversationHistory, saveConversations, saveConversationsAsync } from "./conversation";
 import { FolderInterface } from "@/types/folder";
 import { baseAgentFolder } from "./basePrompts";
-import { DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from "./const";
-import { Model } from '@/types/model';
 
 
 //handle all local,
 const handleAllLocal = async (conversations: Conversation[], statsService: any, onProgress?: (current: number, total: number) => void) => {
     const remoteConversations = conversations.filter(isRemoteConversation);
-    const localConversations = conversations.filter(isLocalConversation);
 
     const totalConversations = conversations.length;
     const remoteCount = remoteConversations.length;
@@ -25,25 +23,22 @@ const handleAllLocal = async (conversations: Conversation[], statsService: any, 
     // Fetch remote conversation data (happens quickly as batch operation)
     let updatedConversations = await includeRemoteConversationData(conversations, "move back to local storage.", false);
 
-    const remoteConversationIds = remoteConversations.map(c => c.id);
-    deleteMultipleRemoteConversations(remoteConversationIds);
-
     // include remote conversation returns all the local + remote conversation
     // if a conversation fails to fetch then it will be missing from updatedConversations
-    const missingConversations = remoteConversations.filter(rc => {
-            const isMissing = !updatedConversations.some(updatedC => updatedC.id === rc.id);
-            if (!isMissing) statsService.moveConversationFromRemoteEvent(rc);
-            return isMissing
-        });
+    const fetchedIds = new Set(updatedConversations.map(c => c.id));
+    const missingConversations = remoteConversations.filter(rc => !fetchedIds.has(rc.id));
+    // ONLY the chats we really hold a local copy of may be removed from the cloud
+    const movedRemoteIds = remoteConversations.filter(rc => fetchedIds.has(rc.id)).map(rc => rc.id);
+    movedRemoteIds.forEach(id => statsService.moveConversationFromRemoteEvent(remoteConversations.find(rc => rc.id === id)));
 
     // Process ALL conversations with progress updates
     let processedCount = 0;
-    const remoteConversationIdSet = new Set(remoteConversations.map(c => c.id));
+    const movedRemoteIdSet = new Set(movedRemoteIds);
 
     const finalConversations: Conversation[] = [];
     for (const c of updatedConversations) {
         // Check if this conversation was originally remote (before includeRemoteConversationData modified it)
-        if (remoteConversationIdSet.has(c.id)) {
+        if (movedRemoteIdSet.has(c.id)) {
             // Re-compress since includeRemoteConversationData already compressed, but ensure isLocal=true
             finalConversations.push(conversationWithCompressedMessages({...c, isLocal: true}));
         } else {
@@ -61,13 +56,31 @@ const handleAllLocal = async (conversations: Conversation[], statsService: any, 
             await new Promise(resolve => setTimeout(resolve, 30));
         }
     }
-    updatedConversations = finalConversations;
+    // conversations that could not be downloaded stay in the cloud, untouched
+    updatedConversations = [...finalConversations, ...missingConversations];
 
-    if (!missingConversations || missingConversations.length === 0) {
+    // 1) make sure the local copies are durably written ...
+    const savedLocally = await saveConversationsAsync(updatedConversations);
+    if (!savedLocally) {
+        // The browser refused the write (storage full / unavailable). Nothing may be removed from the cloud.
+        alert("Your conversations could not be saved in this browser, so nothing was moved. Your conversations are still safe in the cloud. Free up browser storage (or export first) and try again.");
+        return conversations;
+    }
+    // 2) ... and only then remove the cloud copies of the chats we hold locally
+    if (movedRemoteIds.length > 0) {
+        // a save that was still queued for these chats must not bring them back into the cloud later
+        movedRemoteIds.forEach((id) => cancelPendingUpload(id));
+        const deleted = await deleteMultipleRemoteConversations(movedRemoteIds);
+        if (!deleted) {
+            // retried (and remembered across reloads) one by one; the chats are safe locally meanwhile
+            movedRemoteIds.forEach(id => { void deleteRemoteConversation(id); });
+        }
+    }
+
+    if (missingConversations.length === 0) {
         alert("Successfully moved all conversations to local storage.");
     } else {
-        updatedConversations = [...updatedConversations, ...missingConversations];
-        alert(`Successfully moved conversations to local storage. ${missingConversations.length} conversation(s) could not be retrieved.`);
+        alert(`Moved your conversations to local storage, except ${missingConversations.length} conversation(s) that could not be retrieved. They are still safe in the cloud; try again later.`);
     }
     return updatedConversations;
 }
@@ -91,8 +104,10 @@ const handleAllCloud = async (conversations: Conversation[], folders: FolderInte
         const uncompressMessageConv = conversationWithUncompressedMessages(conversation);
 
         //Send localConversation to the cloud
-        const uploadResult = await uploadConversation(uncompressMessageConv, folders);
+        const uploadResult = await uploadConversation(uncompressMessageConv, folders, null, { recreate: true });
         if (!uploadResult) {
+            // the chat stays local: its queued upload must not quietly send it to the cloud later
+            cancelPendingUpload(conversation.id);
             failedToUpload.push(conversation.name);
             updatedConversations.push(conversation);
         } else {
@@ -133,8 +148,9 @@ const handleAllCloud = async (conversations: Conversation[], folders: FolderInte
 // when individual conversation is changed to be sent to the cloud
 const handleConversationLocalToCloud = async (selectedConversation: Conversation, folders: FolderInterface[], statsService: any) => {
     const copyConv = cloneDeep(selectedConversation)
-    const uploadResult = await uploadConversation({...copyConv, isLocal: false}, folders)
+    const uploadResult = await uploadConversation({...copyConv, isLocal: false}, folders, null, { recreate: true })
     if (!uploadResult) {
+        cancelPendingUpload(copyConv.id);
         alert("Failed to send conversation to the cloud. Please try again later...");
         return selectedConversation;
     }
@@ -143,11 +159,43 @@ const handleConversationLocalToCloud = async (selectedConversation: Conversation
     return selectedConversation;
 }
 
-// when individual conversation is changed to be saved in local
+// when individual conversation is changed to be saved in local.
+// The cloud copy is NOT deleted here: the caller first persists the local copy and then calls
+// finishMoveToLocal, so a crash in between can never leave the chat nowhere.
 const handleConversationCloudToLocal = (selectedConversation: Conversation) => {
-    deleteRemoteConversation(selectedConversation.id);
     selectedConversation.isLocal = true;
     return selectedConversation;
+}
+
+/** Second half of a single-chat cloud -> local move: removes the cloud copy (retried until confirmed). */
+export const finishMoveToLocal = async (conversationId: string): Promise<boolean> => {
+    // Writes are applied in order, so reading the stored history back shows whether the local copy really made it.
+    let persisted = false;
+    try {
+        const raw = await storageGet('conversationHistory');
+        const stored: Conversation[] = raw ? JSON.parse(raw) : [];
+        const entry = stored.find((c) => c.id === conversationId);
+        // the entry was a cloud stub before the move, so seeing it flagged local proves the new write landed
+        persisted = !!entry && !!isLocalConversation(entry);
+    } catch (e) {
+        console.error('Could not verify the local copy before removing the cloud copy', e);
+    }
+    if (!persisted) {
+        alert("This conversation could not be saved in this browser, so its cloud copy was kept. Please free up browser storage and try again.");
+        return false;
+    }
+    return deleteRemoteConversation(conversationId);
+};
+
+/**
+ * After a bulk storage change the open chat must stay the full in-memory conversation (the entries in
+ * the list are metadata stubs / compressed). Only the storage-related fields are taken from the list.
+ */
+export const reconcileSelectedAfterStorageChange = (selected: Conversation | null | undefined, updatedList: Conversation[]) => {
+    if (!selected) return selected;
+    const entry = updatedList.find((c) => c.id === selected.id);
+    if (!entry) return selected;
+    return { ...selected, isLocal: entry.isLocal, folderId: entry.folderId };
 }
 
 
@@ -163,21 +211,36 @@ export const  handleSelectedConversationStorageChange = (selectedConversation: C
 }
 
 
-export const handleStorageSelection = (selection: String, conversations: Conversation[], folders:FolderInterface[], statsService: any, onProgress?: (current: number, total: number) => void) => {
-    // future storage options is taken care of by saving the storage settings in local storage.
+/**
+ * Applies the result of a bulk move to the list as it is NOW: the move works on a snapshot and can take a long
+ * time, so chats created or changed meanwhile would otherwise be dropped (and that loss persisted).
+ */
+export const mergeStorageChangeWithLiveList = (result: Conversation[], live: Conversation[]): Conversation[] => {
+    const resultIds = new Set(result.map((c) => c.id));
+    const addedMeanwhile = live.filter((c) => !resultIds.has(c.id) && !isConversationDeleted(c.id));
+    return addedMeanwhile.length === 0 ? result : [...result, ...addedMeanwhile];
+};
 
+export const handleStorageSelection = async (selection: String, conversations: Conversation[], folders:FolderInterface[], statsService: any, onProgress?: (current: number, total: number) => void, getCurrentConversations?: () => Conversation[]) => {
+    // future storage options is taken care of by saving the storage settings in local storage.
+    let result: Conversation[] | undefined;
     if (selection === 'local-only') {
-        return handleAllLocal(conversations, statsService, onProgress);
+        result = await handleAllLocal(conversations, statsService, onProgress);
 
     } else if (selection === 'cloud-only') {
-        return handleAllCloud(conversations, folders, statsService, onProgress);
+        result = await handleAllCloud(conversations, folders, statsService, onProgress);
     }
-
+    if (result && getCurrentConversations) return mergeStorageChangeWithLiveList(result, getCurrentConversations());
+    return result;
 }
 
 
-export const getIsLocalStorageSelection = (storageSelection: string | null) => { 
-    return storageSelection ? storageSelection.includes('local') : true
+// Whether a conversation created now is stored locally. With no selection yet (a new user, or the
+// moments before a saved/admin preference has loaded) the system default applies, which is
+// "Cloud going forward" — it used to fall back to local, so a new user's first conversations
+// were kept in the browser even though the default says cloud.
+export const getIsLocalStorageSelection = (storageSelection: string | null) => {
+    return (storageSelection || DEFAULT_CONVERSATION_STORAGE).includes('local')
 }
 
   
@@ -187,43 +250,43 @@ export const saveStorageSettings = (storage: ConversationStorage) => {
 
 
 
-const fillInMissingData = async (conversationId: string, defaultModel: Model, folders:FolderInterface[]) => {
-    const fullConv = await fetchRemoteConversation(conversationId);
-    if (fullConv) {
-        fullConv.model = defaultModel;
-        fullConv.prompt = DEFAULT_SYSTEM_PROMPT;
-        fullConv.temperature = DEFAULT_TEMPERATURE;
-        // happens for conversation upload through the register conversation api endpoint 
-        console.log("Update missing data on remote conversation");
-        uploadConversation(fullConv, folders);
-    }
-}
-
-const updateRemoteConversation = async (conversationId: string, attributes: any, folders:FolderInterface[]) => {
-    const fullConv = await fetchRemoteConversation(conversationId);
-    if (fullConv) {
-        const updatedConv = {...fullConv, ...attributes};
-        // console.log("Update data on remote conversation: ", attributes);
-        uploadConversation(updatedConv, folders);
-    }
-}
-
 export interface remoteConvData {
     conversation: Conversation;
     folder: FolderInterface | null;
 }
 
-export const updateWithRemoteConversations = async (remoteConversations: remoteConvData[] | null, conversations: Conversation[], folders:FolderInterface[], dispatch:any, defaultModel: Model) => {
+/**
+ * Merge the cloud list into the local one.
+ *
+ * `getCurrentConversations` must return the LIVE list (e.g. a ref): the cloud download can take many
+ * seconds, and merging into the list captured before it started would drop every chat created or
+ * changed in the meantime (and persist that loss). Without it, `conversations` is used as before.
+ */
+export const updateWithRemoteConversations = async (remoteConversations: remoteConvData[] | null, conversations: Conversation[], folders:FolderInterface[], dispatch:any, getCurrentConversations?: () => Conversation[]) => {
     if (!remoteConversations) alert("Unable to sync local conversations with those stored in the cloud. Please refresh the page to try again...");
 
-    if (remoteConversations && remoteConversations.length > 0 ) {
+    // chats deleted here whose cloud delete is not confirmed yet must not come back
+    const pendingDeletes = remoteConversations && remoteConversations.length > 0 ? await getPendingDeleteIds() : new Set<string>();
+    const remoteList = (remoteConversations ?? []).filter((cd: remoteConvData) => cd?.conversation && !pendingDeletes.has(cd.conversation.id));
+
+    // A blank chat held only in this browser that the cloud lists after all (another device wrote to it): the
+    // cloud copy is the real one now.
+    if (remoteList.length > 0) {
+        const held = await getHeldBlankConversationIds();
+        const inCloud = remoteList.map((cd: remoteConvData) => cd.conversation.id).filter((id: string) => held.has(id));
+        if (inCloud.length > 0) releaseHeldBlankConversations(inCloud);
+    }
+
+    if (remoteList.length > 0 ) {
         let updatedFolders = cloneDeep(folders);
         const newFolders: FolderInterface[] = [];
+        // read AFTER the awaits above, right before it is used
+        const baseConversations = getCurrentConversations ? getCurrentConversations() : conversations;
         const currentConversationsMap = new Map();
-        conversations.forEach(conv => currentConversationsMap.set(conv.id, conv));
+        baseConversations.forEach(conv => currentConversationsMap.set(conv.id, conv));
 
         const agentfolderId = baseAgentFolder.id;
-        const convHasAgentFolder = remoteConversations.find((cd: remoteConvData) => cd.conversation.folderId === agentfolderId);
+        const convHasAgentFolder = remoteList.find((cd: remoteConvData) => cd.conversation.folderId === agentfolderId);
         if (convHasAgentFolder) {
             const hasAgentFolder = updatedFolders.find((f:FolderInterface) => f.id === agentfolderId);
             if (!hasAgentFolder) {
@@ -232,11 +295,19 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
             }
         }
 
-        remoteConversations.forEach((cd: remoteConvData)=> {
+        let remappedFolderCount = 0;
+        remoteList.forEach((cd: remoteConvData)=> {
             const remoteConv = cd.conversation;
-            if (!remoteConv.model) fillInMissingData(remoteConv.id, defaultModel, updatedFolders);
+            // NOTE: conversations with no `model` are intentionally NOT backfilled here. Doing so cost a
+            // get + upload per conversation on every sync; the chat send path already falls back to the
+            // default model when a conversation has none (see useChatSendService).
             // check if there is record of this conversation in the current browser
             const existsLocally = currentConversationsMap.get(remoteConv.id);
+            // A chat this browser holds as private/local has its messages here; the cloud list only
+            // carries metadata. Replacing it with that stub (e.g. after a failed cloud delete) would
+            // wipe the messages, so the local chat always wins.
+            if (existsLocally && isLocalConversation(existsLocally)) return;
+
             let folderExists = remoteConv.folderId ? updatedFolders.find((f:FolderInterface) =>  f.id === remoteConv.folderId) : null;
             if (!existsLocally || (existsLocally && remoteConv.name !== existsLocally.name) 
                                || (!folderExists && cd.folder)) {
@@ -247,17 +318,29 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
                         updatedFolders = [...updatedFolders,  cd.folder];
                         newFolders.push(cd.folder);
                     } else {
+                        // Re-point the chat at this browser's folder of the same name. This is applied to the copy merged
+                        // into the local list below and is NOT written back to the cloud: doing so downloaded and
+                        // re-uploaded every affected chat on each sync (a get + upload burst at startup). Every place
+                        // that loads a full cloud chat for editing keeps the local folderId instead of the cloud one.
                         remoteConv.folderId = similarFolderExists.id;
-                        // update the folder id in the remote conversation, this will ensure we are fully in sync in this browser 
-                        updateRemoteConversation(remoteConv.id, {folderId: similarFolderExists.id}, updatedFolders);
+                        remappedFolderCount++;
                     }
                 }
             }   else if  (existsLocally && folderExists && existsLocally.folderId !== folderExists?.id) {
                 remoteConv.folderId = folderExists.id;
             }
-            currentConversationsMap.set(remoteConv.id, {...remoteConv, isLocal: false});  // in case
+            const merged: Conversation = {...remoteConv, isLocal: false};  // in case
+            // fields the list response may not carry must not be wiped from what we already know
+            if (existsLocally) {
+                if (merged.date == null && existsLocally.date) merged.date = existsLocally.date;
+                if (merged.codeInterpreterRecordId == null && existsLocally.codeInterpreterRecordId) {
+                    merged.codeInterpreterRecordId = existsLocally.codeInterpreterRecordId;
+                }
+            }
+            currentConversationsMap.set(remoteConv.id, merged);
         });
         
+        if (remappedFolderCount > 0) console.log(`[folder-remap] ${remappedFolderCount} cloud chat(s) point at a folder id this browser lacks; remapped to same-named local folder (not re-uploaded)`);
         const updatedConversations = Array.from(currentConversationsMap.values());
         // console.log("updated conv len: ", updatedConversations.length);
 
@@ -272,12 +355,18 @@ export const updateWithRemoteConversations = async (remoteConversations: remoteC
 };
 
 
-export const includeRemoteConversationData = async (conversationHistory: Conversation[], failMessage: string, uncompressLocal: boolean, onProgress?: (current: number, total: number) => void) => {
+export interface IncludeRemoteResult extends Array<Conversation> {
+    /** ids of cloud chats that could not be downloaded (and are therefore missing from the result) */
+    missingRemoteIds?: string[];
+}
+
+export const includeRemoteConversationData = async (conversationHistory: Conversation[], failMessage: string, uncompressLocal: boolean, onProgress?: (current: number, total: number) => void): Promise<IncludeRemoteResult> => {
     if (!conversationHistory) return [];
     // Filter and get the ids of remote conversations
     const remoteConversationIds = conversationHistory.filter(c => isRemoteConversation(c)).map(c => c.id);
 
-    if (remoteConversationIds.length === 0) return conversationHistory;
+    const localOnly = (c: Conversation) => uncompressLocal ? conversationWithUncompressedMessages(c) : c;
+    if (remoteConversationIds.length === 0) return conversationHistory.map(localOnly);
 
     const totalToFetch = remoteConversationIds.length;
 
@@ -287,33 +376,39 @@ export const includeRemoteConversationData = async (conversationHistory: Convers
 
     // Create a map of remote conversation ids to fetched conversations for quick lookup
     // Use safe access - if data is null, treat as empty array
-    const fetchedRemoteConversationsMap = new Map((fetchedRemoteConversations?.data || []).map((c:Conversation) => [c.id, c]));
+    const fetchedRemoteConversationsMap = new Map<string, Conversation>((fetchedRemoteConversations?.data || []).map((c:Conversation) => [c.id, c]));
+    // A save that has not reached the cloud yet is newer than the cloud copy: it must win
+    const unsaved = await getUnsavedConversations(remoteConversationIds);
+    unsaved.forEach((conversation, id) => fetchedRemoteConversationsMap.set(id, conversation));
 
-    const failedToFetchByNoSuchKey: string[] = fetchedRemoteConversations?.failedByNoSuchKey || [];
     const failedToFetch: string[] = fetchedRemoteConversations?.failed || [];
+    const wholeRequestFailed = !fetchedRemoteConversations || fetchedRemoteConversations.data === null;
 
     const alertFailed: string[] = [];
+    const missing: string[] = [];
 
     const combinedConversations = conversationHistory.map(c => {
         if (isRemoteConversation(c)) {
             const cloudConversation = fetchedRemoteConversationsMap.get(c.id);
             if (!cloudConversation) {
-                // if not in  no such key then push
-                if (failedToFetch.includes(c.id)) alertFailed.push(c.name);
+                missing.push(c.id);
+                alertFailed.push(c.name);
                 return undefined;
             }
             return { ...(uncompressLocal ? cloudConversation : conversationWithCompressedMessages(cloudConversation as Conversation)), isLocal: true };
-        } else if (uncompressLocal) {
-            return conversationWithUncompressedMessages(c);
         } else {
-            //leave as is, with compressed messages
-            return c;
+            return localOnly(c);
         }
 
     }).filter((c): c is Conversation => c !== undefined);
 
     if (alertFailed.length > 0) {
-        alert(`Conversation${alertFailed.length === 1 ? '' : 's'}: ${alertFailed.join(", ")} failed to ${failMessage}`);
+        const names = alertFailed.length <= 5 ? alertFailed.join(", ") : `${alertFailed.slice(0, 5).join(", ")} and ${alertFailed.length - 5} more`;
+        alert(wholeRequestFailed
+            ? `Your cloud conversations could not be downloaded to ${failMessage}`
+            : `Conversation${alertFailed.length === 1 ? '' : 's'}: ${names} failed to ${failMessage}`);
     }
-    return combinedConversations;
+    const result = combinedConversations as IncludeRemoteResult;
+    result.missingRemoteIds = missing;
+    return result;
 };

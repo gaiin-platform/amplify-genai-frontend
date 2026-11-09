@@ -102,8 +102,8 @@ export const DropdownButton = ({
 
     const triggerClass =
         variant === 'solid'
-            ? 'flex h-8 items-center gap-1.5 rounded-md bg-purple-500 px-3 text-sm font-medium text-white shadow-sm hover:bg-purple-600 transition-colors'
-            : 'flex h-8 items-center gap-1 rounded-md px-2 text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-neutral-700 dark:hover:text-white transition-colors';
+            ? 'flex h-8 items-center gap-1.5 rounded-[8px] bg-[--accent] px-3 text-sm font-medium text-[--accent-fg] shadow-sm hover:opacity-90 transition-colors'
+            : 'flex h-8 items-center gap-1 rounded-[8px] px-2 text-[--text-muted] hover:bg-[--bg-hover] hover:text-[--text-primary] transition-colors';
 
     return (
         <div ref={ref} className="relative">
@@ -127,12 +127,12 @@ export const DropdownButton = ({
             {open && (
                 <div
                     role="menu"
-                    className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-20 mt-1 w-56 rounded-md border border-gray-200 bg-white py-1 shadow-lg dark:border-neutral-600 dark:bg-[#2b2c36]`}
+                    className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} top-full z-20 mt-1 w-56 rounded-[8px] border border-[--border-subtle] bg-[--bg-raised] py-1 shadow-lg`}
                 >
                     {items.map((item, i) => (
                         <div key={i}>
                             {item.separatorAbove && (
-                                <div className="my-1 h-px bg-gray-200 dark:bg-neutral-600" />
+                                <div className="my-1 h-px bg-[--border-subtle]" />
                             )}
                             <button
                                 ref={(el) => {
@@ -150,11 +150,11 @@ export const DropdownButton = ({
                                 className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm ${
                                     item.disabled
                                         ? 'cursor-not-allowed opacity-50'
-                                        : 'hover:bg-gray-50 dark:hover:bg-neutral-700'
+                                        : 'hover:bg-[--bg-hover]'
                                 } ${
                                     item.danger
-                                        ? 'text-red-600 dark:text-red-400'
-                                        : 'text-gray-700 dark:text-gray-200'
+                                        ? 'text-[--text-error]'
+                                        : 'text-[--text-secondary]'
                                 }`}
                             >
                                 {item.icon}

@@ -43,7 +43,7 @@
     "mixpanel-browser": "^2.48.1",
     "moment-timezone": "^0.5.34",
     "multer": "^1.4.5-lts.1",
-    "next": "^14.2.4",
+    "next": "^15.5.27",
     "next-auth": "^4.24.5",
     "next-i18next": "^13.2.2",
     "openai": "^4.19.0",
@@ -78,6 +78,7 @@
     "zod": "^3.22.3"
   },
   "devDependencies": {
+    "@fast-check/vitest": "^0.5.0",
     "@mozilla/readability": "^0.6.0",
     "@tailwindcss/typography": "^0.5.9",
     "@trivago/prettier-plugin-sort-imports": "^4.1.1",
@@ -85,7 +86,7 @@
     "@types/jsdom": "^21.1.1",
     "@types/lodash": "^4.0.9",
     "@types/moment-timezone": "^0.5.30",
-    "@types/node": "18.15.0",
+    "@types/node": "^22.0.0",
     "@types/papaparse": "^5.3.14",
     "@types/prismjs": "^1.26.5",
     "@types/react": "18.0.28",
@@ -99,15 +100,19 @@
     "eslint": "8.36.0",
     "eslint-config-next": "^13.5.4",
     "gpt-3-encoder": "^1.1.4",
+    "jsdom": "^31.0.0",
     "postcss": "^8.4.21",
     "prettier": "^2.8.7",
     "prettier-plugin-tailwindcss": "^0.2.5",
     "tailwindcss": "^3.2.7",
     "typescript": "4.9.5",
-    "vitest": "^1.6.1",
+    "vitest": "^4.1.11",
     "yaml": "^2.4.2"
   },
   "overrides": {
-    "refractor": "3.6.0"
+    "refractor": "3.6.0",
+    "next": {
+      "postcss": "^8.5.23"
+    }
   }
 }

@@ -10,7 +10,7 @@ import {
     IconZoomIn,
     IconMaximize
 } from "@tabler/icons-react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { getFileDownloadUrl } from "@/services/fileService";
 import { fetchImageFromPresignedUrl } from "@/utils/app/files";
 import { IMAGE_FILE_TYPES } from "@/utils/app/const";

@@ -1,0 +1,822 @@
+/**
+ * ToolStepViews — presentational pieces for the chat's tool-call status.
+ *
+ *   ToolStepRow        one line per call: icon · label (· result) · status · chevron;
+ *                      expands to the parameters, the tool's Result (a list is a summary plus
+ *                      one collapsed line per item), raw error text, and "Raw" / "Raw log".
+ *   ToolStepGroup      several calls stacked under one header; collapses to
+ *                      "Used Outlook · 2 steps" once nothing is running.
+ *   ThinkingRow        model reasoning — deliberately NOT styled like a tool step.
+ *   MessageToolSteps   the composition a message gets.
+ *
+ * Pure props → markup (no context, no portals, no DOM scanning) so it renders
+ * to static markup in tests. Styling lives in styles/conversation-view.css
+ * under the `nui-step*` / `nui-thinking*` classes, token-based for light/dark.
+ *
+ * Accessibility: every toggle is a <button> with aria-expanded; decorative icons
+ * are aria-hidden and each status carries visually-hidden text. Live
+ * announcements are NOT made here — NewUIToolStepsLayer owns one persistent
+ * aria-live region, because a region that mounts together with its first text
+ * is often not announced.
+ */
+
+import React, { useEffect, useId, useRef, useState } from 'react';
+import {
+  IconAddressBook,
+  IconAlertTriangle,
+  IconCalendar,
+  IconChecklist,
+  IconCheck,
+  IconCode,
+  IconCopy,
+  IconFile,
+  IconFileText,
+  IconMail,
+  IconMessages,
+  IconNotes,
+  IconPlug,
+  IconTable,
+  IconTool,
+  IconUsers,
+  IconWorld,
+} from '@tabler/icons-react';
+import { ChatStatusIndicator } from '@/components/NewUI/chat/ChatStatusIndicator';
+import { DisclosureChevron } from '@/components/NewUI/shared/DisclosureChevron';
+import { integrationIcon } from '@/components/NewUI/shared/integrationIcon';
+import {
+  ToolCategory,
+  ToolStepDescription,
+  describeToolStep,
+} from '@/components/NewUI/shared/toolStepLabels';
+import {
+  CodeRunDetail,
+  ToolStep,
+  describeStep,
+  formatParamRows,
+  groupTitle,
+  isMcpStep,
+  listItems,
+  plainErrorMessage,
+} from '@/components/NewUI/shared/toolSteps';
+import { describeItem, resultRows } from '@/components/NewUI/shared/toolStepResults';
+
+// ─── Icons ───────────────────────────────────────────────────────────────────
+
+const CATEGORY_ICON: Record<ToolCategory, React.ComponentType<{ size?: number; stroke?: number }>> = {
+  mail: IconMail,
+  calendar: IconCalendar,
+  file: IconFile,
+  site: IconWorld,
+  spreadsheet: IconTable,
+  document: IconFileText,
+  notes: IconNotes,
+  tasks: IconChecklist,
+  chat: IconMessages,
+  contacts: IconAddressBook,
+  people: IconUsers,
+  code: IconCode,
+  mcp: IconPlug,
+  generic: IconTool,
+};
+
+/** The connector's brand icon when we have one, else a generic icon for the category. */
+const StepIcon: React.FC<{ desc: Pick<ToolStepDescription, 'connector' | 'category'> }> = ({ desc }) => {
+  const Fallback = CATEGORY_ICON[desc.category] ?? IconTool;
+  return (
+    <span className="nui-step-icon" aria-hidden="true">
+      {desc.connector ? integrationIcon(desc.connector, 16) : <Fallback size={16} stroke={1.75} />}
+    </span>
+  );
+};
+
+// ─── Status indicator ────────────────────────────────────────────────────────
+
+const STATUS_TEXT: Record<ToolStep['status'], string> = {
+  running: 'In progress',
+  done: 'Done',
+  error: 'Failed',
+};
+
+/**
+ * Running: a small rotating arc — or, under prefers-reduced-motion, a static dot
+ * (CSS swaps the two; neither rotates or pulses). Done: muted check.
+ * Error: warning icon.
+ */
+const StatusIndicator: React.FC<{ status: ToolStep['status'] }> = ({ status }) => (
+  <span className="nui-step-status" data-status={status}>
+    {status === 'running' && (
+      <>
+        <svg className="nui-step-spinner" width="14" height="14" viewBox="0 0 14 14" fill="none" aria-hidden="true">
+          <circle
+            cx="7"
+            cy="7"
+            r="5.25"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeDasharray="24.7 8.3"
+          />
+        </svg>
+        <span className="nui-step-static-dot" aria-hidden="true" />
+      </>
+    )}
+    {status === 'done' && <IconCheck size={14} stroke={2} aria-hidden="true" />}
+    {status === 'error' && <IconAlertTriangle size={14} stroke={2} aria-hidden="true" />}
+    <span className="sr-only">{STATUS_TEXT[status]}</span>
+  </span>
+);
+
+// ─── Labels ──────────────────────────────────────────────────────────────────
+
+const stepLabel = (step: ToolStep, desc: ToolStepDescription): string => {
+  if (step.status === 'running') return desc.running;
+  if (step.status === 'error') return desc.running.replace(/…$/, '');
+  // A finished code run is named by what the model says it did ("Calculated monthly revenue").
+  return step.title || desc.done;
+};
+
+const openConnectorsSettings = () => {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new CustomEvent('openNewUISettingsSection', { detail: { section: 'connectors' } }));
+};
+
+// ─── Truncation tooltip ──────────────────────────────────────────────────────
+
+/**
+ * The label only truncates when it genuinely exceeds the column (no max-width or
+ * character cap anywhere). When it does, the full text is offered as a tooltip;
+ * `title` is left off otherwise so a fitting label doesn't grow a pointless one.
+ */
+function useTruncationTitle(fullText: string) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [truncated, setTruncated] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const measure = () => setTruncated(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    if (typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [fullText]);
+
+  return { ref, title: truncated ? fullText : undefined };
+}
+
+// ─── Copy to clipboard ───────────────────────────────────────────────────────
+
+/** "Copied ✓" for 1.5s after a successful copy; silent when the clipboard is unavailable. */
+function useCopy(getText: () => string) {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(getText());
+      setCopied(true);
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable (insecure context / denied) — nothing useful to show */
+    }
+  };
+
+  return { copied, copy };
+}
+
+// ─── Details panel ───────────────────────────────────────────────────────────
+
+/** Key / value rows as the one two-column grid every details panel uses. */
+const ParamGrid: React.FC<{ rows: Array<{ key: string; value: string }>; className?: string }> = ({ rows, className }) => (
+  <dl className={className ? `nui-step-params ${className}` : 'nui-step-params'}>
+    {rows.map(({ key, value }) => (
+      <React.Fragment key={key}>
+        <dt>{key}</dt>
+        <dd>{value}</dd>
+      </React.Fragment>
+    ))}
+  </dl>
+);
+
+const safeJson = (value: unknown): string => {
+  try {
+    return JSON.stringify(value, null, 2) ?? String(value);
+  } catch {
+    return String(value);
+  }
+};
+
+// ─── What a tool returned ────────────────────────────────────────────────────
+
+/** One list item: a single line (subject — from — time) that opens to every field it has. */
+const ResultItem: React.FC<{ item: unknown; now?: Date }> = ({ item, now }) => {
+  const [open, setOpen] = useState(false);
+  const fieldsId = useId();
+  const line = describeItem(item, { now });
+  const rows = item !== null && typeof item === 'object' && !Array.isArray(item) ? resultRows(item as Record<string, unknown>) : [];
+  const text = [line.title, line.meta, line.time].filter(Boolean).join(' — ');
+
+  // A plain value has nothing more to show: a line, not a toggle.
+  if (rows.length === 0) return <div className="nui-result-line nui-result-plain">{text}</div>;
+
+  return (
+    <div className="nui-result-item">
+      <button
+        type="button"
+        className="nui-result-line"
+        aria-expanded={open}
+        aria-controls={open ? fieldsId : undefined}
+        title={text}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <DisclosureChevron open={open} size={10} />
+        <span className="nui-result-text">{text}</span>
+      </button>
+      {open && <ParamGrid rows={rows} className="nui-result-fields" />}
+    </div>
+  );
+};
+
+interface ToolResultSectionProps {
+  result: unknown;
+  /** "11 messages" — the row's own summary, when it has one. */
+  summary?: string;
+  now?: Date;
+}
+
+/**
+ * The "Result" block of a step's details. A list is a summary plus one collapsed line per item;
+ * an object is the same key / value grid as the parameters; text is shown as text. Nothing here
+ * renders every raw field of every item by default.
+ */
+export const ToolResultSection: React.FC<ToolResultSectionProps> = ({ result, summary, now }) => {
+  const items = listItems(result);
+  let body: React.ReactNode;
+  let heading = 'Result';
+
+  if (items) {
+    const count = summary ?? `${items.length} ${items.length === 1 ? 'item' : 'items'}`;
+    heading = `Result · ${count}`;
+    body =
+      items.length > 0 ? (
+        <div className="nui-result-list">
+          {items.map((item, i) => (
+            <ResultItem key={i} item={item} now={now} />
+          ))}
+        </div>
+      ) : null;
+  } else if (result !== null && typeof result === 'object' && !Array.isArray(result)) {
+    const rows = resultRows(result as Record<string, unknown>);
+    body = rows.length > 0 ? <ParamGrid rows={rows} /> : <div className="nui-step-params-empty">No result data</div>;
+  } else {
+    body = <pre className="nui-code-pre">{typeof result === 'string' ? result : safeJson(result)}</pre>;
+  }
+
+  return (
+    <div className="nui-code-section nui-result">
+      <div className="nui-code-title">{heading}</div>
+      {body}
+    </div>
+  );
+};
+
+// ─── Details panel ───────────────────────────────────────────────────────────
+
+interface ToolStepDetailsProps {
+  id?: string;
+  args: Record<string, unknown>;
+  errorDetail?: string;
+  /** What the tool returned; shown as a "Result" section under the parameters. */
+  result?: unknown;
+  resultSummary?: string;
+  /** The tool's name — only used to label the Raw view. */
+  tool?: string;
+  /** The message's whole agent log. Offered as "Raw log" (user prompt, terminate, notes and all). */
+  rawLog?: unknown;
+  now?: Date;
+}
+
+type RawView = 'step' | 'log' | null;
+
+/**
+ * Parameters as a two-column grid (muted keys, primary values, one shared left edge for every
+ * value) with a copy-as-JSON button in the top-right corner, then the tool's Result in the same
+ * container. "Raw" swaps the friendly view for JSON in the same monospace box; "Raw log" does
+ * the same for the message's whole agent log.
+ */
+export const ToolStepDetails: React.FC<ToolStepDetailsProps> = ({
+  id,
+  args,
+  errorDetail,
+  result,
+  resultSummary,
+  tool,
+  rawLog,
+  now,
+}) => {
+  const [raw, setRaw] = useState<RawView>(null);
+  const params = formatParamRows(args);
+  const hasResult = result !== undefined && result !== null;
+  const rawText = () =>
+    raw === 'log'
+      ? safeJson(rawLog)
+      : safeJson({
+          ...(tool ? { tool } : {}),
+          args,
+          ...(hasResult ? { result } : {}),
+          ...(errorDetail ? { error: errorDetail } : {}),
+        });
+  const { copied, copy } = useCopy(() => (raw ? rawText() : JSON.stringify(args, null, 2)));
+  const hasAnything = params.length > 0 || hasResult || !!errorDetail;
+
+  return (
+    <div id={id} className="nui-step-details">
+      {(params.length > 0 || raw) && (
+        <button
+          type="button"
+          className="nui-step-copy"
+          onClick={copy}
+          aria-label={copied ? (raw ? 'Copied' : 'Parameters copied') : raw ? 'Copy as JSON' : 'Copy parameters as JSON'}
+          title={copied ? 'Copied' : raw ? 'Copy as JSON' : 'Copy parameters as JSON'}
+        >
+          {copied ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : <IconCopy size={14} stroke={1.75} aria-hidden="true" />}
+        </button>
+      )}
+
+      {raw ? (
+        <pre className="nui-code-pre nui-step-raw">{rawText()}</pre>
+      ) : (
+        <>
+          {params.length > 0 ? (
+            <ParamGrid rows={params} />
+          ) : (
+            !hasResult && <div className="nui-step-params-empty">No parameters</div>
+          )}
+          {hasResult && <ToolResultSection result={result} summary={resultSummary} now={now} />}
+          {errorDetail && (
+            <div className="nui-step-raw-error">
+              <div className="nui-step-raw-error-title">Error details</div>
+              <div className="nui-step-raw-error-text">{errorDetail}</div>
+            </div>
+          )}
+        </>
+      )}
+
+      {(hasAnything || rawLog !== undefined) && (
+        <div className="nui-step-raw-toggles">
+          {hasAnything && (
+            <button
+              type="button"
+              className="nui-step-link"
+              aria-pressed={raw === 'step'}
+              onClick={() => setRaw(raw === 'step' ? null : 'step')}
+            >
+              {raw === 'step' ? 'Friendly' : 'Raw'}
+            </button>
+          )}
+          {rawLog !== undefined && (
+            <button
+              type="button"
+              className="nui-step-link"
+              aria-pressed={raw === 'log'}
+              onClick={() => setRaw(raw === 'log' ? null : 'log')}
+            >
+              {raw === 'log' ? 'Friendly' : 'Raw log'}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── What a code run did ─────────────────────────────────────────────────────
+
+const CodeSection: React.FC<{ title: string; text: string; tone?: 'error'; note?: string }> = ({
+  title,
+  text,
+  tone,
+  note,
+}) => (
+  <div className="nui-code-section">
+    <div className="nui-code-title">{title}</div>
+    <pre className="nui-code-pre" data-tone={tone}>
+      {text}
+    </pre>
+    {note && <div className="nui-code-note">{note}</div>}
+  </div>
+);
+
+interface CodeRunDetailsProps {
+  id?: string;
+  detail: CodeRunDetail;
+}
+
+/**
+ * The expanded body of a code-interpreter step: the Python that ran (copyable), what it
+ * printed, the error if it failed, and the files it created. Sections with nothing in
+ * them are not rendered.
+ */
+export const CodeRunDetails: React.FC<CodeRunDetailsProps> = ({ id, detail }) => {
+  const { copied, copy } = useCopy(() => detail.code);
+  const files = detail.files ?? [];
+
+  return (
+    <div id={id} className="nui-step-details nui-code-run">
+      <button
+        type="button"
+        className="nui-step-copy"
+        onClick={copy}
+        aria-label={copied ? 'Code copied' : 'Copy code'}
+        title={copied ? 'Copied' : 'Copy code'}
+      >
+        {copied ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : <IconCopy size={14} stroke={1.75} aria-hidden="true" />}
+      </button>
+      <CodeSection title="Code" text={detail.code} note={detail.truncated?.code ? 'Code shortened' : undefined} />
+      {detail.output && (
+        <CodeSection title="Output" text={detail.output} note={detail.truncated?.stdout ? 'Output shortened' : undefined} />
+      )}
+      {detail.error && (
+        <CodeSection title="Error" text={detail.error} tone="error" note={detail.truncated?.error ? 'Error shortened' : undefined} />
+      )}
+      {files.length > 0 && (
+        <div className="nui-code-section">
+          <div className="nui-code-title">{files.length === 1 ? 'File created' : 'Files created'}</div>
+          <ul className="nui-code-files">
+            {files.map((f, i) => (
+              <li key={`${f.name}-${i}`}>{f.name}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── What an MCP tool call did ───────────────────────────────────────────────
+
+const formatDuration = (ms: number): string => (ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} s`);
+
+const mediaNote = (m: { kind: string; mimeType?: string; uri?: string }): string => {
+  if (m.kind === 'image') return 'Returned an image';
+  if (m.kind === 'resource') return m.uri ? `Returned a resource: ${m.uri}` : 'Returned a resource';
+  return 'Returned other content';
+};
+
+interface McpCallDetailsProps {
+  id?: string;
+  step: ToolStep;
+}
+
+/**
+ * The expanded body of an MCP step: which server and tool, the arguments sent (copyable as JSON),
+ * the text that came back (copyable), the error if it failed, and a note — never a payload — for
+ * anything that isn't text. Images already stored on the message are shown; sections with nothing
+ * in them are not rendered.
+ */
+export const McpCallDetails: React.FC<McpCallDetailsProps> = ({ id, step }) => {
+  const mcp = step.mcp;
+  const params = formatParamRows(step.args);
+  const { copied, copy } = useCopy(() => JSON.stringify(step.args, null, 2));
+  const { copied: resultCopied, copy: copyResult } = useCopy(() => mcp?.result ?? '');
+  if (!mcp) return null;
+
+  const images = mcp.images ?? [];
+  // An image we can show needs no "Returned an image" line; everything else gets one.
+  const notes = (mcp.media ?? []).filter((m) => !(m.kind === 'image' && images.length > 0)).map(mediaNote);
+  const hasOutcome = !!(mcp.result || mcp.error || images.length || notes.length);
+
+  return (
+    <div id={id} className="nui-step-details nui-code-run">
+      {params.length > 0 && (
+        <button
+          type="button"
+          className="nui-step-copy"
+          onClick={copy}
+          aria-label={copied ? 'Parameters copied' : 'Copy parameters as JSON'}
+          title={copied ? 'Copied' : 'Copy parameters as JSON'}
+        >
+          {copied ? <IconCheck size={14} stroke={2} aria-hidden="true" /> : <IconCopy size={14} stroke={1.75} aria-hidden="true" />}
+        </button>
+      )}
+      <div className="nui-mcp-meta">
+        {mcp.serverName ? `${mcp.serverName} · ${mcp.toolName}` : mcp.toolName}
+        {mcp.ms !== undefined && ` · ${formatDuration(mcp.ms)}`}
+      </div>
+
+      <div className="nui-code-section">
+        <div className="nui-code-title">Arguments</div>
+        {params.length > 0 ? (
+          <dl className="nui-step-params">
+            {params.map(({ key, value }) => (
+              <React.Fragment key={key}>
+                <dt>{key}</dt>
+                <dd>{value}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+        ) : (
+          <div className="nui-step-params-empty">No arguments</div>
+        )}
+        {mcp.truncated?.args && <div className="nui-code-note">Arguments shortened</div>}
+      </div>
+
+      {mcp.result && (
+        <div className="nui-code-section">
+          <div className="nui-code-title nui-mcp-title">
+            <span>Result</span>
+            <button type="button" className="nui-step-link" onClick={copyResult}>
+              {resultCopied ? 'Copied' : 'Copy'}
+              <span className="sr-only"> result</span>
+            </button>
+          </div>
+          <pre className="nui-code-pre">{mcp.result}</pre>
+          {mcp.truncated?.result && <div className="nui-code-note">Result shortened</div>}
+        </div>
+      )}
+
+      {mcp.error && (
+        <div className="nui-code-section">
+          <div className="nui-code-title">Error</div>
+          <pre className="nui-code-pre" data-tone="error">
+            {mcp.error}
+          </pre>
+          {mcp.truncated?.error && <div className="nui-code-note">Error shortened</div>}
+        </div>
+      )}
+
+      {images.length > 0 && (
+        <div className="nui-code-section">
+          <div className="nui-code-title">{images.length === 1 ? 'Image' : 'Images'}</div>
+          <div className="nui-mcp-images">
+            {images.map((img, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img key={i} className="nui-mcp-img" src={`data:${img.mimeType};base64,${img.data}`} alt="Image returned by the tool" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {notes.length > 0 && (
+        <div className="nui-code-section">
+          {notes.map((n, i) => (
+            <div key={i} className="nui-code-note nui-mcp-note">
+              {n}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!hasOutcome && step.status !== 'running' && (
+        <div className="nui-code-section">
+          <div className="nui-step-params-empty">The tool returned no output.</div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── One step ────────────────────────────────────────────────────────────────
+
+interface ToolStepRowProps {
+  step: ToolStep;
+  /** Reference time for "today's…" copy; defaults to render time. */
+  now?: Date;
+  /** Override for tests; defaults to opening Settings → Connectors. */
+  onOpenConnectors?: () => void;
+  /** The message's whole agent log, offered as "Raw log" in this row's details (see `rawLogOwnerId`). */
+  rawLog?: unknown;
+}
+
+/**
+ * The one step whose details carry "Raw log": the last one that uses the plain parameters / result
+ * panel (code runs and MCP calls have their own bodies, which don't).
+ */
+export const rawLogOwnerId = (steps: ToolStep[]): string | undefined => {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    if (!steps[i].detail && !steps[i].mcp) return steps[i].id;
+  }
+  return undefined;
+};
+
+export const ToolStepRow: React.FC<ToolStepRowProps> = ({
+  step,
+  now,
+  onOpenConnectors = openConnectorsSettings,
+  rawLog,
+}) => {
+  const [open, setOpen] = useState(false);
+  const detailsId = useId();
+  const desc = describeStep(step, { now });
+  const label = stepLabel(step, desc);
+  const error = step.status === 'error' ? plainErrorMessage(step) : null;
+  const fullText = step.status === 'done' && step.resultSummary ? `${label} · ${step.resultSummary}` : label;
+  const { ref: textRef, title } = useTruncationTitle(fullText);
+
+  return (
+    <div className="nui-step" data-status={step.status}>
+      <button
+        type="button"
+        className="nui-step-line"
+        aria-expanded={open}
+        aria-controls={open ? detailsId : undefined}
+        title={title}
+        onClick={() => setOpen((v) => !v)}
+      >
+        <StepIcon desc={desc} />
+        <span className="nui-step-text" ref={textRef}>
+          <span className="nui-step-label">{label}</span>
+          {step.status === 'done' && step.resultSummary && (
+            <span className="nui-step-summary"> · {step.resultSummary}</span>
+          )}
+        </span>
+        <StatusIndicator status={step.status} />
+        <DisclosureChevron open={open} size={12} />
+      </button>
+
+      {error && (
+        <div className="nui-step-error">
+          {error.text}
+          {error.linkToConnectors && (
+            <>
+              {' '}
+              <button type="button" className="nui-step-link" onClick={onOpenConnectors}>
+                Settings → Connectors
+              </button>
+              .
+            </>
+          )}
+        </div>
+      )}
+
+      {open &&
+        (step.detail ? (
+          <CodeRunDetails id={detailsId} detail={step.detail} />
+        ) : step.mcp ? (
+          <McpCallDetails id={detailsId} step={step} />
+        ) : (
+          <ToolStepDetails
+            id={detailsId}
+            args={step.args}
+            errorDetail={step.errorDetail}
+            result={step.result}
+            resultSummary={step.resultSummary}
+            tool={step.tool}
+            rawLog={rawLog}
+            now={now}
+          />
+        ))}
+    </div>
+  );
+};
+
+// ─── A group of steps ────────────────────────────────────────────────────────
+
+interface ToolStepGroupProps {
+  steps: ToolStep[];
+  now?: Date;
+  onOpenConnectors?: () => void;
+  rawLog?: unknown;
+}
+
+export const ToolStepGroup: React.FC<ToolStepGroupProps> = ({ steps, now, onOpenConnectors, rawLog }) => {
+  const logOwner = rawLog !== undefined ? rawLogOwnerId(steps) : undefined;
+  // null = the user hasn't touched it: open while something runs, closed once it's all settled.
+  const [userOpen, setUserOpen] = useState<boolean | null>(null);
+  const bodyId = useId();
+
+  const running = [...steps].reverse().find((s) => s.status === 'running');
+  const open = userOpen ?? !!running;
+
+  const headDesc = describeStep(running ?? steps[0], { now });
+  const connectors = new Set(steps.map((s) => describeToolStep(s.tool).connector).filter(Boolean));
+  const headIcon: Pick<ToolStepDescription, 'connector' | 'category'> =
+    connectors.size === 1
+      ? headDesc
+      : { connector: undefined, category: steps.every(isMcpStep) ? 'mcp' : 'generic' };
+
+  const headText = running ? headDesc.running : groupTitle(steps);
+  const { ref: headTextRef, title: headTitle } = useTruncationTitle(headText);
+
+  return (
+    <div className="nui-steps" data-open={open ? 'true' : 'false'}>
+      <button
+        type="button"
+        className="nui-step-line nui-group-head"
+        aria-expanded={open}
+        aria-controls={open ? bodyId : undefined}
+        title={headTitle}
+        onClick={() => setUserOpen(!open)}
+      >
+        <StepIcon desc={headIcon} />
+        <span className="nui-step-text" ref={headTextRef}>
+          <span className="nui-step-label">{headText}</span>
+        </span>
+        {/* While open, the running row below carries the spinner — don't show two. */}
+        {running && !open && <StatusIndicator status="running" />}
+        <DisclosureChevron open={open} size={12} />
+      </button>
+
+      {open && (
+        <div id={bodyId} className="nui-group-body">
+          {steps.map((s) => (
+            <ToolStepRow
+              key={s.id}
+              step={s}
+              now={now}
+              onOpenConnectors={onOpenConnectors}
+              rawLog={s.id === logOwner ? rawLog : undefined}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── Model reasoning ─────────────────────────────────────────────────────────
+
+interface ThinkingRowProps {
+  /** Pulses while the model is still reasoning. */
+  active: boolean;
+  /** Present when there is reasoning text to reveal; absent → a plain label, no toggle. */
+  children?: React.ReactNode;
+}
+
+export const ThinkingRow: React.FC<ThinkingRowProps> = ({ active, children }) => {
+  const [open, setOpen] = useState(false);
+  const bodyId = useId();
+  const hasBody = !!children;
+
+  const inner = <ChatStatusIndicator label="Thinking…" source="thinking" active={active} />;
+
+  return (
+    <div className="nui-thinking" data-active={active ? 'true' : 'false'}>
+      {hasBody ? (
+        <button
+          type="button"
+          className="nui-thinking-line"
+          aria-expanded={open}
+          aria-controls={open ? bodyId : undefined}
+          onClick={() => setOpen((v) => !v)}
+        >
+          {inner}
+          <DisclosureChevron open={open} size={12} />
+        </button>
+      ) : (
+        <div className="nui-thinking-line">{inner}</div>
+      )}
+      {hasBody && open && (
+        <div id={bodyId} className="nui-thinking-body">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── What a message shows ────────────────────────────────────────────────────
+
+interface MessageToolStepsProps {
+  steps: ToolStep[];
+  /** Model reasoning to show above the steps (live only). */
+  thinking?: { active: boolean; body?: React.ReactNode } | null;
+  /** All steps are done but the answer hasn't started: a quiet "Thinking…" after the steps. */
+  awaitingAnswer?: boolean;
+  now?: Date;
+  onOpenConnectors?: () => void;
+  /** The saved agent log (decompressed), when the message has one: offered once as "Raw log". */
+  rawLog?: unknown;
+}
+
+export const MessageToolSteps: React.FC<MessageToolStepsProps> = ({
+  steps,
+  thinking,
+  awaitingAnswer = false,
+  now,
+  onOpenConnectors,
+  rawLog,
+}) => (
+  <div className="nui-ts-root" data-awaiting={awaitingAnswer ? 'true' : 'false'}>
+    {thinking && <ThinkingRow active={thinking.active}>{thinking.body}</ThinkingRow>}
+    {steps.length === 1 && (
+      <ToolStepRow
+        step={steps[0]}
+        now={now}
+        onOpenConnectors={onOpenConnectors}
+        rawLog={rawLog !== undefined && rawLogOwnerId(steps) === steps[0].id ? rawLog : undefined}
+      />
+    )}
+    {steps.length > 1 && <ToolStepGroup steps={steps} now={now} onOpenConnectors={onOpenConnectors} rawLog={rawLog} />}
+    {awaitingAnswer && <ThinkingRow active />}
+  </div>
+);

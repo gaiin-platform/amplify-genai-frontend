@@ -1,7 +1,7 @@
 import { FC, useState, useCallback, useContext } from "react";
 import { EmailsAutoComplete } from "./EmailsAutoComplete";
 import { IconPlus, IconX, IconCheck } from "@tabler/icons-react";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 
 interface AddEmailsProps {
     id: String;

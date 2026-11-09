@@ -11,7 +11,7 @@ import ExpansionComponent from '../Chat/ExpansionComponent';
 import { InfoBox } from '../ReusableComponents/InfoBox';
 import { InputsMap } from '../ReusableComponents/InputMap';
 import ApiIntegrationsPanel from '../AssistantApi/ApiIntegrationsPanel';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { getOpsForUser } from '@/services/opsService';
 import { getAgentTools } from '@/services/agentService';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { IconLoader2 } from '@tabler/icons-react';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import {
     NotebookSummary,
     createNote,
@@ -70,47 +70,46 @@ export const SaveToNotebooksDialog = ({ question, answer, onClose, onSaved }: Pr
     };
 
     return (
-        <Modal
+        <CreationModalShell
             title="Save to Notebooks"
-            onCancel={onClose}
-            onSubmit={handleSubmit}
-            submitLabel={saving ? 'Saving…' : 'Save'}
-            disableSubmit={selected.size === 0 || saving}
-            width={() => 480}
-            height={() => 420}
-            content={
-                <div className="flex flex-col gap-3 p-2 text-neutral-800 dark:text-neutral-100">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+            onClose={onClose}
+            onSave={handleSubmit}
+            saveLabel="Save"
+            isSaving={saving}
+            saveDisabled={selected.size === 0}
+        >
+                <div className="flex flex-col gap-3 p-2 text-[--text-primary]">
+                    <p className="text-sm text-[--text-muted]">
                         The answer will be saved as an AI note in each selected notebook.
                     </p>
 
                     {loading ? (
-                        <div className="flex items-center gap-2 py-6 text-sm text-gray-500 dark:text-gray-400">
+                        <div className="flex items-center gap-2 py-6 text-sm text-[--text-muted]">
                             <IconLoader2 size={14} className="animate-spin" />
                             Loading notebooks…
                         </div>
                     ) : notebooks.length === 0 ? (
-                        <div className="rounded-lg border border-dashed border-gray-200 bg-gray-50 p-4 text-sm text-gray-500 dark:border-neutral-700 dark:bg-neutral-800/40 dark:text-gray-400">
+                        <div className="rounded-lg border border-dashed border-[--border-subtle] bg-[--bg-app] p-4 text-sm text-[--text-muted]">
                             No notebooks found. Create a notebook first.
                         </div>
                     ) : (
                         <ul className="max-h-64 space-y-1 overflow-y-auto pr-1">
                             {notebooks.map((nb) => (
                                 <li key={nb.id}>
-                                    <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-gray-200 bg-white p-2.5 hover:border-purple-300 dark:border-neutral-700 dark:bg-[#343541] dark:hover:border-purple-500/60">
+                                    <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-2.5 hover:border-[--accent]/60">
                                         <input
                                             type="checkbox"
                                             checked={selected.has(nb.id)}
                                             onChange={() => toggle(nb.id)}
                                             disabled={saving}
-                                            className="mt-0.5 text-purple-600"
+                                            className="mt-0.5 accent-[--accent]"
                                         />
                                         <span className="min-w-0 flex-1">
                                             <span className="block truncate text-sm font-medium">
                                                 {nb.name || '(untitled)'}
                                             </span>
                                             {nb.description && (
-                                                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                                                <span className="block truncate text-xs text-[--text-muted]">
                                                     {nb.description}
                                                 </span>
                                             )}
@@ -122,11 +121,10 @@ export const SaveToNotebooksDialog = ({ question, answer, onClose, onSaved }: Pr
                     )}
 
                     {error && (
-                        <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+                        <div className="text-sm text-[--text-error]">{error}</div>
                     )}
                 </div>
-            }
-        />
+        </CreationModalShell>
     );
 };
 

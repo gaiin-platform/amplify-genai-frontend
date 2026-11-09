@@ -1,6 +1,6 @@
 import { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { IconCheck, IconLoader2 } from '@tabler/icons-react';
 import toast from 'react-hot-toast';
 

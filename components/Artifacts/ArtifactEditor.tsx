@@ -1,4 +1,4 @@
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { CodeBlockDetails } from "@/utils/app/codeblock";
 import {
   SandpackCodeEditor,

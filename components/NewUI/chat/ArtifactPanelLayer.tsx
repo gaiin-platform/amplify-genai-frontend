@@ -1,0 +1,825 @@
+/**
+ * ArtifactPanelLayer — injects a sticky header into the artifact panel (#artifactsTab).
+ *
+ * Responsibilities:
+ *  1. Listens for `openArtifactsTrigger` window events to track panel open/close
+ *     and the currently displayed artifact index.
+ *  2. When open, observes #artifactsTab width via ResizeObserver and writes
+ *     --nui-artifact-panel-w onto the ConversationViewShell shell div, so the
+ *     composer and jump-button constrain themselves to the chat column.
+ *  3. Injects a #nui-artifact-header-root div as the first child of
+ *     #artifactsTab's inner flex column, then portals the header UI into it.
+ *  4. Header contains (left→right):
+ *       - Pencil (rename) icon button — inline rename on click/double-click
+ *       - Title / version dropdown (reads selectedArtifacts from HomeContext)
+ *       - Download split button: Copy MD | Download .md | Download .docx
+ *       - Expand / fullscreen toggle
+ *       - Close (×) button
+ *  5. Esc closes the panel (or exits fullscreen first).
+ *  6. Detects potentially truncated artifact content and shows a notice.
+ *  7. Rename applies to every version of the artifact: the server is renamed first
+ *     (shared/artifactRename), then selectedArtifacts, the saved-artifact list and
+ *     selectedConversation are updated via HomeContext.
+ *
+ * Fixes applied vs. the previous version:
+ *  - Bug 5: Title span no longer has maxWidth: '24ch'. The title row uses
+ *    flex: 1 / min-width: 0 so the title takes all available space and
+ *    truncates only when it actually collides with the right-side controls.
+ *  - Bug 7: Added rename button (pencil icon) + inline rename input.
+ *  - Bug 8: Added truncation detection with a warning notice.
+ */
+import {
+  IconAlertTriangle,
+  IconChartBar,
+  IconChevronDown,
+  IconCode,
+  IconEye,
+  IconFileText,
+  IconMaximize,
+  IconMinimize,
+  IconPencil,
+  IconTable,
+  IconX,
+} from '@tabler/icons-react';
+import React, {
+  MutableRefObject,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
+import { createPortal } from 'react-dom';
+import toast from 'react-hot-toast';
+
+import { lzwUncompress } from '@/utils/app/lzwCompression';
+
+import { resolveNUIType, sniffContentType } from '@/types/artifacts';
+
+import HomeContext from '@/components/Home/home.context';
+import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
+
+import { ArtifactExportMenu } from '@/components/NewUI/shared/ArtifactExportMenu';
+import { renameArtifactInConversation } from '@/components/NewUI/shared/artifactLibraryModel';
+import {
+  MAX_ARTIFACT_NAME_LENGTH,
+  applyRenameToSavedArtifacts,
+  normalizeArtifactName,
+  renameArtifactsRemote,
+  resolveArtifactRenameKeys,
+} from '@/components/NewUI/shared/artifactRename';
+
+/** ID of the header container injected into #artifactsTab */
+const HEADER_ROOT_ID = 'nui-artifact-header-root';
+
+/** Heuristic: does the content look like it was cut off mid-generation? */
+function isLikelyTruncated(content: string): boolean {
+  if (!content || content.length < 20) return false;
+  const tail = content.slice(-200);
+  // Unclosed markdown link  [text](http...
+  if (/\]\([^)]{0,100}$/.test(tail)) return true;
+  // Unclosed inline backtick code span
+  if (/`[^`\n]{0,100}$/.test(tail)) return true;
+  // Mid-table-row (pipe at very end with no closing newline)
+  if (/\|[^|\n]{0,60}$/.test(tail) && !tail.trimEnd().endsWith('|'))
+    return true;
+  // Unclosed code fence
+  const fences = (content.match(/^```/gm) ?? []).length;
+  if (fences % 2 !== 0) return true;
+  return false;
+}
+
+interface Props {
+  shellRef: MutableRefObject<HTMLDivElement | null>;
+}
+
+export const ArtifactPanelLayer: React.FC<Props> = ({ shellRef }) => {
+  const {
+    state: {
+      selectedArtifacts,
+      artifactIsStreaming,
+      selectedConversation,
+      artifacts: savedArtifacts,
+    },
+    dispatch: homeDispatch,
+    handleUpdateSelectedConversation,
+    handleUpdateConversation,
+  } = useContext(HomeContext);
+
+  const track = useTrack();
+  const [isOpen, setIsOpen] = useState(false);
+  const [artifactIndex, setArtifactIndex] = useState(0);
+  const [headerRoot, setHeaderRoot] = useState<HTMLElement | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showVersionMenu, setShowVersionMenu] = useState(false);
+  /** Visualization Preview / Code toggle */
+  const [showCodeView, setShowCodeView] = useState(false);
+  // Rename state
+  const [isRenaming, setIsRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [isSavingRename, setIsSavingRename] = useState(false);
+  /** Blocks re-entry: Enter closes the input, which can blur it and commit again. */
+  const renameBusyRef = useRef(false);
+  /** False once the input is closed, so a late blur from unmounting can't commit again. */
+  const renameOpenRef = useRef(false);
+  const selectedConversationRef = useRef(selectedConversation);
+  selectedConversationRef.current = selectedConversation;
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  const versionMenuRef = useRef<HTMLDivElement>(null);
+  const versionBtnRef = useRef<HTMLButtonElement>(null);
+
+  // ── Listen for openArtifactsTrigger ────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail?.isOpen === false) {
+        setIsOpen(false);
+        setIsFullscreen(false);
+        renameOpenRef.current = false;
+        setIsRenaming(false);
+        setShowCodeView(false);
+      } else if (detail?.isOpen === true) {
+        setIsOpen(true);
+        track('Artifact Panel Opened');
+        if (typeof detail.artifactIndex === 'number') {
+          setArtifactIndex(detail.artifactIndex);
+          setShowCodeView(false); // reset toggle when switching artifact
+        }
+      }
+    };
+    window.addEventListener('openArtifactsTrigger', handler);
+    return () => window.removeEventListener('openArtifactsTrigger', handler);
+  }, [track]);
+
+  // Keep artifactIndex in range when new versions are added
+  useEffect(() => {
+    if (selectedArtifacts && selectedArtifacts.length > 0) {
+      setArtifactIndex((i) => Math.min(i, selectedArtifacts.length - 1));
+    }
+  }, [selectedArtifacts]);
+
+  // ── Write --nui-artifact-panel-w CSS var ──────────────────────────────────
+  useEffect(() => {
+    if (!isOpen) {
+      shellRef.current?.style.removeProperty('--nui-artifact-panel-w');
+      return;
+    }
+
+    const measurePanel = () => {
+      const panel = document.getElementById('artifactsTab');
+      if (!panel || !shellRef.current) return;
+      shellRef.current.style.setProperty(
+        '--nui-artifact-panel-w',
+        `${panel.offsetWidth}px`,
+      );
+    };
+
+    const raf = requestAnimationFrame(() => {
+      measurePanel();
+      const panel = document.getElementById('artifactsTab');
+      if (!panel) return;
+      const ro = new ResizeObserver(measurePanel);
+      ro.observe(panel);
+      return () => ro.disconnect();
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [isOpen, shellRef]);
+
+  // ── Inject / remove #nui-artifact-header-root ────────────────────────────
+  useEffect(() => {
+    if (!isOpen) {
+      setHeaderRoot(null);
+      return;
+    }
+
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const inject = () => {
+      const artifactsTab = document.getElementById('artifactsTab');
+      if (!artifactsTab) {
+        retryTimer = setTimeout(inject, 100);
+        return;
+      }
+      const inner = artifactsTab.querySelector<HTMLElement>(
+        ':scope > .flex.flex-col',
+      );
+      if (!inner) {
+        retryTimer = setTimeout(inject, 100);
+        return;
+      }
+
+      // Inject the header root as a DIRECT CHILD of #artifactsTab, BEFORE the
+      // inner flex-col.  This gives us the correct "flex column with non-scrolling
+      // header + scrolling body" structure:
+      //   #artifactsTab  (display: flex; flex-direction: column)
+      //     #nui-artifact-header-root  ← flex: none, always visible
+      //     .flex.flex-col.h-full      ← flex: 1; overflow-y: auto (scrolls)
+      let root = document.getElementById(HEADER_ROOT_ID) as HTMLElement | null;
+      if (!root) {
+        root = document.createElement('div');
+        root.id = HEADER_ROOT_ID;
+        root.setAttribute('data-new-ui-shell', 'true');
+        artifactsTab.insertBefore(root, inner);
+      }
+      setHeaderRoot(root);
+    };
+
+    inject();
+    return () => {
+      if (retryTimer) clearTimeout(retryTimer);
+      setHeaderRoot(null);
+    };
+  }, [isOpen]);
+
+  // ── Fullscreen data attribute ─────────────────────────────────────────────
+  useEffect(() => {
+    const panel = document.getElementById('artifactsTab');
+    if (!panel) return;
+    if (isFullscreen) {
+      panel.setAttribute('data-artifact-fullscreen', 'true');
+    } else {
+      panel.removeAttribute('data-artifact-fullscreen');
+    }
+  }, [isFullscreen]);
+
+  // ── Esc key: exit fullscreen then close ───────────────────────────────────
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.stopImmediatePropagation();
+      if (isRenaming) {
+        if (renameBusyRef.current) return;
+        renameOpenRef.current = false;
+        setIsRenaming(false);
+        return;
+      }
+      if (isFullscreen) {
+        setIsFullscreen(false);
+        return;
+      }
+      window.dispatchEvent(
+        new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }),
+      );
+    };
+    document.addEventListener('keydown', onKeyDown, true);
+    return () => document.removeEventListener('keydown', onKeyDown, true);
+  }, [isOpen, isFullscreen, isRenaming]);
+
+  // ── Focus rename input when it opens ─────────────────────────────────────
+  useEffect(() => {
+    if (isRenaming && renameInputRef.current) {
+      renameInputRef.current.focus();
+      renameInputRef.current.select();
+    }
+  }, [isRenaming]);
+
+  // ── Close version dropdown on outside click ───────────────────────────────
+  useEffect(() => {
+    if (!showVersionMenu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (
+        versionMenuRef.current?.contains(e.target as Node) ||
+        versionBtnRef.current?.contains(e.target as Node)
+      )
+        return;
+      setShowVersionMenu(false);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => document.removeEventListener('pointerdown', onPointerDown);
+  }, [showVersionMenu]);
+
+  // ── Propagate visualization toggle to the renderer ───────────────────────
+  useEffect(() => {
+    window.dispatchEvent(
+      new CustomEvent('vizCodeToggle', { detail: { showCode: showCodeView } }),
+    );
+  }, [showCodeView]);
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+
+  const currentIdx = selectedArtifacts
+    ? Math.min(artifactIndex, selectedArtifacts.length - 1)
+    : 0;
+
+  const currentArtifact =
+    selectedArtifacts && selectedArtifacts.length > 0
+      ? selectedArtifacts[currentIdx]
+      : null;
+
+  const getArtifactContent = useCallback(() => {
+    if (
+      !currentArtifact ||
+      !Array.isArray(currentArtifact.contents) ||
+      currentArtifact.contents.length === 0
+    )
+      return '';
+    try {
+      return lzwUncompress(currentArtifact.contents);
+    } catch {
+      return '';
+    }
+  }, [currentArtifact]);
+
+  const truncated =
+    !artifactIsStreaming && currentArtifact
+      ? isLikelyTruncated(getArtifactContent())
+      : false;
+
+  // Determine the NUI rendering type of the current artifact
+  const effectiveNUIType = useCallback(() => {
+    if (!currentArtifact) return 'document' as const;
+    const declared = resolveNUIType(currentArtifact.type);
+    if (declared !== 'document' || currentArtifact.type) return declared;
+    // No declared type → sniff from content
+    const content = getArtifactContent();
+    return sniffContentType(content);
+  }, [currentArtifact, getArtifactContent]);
+
+  const nuiType = effectiveNUIType();
+
+  const handleClose = () =>
+    window.dispatchEvent(
+      new CustomEvent('openArtifactsTrigger', { detail: { isOpen: false } }),
+    );
+
+  const handleVersionSwitch = (idx: number) => {
+    setArtifactIndex(idx);
+    window.dispatchEvent(
+      new CustomEvent('openArtifactsTrigger', {
+        detail: { isOpen: true, artifactIndex: idx },
+      }),
+    );
+    setShowVersionMenu(false);
+  };
+
+  // ── Bug 7: Rename handlers ────────────────────────────────────────────────
+
+  const startRename = () => {
+    if (!currentArtifact || renameBusyRef.current) return;
+    renameOpenRef.current = true;
+    setRenameValue(currentArtifact.name);
+    setIsRenaming(true);
+    setShowVersionMenu(false);
+  };
+
+  const commitRename = async () => {
+    if (renameBusyRef.current || !renameOpenRef.current) return;
+    const next = normalizeArtifactName(renameValue);
+    // Nothing to do: empty, or every version already carries this name.
+    if (!next || !selectedArtifacts || !currentArtifact || selectedArtifacts.every((a) => a.name === next)) {
+      renameOpenRef.current = false;
+      setIsRenaming(false);
+      return;
+    }
+    renameBusyRef.current = true;
+    setIsSavingRename(true);
+
+    try {
+      // Server first, for all versions at once. A version that was never saved has
+      // no key; if none were saved yet there is nothing remote to rename.
+      const keys = resolveArtifactRenameKeys(savedArtifacts, selectedArtifacts);
+      if (keys.length) {
+        const result = await renameArtifactsRemote(keys, next);
+        if (!result.success) {
+          toast.error(result.message || 'Unable to rename artifact');
+          return; // keep the input open so the user can retry
+        }
+        homeDispatch({
+          field: 'artifacts',
+          value: applyRenameToSavedArtifacts(savedArtifacts, result.renamed, next),
+        });
+      }
+
+      const updatedArtifacts = selectedArtifacts.map((a) => ({ ...a, name: next }));
+      homeDispatch({ field: 'selectedArtifacts', value: updatedArtifacts });
+
+      const sourceConversation = selectedConversation;
+      if (sourceConversation && currentArtifact.artifactId) {
+        // The user may have switched chats while the request was in flight.
+        const latest = selectedConversationRef.current;
+        if (latest && latest.id === sourceConversation.id) {
+          handleUpdateSelectedConversation(
+            renameArtifactInConversation(latest, currentArtifact.artifactId, undefined, next, updatedArtifacts),
+          );
+        } else {
+          const renamed = renameArtifactInConversation(
+            sourceConversation, currentArtifact.artifactId, undefined, next, updatedArtifacts,
+          );
+          handleUpdateConversation(sourceConversation, { key: 'artifacts', value: renamed.artifacts });
+        }
+      }
+      renameOpenRef.current = false;
+      setIsRenaming(false);
+    } finally {
+      renameBusyRef.current = false;
+      setIsSavingRename(false);
+    }
+  };
+
+  const cancelRename = () => {
+    if (renameBusyRef.current) return;
+    renameOpenRef.current = false;
+    setIsRenaming(false);
+  };
+
+  const handleRenameKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') commitRename();
+    if (e.key === 'Escape') {
+      e.stopPropagation();
+      cancelRename();
+    }
+  };
+
+  // ── Render ────────────────────────────────────────────────────────────────
+  if (!isOpen || !headerRoot) return null;
+
+  const versionCount = selectedArtifacts?.length ?? 0;
+  const currentVersion = currentArtifact?.version ?? currentIdx + 1;
+  // Use artifact type as a fallback when the LLM didn't provide a name.
+  // Using || (not ??) so that an empty-string name also falls through.
+  const artifactTypeLabel = currentArtifact?.type
+    ? currentArtifact.type.charAt(0).toUpperCase() +
+      currentArtifact.type.slice(1)
+    : null;
+  const displayName = currentArtifact?.name || artifactTypeLabel || 'Artifact';
+
+  const header = (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        height: 52,
+        padding: '0 12px 0 16px',
+        gap: 8,
+        background: 'var(--bg-raised)',
+        borderBottom: '1px solid var(--border-subtle)',
+        position: 'relative',
+        fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+      }}
+    >
+      {/* ── Left: rename button + title + version dropdown ── */}
+      <div
+        style={{
+          flex: 1,
+          minWidth: 0,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          position: 'relative',
+        }}
+      >
+        {/* Pencil rename button (Bug 7) */}
+        {!isRenaming && (
+          <button
+            type="button"
+            aria-label="Rename artifact"
+            title="Rename artifact"
+            onClick={startRename}
+            style={{ ...iconBtnStyle, width: 26, height: 26 }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background =
+                'var(--bg-hover)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'transparent';
+            }}
+          >
+            <IconPencil size={14} />
+          </button>
+        )}
+
+        {/* Inline rename input */}
+        {isRenaming ? (
+          <input
+            ref={renameInputRef}
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={handleRenameKeyDown}
+            onBlur={commitRename}
+            disabled={isSavingRename}
+            maxLength={MAX_ARTIFACT_NAME_LENGTH}
+            aria-label="Artifact name"
+            style={{
+              flex: 1,
+              minWidth: 0,
+              fontSize: 14,
+              fontWeight: 500,
+              color: 'var(--text-primary)',
+              background: 'var(--bg-app)',
+              border: '1px solid var(--accent)',
+              borderRadius: 6,
+              padding: '2px 8px',
+              outline: 'none',
+              fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+            }}
+          />
+        ) : (
+          /* Title trigger (with optional version dropdown) */
+          <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+            <button
+              ref={versionBtnRef}
+              type="button"
+              aria-label="Artifact title and version — click to switch version"
+              aria-haspopup={versionCount > 1 ? 'listbox' : undefined}
+              aria-expanded={showVersionMenu}
+              onDoubleClick={startRename}
+              onClick={
+                versionCount > 1
+                  ? () => setShowVersionMenu((v) => !v)
+                  : undefined
+              }
+              title={displayName}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                padding: '3px 6px',
+                margin: '0 -6px',
+                borderRadius: 8,
+                background: showVersionMenu
+                  ? 'var(--bg-active)'
+                  : 'transparent',
+                border: 'none',
+                cursor: versionCount > 1 ? 'pointer' : 'default',
+                color: 'var(--text-primary)',
+                maxWidth: '100%',
+                minWidth: 0,
+                fontFamily: 'inherit',
+              }}
+            >
+              {/* Bug 5 fix: title span uses flex truncation, no fixed maxWidth */}
+              <span
+                style={{
+                  fontSize: 14,
+                  fontWeight: 500,
+                  color: 'var(--text-primary)',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  // No maxWidth — the parent flex: 1 / minWidth: 0 handles truncation
+                }}
+              >
+                {displayName}
+              </span>
+              {versionCount > 1 && (
+                <span
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--text-muted)',
+                    flexShrink: 0,
+                    marginLeft: 2,
+                  }}
+                >
+                  v{currentVersion}
+                </span>
+              )}
+              {versionCount > 1 && (
+                <IconChevronDown
+                  size={13}
+                  style={{
+                    color: 'var(--text-muted)',
+                    flexShrink: 0,
+                    transform: showVersionMenu
+                      ? 'rotate(180deg)'
+                      : 'rotate(0deg)',
+                    transition: 'transform 0.15s',
+                  }}
+                />
+              )}
+            </button>
+
+            {/* Version dropdown */}
+            {showVersionMenu && versionCount > 1 && (
+              <div
+                ref={versionMenuRef}
+                role="listbox"
+                aria-label="Select version"
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: 4,
+                  background: 'var(--bg-raised)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: 10,
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+                  zIndex: 200,
+                  minWidth: 180,
+                  padding: '4px 0',
+                  maxHeight: 240,
+                  overflowY: 'auto',
+                  fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+                }}
+              >
+                {selectedArtifacts!.map((art, idx) => (
+                  <button
+                    key={idx}
+                    role="option"
+                    aria-selected={idx === currentIdx}
+                    type="button"
+                    onClick={() => handleVersionSwitch(idx)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      padding: '6px 12px',
+                      border: 'none',
+                      background:
+                        idx === currentIdx ? 'var(--bg-active)' : 'transparent',
+                      color: 'var(--text-primary)',
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontFamily: 'inherit',
+                    }}
+                    onMouseEnter={(e) => {
+                      (e.currentTarget as HTMLElement).style.background =
+                        'var(--bg-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      (e.currentTarget as HTMLElement).style.background =
+                        idx === currentIdx ? 'var(--bg-active)' : 'transparent';
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {art.name}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11,
+                        color: 'var(--text-muted)',
+                        flexShrink: 0,
+                        marginLeft: 8,
+                      }}
+                    >
+                      v{art.version ?? idx + 1}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* ── Right: type label + controls ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6,
+          flexShrink: 0,
+          position: 'relative',
+        }}
+      >
+        {/* Truncation notice */}
+        {truncated && (
+          <div
+            title="The artifact content may be incomplete (generation hit the token limit)"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              padding: '0 8px',
+              height: 28,
+              borderRadius: 7,
+              border:
+                '1px solid color-mix(in srgb, orange 40%, var(--border-subtle))',
+              background: 'color-mix(in srgb, orange 8%, var(--bg-raised))',
+              flexShrink: 0,
+              cursor: 'default',
+              fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+            }}
+            role="status"
+            aria-label="This artifact may be incomplete"
+          >
+            <IconAlertTriangle
+              size={13}
+              aria-hidden="true"
+              style={{ flexShrink: 0 }}
+            />
+            <span>May be incomplete</span>
+          </div>
+        )}
+
+        {/* Visualization: Preview / Code toggle */}
+        {nuiType === 'visualization' && !artifactIsStreaming && (
+          <button
+            type="button"
+            aria-label={showCodeView ? 'Show preview' : 'Show source code'}
+            title={showCodeView ? 'Preview' : 'Code'}
+            onClick={() => setShowCodeView((v) => !v)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 5,
+              padding: '0 10px',
+              height: 30,
+              borderRadius: 8,
+              border: '1px solid var(--border-subtle)',
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              fontSize: 13,
+              fontWeight: 500,
+              cursor: 'pointer',
+              flexShrink: 0,
+              transition: 'background 0.12s',
+              fontFamily: 'Inter, ui-sans-serif, system-ui, sans-serif',
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLElement).style.background =
+                'var(--bg-hover)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLElement).style.background = 'transparent';
+            }}
+          >
+            {showCodeView ? <IconEye size={14} /> : <IconCode size={14} />}
+            <span>{showCodeView ? 'Preview' : 'Code'}</span>
+          </button>
+        )}
+
+        <ArtifactExportMenu
+          type={nuiType}
+          name={currentArtifact?.name ?? displayName}
+          content={getArtifactContent()}
+          language={currentArtifact?.metadata?.language as string | undefined}
+          disabled={artifactIsStreaming || !currentArtifact}
+          style={{ flexShrink: 0 }}
+        />
+
+        {/* Expand / fullscreen */}
+        <button
+          type="button"
+          aria-label={isFullscreen ? 'Exit fullscreen' : 'Expand to fullscreen'}
+          title={isFullscreen ? 'Exit fullscreen' : 'Expand to fullscreen'}
+          onClick={() => setIsFullscreen((f) => !f)}
+          style={iconBtnStyle}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background =
+              'var(--bg-hover)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+          }}
+        >
+          {isFullscreen ? (
+            <IconMinimize size={16} />
+          ) : (
+            <IconMaximize size={16} />
+          )}
+        </button>
+
+        {/* Close */}
+        <button
+          type="button"
+          aria-label="Close artifact panel"
+          title="Close artifact panel (Esc)"
+          onClick={handleClose}
+          style={iconBtnStyle}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.background =
+              'var(--bg-hover)';
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.background = 'transparent';
+          }}
+        >
+          <IconX size={16} />
+        </button>
+      </div>
+    </div>
+  );
+
+  return createPortal(header, headerRoot);
+};
+
+const iconBtnStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 30,
+  height: 30,
+  borderRadius: 7,
+  border: 'none',
+  background: 'transparent',
+  color: 'var(--text-secondary)',
+  cursor: 'pointer',
+  flexShrink: 0,
+  transition: 'background 0.12s',
+};
+
+export default ArtifactPanelLayer;

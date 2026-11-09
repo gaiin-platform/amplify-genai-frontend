@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import { createNotebook, NotebookSummary } from '@/services/notebookService';
 
 interface Props {
@@ -8,7 +8,7 @@ interface Props {
 }
 
 const fieldClass =
-    'rounded-md border border-gray-300 bg-white text-sm shadow-sm placeholder-gray-400 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100 dark:placeholder-gray-500';
+    'rounded-md border border-[--border-subtle] bg-[--bg-composer] text-sm text-[--text-primary] shadow-sm placeholder-[--text-muted] outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent]';
 // Reference (shadcn) sizing: inputs are a fixed h-9; textareas auto-grow with
 // their content (field-sizing: content) from a 64px minimum.
 const inputClass = `h-9 px-3 py-1 ${fieldClass}`;
@@ -45,16 +45,16 @@ export const CreateNotebookDialog = ({ onClose, onCreated }: Props) => {
     };
 
     return (
-        <Modal
+        <CreationModalShell
             title="Create New Notebook"
-            onCancel={onClose}
-            showSubmit={false}
-            showCancel={false}
-            width={() => 480}
-            height={() => 470}
-            content={
-                <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+            onClose={onClose}
+            onSave={handleSubmit}
+            saveLabel="Create New Notebook"
+            isSaving={submitting}
+            saveDisabled={trimmedName.length === 0}
+        >
+                <div className="flex flex-col gap-4 p-2 text-[--text-primary]">
+                    <p className="text-sm text-[--text-muted]">
                         Enter a name and optional description to get started.
                     </p>
 
@@ -87,7 +87,7 @@ export const CreateNotebookDialog = ({ onClose, onCreated }: Props) => {
                             className={`w-full ${inputClass}`}
                         />
                         {showNameError && (
-                            <p className="text-sm text-red-600 dark:text-red-400">
+                            <p className="text-sm text-[--text-error]">
                                 Name is required
                             </p>
                         )}
@@ -111,30 +111,10 @@ export const CreateNotebookDialog = ({ onClose, onCreated }: Props) => {
                     </div>
 
                     {error && (
-                        <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+                        <div className="text-sm text-[--text-error]">{error}</div>
                     )}
-
-                    <div className="flex justify-end gap-2 pt-2">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            disabled={submitting}
-                            className="inline-flex h-9 items-center justify-center rounded-md border border-gray-300 bg-white px-4 text-sm font-medium shadow-sm transition-colors hover:bg-gray-50 disabled:pointer-events-none disabled:opacity-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleSubmit}
-                            disabled={!canSubmit}
-                            className="inline-flex h-9 items-center justify-center rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50"
-                        >
-                            {submitting ? 'Creating...' : 'Create New Notebook'}
-                        </button>
-                    </div>
                 </div>
-            }
-        />
+        </CreationModalShell>
     );
 };
 

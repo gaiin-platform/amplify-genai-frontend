@@ -2,6 +2,7 @@
 import {ChatBody, newMessage} from "@/types/chat";
 import {createParser, ParsedEvent, ReconnectInterval} from "eventsource-parser";
 import {v4 as uuidv4} from 'uuid';
+import {postToChatProxy} from "@/utils/app/chatProxy";
 
 export interface MetaHandler {
     status: (meta: any) => void;
@@ -14,15 +15,28 @@ export interface MetaHandler {
 // attaches the Cognito access token from the JWT cookie. The token is never
 // exposed to client JS.
 export async function killRequest(requestId: string) {
-    const res = await fetch('/api/chat/proxy', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({body: {killSwitch: {requestId, value: true}}}),
-    });
+    const res = await postToChatProxy({body: {killSwitch: {requestId, value: true}}});
 
     return res.status === 200;
+}
+
+// A failed chat request normally carries a JSON body from our proxy, but a load balancer / WAF in front of
+// the app can answer with an HTML page instead. Returns the parsed JSON object, or null when it isn't one.
+export function parseErrorBody(raw: string): any | null {
+    try {
+        const parsed = JSON.parse(raw);
+        return parsed !== null && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
+export function nonJsonErrorMessage(status: number): string {
+    if (status === 403) {
+        return 'Request blocked (403) before it reached Amplify, most likely by a network firewall. ' +
+            'Please try again. If it keeps happening, contact support.';
+    }
+    return `The server returned an unexpected response (${status}). Please try again in a minute.`;
 }
 
 // `endpoint` is an optional override (e.g. an assistant-defined uri); the proxy
@@ -76,16 +90,9 @@ export async function sendChatRequestWithDocuments(endpoint: string | null, chat
 
     // console.log('sending chat request with dataSources', requestBody);
 
-    const body = JSON.stringify({endpoint: endpoint || null, body: requestBody});
-
-    const res = await fetch('/api/chat/proxy', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        signal: abortSignal,
-        body,
-    });
+    // Encoded (gzip + base64) by postToChatProxy: the content here is often literal HTML/JS, which the WAF in
+    // front of the app rejects as XSS (403) when it is sent as plain JSON.
+    const res = await postToChatProxy({endpoint: endpoint || null, body: requestBody}, abortSignal);
 
     // @ts-ignore
     const functions = requestBody.options && requestBody.options.functions;
@@ -94,13 +101,17 @@ export async function sendChatRequestWithDocuments(endpoint: string | null, chat
     const decoder = new TextDecoder();
 
     if (res.status !== 200) {
-        const result = await res.json();
-        let error = 'Error communicating with the server. Please try again in a minute.';
-        if (result.error) {
+        // The error may not be JSON: a load balancer / WAF in front of the app answers with an HTML page
+        // (e.g. a 403 block), and res.json() on that throws "Unexpected token '<'" and hides the real status.
+        const result = parseErrorBody(await res.text());
+        let error = result === null
+            ? nonJsonErrorMessage(res.status)
+            : 'Error communicating with the server. Please try again in a minute.';
+        if (result?.error) {
             error = result.error;
-        } else if (result.value) {
-            error = decoder.decode(result?.value);
-        } else if (result.statusText) {
+        } else if (result?.value) {
+            error = decoder.decode(result.value);
+        } else if (result?.statusText) {
             error = result.statusText;
         }
         if (typeof error !== 'string')  error = JSON.stringify(error);

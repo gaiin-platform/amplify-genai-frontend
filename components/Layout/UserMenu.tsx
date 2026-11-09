@@ -1,10 +1,10 @@
 import React, { useState, useRef, useEffect, useContext } from 'react';
 import { signOut } from 'next-auth/react';
-import { IconLogout, IconCreditCard, IconRocket, IconShare, IconTools, IconUsers, IconShield, IconSun, IconMoon, IconX, IconCurrencyDollar, IconUser, IconSettings, IconHelp, IconLoader2 } from '@tabler/icons-react';
+import { IconLogout, IconCreditCard, IconRocket, IconShare, IconTools, IconUsers, IconShield, IconSun, IconMoon, IconX, IconCurrencyDollar, IconUser, IconSettings, IconHelp, IconLoader2, IconLayoutDashboard } from '@tabler/icons-react';
 import { getUserMtdCosts } from '@/services/mtdCostService';
 import { UserCostBreakdownModal } from './UserCostBreakdownModal';
 import ColorPaletteSelector, { COLOR_PALETTES } from './ColorPaletteSelector';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { AssistantAdminUI } from '../Admin/AssistantAdminUI';
 import { AdminUI } from '../Admin/AdminUI';
 import { UserCostsModal } from '../Admin/UserCostModal';
@@ -18,6 +18,8 @@ import SharingDialog from '../Share/SharingDialog';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
 import { Theme } from '@/types/settings';
 import toast from 'react-hot-toast';
+import { setUIPreference } from '@/components/NewUI/UIPreferenceBanner';
+import { useUiSwitchPolicy } from '@/components/NewUI/shared/useUiSwitchPolicy';
 
 
 interface UserMenuProps {
@@ -35,7 +37,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({
   cognitoDomain,
   cognitoClientId,
 }) => {
-  const { dispatch, state: { lightMode, showUserMenu, featureFlags, supportEmail, defaultAccount, adminRateLimits, groupRateLimits, honorPersonalRateLimit }, dispatch: homeDispatch } = useContext(HomeContext);
+  const { dispatch, state: { lightMode, showUserMenu, featureFlags, statsService, supportEmail, defaultAccount, adminRateLimits, groupRateLimits, honorPersonalRateLimit }, dispatch: homeDispatch } = useContext(HomeContext);
+  const { canSwitchToNew } = useUiSwitchPolicy();
   const [mtdCost, setMtdCost] = useState<string>('0');
   const [mtdCostNumeric, setMtdCostNumeric] = useState<number>(0);
   const [showCostBreakdown, setShowCostBreakdown] = useState<boolean>(false);
@@ -278,6 +281,35 @@ export const UserMenu: React.FC<UserMenuProps> = ({
       window.location.replace(
         `${cognitoDomain}/logout?client_id=${cognitoClientId}&logout_uri=${encodeURIComponent(signoutRedirectUrl)}`
       );
+    }
+  };
+
+  const handleSwitchToNewUI = async () => {
+    // The visual gate is not the only gate: a stale menu must not switch either.
+    if (!canSwitchToNew) return;
+    statsService.trackEvent('UI Switch Clicked', { 'From': 'classic', 'To': 'new' });
+    handleClose();
+    // Show loading toast while switching
+    const loadingToast = toast.loading('Switching to New UI...');
+
+    try {
+      // setUIPreference refuses the change when the rollout policy forbids it, and
+      // reports whether the server accepted it (the server value wins on reload).
+      const { applied, persisted } = await setUIPreference('new');
+      if (!applied || !persisted) {
+        toast.error('Failed to switch UI. Please try again.', { id: loadingToast });
+        return;
+      }
+
+      toast.success('Switched to New UI!', { id: loadingToast });
+
+      // Reload to apply changes
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+    } catch (error) {
+      console.error('Error switching to New UI:', error);
+      toast.error('Failed to switch UI. Please try again.', { id: loadingToast });
     }
   };
 
@@ -691,6 +723,18 @@ export const UserMenu: React.FC<UserMenuProps> = ({
          <IconSettings size={16} className="icon-pop-group enhanced-icon text-purple-500" />
                 <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Settings</span>
               </button>
+
+              {canSwitchToNew && (
+              <button
+                onClick={handleSwitchToNewUI}
+                className={commonClassname}
+                id="switchToNewUI"
+                title="Switch to the new UI experience"
+              >
+                <IconLayoutDashboard size={16} className="icon-pop-group enhanced-icon text-blue-500" />
+                <span className="sidebar-text font-medium text-neutral-700 dark:text-neutral-200">Switch to New UI</span>
+              </button>
+              )}
 
               <button
                 onClick={() => { window.location.href = `mailto:${supportEmail}`}}

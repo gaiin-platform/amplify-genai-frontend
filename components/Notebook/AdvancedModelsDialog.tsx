@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import { NotebookModel } from '@/services/notebookService';
 import { formatModelName } from './modelDisplay';
 
@@ -17,7 +17,7 @@ interface Props {
 }
 
 const selectClass =
-    'rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100';
+    'rounded border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary]';
 
 // Pick a specific model for each stage of the Ask pipeline (strategy → answer →
 // final answer), mirroring the original app's Advanced Model Selection dialog.
@@ -59,29 +59,26 @@ export const AdvancedModelsDialog = ({ models, initial, onSave, onClose }: Props
     );
 
     return (
-        <Modal
+        <CreationModalShell
             title="Advanced Model Selection"
-            onCancel={onClose}
-            onSubmit={() => {
+            onClose={onClose}
+            onSave={() => {
                 if (!canSave) return;
                 onSave({ strategy, answer, finalAnswer });
                 onClose();
             }}
-            submitLabel="Save Changes"
-            disableSubmit={!canSave}
-            width={() => 480}
-            height={() => 420}
-            content={
-                <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Choose specific models for each stage of the Ask process.
-                    </p>
-                    {modelSelect('Strategy Model', strategy, setStrategy)}
-                    {modelSelect('Answer Model', answer, setAnswer)}
-                    {modelSelect('Final Answer Model', finalAnswer, setFinalAnswer)}
-                </div>
-            }
-        />
+            saveLabel="Save Changes"
+            saveDisabled={!canSave}
+        >
+            <div className="flex flex-col gap-4 p-2 text-[--text-primary]">
+                <p className="text-sm text-[--text-muted]">
+                    Choose specific models for each stage of the Ask process.
+                </p>
+                {modelSelect('Strategy Model', strategy, setStrategy)}
+                {modelSelect('Answer Model', answer, setAnswer)}
+                {modelSelect('Final Answer Model', finalAnswer, setFinalAnswer)}
+            </div>
+        </CreationModalShell>
     );
 };
 

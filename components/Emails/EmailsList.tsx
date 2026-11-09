@@ -2,7 +2,7 @@ import React, { useState, FC, useCallback, useRef, useEffect, useContext } from 
 import { IconInfoCircle, IconPlus, IconX } from '@tabler/icons-react';
 import { EmailsAutoComplete } from './EmailsAutoComplete';
 import { fetchAllSystemIds } from '@/services/apiKeysService';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Group } from '@/types/groups';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';

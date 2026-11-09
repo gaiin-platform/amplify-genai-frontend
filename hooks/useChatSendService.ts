@@ -1,6 +1,6 @@
 // src/hooks/useChatService.js
-import { useCallback, useContext, useEffect, useRef } from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import { useCallback, useContext, useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
+import HomeContext from '@/components/Home/home.context';
 import { killRequest as killReq, MetaHandler } from '../services/chatService';
 import { ChatBody, Conversation, CustomFunction, JsonSchema, Message, MessageType, newMessage } from "@/types/chat";
 import { ColumnsSpec, } from "@/utils/app/csv";
@@ -12,7 +12,7 @@ import { ReservedTags } from "@/types/tags";
 import { deepMerge } from "@/utils/app/state";
 import toast from "react-hot-toast";
 import { OutOfOrderResults } from "@/utils/app/outOfOrder";
-import { conversationWithCompressedMessages, remoteForConversationHistory, saveConversations } from "@/utils/app/conversation";
+import { condenseForConversationHistory, conversationWithCompressedMessages, isRemoteConversation, remoteForConversationHistory, saveConversations, upsertConversationEntry } from "@/utils/app/conversation";
 import { getHook } from "@/utils/app/chathooks";
 import { AttachedDocument } from "@/types/attacheddocument";
 import { Prompt } from "@/types/prompt";
@@ -26,7 +26,10 @@ import {
     Memory,
 } from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
+import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { isBasePrompt } from '@/utils/app/basePrompts';
+import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
+import { getUserWebSearchEnabled } from '@/components/NewUI/shared/userWebSearch';
 import { promptForData } from '@/utils/app/llm';
 import {
     buildExtractFactsPrompt,
@@ -38,7 +41,9 @@ import { lzwCompress } from '@/utils/app/lzwCompression';
 import { resolveContextString, messagesToCached } from '@/utils/app/contextConversations';
 import { saveContextCache } from '@/utils/app/storage';
 import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimation';
-import { WEB_SEARCH_TOOL_DEFINITION } from '@/types/tools';
+import { getFullTimestamp } from '@/utils/app/date';
+import { getContinuationCarryOver } from '@/utils/app/mcpContinuation';
+import { buildExistingArtifactsPrompt } from '@/components/NewUI/shared/autoArtifactStream';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
 
 export type ChatRequest = {
@@ -56,20 +61,167 @@ export type ChatRequest = {
     conversationId?: string;
 };
 
+/**
+ * Agent-run polling guards. BOTH are module-level (not useRef) on purpose.
+ *
+ * `useSendService()` is instantiated by MANY components at once — Chat.tsx,
+ * ConversationViewShell, ConversationComposer, and every AutonomousBlock /
+ * OpBlock / InvokeBlock rendered inside a streamed message. Each instance runs
+ * its own copy of the `isWaitingForAgentResponse` effect below, so a per-instance
+ * `useRef` guard cannot prevent N concurrent pollers for the SAME sessionId.
+ *
+ * That was the actual bug behind the endless `/vu-agent/get-latest-agent-state`
+ * flood: the first poller consumed the agent result and finished the chat, but
+ * the other pollers kept hitting the endpoint once per second for the full
+ * MAX_POLL_DURATION_MS (5 min) because the backend no longer returns a `result`
+ * for an already-consumed session (so `state.inProgress ?? true` stayed true).
+ *
+ * _activeAgentPolls    — a session currently being polled by SOME instance.
+ *                        Guarantees exactly one poller per session app-wide.
+ * _exhaustedAgentSessions — a session already polled to a terminal state
+ *                        (success, timeout, or error). Prevents a restart when
+ *                        `endTime` fails to persist (stale conversation closure,
+ *                        navigation mid-poll, etc.).
+ *
+ * A genuinely new agent task always gets a fresh sessionId, so neither set can
+ * block legitimate work.
+ */
+const _activeAgentPolls = new Set<string>();
+const _exhaustedAgentSessions = new Set<string>();
+
+/**
+ * An agentRun with no endTime that started longer ago than this is considered
+ * dead (tab closed mid-run, crash, WAF block) and is never resumed. Must be
+ * comfortably larger than MAX_POLL_DURATION_MS (5 min) in utils/app/agent.ts.
+ */
+const STALE_AGENT_RUN_MS = 10 * 60 * 1000;
+
+// A send outlives the component that started it: the chat view is keyed by conversation id, so
+// clicking another chat or "new chat" unmounts the view (and this hook's host) while the response
+// keeps streaming. A ref refreshed only on render then goes stale and still reports the old chat
+// as "selected". This module-level mirror is kept current by a component that stays mounted for
+// the life of the page (see useLiveHomeStateMirror) so in-flight sends can read the real state.
+const liveHome: { mounted: boolean; selectedId?: string; conversations?: Conversation[] } = { mounted: false };
+
+// `messageIsStreaming` is one global boolean, so with a response generating in chat A every other
+// view (sidebar spinner, hidden message actions, stop button) behaves as if *it* were generating.
+// This records which conversation(s) the in-flight send belongs to so views can tell the difference.
+// Empty means "unknown" (e.g. a path that doesn't record it): callers then fall back to the global flag.
+const NO_IDS: readonly string[] = [];
+let streamingIds: readonly string[] = NO_IDS;
+const streamingListeners = new Set<() => void>();
+const publishStreamingIds = (next: readonly string[]) => {
+    if (next === streamingIds || (next.length === streamingIds.length && next.every((id, i) => id === streamingIds[i]))) return;
+    streamingIds = next;
+    streamingListeners.forEach(l => l());
+};
+/** The chat the user has open right now — readable from a stream whose host view has unmounted. */
+export const getLiveSelectedConversationId = (fallback?: string) => liveHome.mounted ? liveHome.selectedId : fallback;
+export const getLiveConversations = () => liveHome.mounted ? liveHome.conversations : undefined;
+export const markConversationStreaming = (id?: string) => {
+    if (id && !streamingIds.includes(id)) publishStreamingIds([...streamingIds, id]);
+};
+// An artifact stream starts the moment the chat reply that requested it ends, so the reply's
+// "streaming off" clear can land after the artifact recorded its chat — leaving no owner until the
+// first artifact chunk. The claimed owner survives those clears until the artifact stream releases it.
+let artifactStreamOwner: string | undefined;
+export const claimArtifactStream = (id: string) => {
+    artifactStreamOwner = id;
+    markConversationStreaming(id);
+};
+export const releaseArtifactStream = (id: string) => {
+    if (artifactStreamOwner === id) artifactStreamOwner = undefined;
+};
+export const clearStreamingConversations = () => publishStreamingIds(artifactStreamOwner ? [artifactStreamOwner] : NO_IDS);
+export const getStreamingConversationIds = () => streamingIds;
+export function useStreamingConversationIds(): readonly string[] {
+    return useSyncExternalStore(
+        (cb) => { streamingListeners.add(cb); return () => { streamingListeners.delete(cb); }; },
+        () => streamingIds,
+        () => NO_IDS,
+    );
+}
+/** Is `conversationId` the one generating? Falls back to the global flag when the owner is unknown. */
+export const isConversationStreaming = (
+    messageIsStreaming: boolean | undefined,
+    ids: readonly string[],
+    conversationId?: string,
+): boolean => !!messageIsStreaming && (ids.length === 0 || (!!conversationId && ids.includes(conversationId)));
+
+export const CHAT_BUSY_EVENT = 'amplifyChatBusyNotice';
+/**
+ * True (and a "please wait" notice is raised) when a response is still being generated in a
+ * DIFFERENT chat than `conversationId`. Sends are blocked then: the generating flags are global,
+ * so a second concurrent send would corrupt the first one's state.
+ */
+export const blockIfOtherChatGenerating = (conversationId?: string): boolean => {
+    if (streamingIds.length === 0 || (conversationId && streamingIds.includes(conversationId))) return false;
+    if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(CHAT_BUSY_EVENT));
+    return true;
+};
+
+/** Mount once, high in the tree, to keep in-flight sends aware of the user's current selection. */
+export function useLiveHomeStateMirror() {
+    const { state: { selectedConversation, conversations, messageIsStreaming } } = useContext(HomeContext);
+    liveHome.mounted = true;
+    liveHome.selectedId = selectedConversation?.id;
+    liveHome.conversations = conversations;
+    useEffect(() => () => { liveHome.mounted = false; liveHome.conversations = undefined; }, []);
+    // Whoever turned the global flag off (stop button, error path, …) ends every recorded send.
+    useEffect(() => { if (!messageIsStreaming) clearStreamingConversations(); }, [messageIsStreaming]);
+}
+
 export function useSendService() {
     const {
         state: { selectedConversation, conversations, featureFlags, folders, chatEndpoint, statsService, extractedFacts, memoryExtractionEnabled, defaultAccount, promptCostAlert },
         getDefaultModel, handleUpdateSelectedConversation,
         postProcessingCallbacks,
-        dispatch: homeDispatch,
+        dispatch: rawHomeDispatch,
     } = useContext(HomeContext);
+    const stableFeatureFlags = useStableFeatureFlags();
+    const deploymentAvailability = getDeploymentFeatureAvailability(stableFeatureFlags as any);
 
 
-    const conversationsRef = useRef(conversations);
+    // Reads/writes go to the live mirror when it is mounted, so a send whose host component has
+    // unmounted still builds its history updates on the current list (not a stale snapshot that
+    // would drop chats created or edited since).
+    const localConversationsRef = useRef(conversations);
+    const conversationsRef = useMemo(() => ({
+        get current(): Conversation[] {
+            return liveHome.mounted && liveHome.conversations ? liveHome.conversations : localConversationsRef.current;
+        },
+        set current(value: Conversation[]) {
+            localConversationsRef.current = value;
+            if (liveHome.mounted) liveHome.conversations = value;
+        },
+    }), []);
     const messageTimestampRef = useRef<string | undefined>(undefined);
 
-    // Add ref to track running agent sessions
-    const runningAgentSessions = useRef<Set<string>>(new Set());
+    // Always-fresh handle on the selected conversation so the agent poller (which
+    // can run for minutes) writes `endTime` back to the CURRENT conversation
+    // instead of the snapshot captured when the poll started.
+    const selectedConversationRef = useRef(selectedConversation);
+    selectedConversationRef.current = selectedConversation;
+
+    // A send keeps streaming into `selectedConversation` for as long as the response lasts
+    // (and writes it once more when it finishes). If the user has since opened another chat
+    // or started a new one, those writes would yank the view back to the conversation that
+    // is generating. Drop any selection write for a conversation that is no longer the
+    // selected one; the finished conversation still lands in `conversations` by id, so
+    // nothing is lost.
+    const homeDispatch = useCallback((action: any) => {
+        if (
+            action &&
+            !action.type &&
+            action.field === 'selectedConversation' &&
+            action.value &&
+            action.value.id !== (liveHome.mounted ? liveHome.selectedId : selectedConversationRef.current?.id)
+        ) {
+            return;
+        }
+        if (action && !action.type && action.field === 'messageIsStreaming' && !action.value) clearStreamingConversations();
+        rawHomeDispatch(action);
+    }, [rawHomeDispatch]);
 
     useEffect(() => {
         conversationsRef.current = conversations;
@@ -100,23 +252,33 @@ export function useSendService() {
 
 
     useEffect(() => {
-        const awaitAgentRun = async (sessionId: string) => {
-            // Check if this session is already running
-            if (runningAgentSessions.current.has(sessionId)) {
-                console.log(`Agent run for session ${sessionId} is already in progress`);
-                return;
-            }
+        const awaitAgentRun = async (sessionId: string, runKey: string) => {
+            // `runKey` identifies ONE run. The backend reuses the conversation id as
+            // the sessionId for every agent run in a chat, so guarding on sessionId
+            // alone blocked every run after the first (e.g. a connector reused on a
+            // later turn). Polling still uses the real sessionId.
+            // Already polled to a terminal state — never poll it again. Guards the
+            // case where `endTime` failed to persist back onto the conversation.
+            if (_exhaustedAgentSessions.has(runKey)) return;
 
-            // Mark this session as running
-            runningAgentSessions.current.add(sessionId);
+            // Some other useSendService() instance is already polling this session.
+            // Only one poller per session may exist app-wide, otherwise the extra
+            // pollers keep hammering the endpoint after the winner consumes the
+            // result (the backend then stops returning `result`, so those loops run
+            // to the full 5-minute timeout).
+            if (_activeAgentPolls.has(runKey)) return;
+            _activeAgentPolls.add(runKey);
 
             try {
+                markConversationStreaming(liveHome.mounted ? liveHome.selectedId : selectedConversationRef.current?.id);
                 homeDispatch({ field: 'messageIsStreaming', value: true });
                 const agentResult = await handleAgentRun(sessionId, (status: any) => homeDispatch({ field: "status", value: [newStatus(status)] }));
-                if (agentResult && selectedConversation) {
-                    const lastIndex = selectedConversation.messages.length - 1;
-                    selectedConversation.messages[lastIndex].data.state.agentLog = lzwCompress(JSON.stringify(agentResult));
-                    const updatedConversation = await handleAgentRunResult(agentResult, selectedConversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
+                // Re-read the conversation: the poll may have run for minutes.
+                const conversation = selectedConversationRef.current ?? selectedConversation;
+                if (agentResult && conversation) {
+                    const lastIndex = conversation.messages.length - 1;
+                    conversation.messages[lastIndex].data.state.agentLog = lzwCompress(JSON.stringify(agentResult));
+                    const updatedConversation = await handleAgentRunResult(agentResult, conversation, getDefaultModel(DefaultModels.CHEAPEST), defaultAccount, homeDispatch, statsService, chatEndpoint || '');
                     handleUpdateSelectedConversation(updatedConversation);
                 } else {
                     console.error("Agent run failed or timed out");
@@ -127,24 +289,48 @@ export function useSendService() {
                         "The assistant did not respond in time. Please try again.",
                         { duration: 8000 }
                     );
-                    const updatedMessages = selectedConversation?.messages;
+                    const updatedMessages = conversation?.messages;
                     if (updatedMessages) {
                         const lastMsgIndex = updatedMessages.length - 1;
                         updatedMessages[lastMsgIndex].content = "No response from the agent. Please try again later.";
-                        updatedMessages[lastMsgIndex].data.state.agentRun.endTime = new Date();
-                        handleUpdateSelectedConversation({ ...selectedConversation, messages: updatedMessages });
+                        if (updatedMessages[lastMsgIndex].data?.state?.agentRun) {
+                            updatedMessages[lastMsgIndex].data.state.agentRun.endTime = new Date();
+                        }
+                        handleUpdateSelectedConversation({ ...conversation!, messages: updatedMessages });
                     }
                 }
+            } catch (e) {
+                // Never let a throw here leave the session eligible for re-polling.
+                console.error("Agent run handling failed:", e);
             } finally {
-                // Always remove the session from running set when done
-                runningAgentSessions.current.delete(sessionId);
+                _activeAgentPolls.delete(runKey);
+                // Permanently mark as exhausted so future useEffect ticks (triggered
+                // by message changes while the poll was running) cannot restart it.
+                _exhaustedAgentSessions.add(runKey);
                 cleanupHomeState();
             }
         }
 
         if (selectedConversation) {
             const agentRunData = isWaitingForAgentResponse(selectedConversation);
-            if (agentRunData?.sessionId) awaitAgentRun(agentRunData.sessionId);
+            if (agentRunData?.sessionId) {
+                // startTime may be a Date or its serialized string; normalize so the
+                // same run always yields the same key.
+                const startMs = agentRunData.startTime ? new Date(agentRunData.startTime).getTime() : NaN;
+                const runKey = `${agentRunData.sessionId}:${Number.isNaN(startMs) ? '' : startMs}`;
+                // A conversation reloaded from storage can carry an agentRun that never
+                // got an endTime (tab closed mid-run, crash, WAF block). Polling it is
+                // pointless — the run is long dead — and it would burn a full 5-minute
+                // poll on every page load. Only resume runs that could plausibly still
+                // be alive.
+                const startedAt = agentRunData.startTime ? new Date(agentRunData.startTime).getTime() : NaN;
+                const isStale = !Number.isNaN(startedAt) && (Date.now() - startedAt) > STALE_AGENT_RUN_MS;
+                if (isStale) {
+                    _exhaustedAgentSessions.add(runKey);
+                } else {
+                    awaitAgentRun(agentRunData.sessionId, runKey);
+                }
+            }
         }
     }, [selectedConversation?.messages]);
 
@@ -152,6 +338,8 @@ export function useSendService() {
     const handleSend = useCallback(
         async (request: ChatRequest, shouldAbort: () => boolean) => {
             return new Promise(async (resolve, reject) => {
+                // Safety net for sends that don't pre-check (retry, edit, …).
+                if (blockIfOtherChatGenerating(selectedConversation?.id)) { resolve(null); return; }
                 if (selectedConversation) {
 
                     let {
@@ -167,8 +355,11 @@ export function useSendService() {
                     } = request;
                     messageTimestampRef.current = new Date().toISOString();
 
-                    const featureOptions = getSettings(featureFlags).featureOptions;
-                    const pluginActive = featureOptions.includePluginSelector;
+                    const featureOptions = getSettings(stableFeatureFlags).featureOptions;
+                    // The user plugin selector and smart focused messages are
+                    // permanently disabled; explicit MCP/connector tools continue
+                    // through their dedicated request fields.
+                    const pluginActive = false;
                     const pluginIds: string[] | null = pluginActive ? plugins?.map((plugin: Plugin) => plugin.id) ?? [] : null;
 
                     const { content, label } = getPrefix(selectedConversation, message);
@@ -187,11 +378,13 @@ export function useSendService() {
                         updatedConversation = {
                             ...selectedConversation,
                             messages: [...updatedMessages, message],
+                            date: getFullTimestamp(),
                         };
                     } else {
                         updatedConversation = {
                             ...selectedConversation,
                             messages: [...(selectedConversation.messages ?? []), message],
+                            date: getFullTimestamp(),
                         };
                     }
 
@@ -286,37 +479,130 @@ export function useSendService() {
                         updatedConversation.model = defaultModel;
                     }
 
+                    // First exchange of a fresh chat: give it a real name straight away so it
+                    // shows up in Recents the moment the prompt is sent. The sidebar hides
+                    // "New Conversation" placeholders, and cloud history rows carry no messages,
+                    // so without this the chat is invisible until the response completes.
+                    // An AI-generated title replaces this provisional one as soon as it is ready.
+                    const isFirstExchange =
+                        updatedConversation.name === 'New Conversation' &&
+                        updatedConversation.messages.length === 1;
+                    if (isFirstExchange) {
+                        const firstPrompt = (updatedConversation.messages[0].content ?? '').replace(/\s+/g, ' ').trim();
+                        updatedConversation = {
+                            ...updatedConversation,
+                            name: firstPrompt
+                                ? (firstPrompt.length > 30 ? firstPrompt.substring(0, 30) + '...' : firstPrompt)
+                                : updatedConversation.name,
+                        };
+                    }
+
                     homeDispatch({
                         field: 'selectedConversation',
                         value: updatedConversation,
                     });
 
+                    {
+                        // Make sure the history list (what the sidebar renders) has this chat now,
+                        // not only after the stream ends.
+                        const listed = conversationsRef.current.some(c => c.id === updatedConversation.id);
+                        // Local chats are persisted (with the new prompt) on every send, and cloud chats
+                        // when they are new to the list. Previously a follow-up prompt was only written
+                        // when the response finished, so closing the tab mid-stream lost it.
+                        if (isFirstExchange || !listed || !isRemoteConversation(updatedConversation)) {
+                            const entry = condenseForConversationHistory(updatedConversation);
+                            const withEntry: Conversation[] = upsertConversationEntry(conversationsRef.current, entry);
+                            conversationsRef.current = withEntry;
+                            homeDispatch({ field: 'conversations', value: withEntry });
+                            saveConversations(withEntry);
+                        }
+                        // Cloud chats: save the prompt right away too. The save queue persists it locally
+                        // first, serializes it with the later saves and retries on failure.
+                        if (isRemoteConversation(updatedConversation)) {
+                            void uploadConversation(updatedConversation, foldersRef.current);
+                        }
+                    }
+
+                    if (isFirstExchange) {
+                        // Generate the title in parallel with the response instead of after it.
+                        // `updatedConversation` is shared with the streaming loop below, so assigning
+                        // the new name here is carried into every later write of the conversation.
+                        (async () => {
+                            try {
+                                const promptMessages = updatedConversation.messages
+                                    .slice(0, 1)
+                                    .map(m => ({ ...m, data: {}, configuredTools: [] }));
+                                promptMessages[0].content = `Look at the following prompt: "${promptMessages[0].content}" \n\nYour task: As an AI proficient in summarization, create a short concise title for the given prompt. Ensure the title is under 30 characters.`;
+                                const customName = await promptForData(
+                                    chatEndpoint || '',
+                                    promptMessages,
+                                    getDefaultModel(DefaultModels.CHEAPEST),
+                                    'Respond with only the title name and nothing else.',
+                                    defaultAccount,
+                                    statsService,
+                                    10
+                                );
+                                const title = customName?.trim();
+                                if (!title) return; // keep the provisional name
+                                updatedConversation = { ...updatedConversation, name: title };
+                                // Patch the name only; the stream owns the rest of the entry. Map-only so a
+                                // chat the user deleted mid-stream is not resurrected.
+                                const renamed: Conversation[] = conversationsRef.current.map(
+                                    c => c.id === updatedConversation.id ? { ...c, name: title } : c
+                                );
+                                conversationsRef.current = renamed;
+                                homeDispatch({ field: 'conversations', value: renamed });
+                                saveConversations(renamed);
+                                // Ignored by the guarded dispatch if the user has moved to another chat.
+                                homeDispatch({ field: 'selectedConversation', value: updatedConversation });
+                                if (isRemoteConversation(updatedConversation)) {
+                                    uploadConversation(updatedConversation, foldersRef.current);
+                                }
+                            } catch (e) {
+                                console.warn('Auto-rename failed:', e);
+                            }
+                        })();
+                    }
+
                     homeDispatch({ field: 'loading', value: true });
+                    markConversationStreaming(updatedConversation.id);
                     homeDispatch({ field: 'messageIsStreaming', value: true });
 
-                    let isArtifactsOn = featureFlags.artifacts && featureOptions.includeArtifacts &&
-                        // we only consider whats in the plugins if we have the feature option for it on.
-                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
+                    let isArtifactsOn = deploymentAvailability.artifacts &&
+                        // Preserve provider/base-prompt limitations; routing decides whether to use it.
+                        (!pluginIds || !pluginIds.includes(PluginID.CODE_INTERPRETER)) &&
                         // turn off artifacts for base prompt templates
                         !(selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id));
 
                     // honor assistant does not support artifact flag 
                     const astFeatureOptions = message.data?.assistant?.definition?.featureOptions;
-                    if (astFeatureOptions && 'IncludeArtifactsInstr' in astFeatureOptions &&
+                    const explicitArtifactIntent = options?.artifactsMode === true;
+                    if (!explicitArtifactIntent && astFeatureOptions && 'IncludeArtifactsInstr' in astFeatureOptions &&
                         !astFeatureOptions.IncludeArtifactsInstr) {
                         console.log("Artifacts disabled for assistant: ", message.data?.assistant?.definition?.name);
                         isArtifactsOn = false;
                     }
 
-                    console.log("Artifacts on: ", isArtifactsOn)
+                    if (explicitArtifactIntent && !deploymentAvailability.artifacts) {
+                        options = { ...(options || {}) };
+                        delete options.artifactsMode;
+                    }
+                    if (!deploymentAvailability.artifacts) isArtifactsOn = false;
+                    console.log("Artifacts available: ", isArtifactsOn)
                     if (selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id)) {
                         console.log("Artifacts disabled for base prompt template: ", selectedConversation.promptTemplate.name);
                     }
-                    const isSmartMessagesOn = featureFlags.smartMessages && featureOptions.includeFocusedMessages; // && (!pluginIds || (pluginIds.includes(PluginID.SMART_MESSAGES)));
-                    console.log("Smart Messages on: ", isSmartMessagesOn)
+                    // Smart focused messages are absent from the request path.
 
-                    const isMemoryOn = featureFlags.memory && featureOptions.includeMemory && (!pluginIds || (pluginIds.includes(PluginID.MEMORY)));
+                    const isMemoryOn = deploymentAvailability.memory && stableFeatureFlags.memory === true;
                     console.log("Memory on: ", isMemoryOn)
+
+                    // One memory read per turn. It is independent of the MCP tool lookup and of
+                    // context resolution, so it starts now and is awaited where it is needed.
+                    // The same read feeds fact extraction after the response (previously a second
+                    // full read). The no-op catch keeps an unawaited rejection from surfacing.
+                    const memoryReadPromise: Promise<any> | null = isMemoryOn ? doReadMemoryOp({}) : null;
+                    memoryReadPromise?.catch(() => {});
 
                     console.log("Conversation tokens: ", updatedConversation.maxTokens);
 
@@ -361,79 +647,11 @@ export function useSendService() {
                     }
                     // ─────────────────────────────────────────────────────────
 
-                    // ── Auto-route model selection ────────────────────────────
-                    // If the user has enabled auto-route (toggle in ModelSelect),
-                    // classify the task complexity before sending and override the
-                    // conversation model with cheapest / default / advanced accordingly.
-                    // Auto-route is suppressed when the active assistant enforces a
-                    // specific model — the assistant's choice always takes priority.
-                    let resolvedModel = updatedConversation.model;
-                    const autoRouteEnabled = (() => {
-                        try { return localStorage.getItem('autoRouteModel') === 'true'; } catch { return false; }
-                    })();
-
-                    const enforcedAssistantModelId = message.data?.assistant?.definition?.data?.model as string | undefined;
-                    const autoRouteSuppressed = !!(enforcedAssistantModelId);
-
-                    if (autoRouteEnabled && !autoRouteSuppressed && chatEndpoint) {
-                        try {
-                            // If files/datasources are attached → always use advanced model
-                            // (no classification call — avoids competing with file processing)
-                            const hasAttachments = (message.data?.dataSources && message.data.dataSources.length > 0) ||
-                                                   (updatedConversation.messages.some((m: Message) => m.data?.dataSources?.length > 0));
-
-                            if (hasAttachments) {
-                                resolvedModel = getDefaultModel(DefaultModels.ADVANCED);
-                                console.log(`[Auto-route] Attachments detected → using advanced model: ${resolvedModel?.name}`);
-                            } else {
-                                const userMessageContent = message.content || '';
-                                const classifyPrompt = `Classify the following user message into exactly one of these three complexity levels:
-- SIMPLE: casual chat, short factual questions, greetings, basic lookups
-- MODERATE: multi-step questions, explanations, summarization, writing assistance
-- COMPLEX: deep analysis, large document processing, coding, research, legal/technical reasoning
-
-Respond with only one word: SIMPLE, MODERATE, or COMPLEX.
-
-User message: "${userMessageContent.slice(0, 500)}"`;
-
-                                const cheapestModel = getDefaultModel(DefaultModels.CHEAPEST);
-                                const classifyMessages: Message[] = [{
-                                    id: 'auto-route-classify',
-                                    role: 'user',
-                                    type: MessageType.PROMPT,
-                                    content: classifyPrompt,
-                                    data: {}
-                                }];
-
-                                const classification = await promptForData(
-                                    chatEndpoint,
-                                    classifyMessages,
-                                    cheapestModel,
-                                    '',
-                                    defaultAccount,
-                                    null,
-                                    50
-                                );
-
-                                const level = (classification || '').trim().toUpperCase();
-                                console.log(`[Auto-route] Classification: ${level}`);
-
-                                if (level.includes('SIMPLE')) {
-                                    resolvedModel = getDefaultModel(DefaultModels.CHEAPEST);
-                                } else if (level.includes('COMPLEX')) {
-                                    resolvedModel = getDefaultModel(DefaultModels.ADVANCED);
-                                } else {
-                                    resolvedModel = getDefaultModel(DefaultModels.DEFAULT);
-                                }
-
-                                console.log(`[Auto-route] Selected model: ${resolvedModel?.name}`);
-                            }
-                        } catch (e) {
-                            console.warn('[Auto-route] Classification failed, using conversation model:', e);
-                        }
-                    }
-                    // ─────────────────────────────────────────────────────────
-                     console.log("Model in use: ", resolvedModel.name);
+                    // Model selection remains explicit and assistant-aware. Automatic
+                    // feature routing is performed once by the backend ordinary-chat
+                    // router so UI and API requests cannot diverge.
+                    const resolvedModel = updatedConversation.model;
+                    console.log("Model in use: ", resolvedModel.name);
 
                     let chatBody: ChatBody = {
                         model: resolvedModel,
@@ -444,28 +662,22 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                         conversationId
                     };
 
-                    // Check if Web Search is enabled:
-                    // - Feature flag must be on (admin enabled)
-                    // - Plugin must be enabled in FeaturePlugin (user enabled for session)
-                    // - Per-message toggle must be on (user enabled for this message)
-                    const perMessageWebSearch = message.data?.enableWebSearch ?? false;
-                    const pluginWebSearch = plugins?.some(p => p.id === PluginID.WEB_SEARCH) ?? false;
-                    // Check feature flag (now properly defined in backend)
-                    const featureFlagEnabled = featureFlags.webSearch === true;
-                    const isWebSearchOn = featureFlagEnabled && pluginWebSearch && perMessageWebSearch;
-
-                    // Always explicitly set enableWebSearch to prevent backend auto-enablement
-                    chatBody.enableWebSearch = isWebSearchOn;
-
-                    if (isWebSearchOn) {
-                        // Add web search tool to the request
-                        // Backend will handle tool execution with user's API key
-                        chatBody.tools = [WEB_SEARCH_TOOL_DEFINITION];
-                        console.log("Web search tool added to chat body");
+                    // Backend routing owns optional web-search selection. Do not
+                    // send user preference fields that could bias that decision —
+                    // the one exception is the user's explicit opt-out (Settings →
+                    // General, for Level 3 data), which is a hard veto the backend
+                    // must honour. Absence means "no veto" (web search defaults ON).
+                    if (!getUserWebSearchEnabled()) {
+                        chatBody.disableWebSearch = true;
                     }
 
-                    // Check if MCP is enabled (requires feature flag AND plugin enabled)
-                    const isMCPOn = featureFlags.mcp && (plugins?.some(p => p.id === PluginID.MCP) ?? false);
+                    // MCP is gated by the admin feature flag alone. The per-send `plugins`
+                    // list is a snapshot some callers cache (Chat.tsx's local state is built
+                    // once from the raw flags at mount), so a stale snapshot silently dropped
+                    // MCP on a new conversation's first message. Which tools go out is still
+                    // decided per-server by getEnabledMCPToolsForLLM. Stable flags: the raw
+                    // state can briefly be a lone patch like { smartMessages } at startup.
+                    const isMCPOn = stableFeatureFlags.mcp === true;
                     console.log("MCP on: ", isMCPOn);
 
                     let mcpTools: any[] = [];
@@ -485,19 +697,13 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                         }
                     }
 
-                    // Check if Skills is enabled (requires feature flag AND plugin enabled)
-                    const isSkillsOn = featureFlags.skills && (plugins?.some(p => p.id === PluginID.SKILLS) ?? false);
-                    console.log("Skills on: ", isSkillsOn);
-
-                    if (isSkillsOn) {
-                        // Get skills from message data (set by SkillsToggle component)
-                        const selectedSkills = message.data?.skills || [];
-                        const skillSelectionMode = message.data?.skillSelectionMode || 'auto';
-
-                        // Pass skills to backend via options (will be merged later)
-                        chatBody.skills = selectedSkills;
-                        chatBody.skillSelectionMode = skillSelectionMode;
-                        console.log(`Skills: ${selectedSkills.length} skills selected, mode: ${skillSelectionMode}`);
+                    // Skills the user explicitly picked in the classic composer (SkillsToggle)
+                    if (featureFlags.skills) {
+                        const selectedSkills = message.data?.skills;
+                        if (Array.isArray(selectedSkills) && selectedSkills.length > 0) {
+                            chatBody.skills = selectedSkills;
+                            chatBody.skillSelectionMode = message.data?.skillSelectionMode || 'manual';
+                        }
                     }
 
                     console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
@@ -505,16 +711,33 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                     if (isArtifactsOn && selectedConversation.artifacts) {
                         console.log("Adding artifacts to chat body: ", selectedConversation.artifacts);
                         chatBody.artifacts = selectedConversation.artifacts;
+                        // An edit becomes a new version only when the model reuses the artifact's exact id.
+                        // It otherwise sees only the autoArtifacts blocks in history, and after a rename it
+                        // tends to derive a new id from the new title, starting a separate artifact.
+                        const artifactIdGuide = buildExistingArtifactsPrompt(selectedConversation.artifacts);
+                        if (artifactIdGuide) {
+                            chatBody.messages = [
+                                { id: `artifact-ids-${Date.now()}`, role: 'system', content: artifactIdGuide, type: undefined, data: {} } as Message,
+                                ...chatBody.messages,
+                            ];
+                        }
                     }
-                    // Add smart messages and artifacts options - backend will handle processing
-                    if (isSmartMessagesOn || isArtifactsOn) {
-                        chatBody.options = {
-                            smartMessages: isSmartMessagesOn,
-                            artifacts: isArtifactsOn
-                        };
-
+                    // Automatic routing stays backend-owned. Explicit artifact
+                    // requests are intent only; the backend applies deployment policy
+                    // before resolving them to the artifact generator.
+                    if (options?.artifactsMode === true && deploymentAvailability.artifacts) {
+                        chatBody.artifactsMode = true;
                     }
-
+                    if (options?.codeInterpreterOnly === true && deploymentAvailability.codeInterpreter) {
+                        chatBody.codeInterpreterOnly = true;
+                    }
+                    // Reuse this conversation's code interpreter session. The backend picks the
+                    // interpreter itself, so nothing else sends the saved record id back; without
+                    // it every turn would start a fresh session (losing Python state and orphaning
+                    // the previous one). The backend ignores it on turns that don't use the interpreter.
+                    if (updatedConversation.codeInterpreterRecordId && deploymentAvailability.codeInterpreter) {
+                        chatBody.codeInterpreterRecordId = updatedConversation.codeInterpreterRecordId;
+                    }
 
                     if (selectedConversation?.projectId) {
                         // console.log("Selected Project Memory ID:", selectedConversation.projectId);
@@ -526,15 +749,15 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                         // For memory context, use a short timeout to keep the request moving
                         // if memory retrieval takes too long
                         try {
-                            // Create a promise with a timeout
-                            const memoriesPromise = Promise.race([
-                                doReadMemoryOp({}),
-                                new Promise<any>((_, reject) =>
-                                    setTimeout(() => reject(new Error('Memory fetch timeout')), 500) // 500ms timeout
-                                )
-                            ]);
-
-                            const memoriesResponse = await memoriesPromise;
+                            // Race the (already running) read against a timeout, and clear the
+                            // timer either way so it does not outlive the send.
+                            let memoryTimer: ReturnType<typeof setTimeout> | undefined;
+                            const memoriesResponse = await Promise.race([
+                                memoryReadPromise as Promise<any>,
+                                new Promise<any>((_, reject) => {
+                                    memoryTimer = setTimeout(() => reject(new Error('Memory fetch timeout')), 500); // 500ms timeout
+                                })
+                            ]).finally(() => clearTimeout(memoryTimer));
                             const allMemories = JSON.parse(memoriesResponse.body).memories || [];
                             const relevantMemories = getRelevantMemories(allMemories);
                             const memoryContext = buildMemoryContextPrompt(relevantMemories);
@@ -591,20 +814,20 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                     } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
                         options = { ...(options || {}), ragEvaluation: true };
                     }
-                    // Advanced Rag is default off for assistant use 
-                    if (!featureFlags.cachedDocuments || options?.assistantId || options?.groupId) {
+                    // Document caching is always on for chat; it is off for assistant use
+                    // (assistants rely on their knowledge-base RAG).
+                    if (options?.assistantId || options?.groupId) {
                         options = { ...(options || {}), skipDocumentCache: true };
                     }
 
 
-                    if (!featureFlags.codeInterpreterEnabled) {
+                    // Do not let stale plugin settings re-enable/disable the interpreter.
+                    // The backend selects it only when deployment policy permits it.
+                    if (!deploymentAvailability.codeInterpreter) {
                         options = { ...(options || {}), skipCodeInterpreter: true };
-                    } else {
-                        if (pluginIds?.includes(PluginID.CODE_INTERPRETER)) {
-                            chatBody.codeInterpreterRecordId = updatedConversation.codeInterpreterRecordId;
-                            options = { ...(options || {}), skipRag: true, codeInterpreterOnly: true };
-                            statsService.codeInterpreterInUseEvent();
-                        }
+                        delete options.codeInterpreterOnly;
+                    } else if (options?.codeInterpreterOnly !== true) {
+                        options = { ...(options || {}), codeInterpreterOnly: false };
                     }
 
                     if (selectedConversation && selectedConversation.tags) {
@@ -647,13 +870,12 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                     }
 
                     if (options) {
-                        // Preserve enableWebSearch and mcpEnabled when applying options
-                        const enableWebSearchValue = chatBody.enableWebSearch;
                         const mcpEnabledValue = (chatBody as any).mcpEnabled;
-                        Object.assign(chatBody, options);
-                        if (enableWebSearchValue !== undefined) {
-                            chatBody.enableWebSearch = enableWebSearchValue;
+                        if (options.codeInterpreterOnly === true && !deploymentAvailability.codeInterpreter) {
+                            options = { ...options };
+                            delete options.codeInterpreterOnly;
                         }
+                        Object.assign(chatBody, options);
                         if (mcpEnabledValue !== undefined) {
                             (chatBody as any).mcpEnabled = mcpEnabledValue;
                         }
@@ -911,26 +1133,14 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                                 console.error(`❌ [STREAM] Error stack:`, error?.stack);
 
                                 if (selectedConversation.isLocal) {
-                                    const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                        (conversation: Conversation) => {
-                                            if (conversation.id === selectedConversation.id) {
-                                                return conversationWithCompressedMessages(updatedConversation);
-                                            }
-                                            return conversation;
-                                        },
-                                    );
-                                    if (updatedConversations.length === 0) {
-                                        updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                                    }
+                                    const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, conversationWithCompressedMessages(updatedConversation));
                                     homeDispatch({ field: 'conversations', value: updatedConversations });
                                     saveConversations(updatedConversations);
                                 } else {
                                     uploadConversation(updatedConversation, foldersRef.current);
                                     {
                                         const remoteEntry = remoteForConversationHistory(updatedConversation);
-                                        const updatedConversations: Conversation[] = conversationsRef.current.length === 0
-                                            ? [remoteEntry]
-                                            : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
+                                        const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, remoteEntry);
                                         homeDispatch({ field: 'conversations', value: updatedConversations });
                                         saveConversations(updatedConversations);
                                         saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
@@ -1090,18 +1300,15 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                                 conversationId,
                                 // Use the same tools from the original request (already includes MCP tools)
                                 tools: chatBody.tools,
+                                // Repeat the selected assistant/group and data sources, otherwise the
+                                // backend treats this as a default-assistant chat and drops the
+                                // assistant's instructions after the first tool call.
+                                ...getContinuationCarryOver(chatBody),
                                 mcpEnabled: true,
-                                enableWebSearch: isWebSearchOn,
                                 skipRag: true,
                                 skipCodeInterpreter: true
                             };
 
-                            if (isSmartMessagesOn || isArtifactsOn) {
-                                continuationChatBody.options = {
-                                    smartMessages: isSmartMessagesOn,
-                                    artifacts: isArtifactsOn
-                                };
-                            }
 
                             // Reset state for continuation
                             currentState = {};
@@ -1413,26 +1620,14 @@ User message: "${userMessageContent.slice(0, 500)}"`;
 
                                 // Save conversation
                                 if (selectedConversation.isLocal) {
-                                    const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                        (conversation: Conversation) => {
-                                            if (conversation.id === selectedConversation.id) {
-                                                return conversationWithCompressedMessages(updatedConversation);
-                                            }
-                                            return conversation;
-                                        },
-                                    );
-                                    if (updatedConversations.length === 0) {
-                                        updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                                    }
+                                    const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, conversationWithCompressedMessages(updatedConversation));
                                     homeDispatch({ field: 'conversations', value: updatedConversations });
                                     saveConversations(updatedConversations);
                                 } else {
                                     uploadConversation(updatedConversation, foldersRef.current);
                                     {
                                         const remoteEntry = remoteForConversationHistory(updatedConversation);
-                                        const updatedConversations: Conversation[] = conversationsRef.current.length === 0
-                                            ? [remoteEntry]
-                                            : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
+                                        const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, remoteEntry);
                                         homeDispatch({ field: 'conversations', value: updatedConversations });
                                         saveConversations(updatedConversations);
                                         saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
@@ -1578,26 +1773,14 @@ User message: "${userMessageContent.slice(0, 500)}"`;
                         }
 
                         if (selectedConversation.isLocal) {
-                            const updatedConversations: Conversation[] = conversationsRef.current.map(
-                                (conversation: Conversation) => {
-                                    if (conversation.id === selectedConversation.id) {
-                                        return conversationWithCompressedMessages(updatedConversation);
-                                    }
-                                    return conversation;
-                                },
-                            );
-                            if (updatedConversations.length === 0) {
-                                updatedConversations.push(conversationWithCompressedMessages(updatedConversation));
-                            }
+                            const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, conversationWithCompressedMessages(updatedConversation));
                             homeDispatch({ field: 'conversations', value: updatedConversations });
                             saveConversations(updatedConversations);
                         } else {
                             uploadConversation(updatedConversation, foldersRef.current);
                             {
                                 const remoteEntry = remoteForConversationHistory(updatedConversation);
-                                const updatedConversations: Conversation[] = conversationsRef.current.length === 0
-                                    ? [remoteEntry]
-                                    : conversationsRef.current.map(c => c.id === updatedConversation.id ? remoteEntry : c);
+                                const updatedConversations: Conversation[] = upsertConversationEntry(conversationsRef.current, remoteEntry);
                                 homeDispatch({ field: 'conversations', value: updatedConversations });
                                 saveConversations(updatedConversations);
                                 saveContextCache({ conversationId: updatedConversation.id, conversationName: updatedConversation.name, messages: messagesToCached(updatedConversation.messages ?? []), fetchedAt: Date.now() });
@@ -1616,8 +1799,10 @@ User message: "${userMessageContent.slice(0, 500)}"`;
 
                                     // console.log("User input: ", userInput);
 
-                                    // Fetch existing memories for fact extraction
-                                    const memoriesResponse = await doReadMemoryOp({});
+                                    // Reuse this turn's read; only go back to the backend if it failed.
+                                    const memoriesResponse = (memoryReadPromise
+                                        ? await memoryReadPromise.catch(() => null)
+                                        : null) ?? await doReadMemoryOp({});
                                     let existingMemories: Memory[] = [];
 
                                     try {

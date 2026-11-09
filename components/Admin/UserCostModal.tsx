@@ -1,4 +1,4 @@
-import { FC, useEffect, useState, useCallback, useContext } from "react";
+import { FC, useEffect, useState, useCallback, useContext, useRef } from "react";
 import { Modal } from "../ReusableComponents/Modal";
 import { ActiveTabs, Tabs } from "../ReusableComponents/ActiveTabs";
 import { getAllUserMtdCosts, getBillingGroupsCosts, getAllUserMtdCostsRecursive, AutoLoadProgress, getUserCostHistory, UserCostHistory, MonthlyHistoryData } from "@/services/mtdCostService";
@@ -9,7 +9,7 @@ import { InfoBox } from "../ReusableComponents/InfoBox";
 import React from "react";
 import Search from "../Search/Search";
 import { formatCurrency } from "@/utils/app/data";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 
 interface AccountData {
   accountInfo: string;
@@ -83,10 +83,14 @@ interface BillingGroupsResponse {
 interface Props {
   open: boolean;
   onClose: () => void;
+  /** When true, renders content inline without the full-screen Modal overlay.
+   *  Used by the new admin panel to embed this in the right-hand content pane.
+   *  Old UI consumers that pass open/onClose are unaffected. */
+  inline?: boolean;
 }
 
 
-export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
+export const UserCostsModal: FC<Props> = ({ open, onClose, inline = false }) => {
   const { state: {amplifyUsers, adminRateLimits}, dispatch: homeDispatch } = useContext(HomeContext);
   const [activeTab, setActiveTab] = useState(0);
   
@@ -110,7 +114,9 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
     batchNumber: 0,
     hasMore: false
   });
-  const [abortController, setAbortController] = useState<AbortController | null>(null);
+  // A ref, not state: the effect cleanup below must see the controller that is
+  // current when it runs, not the (null) value from the render the effect was created in.
+  const abortControllerRef = useRef<AbortController | null>(null);
   
   // History state
   const [userHistory, setUserHistory] = useState<Record<string, UserCostHistory>>({});
@@ -137,8 +143,10 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
 
   // Auto-load All Users MTD costs with progressive rendering
   const autoLoadAllUsers = useCallback(async () => {
+    // A newer load supersedes any run still paging.
+    abortControllerRef.current?.abort();
     const controller = new AbortController();
-    setAbortController(controller);
+    abortControllerRef.current = controller;
     setUserLoading(true);
     setUserError(null);
     setUserCosts([]);
@@ -183,7 +191,7 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       setAutoLoadState(prev => ({ ...prev, status: 'error' }));
     } finally {
       setUserLoading(false);
-      setAbortController(null);
+      if (abortControllerRef.current === controller) abortControllerRef.current = null;
     }
   }, []);
 
@@ -219,15 +227,13 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       fetchBillingGroupsCosts();
     }
     return () => {
-      if (abortController) {
-        abortController.abort();
-      }
+      abortControllerRef.current?.abort();
     };
   }, [open]);
 
   const handleStopLoading = () => {
-    if (abortController) {
-      abortController.abort();
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
       setAutoLoadState(prev => ({ ...prev, status: 'aborted', hasMore: false }));
     }
   };
@@ -2414,6 +2420,20 @@ export const UserCostsModal: FC<Props> = ({ open, onClose }) => {
       content: renderRateLimitsTab()
     }
   ];
+
+  // Inline mode — content sits inside the admin panel's right pane, no Modal overlay.
+  if (inline) {
+    return (
+      <div className="flex flex-col h-full">
+        <ActiveTabs
+          id="cost-management-tabs"
+          tabs={tabs}
+          initialActiveTab={activeTab}
+          onTabChange={(index) => setActiveTab(index)}
+        />
+      </div>
+    );
+  }
 
   return (
     <Modal

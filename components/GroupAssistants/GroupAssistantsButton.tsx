@@ -1,6 +1,6 @@
 import { FC, useContext } from 'react';
 import { IconUsers } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 export interface GroupAssistantsButtonProps {}
 

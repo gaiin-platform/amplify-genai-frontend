@@ -1,5 +1,5 @@
 import { InfoBox } from "@/components/ReusableComponents/InfoBox";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { useSession } from "next-auth/react";
 import { FC, ReactElement, useContext, useState } from "react";
 import { AmplifyGroupSelect } from "../AdminUI";

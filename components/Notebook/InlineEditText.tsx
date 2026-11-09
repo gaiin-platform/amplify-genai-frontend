@@ -61,8 +61,8 @@ export const InlineEditText = ({
             <div
                 onClick={start}
                 title="Click to edit"
-                className={`cursor-text rounded px-1 -mx-1 hover:bg-gray-100 dark:hover:bg-neutral-700/60 ${
-                    value ? '' : 'italic text-gray-400 dark:text-gray-500'
+                className={`cursor-text rounded px-1 -mx-1 hover:bg-[--bg-hover] ${
+                    value ? '' : 'italic text-[--text-muted]'
                 } ${className}`}
             >
                 {value || placeholder}
@@ -78,7 +78,7 @@ export const InlineEditText = ({
         onBlur: commit,
         onKeyDown: handleKeyDown,
         placeholder,
-        className: `w-full rounded border border-purple-300 bg-white px-1 -mx-1 outline-none focus:ring-1 focus:ring-purple-400 dark:border-purple-500/60 dark:bg-[#40414f] ${className}`,
+        className: `w-full rounded border border-[--accent]/40 bg-[--bg-composer] px-1 -mx-1 text-[--text-primary] outline-none focus:ring-1 focus:ring-[--accent] ${className}`,
     };
 
     return multiline ? (

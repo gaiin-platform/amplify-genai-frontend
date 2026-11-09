@@ -1,126 +1,29 @@
 import { FC, useContext, useState, useRef, useEffect } from 'react';
 import { IconRobot, IconSparkles, IconArrowUpRight, IconBolt, IconMailFast, IconApi, IconTemplate, IconWorld, IconFiles, IconBrandGoogleDrive, IconClock, IconEdit, IconEye } from '@tabler/icons-react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import { Prompt } from '@/types/prompt';
 import { handleStartConversationWithPrompt } from '@/utils/app/prompts';
-import { isAssistant, getAssistant } from '@/utils/app/assistants';
+import { isAssistant } from '@/utils/app/assistants';
+import { AssistantCapabilityKind, getAssistantCapabilities } from '@/utils/app/assistantCapabilities';
 import Search from '@/components/Search/Search';
 import { AssistantModal } from '@/components/Promptbar/components/AssistantModal';
 
-// Helper to check if data source is website/sitemap
-const isWebsiteDs = (document: any) => {
-    return document.type && ['website/url', 'website/sitemap'].includes(document.type);
+// Look of each capability badge; what counts as a capability lives in utils/app/assistantCapabilities.
+const BADGE_STYLE: Record<AssistantCapabilityKind, { icon?: any; color: string }> = {
+    agent: { color: 'bg-purple-100 text-purple-700 dark:bg-purple-600 dark:text-white' },
+    email: { icon: IconMailFast, color: 'bg-blue-100 text-blue-700 dark:bg-blue-600 dark:text-white' },
+    api: { icon: IconApi, color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white' },
+    scheduled: { icon: IconClock, color: 'bg-amber-100 text-amber-700 dark:bg-yellow-600 dark:text-white' },
+    website: { icon: IconWorld, color: 'bg-sky-100 text-sky-700 dark:bg-cyan-600 dark:text-white' },
+    drive: { icon: IconBrandGoogleDrive, color: 'bg-green-100 text-green-700 dark:bg-green-100 dark:text-gray-200' },
+    workflow: { color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-600 dark:text-white' },
+    files: { icon: IconFiles, color: 'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-white' },
 };
 
 // Generate gradient and badges based on assistant attributes
 const getAssistantStyle = (assistant: Prompt, index: number) => {
-    const definition = getAssistant(assistant);
-    const opsLanguageVersion = definition.data?.opsLanguageVersion || 'v1';
-    const hasWorkflow = !!definition.data?.baseWorkflowTemplateId;
-    const hasEmailEvents = !!definition.data?.emailEvents;
-    const hasApis = (definition.data?.operations && definition.data.operations.length > 0) ||
-                    (definition.data?.builtInOperations && definition.data.builtInOperations.length > 0);
-
-    // Separate regular data sources from website data sources
-    const regularDataSources = definition.dataSources ? definition.dataSources.filter(ds => !isWebsiteDs(ds)) : [];
-    const websiteDataSources = definition.dataSources ? definition.dataSources.filter(ds => isWebsiteDs(ds)) : [];
-    const hasRegularDataSources = regularDataSources.length > 0;
-    const hasWebsiteDataSources = websiteDataSources.length > 0;
-
-    const hasScheduledTasks = definition.data?.scheduledTaskIds && Object.keys(definition.data.scheduledTaskIds).length > 0;
-
-    // Calculate Drive folder and file counts
-    let driveFolderCount = 0;
-    let driveFileCount = 0;
-    if (definition.data?.integrationDriveData) {
-        Object.values(definition.data.integrationDriveData).forEach((providerData: any) => {
-            if (providerData?.folders) {
-                driveFolderCount += Object.keys(providerData.folders).length;
-            }
-            if (providerData?.files) {
-                driveFileCount += Object.keys(providerData.files).length;
-            }
-        });
-    }
-    const hasDriveData = driveFolderCount > 0 || driveFileCount > 0;
-
-    // Dynamic badges - using icons where it makes sense, text otherwise
-    const badges: Array<{ icon?: any; label?: string; color: string; tooltip: string }> = [];
-
-    if (opsLanguageVersion === 'v4') {
-        badges.push({
-            label: 'Agent',
-            color: 'bg-purple-100 text-purple-700 dark:bg-purple-600 dark:text-white',
-            tooltip: 'Agent Type Assistant'
-        });
-    }
-    if (hasEmailEvents) {
-        badges.push({
-            icon: IconMailFast,
-            color: 'bg-blue-100 text-blue-700 dark:bg-blue-600 dark:text-white',
-            tooltip: 'Email Enabled'
-        });
-    }
-    if (hasApis) {
-        badges.push({
-            icon: IconApi,
-            color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-600 dark:text-white',
-            tooltip: 'API Integration'
-        });
-    }
-    if (hasScheduledTasks) {
-        badges.push({
-            icon: IconClock,
-            color: 'bg-amber-100 text-amber-700 dark:bg-yellow-600 dark:text-white',
-            tooltip: 'Scheduled Tasks'
-        });
-    }
-    if (hasWebsiteDataSources) {
-        badges.push({
-            icon: IconWorld,
-            label: `${websiteDataSources.length}`,
-            color: 'bg-sky-100 text-sky-700 dark:bg-cyan-600 dark:text-white',
-            tooltip: `${websiteDataSources.length} Website/Sitemap`
-        });
-    }
-    if (hasDriveData) {
-        const driveLabel = driveFolderCount > 0 && driveFileCount > 0
-            ? `${driveFolderCount}/${driveFileCount}`
-            : driveFolderCount > 0
-                ? `${driveFolderCount}`
-                : `${driveFileCount}`;
-
-        const folderText = driveFolderCount === 1 ? 'Folder' : 'Folders';
-        const fileText = driveFileCount === 1 ? 'File' : 'Files';
-
-        const driveTooltip = driveFolderCount > 0 && driveFileCount > 0
-            ? `${driveFolderCount} ${folderText}, ${driveFileCount} ${fileText}`
-            : driveFolderCount > 0
-                ? `${driveFolderCount} ${folderText}`
-                : `${driveFileCount} ${fileText}`;
-
-        badges.push({
-            icon: IconBrandGoogleDrive,
-            label: driveLabel,
-            color: 'bg-green-100 text-green-700 dark:bg-green-100 dark:text-gray-200',
-            tooltip: driveTooltip
-        });
-    }
-    if (hasWorkflow) {
-        badges.push({
-            label: 'Workflow',
-            color: 'bg-indigo-100 text-indigo-700 dark:bg-indigo-600 dark:text-white',
-            tooltip: 'Workflow Template'
-        });
-    }
-    if (hasRegularDataSources) {
-        badges.push({
-            icon: IconFiles,
-            label: `${regularDataSources.length}`,
-            color: 'bg-gray-100 text-gray-700 dark:bg-gray-600 dark:text-white',
-            tooltip: `${regularDataSources.length} Files`
-        });
-    }
+    const badges: Array<{ icon?: any; label?: string; color: string; tooltip: string }> =
+        getAssistantCapabilities(assistant).map((c) => ({ ...BADGE_STYLE[c.kind], label: c.label, tooltip: c.tooltip }));
 
     // Better gradient backgrounds for dark mode
     const gradients = [

@@ -1,7 +1,8 @@
+import { DocumentRetentionCard } from "@/components/Admin/AdminComponents/DocumentRetentionCard";
 import { FC, useState, useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Amplify_Group, Amplify_Groups, AmplifyGroupSelect, EmailSupport, PromptCostAlert, titleLabel, UserAction } from "../AdminUI";
-import { AdminConfigTypes, FeatureFlagConfig } from "@/types/admin";
+import { AdminConfigTypes, DocumentRetention, FeatureFlagConfig } from "@/types/admin";
 import { IconPlus, IconTrash, IconX, IconCloudFilled, IconMessage, IconCheck, IconEdit, IconFileImport, IconUsers } from "@tabler/icons-react";
 import Checkbox from "@/components/ReusableComponents/CheckBox";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -66,6 +67,9 @@ interface Props {
     emailSupport: EmailSupport;
     setEmailSupport: (e :EmailSupport) => void;
 
+    documentRetention: DocumentRetention;
+    setDocumentRetention: (d: DocumentRetention) => void;
+
     aiEmailDomain: string;
     setAiEmailDomain?: (d: string) => void;
 
@@ -88,7 +92,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                               rateLimits, setRateLimits, honorPersonalRateLimit, setHonorPersonalRateLimit,
                                               promptCostAlert, setPromptCostAlert,
                                               defaultConversationStorage, setDefaultConversationStorage,
-                                              emailSupport, setEmailSupport, aiEmailDomain, setAiEmailDomain,
+                                              emailSupport, setEmailSupport, documentRetention, setDocumentRetention, aiEmailDomain, setAiEmailDomain,
                                               defaultTimezone, setDefaultTimezone,
                                               smartMessagesEnabled, setSmartMessagesEnabled, features, availableModels,
                                               admin_text, updateUnsavedConfigs, onModalStateChange}) => {
@@ -120,7 +124,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const [newModelRate, setNewModelRate] = useState<string>('$0.00');
 
     const availableModelOptions = useMemo(
-        () => Object.entries(availableModels)
+        () => Object.entries(availableModels || {})
             .filter(([modelId, model]) => model.isAvailable === true || modelId in (ampGroups[editingModelRateGroup || '']?.modelRateLimits || {}))
             .map(([modelId, model]) => ({ id: model.id || modelId, name: model.name || model.id || modelId }))
             .sort((a, b) => a.name.localeCompare(b.name)),
@@ -253,6 +257,11 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
     const handleUpdateEmailSupport = (updatedEmailSupport: EmailSupport) => {
         setEmailSupport(updatedEmailSupport);
         updateUnsavedConfigs(AdminConfigTypes.EMAIL_SUPPORT);
+    }
+
+    const handleUpdateDocumentRetention = (updated: DocumentRetention) => {
+        setDocumentRetention(updated);
+        updateUnsavedConfigs(AdminConfigTypes.DOCUMENT_RETENTION);
     }
 
     const handleUpdateAiEmailDomain = (updatedAiEmailDomain: string) => {
@@ -712,7 +721,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                             <div className="settings-theme-option-content">
                                 <div className="settings-theme-option-icon">
                                     {storage === 'future-cloud' ? 
-                                        <IconCloudFilled className='text-blue-100 dark:text-white'/> : 
+                                        <IconCloudFilled className='text-blue-500 dark:text-white'/> :
                                         <IconMessage className='text-gray-600 dark:text-white'/>
                                     }
                                 </div>
@@ -820,6 +829,8 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                 </div>
                 </div>
             </div>
+
+            <DocumentRetentionCard value={documentRetention} onChange={handleUpdateDocumentRetention} />
 
             <div className="admin-style-settings-card">
                 <div className="admin-style-settings-card-header">
@@ -1215,7 +1226,7 @@ export const ConfigurationsTab: FC<Props> = ({admins, setAdmins, ampGroups, setA
                                                                 <button
                                                                     type="button"
                                                                     id="editRateLimit"
-                                                                    className="text-neutral-400 hover:text-neutral-200 flex-shrink-0"
+                                                                    className="text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 flex-shrink-0"
                                                                     onClick={() => {
                                                                         const rl = group.rateLimit;
                                                                         let normalized: RateLimit[];

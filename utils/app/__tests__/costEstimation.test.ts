@@ -12,6 +12,7 @@ import {
     getAllDataSources,
     calculatePromptCost,
     calculatePromptCostDetailed,
+    tokensToInputCost,
     formatCost
 } from '../costEstimation';
 import { Message, DataSource, Conversation } from '@/types/chat';
@@ -21,8 +22,8 @@ import { Model } from '@/types/model';
 const mockModel: Model = {
     id: 'gpt-4',
     name: 'GPT-4',
-    inputTokenCost: 30, // $30 per 1M tokens
-    outputTokenCost: 60,
+    inputTokenCost: 0.03, // USD per 1K tokens (= $30 per 1M), as the backend stores it
+    outputTokenCost: 0.06,
     inputContextWindow: 128000,
     outputTokenLimit: 4096,
     provider: 'OpenAI',
@@ -354,6 +355,19 @@ describe('Cost Estimation Tests', () => {
 
             expect(result.breakdown.totalTokens).toBeGreaterThan(0);
             expect(result.cost).toBeGreaterThan(0);
+        });
+    });
+
+    describe('tokensToInputCost', () => {
+        it('treats inputTokenCost as USD per 1K tokens (matches backend billing)', () => {
+            // gpt-4o in the backend rate table: 0.0025 per 1K = $2.50 per 1M
+            expect(tokensToInputCost(1_000_000, { inputTokenCost: 0.0025 })).toBeCloseTo(2.5, 6);
+            expect(tokensToInputCost(1000, { inputTokenCost: 0.0025 })).toBeCloseTo(0.0025, 8);
+        });
+
+        it('is 0 when the model has no price', () => {
+            expect(tokensToInputCost(5000, { inputTokenCost: 0 })).toBe(0);
+            expect(tokensToInputCost(5000, {} as any)).toBe(0);
         });
     });
 

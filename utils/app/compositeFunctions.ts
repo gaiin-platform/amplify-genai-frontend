@@ -59,7 +59,7 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'readEmail',
         name: 'Read Email',
         description: 'Fetch your inbox and open a specific message.',
-        operations: ['microsoftListMessages', 'microsoftGetMessageDetails'],
+        operations: ['microsoftListFolders', 'microsoftListMessages', 'microsoftGetMessageDetails'],
         addons: [
           {
             id: 'includeAttachments',
@@ -72,13 +72,13 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'downloadAttachment',
         name: 'Download Attachment',
         description: 'Find a message, list its attachments, then download a specific one.',
-        operations: ['microsoftListMessages', 'microsoftGetMessageDetails', 'microsoftGetAttachments', 'microsoftDownloadAttachment'],
+        operations: ['microsoftListFolders', 'microsoftListMessages', 'microsoftGetMessageDetails', 'microsoftGetAttachments', 'microsoftDownloadAttachment'],
       },
       {
         id: 'searchEmails',
         name: 'Search Emails',
         description: 'Search for messages by keyword and open the matching one.',
-        operations: ['microsoftSearchMessages', 'microsoftGetMessageDetails'],
+        operations: ['microsoftListFolders', 'microsoftSearchMessages', 'microsoftGetMessageDetails'],
       },
       {
         id: 'draftEmail',
@@ -111,7 +111,7 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'replyToEmail',
         name: 'Reply to Email',
         description: 'Open a message for context, then reply to it.',
-        operations: ['microsoftGetMessageDetails', 'microsoftReplyToMessage'],
+        operations: ['microsoftSearchMessages', 'microsoftGetMessageDetails', 'microsoftReplyToMessage'],
         addons: [
           {
             id: 'replyAll',
@@ -130,7 +130,7 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'forwardEmail',
         name: 'Forward Email',
         description: 'Open a message and forward it to new recipients.',
-        operations: ['microsoftGetMessageDetails', 'microsoftForwardMessage'],
+        operations: ['microsoftSearchMessages', 'microsoftGetMessageDetails', 'microsoftForwardMessage'],
         addons: [
           {
             id: 'addAttachment',
@@ -143,7 +143,7 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'moveEmailToFolder',
         name: 'Move Email to Folder',
         description: 'Open a message, find the destination folder, then move it.',
-        operations: ['microsoftGetMessageDetails', 'microsoftListFolders', 'microsoftMoveMessage'],
+        operations: ['microsoftSearchMessages', 'microsoftGetMessageDetails', 'microsoftListFolders', 'microsoftMoveMessage'],
       },
       {
         id: 'archiveEmail',
@@ -155,13 +155,13 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'markEmail',
         name: 'Mark Email',
         description: 'Open a message and update its read/flag status.',
-        operations: ['microsoftGetMessageDetails', 'microsoftUpdateMessage'],
+        operations: ['microsoftSearchMessages', 'microsoftGetMessageDetails', 'microsoftUpdateMessage'],
       },
       {
         id: 'deleteEmail',
         name: 'Delete Email',
         description: 'Find a message, confirm it, then delete it.',
-        operations: ['microsoftListMessages', 'microsoftGetMessageDetails', 'microsoftDeleteMessage'],
+        operations: ['microsoftListFolders', 'microsoftListMessages', 'microsoftGetMessageDetails', 'microsoftDeleteMessage'],
         addons: [
           {
             id: 'deleteAttachmentOnly',
@@ -276,7 +276,7 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'viewEvent',
         name: 'View Event',
         description: "Fetch an event's full details.",
-        operations: ['microsoftGetEventDetails'],
+        operations: ['microsoftGetEventsBetweenDates', 'microsoftGetEventDetails'],
         addons: [
           {
             id: 'includeAttachments',
@@ -309,13 +309,13 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'rescheduleEvent',
         name: 'Reschedule Event',
         description: 'Retrieve event details and update the time.',
-        operations: ['microsoftGetEventDetails', 'microsoftUpdateEvent'],
+        operations: ['microsoftGetEventsBetweenDates', 'microsoftGetEventDetails', 'microsoftUpdateEvent'],
         addons: [
           {
             id: 'checkConflicts',
             label: 'Check conflicts first',
             operations: ['microsoftCheckEventConflicts'],
-            insertAt: 1,
+            insertAt: 2,
           },
         ],
       },
@@ -323,25 +323,25 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'updateRecurringEvent',
         name: 'Update Recurring Event',
         description: 'Retrieve the recurring event master record and update the series.',
-        operations: ['microsoftGetEventDetails', 'microsoftUpdateRecurringEvent'],
+        operations: ['microsoftGetEventsBetweenDates', 'microsoftGetEventDetails', 'microsoftUpdateRecurringEvent'],
       },
       {
         id: 'respondToInvite',
         name: 'Respond to Invite',
         description: 'View full event details, then accept, tentatively accept, or decline.',
-        operations: ['microsoftGetEventDetails', 'microsoftRespondToEvent'],
+        operations: ['microsoftGetEventsBetweenDates', 'microsoftGetEventDetails', 'microsoftRespondToEvent'],
       },
       {
         id: 'attachFileToEvent',
         name: 'Attach File to Event',
         description: 'Retrieve an existing event and attach a file to it.',
-        operations: ['microsoftGetEventDetails', 'microsoftCalendarAddAttachment'],
+        operations: ['microsoftGetEventsBetweenDates', 'microsoftGetEventDetails', 'microsoftCalendarAddAttachment'],
       },
       {
         id: 'cancelEvent',
         name: 'Cancel Event',
         description: 'Fetch event details, add a cancellation note, then delete it.',
-        operations: ['microsoftGetEventDetails', 'microsoftDeleteEvent'],
+        operations: ['microsoftGetEventsBetweenDates', 'microsoftGetEventDetails', 'microsoftDeleteEvent'],
       },
       {
         id: 'createCalendar',
@@ -359,7 +359,7 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'removeCalendarSharing',
         name: 'Remove Calendar Sharing',
         description: 'Check calendar permissions, then remove sharing for a user.',
-        operations: ['microsoftGetCalendarPermissions', 'microsoftRemoveCalendarSharing'],
+        operations: ['microsoftListCalendars', 'microsoftGetCalendarPermissions', 'microsoftRemoveCalendarSharing'],
       },
       {
         id: 'deleteCalendar',
@@ -450,7 +450,7 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'readSharedMailbox',
         name: 'Read Shared Mailbox',
         description: 'Browse a shared mailbox and open a specific message.',
-        operations: ['microsoftListSharedMailboxMessages', 'microsoftGetSharedMailboxMessage'],
+        operations: ['microsoftListSharedMailboxFolders', 'microsoftListSharedMailboxMessages', 'microsoftGetSharedMailboxMessage'],
         addons: [
           {
             id: 'includeAttachments',
@@ -463,7 +463,7 @@ export const COMPOSITE_FUNCTION_CATEGORIES: CompositeFunctionCategory[] = [
         id: 'downloadSharedMailboxAttachment',
         name: 'Download Attachment',
         description: 'Find a shared mailbox message, list its attachments, then download one.',
-        operations: ['microsoftListSharedMailboxMessages', 'microsoftGetSharedMailboxMessage', 'microsoftGetSharedMailboxAttachments', 'microsoftDownloadSharedMailboxAttachment'],
+        operations: ['microsoftListSharedMailboxFolders', 'microsoftListSharedMailboxMessages', 'microsoftGetSharedMailboxMessage', 'microsoftGetSharedMailboxAttachments', 'microsoftDownloadSharedMailboxAttachment'],
       },
       {
         id: 'searchSharedMailbox',

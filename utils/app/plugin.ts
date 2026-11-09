@@ -1,4 +1,5 @@
 import { Plugin, PluginID, PluginList } from "@/types/plugin";
+import { resolveEffectivePluginIds } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { Settings } from "@/types/settings";
 
 const getPluginDefaults = (settings: Settings, featureFlags: any) => {
@@ -17,9 +18,6 @@ const getPluginDefaults = (settings: Settings, featureFlags: any) => {
             break;
           case (PluginID.WEB_SEARCH):
             defaultVal = settings.featureOptions.includeWebSearch ?? false;
-            break;
-          case (PluginID.RAG): // Rag is off by default if cached documents is on
-            defaultVal = !(featureFlags?.cachedDocuments ?? false);
             break;
         }
       }
@@ -42,13 +40,33 @@ export const getActivePlugins = (settings: Settings, featureFlags: any, validPlu
         if (!savedSelections) savedSelections = defaults;
         // For plugins whose active state is driven by featureOptions (user settings),
         // always let the settings value win over stale localStorage
-        const settingsDrivenPlugins = [PluginID.ARTIFACTS, PluginID.MEMORY, PluginID.WEB_SEARCH]; //PluginID.SMART_MESSAGES, 
+        const settingsDrivenPlugins = [
+            PluginID.ARTIFACTS,
+            PluginID.MEMORY,
+            PluginID.WEB_SEARCH,
+          ];
         for (const id of settingsDrivenPlugins) {
             savedSelections[id] = defaults[id];
         }
-        // we always do this in case the valid plugins change
-        return validPlugins.filter((plugin: Plugin) =>
-                      savedSelections && Object.keys(savedSelections).includes(plugin.id) ?
-                                          savedSelections[plugin.id] : defaults[plugin.id]
+        // MCP has no user-facing toggle anymore, so a stale or missing localStorage
+        // entry must not decide it. The admin flag is the gate; which servers/tools
+        // actually go out is decided per-server (getEnabledMCPToolsForLLM).
+        savedSelections[PluginID.MCP] = featureFlags?.mcp === true;
+        // The old mode selector is removed. Ignore a stale browser selection so it
+        // cannot reactivate code interpreter after the server-owned routing change.
+        savedSelections[PluginID.CODE_INTERPRETER] = false;
+        if (enabledPlugins) {
+            localStorage.setItem('enabledPlugins', JSON.stringify(savedSelections));
+        }
+        // Remove old mode/tool selections from the active list. RAG, MCP, and
+        // skills are separate capabilities and remain independently selectable.
+        const activeIds = resolveEffectivePluginIds(
+            validPlugins.filter((plugin: Plugin) =>
+                savedSelections && Object.keys(savedSelections).includes(plugin.id)
+                    ? savedSelections[plugin.id]
+                    : defaults[plugin.id],
+            ).map((plugin) => plugin.id),
         );
+        const activeIdSet = new Set(activeIds);
+        return validPlugins.filter((plugin: Plugin) => activeIdSet.has(plugin.id));
 }

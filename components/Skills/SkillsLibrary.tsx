@@ -149,7 +149,15 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ chatEndpoint, onClose })
         try {
             const response = await deleteSkill(chatEndpoint, skill.id);
             if (response.success) {
-                await loadSkills();
+                // Immediately remove from local state rather than re-fetching.
+                // loadSkills() after a delete can return stale data (DynamoDB
+                // eventually-consistent reads) and, if the response arrives while
+                // the UI is briefly covered by another view (e.g. the New Skill
+                // editor), the deleted skill silently re-enters the skills array
+                // and appears to "repopulate" once that view closes — the phantom
+                // skill bug.  The delete API confirmed success, so we can trust
+                // the local filter as the source of truth.
+                setSkills((prev) => prev.filter((s) => s.id !== skill.id));
             } else {
                 alert(response.message || 'Failed to delete skill');
             }
@@ -164,7 +172,14 @@ export const SkillsLibrary: FC<SkillsLibraryProps> = ({ chatEndpoint, onClose })
         try {
             const response = await updateSkill(chatEndpoint, skill.id, { isEnabled: !skill.isEnabled });
             if (response.success) {
-                await loadSkills();
+                // Optimistic in-place toggle — same reasoning as handleDelete:
+                // loadSkills() can race with stale server data and cause phantom
+                // state; a direct state mutation on confirmed success is safer.
+                setSkills((prev) =>
+                    prev.map((s) =>
+                        s.id === skill.id ? { ...s, isEnabled: !s.isEnabled } : s,
+                    ),
+                );
             }
         } catch (err) {
             console.error('Failed to toggle skill:', err);

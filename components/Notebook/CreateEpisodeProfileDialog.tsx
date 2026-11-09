@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { LucideAlertCircle } from './LucideIcons';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import {
     EpisodeProfile,
     NotebookLanguage,
@@ -22,7 +22,7 @@ interface Props {
 }
 
 const inputClass =
-    'rounded border border-neutral-300 bg-white px-3 py-2 text-sm dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100';
+    'rounded border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm text-[--text-primary]';
 
 export const CreateEpisodeProfileDialog = ({
     speakerProfiles,
@@ -127,26 +127,17 @@ export const CreateEpisodeProfileDialog = ({
     );
 
     return (
-        <Modal
+        <CreationModalShell
             title={initial ? 'Edit Episode Profile' : 'Create Episode Profile'}
-            onCancel={onClose}
-            onSubmit={handleSubmit}
-            submitLabel={
-                submitting
-                    ? initial
-                        ? 'Saving…'
-                        : 'Creating…'
-                    : initial
-                      ? 'Save Changes'
-                      : 'Create'
-            }
-            disableSubmit={!canSubmit}
-            width={() => Math.min(680, window.innerWidth * 0.95)}
-            height={() => Math.min(640, window.innerHeight * 0.9)}
-            content={
-                <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
+            onClose={onClose}
+            onSave={handleSubmit}
+            saveLabel={initial ? 'Save Changes' : 'Create'}
+            isSaving={submitting}
+            saveDisabled={!canSubmit}
+        >
+                <div className="flex flex-col gap-4 p-2 text-[--text-primary]">
                     {speakerProfiles.length === 0 && (
-                        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-300">
+                        <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-active] p-3 text-sm text-[--text-secondary]">
                             <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                             <span>
                                 No speaker profiles available. Create a speaker profile first —
@@ -158,7 +149,7 @@ export const CreateEpisodeProfileDialog = ({
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium">
-                                Profile name <span className="text-red-500">*</span>
+                                Profile name <span className="text-[--text-error]">*</span>
                             </label>
                             <input
                                 type="text"
@@ -171,7 +162,7 @@ export const CreateEpisodeProfileDialog = ({
                         </div>
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium">
-                                Segments (3–20) <span className="text-red-500">*</span>
+                                Segments (3–20) <span className="text-[--text-error]">*</span>
                             </label>
                             <input
                                 type="number"
@@ -197,7 +188,7 @@ export const CreateEpisodeProfileDialog = ({
 
                     <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium">
-                            Speaker profile <span className="text-red-500">*</span>
+                            Speaker profile <span className="text-[--text-error]">*</span>
                         </label>
                         <select
                             value={speakerConfig}
@@ -219,13 +210,13 @@ export const CreateEpisodeProfileDialog = ({
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium">
-                                Outline model <span className="text-red-500">*</span>
+                                Outline model <span className="text-[--text-error]">*</span>
                             </label>
                             {modelSelect(outlineModel, setOutlineModel)}
                         </div>
                         <div className="flex flex-col gap-1">
                             <label className="text-sm font-medium">
-                                Transcript model <span className="text-red-500">*</span>
+                                Transcript model <span className="text-[--text-error]">*</span>
                             </label>
                             {modelSelect(transcriptModel, setTranscriptModel)}
                         </div>
@@ -250,7 +241,7 @@ export const CreateEpisodeProfileDialog = ({
 
                     <div className="flex flex-col gap-1">
                         <label className="text-sm font-medium">
-                            Default briefing <span className="text-red-500">*</span>
+                            Default briefing <span className="text-[--text-error]">*</span>
                         </label>
                         <textarea
                             rows={5}
@@ -261,10 +252,9 @@ export const CreateEpisodeProfileDialog = ({
                         />
                     </div>
 
-                    {error && <div className="text-sm text-red-600 dark:text-red-400">{error}</div>}
+                    {error && <div className="text-sm text-[--text-error]">{error}</div>}
                 </div>
-            }
-        />
+        </CreationModalShell>
     );
 };
 

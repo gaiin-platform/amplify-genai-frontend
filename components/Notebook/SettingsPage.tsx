@@ -14,13 +14,11 @@ import {
     getSettings,
     updateSettings as updateSettingsApi,
 } from '@/services/notebookService';
-import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { cardClass } from './notebookUI';
 
-// Shared classes mirroring the reference shadcn sizes.
-const cardClass =
-    'flex flex-col gap-6 rounded-xl border border-gray-200 bg-white py-6 shadow-sm dark:border-neutral-700 dark:bg-[#2b2c36]';
 const selectClass =
-    'w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 dark:border-neutral-600 dark:bg-[#40414f] dark:text-neutral-100';
+    'w-full rounded-md border border-[--border-subtle] bg-[--bg-composer] px-3 py-2 text-sm shadow-sm outline-none focus:border-[--accent] focus:ring-1 focus:ring-[--accent] text-[--text-primary]';
 
 interface SelectFieldProps<T extends string> {
     label: string;
@@ -68,7 +66,7 @@ function SelectField<T extends string>({
             <button
                 type="button"
                 onClick={() => onToggleHelp(helpId)}
-                className="flex items-center gap-2 text-sm text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100"
+                className="flex items-center gap-2 text-sm text-[--text-muted] transition-colors hover:text-[--text-primary]"
             >
                 <LucideChevronDown
                     size={16}
@@ -77,7 +75,7 @@ function SelectField<T extends string>({
                 Help me choose
             </button>
             {open && (
-                <div className="space-y-2 text-sm text-gray-500 dark:text-gray-400">
+                <div className="space-y-2 text-sm text-[--text-muted]">
                     <p>{helpText}</p>
                 </div>
             )}
@@ -163,38 +161,38 @@ export const SettingsPage = () => {
     };
 
     return (
-        <div className="max-w-4xl text-neutral-800 dark:text-neutral-100">
+        <div className="max-w-4xl text-[--text-primary]">
             <div className="mb-6 flex items-center gap-4">
-                <h1 className="text-2xl font-bold">Settings</h1>
+                <h1 className="text-[16px] font-semibold">Settings</h1>
                 <button
                     onClick={handleRefreshClick}
                     title="Refresh"
-                    className="inline-flex h-8 items-center justify-center rounded-md border border-gray-300 bg-white px-3 shadow-sm transition-colors hover:bg-gray-50 dark:border-neutral-600 dark:bg-transparent dark:hover:bg-neutral-700"
+                    className="inline-flex h-8 items-center justify-center rounded-md border border-[--border-subtle] bg-transparent px-3 shadow-sm transition-colors hover:bg-[--bg-hover]"
                 >
                     <LucideRefreshCw size={16} />
                 </button>
             </div>
 
-            {confirmRefresh && (
-                <ConfirmModal
-                    title="Discard unsaved changes?"
-                    message="Refreshing will reload settings from the server and discard your unsaved changes."
-                    confirmLabel="Discard and Refresh"
-                    denyLabel="Cancel"
-                    onConfirm={() => {
-                        setConfirmRefresh(false);
-                        load();
-                    }}
-                    onDeny={() => setConfirmRefresh(false)}
-                />
-            )}
+            <ConfirmDialog
+                isOpen={confirmRefresh}
+                title="Discard unsaved changes?"
+                message="Refreshing will reload settings from the server and discard your unsaved changes."
+                confirmLabel="Discard and Refresh"
+                cancelLabel="Cancel"
+                variant="warning"
+                onConfirm={() => {
+                    setConfirmRefresh(false);
+                    load();
+                }}
+                onCancel={() => setConfirmRefresh(false)}
+            />
 
             {loading ? (
                 <div className="flex items-center justify-center py-12">
-                    <LucideLoader2 size={32} className="animate-spin text-gray-400" />
+                    <LucideLoader2 size={32} className="animate-spin text-[--text-muted]" />
                 </div>
             ) : error && !settings ? (
-                <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-4 text-sm text-[--text-error]">
                     <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                     <div>
                         <div className="font-medium">Failed to load settings</div>
@@ -207,7 +205,7 @@ export const SettingsPage = () => {
                             <h2 className="text-lg font-semibold leading-none">
                                 Content Processing
                             </h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-[--text-muted]">
                                 Configure how documents and URLs are processed
                             </p>
                         </div>
@@ -258,7 +256,7 @@ export const SettingsPage = () => {
                             <h2 className="text-lg font-semibold leading-none">
                                 Embedding and Search
                             </h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-[--text-muted]">
                                 Configure search and embedding options
                             </p>
                         </div>
@@ -288,7 +286,7 @@ export const SettingsPage = () => {
                             <h2 className="text-lg font-semibold leading-none">
                                 File Management
                             </h2>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-[--text-muted]">
                                 Configure file handling and storage options
                             </p>
                         </div>
@@ -311,7 +309,7 @@ export const SettingsPage = () => {
                     </div>
 
                     {error && (
-                        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                        <div className="flex items-start gap-2 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                             <LucideAlertCircle size={16} className="mt-0.5 flex-none" />
                             <span>{error}</span>
                         </div>
@@ -321,7 +319,7 @@ export const SettingsPage = () => {
                         <button
                             onClick={handleSave}
                             disabled={!dirty || saving}
-                            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-purple-500 px-4 text-sm font-medium text-white shadow-sm transition-colors hover:bg-purple-600 disabled:pointer-events-none disabled:opacity-50"
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[--accent] px-4 text-sm font-medium text-[--accent-fg] shadow-sm transition-colors hover:opacity-90 disabled:pointer-events-none disabled:opacity-50"
                         >
                             {saving && <LucideLoader2 size={16} className="animate-spin" />}
                             {saving ? 'Saving...' : 'Save'}

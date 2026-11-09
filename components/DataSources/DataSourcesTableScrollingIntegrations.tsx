@@ -7,7 +7,7 @@ import {
     type MRT_ColumnDef, MRT_SortingState, MRT_ColumnFiltersState, MRT_Cell, MRT_TableInstance,
 } from 'mantine-react-table';
 import {MantineProvider, ScrollArea} from "@mantine/core";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import { downloadFileFromPresignedUrl } from '@/utils/app/files';
 import ActionButton from '../ReusableComponents/ActionButton';
 import { downloadIntegrationFile, listIntegrationFiles } from '@/services/oauthIntegrationsService';

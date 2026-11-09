@@ -16,19 +16,23 @@ export const getSettings = (featureFlags:any): Settings => {
   const settingsJson = localStorage.getItem(STORAGE_KEY);
   if (settingsJson) {
     try {
-      let savedSettings = JSON.parse(settingsJson) as Settings;
+      const savedSettings = JSON.parse(settingsJson) as Settings;
       const allowedFeatureOptions = settings.featureOptions;
+      const savedOptions = savedSettings.featureOptions && typeof savedSettings.featureOptions === 'object'
+        ? savedSettings.featureOptions
+        : {};
 
-      // Remove keys from savedSettings.featureOptions that are not in allowedFeatureOptions
-      for (const key in savedSettings.featureOptions) {
-        if (!allowedFeatureOptions.hasOwnProperty(key)) delete savedSettings.featureOptions[key];
+      // Keep only current user-controlled settings. Stale deployment-managed and
+      // permanently disabled options are intentionally discarded on read.
+      for (const key of Object.keys(savedOptions)) {
+        if (!Object.prototype.hasOwnProperty.call(allowedFeatureOptions, key)) delete savedOptions[key];
       }
-      // Add keys to savedSettings.featureOptions that are in allowedFeatureOptions but missing in savedSettings.featureOptions
-      for (const key in allowedFeatureOptions) {
-        if (!savedSettings.featureOptions.hasOwnProperty(key)) savedSettings.featureOptions[key] = allowedFeatureOptions[key];
+      for (const key of FORCED_OFF_FEATURE_OPTIONS) delete (savedOptions as Record<string, boolean>)[key];
+      for (const key of Object.keys(allowedFeatureOptions)) {
+        if (!Object.prototype.hasOwnProperty.call(savedOptions, key)) savedOptions[key] = allowedFeatureOptions[key];
       }
 
-      settings = Object.assign(settings, savedSettings);
+      settings = { ...settings, ...savedSettings, featureOptions: savedOptions };
     } catch (e) {
       console.error(e);
     }
@@ -47,65 +51,21 @@ export const saveSettings = (settings: Settings) => {
 };
 
 
-export const featureOptionFlags = [
-  {
-      "label": "Artifacts",
-      "key": "includeArtifacts",
-      "defaultValue": false, 
-      "description": "Artifacts allow the creation of viewable content, such as code project, documents, or papers. This feature supports the rendering of various formats, including SVG graphics, HTML, and React components."
-  },
-  {
-      "label": "Smart Focused Messages",
-      "key": "includeFocusedMessages",
-      "defaultValue": true, // should default to admin setting
-      "description" : "Automatically filter and send only the most relevant messages from the conversation based on the current user prompt. Instead of sending the entire conversation history, this feature ensures that only the messages closely related to your request are shared, making responses more efficient."
-  },
-  {
-    "label": "Plugin Selector",
-    "key": "includePluginSelector",
-    "defaultValue": true,
-    "description": "The Plugin Selector allows customization of the experience by enabling or disabling specific tools. For example, you can disable the retrieval-augmented generation (RAG) feature, enable Code Interpreter, or turn on and off enabled settings."
-  }, 
-  {
-    "label": "Prompt Highlighter",
-    "key": "includeHighlighter",
-    "defaultValue": false,
-    "description" : "Highlight text in assistant messages or artifact content for two key purposes: prompt against selected content or prompt for fast inline edits. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
-    // "description" : "Highlight text in assistant messages or artifact content for three key purposes: prompt against selected content, prompt for fast inline edits, or create and insert new compositions by combining multiple highlighted sections. \nThis feature streamlines the process of interacting with and revising text, making it easy to generate responses, modify content, or draft new sections based on your selections."
-  },
-  {
-    "label": "Memory",
-    "key": "includeMemory",
-    "defaultValue": false,
-    "description": "Enable long-term memory for users and assistants, storing key information from past conversations. This feature enhances contextual understanding, delivering more personalized and coherent responses over time. Users have full control, approving all memories before they're saved."
-  },
-  {
-    "label": "Web Search",
-    "key": "includeWebSearch",
-    "defaultValue": true,
-    "description": "Enable web search functionality in the plugin selector. Users can toggle web search on/off for their conversations. Configure your API key in Settings → Integrations → Web Search."
-  }
-];
+// Deployment-managed features and permanently disabled controls are not user
+// preferences. Stale persisted values are discarded by getSettings above.
+export const featureOptionFlags: Array<{
+  label: string;
+  key: string;
+  defaultValue: boolean;
+  description: string;
+}> = [];
 
+export const FORCED_OFF_FEATURE_OPTIONS = [
+  'includeFocusedMessages',
+  'includePluginSelector',
+] as const;
 
-const featureOptionDefaults = (featureFlags:any) =>  featureOptionFlags.reduce((acc:{[key:string]:boolean}, x) => {
-  if (x.key === 'includeArtifacts') {
-    if (featureFlags.artifacts) acc[x.key] = x.defaultValue;
-  } else if (x.key === 'includeFocusedMessages') {
-    if (featureFlags.smartMessages !== undefined) acc[x.key] = featureFlags.smartMessages;
-  } else if (x.key === 'includePluginSelector') {
-      if (featureFlags.pluginsOnInput) acc[x.key] = x.defaultValue;
-  } else if (x.key === "includeHighlighter") {
-    if (featureFlags.highlighter) acc[x.key] = x.defaultValue;
-  } else if (x.key === "includeMemory") {
-    if (featureFlags.memory) acc[x.key] = x.defaultValue;
-  } else if (x.key === "includeWebSearch") {
-    if (featureFlags.webSearch) acc[x.key] = x.defaultValue;
-  } else {
-      acc[x.key] = x.defaultValue;
-  }
-  return acc;
-}, {});
+const featureOptionDefaults = (_featureFlags: any): Record<string, boolean> => ({});
 
 
 

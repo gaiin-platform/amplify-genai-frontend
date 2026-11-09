@@ -1,7 +1,7 @@
 import React, { FC, useContext, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'next-i18next';
 import { IconPlus, IconEye, IconCopy, IconCheck, IconX, IconUser, IconEdit, IconArticle, IconRobot, IconLoader2, IconExclamationCircle, IconCaretDown, IconCaretRight, IconSearch } from "@tabler/icons-react";
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 import ExpansionComponent from '../../Chat/ExpansionComponent';
 import { EmailsAutoComplete } from '@/components/Emails/EmailsAutoComplete';
 import { Account, noCoaAccount } from '@/types/accounts';
@@ -37,6 +37,7 @@ interface Props {
     defaultAccount: Account;
     open: boolean;
     onClose: () => void;
+    requestRotateConfirmation?: () => Promise<boolean>;
 }
 
 
@@ -62,7 +63,7 @@ const formatAccessType = (accessType: string) => {
     return String(accessType).replace(/_/g, ' ').replace(/\b\w/g, char => char.toUpperCase())                                                          
 }
 
-export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount, open, onClose}) => {
+export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount, open, onClose, requestRotateConfirmation}) => {
     const { state: { statsService, amplifyUsers}, dispatch: homeDispatch } = useContext(HomeContext);
 
     const { data: session } = useSession();
@@ -518,7 +519,22 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                 {/* API Key Management */}
                 <div className="accounts-info-content">
                     <p className="accounts-info-description">
-                        API keys are used to authenticate and authorize access to specific Amplify services. You can create API keys for yourself and others.
+                        Add a COA (billing Account) on the{' '}
+                        <a
+                            href="#settings-account"
+                            className="font-medium underline"
+                            onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                window.dispatchEvent(new CustomEvent('openNewUISettingsSection', { detail: { section: 'account' } }));
+                            }}
+                        >
+                            Account page in Settings
+                        </a>{' '}
+                        first. Every API key must be linked to an Account, and an Account is required to create or use an API key.
+                    </p>
+                    <p className="accounts-info-description mt-1">
+                        API keys authenticate and authorize access to specific Amplify services. When you create a key, it is linked to the Account you select.
                     </p>
                     <p className="accounts-info-description mt-1">
                         <strong>Important:</strong> API keys are shown only once upon creation. Make sure to copy and store your API key securely as you will not be able to view it again. If you lose your API key, you can <strong>rotate</strong> it to generate a new key while preserving all associated data and settings.
@@ -941,11 +957,12 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                                     </div>
                                                     
                                                     {!apiKey.delegate && apiKey.active && !apiKey.purpose && (
-                                                    <RotateApiKey id={apiKey.api_owner_id} 
+                                                    <RotateApiKey id={apiKey.api_owner_id}
+                                                        requestConfirmation={requestRotateConfirmation}
                                                         onRotate={(rotatedKeyId: string) => {
                                                                 // Update owner keys
-                                                                setOwnerApiKeys(prev => prev ? prev.map(key => 
-                                                                    key.api_owner_id === rotatedKeyId 
+                                                                setOwnerApiKeys(prev => prev ? prev.map(key =>
+                                                                    key.api_owner_id === rotatedKeyId
                                                                         ? { ...key, needs_rotation: false }
                                                                         : key
                                                                 ) : []);}
@@ -1110,7 +1127,8 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
                                 </div>
                                 
                                 {apiKey.active && (
-                                    <RotateApiKey id={apiKey.api_owner_id} 
+                                    <RotateApiKey id={apiKey.api_owner_id}
+                                                  requestConfirmation={requestRotateConfirmation}
                                                   onRotate={(rotatedKeyId: string) => {
                                                     // Update delegate keys
                                                     setDelegateApiKeys(prev => prev ? prev.map(key => 
@@ -1215,17 +1233,19 @@ export const NewApiKey: FC<NewApiKeyProps> = ({ newApiKey, onClose }) => {
 interface RotateApiKeyProps {
     id: string;
     onRotate?: (id: string) => void;
+    requestConfirmation?: () => Promise<boolean>;
 }
 
-export const RotateApiKey: FC<RotateApiKeyProps> = ({ id, onRotate }) => {
+export const RotateApiKey: FC<RotateApiKeyProps> = ({ id, onRotate, requestConfirmation }) => {
     const { state: { statsService } } = useContext(HomeContext);
     const [isRotating, setIsRotating] = useState(false);
     const [newApiKey, setNewApiKey] = useState<string | null>(null);
 
     const handleRotateKey = async () => {
-        if (!confirm("Are you sure you want to rotate this API key? This will generate a new key and invalidate the current one.")) {
-            return;
-        }
+        const confirmed = requestConfirmation
+            ? await requestConfirmation()
+            : confirm("Are you sure you want to rotate this API key? This will generate a new key and invalidate the current one.");
+        if (!confirmed) return;
 
         setIsRotating(true);
         const result = await rotateApiKey(id);
@@ -1260,12 +1280,12 @@ export const RotateApiKey: FC<RotateApiKeyProps> = ({ id, onRotate }) => {
                             Replace with a new key if compromised or lost
                         </span>
                     </div>
-                    
+
                     <div className="flex items-center">
                         {isRotating ? (
                             <div className="flex items-center space-x-2 px-4 py-2 bg-blue-100/20 dark:bg-blue-900/20 rounded-lg border border-blue-600 dark:border-blue-500">
-                                <LoadingIcon className="w-4 h-4" />
-                                <span className="text-sm text-blue-500 dark:text-blue-300 font-medium">
+                                <IconLoader2 className="w-4 h-4 motion-safe:animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                                <span className="text-sm text-blue-500 dark:text-blue-300 font-medium" role="status" aria-live="polite">
                                     Generating new key...
                                 </span>
                             </div>

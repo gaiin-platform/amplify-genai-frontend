@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Modal } from '@/components/ReusableComponents/Modal';
+import { CreationModalShell } from '@/components/NewUI/shared/CreationModalShell';
 import {
     createNote,
     getNote,
@@ -72,29 +72,28 @@ export const NoteEditorDialog = ({ notebookId, note, onClose, onSaved }: Props) 
     };
 
     return (
-        <Modal
+        <CreationModalShell
             title={isEdit ? 'Edit Note' : 'New Note'}
-            onCancel={onClose}
-            onSubmit={handleSubmit}
-            submitLabel={submitting ? 'Saving…' : isEdit ? 'Save' : 'Create'}
-            disableSubmit={!canSubmit}
-            width={() => Math.min(820, window.innerWidth * 0.9)}
-            height={() => Math.min(680, window.innerHeight * 0.9)}
-            content={
-                <div className="flex flex-col gap-4 p-2 text-neutral-800 dark:text-neutral-100">
+            onClose={onClose}
+            onSave={handleSubmit}
+            saveLabel={isEdit ? 'Save' : 'Create'}
+            isSaving={submitting}
+            saveDisabled={!canSubmit}
+        >
+                <div className="flex flex-col gap-4 p-2 text-[--text-primary]">
                     <InlineEditText
                         value={title}
                         placeholder="Untitled Note"
-                        className="text-xl font-semibold"
+                        className="text-[16px] font-semibold"
                         onSave={setTitle}
                     />
 
                     <div className="flex flex-col gap-1 flex-1">
                         <label htmlFor="note-content" className="text-sm font-medium">
-                            Content <span className="text-red-500">*</span>
+                            Content <span className="text-[--text-error]">*</span>
                         </label>
                         {loadingFull ? (
-                            <div className="flex h-[380px] items-center justify-center rounded border border-neutral-300 text-sm text-gray-500 dark:border-neutral-600 dark:text-gray-400">
+                            <div className="flex h-[380px] items-center justify-center rounded border border-[--border-subtle] text-sm text-[--text-muted]">
                                 Loading…
                             </div>
                         ) : (
@@ -109,11 +108,10 @@ export const NoteEditorDialog = ({ notebookId, note, onClose, onSaved }: Props) 
                     </div>
 
                     {error && (
-                        <div className="text-sm text-red-600 dark:text-red-400">{error}</div>
+                        <div className="text-sm text-[--text-error]">{error}</div>
                     )}
                 </div>
-            }
-        />
+        </CreationModalShell>
     );
 };
 

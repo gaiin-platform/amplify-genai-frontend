@@ -12,7 +12,7 @@ import {
     MRT_ToggleDensePaddingButton,
 } from 'mantine-react-table';
 import {MantineProvider, ScrollArea} from "@mantine/core";
-import HomeContext from "@/pages/api/home/home.context";
+import HomeContext from "@/components/Home/home.context";
 import {FileQuery, FileRecord, PageKey, queryUserFiles, setTags} from "@/services/fileService";
 import {TagsList} from "@/components/Chat/TagsList";
 import {DataSource} from "@/types/chat";

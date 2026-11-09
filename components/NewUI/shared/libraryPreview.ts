@@ -1,0 +1,174 @@
+import { getFileDownloadUrl } from '@/services/fileService';
+import { imageResponseToObjectUrlWithBytes } from './attachmentTypes';
+
+export type LibraryPreviewKind = 'image' | 'text' | 'pdf';
+
+export type LibraryPreviewResult =
+  | {
+      kind: 'image' | 'pdf';
+      objectUrl: string;
+      bytes: number;
+    }
+  | {
+      kind: 'text';
+      fullText: string;
+      bodyPreview: string;
+      lineCount: number;
+      bytes: number;
+    };
+
+export type PreviewRequest = {
+  key: string;
+  kind: LibraryPreviewKind;
+  mime?: string;
+  groupId?: string;
+};
+
+const inFlight = new Map<string, Promise<LibraryPreviewResult>>();
+const completed = new Map<string, LibraryPreviewResult>();
+let cacheGeneration = 0;
+
+function cacheKey({ key, kind, mime, groupId }: PreviewRequest): string {
+  return `${kind}:${mime || ''}:${groupId || ''}:${key}`;
+}
+
+/**
+ * The PDF bytes behind a download response. The store sometimes returns the
+ * file as base64 text (optionally JSON-wrapped, optionally a data URL) rather
+ * than raw bytes, so decode that shape first and fall back to the raw payload.
+ */
+async function readPdfBytes(content: Response): Promise<Uint8Array> {
+  const payload = typeof content.arrayBuffer === 'function'
+    ? await content.arrayBuffer()
+    : new TextEncoder().encode(await content.text()).buffer;
+  const contentType = content.headers?.get?.('content-type') || '';
+  const rawText = new TextDecoder().decode(payload).trim();
+  let candidate = rawText;
+  if (contentType.includes('json')) {
+    try {
+      const parsed = JSON.parse(rawText);
+      candidate = typeof parsed === 'string' ? parsed : parsed?.data ?? parsed?.body ?? rawText;
+    } catch {
+      // Fall back to the raw bytes.
+    }
+  }
+  const base64 = candidate.includes(',') ? candidate.slice(candidate.indexOf(',') + 1) : candidate;
+  if (base64 && /^[A-Za-z0-9+/]*={0,2}$/.test(base64.replace(/\s/g, ''))) {
+    try {
+      const decoded = window.atob(base64.replace(/\s/g, '').padEnd(Math.ceil(base64.length / 4) * 4, '='));
+      return Uint8Array.from(decoded, (char) => char.charCodeAt(0));
+    } catch {
+      // Fall back to the raw bytes.
+    }
+  }
+  return new Uint8Array(payload);
+}
+
+async function fetchPreview({ key, kind, mime, groupId }: PreviewRequest): Promise<LibraryPreviewResult> {
+  const response = await getFileDownloadUrl(key, groupId);
+  if (!response.success || !response.downloadUrl) {
+    throw new Error('Preview URL unavailable');
+  }
+
+  const content = await fetch(response.downloadUrl);
+  if (!content.ok) throw new Error(`Preview request failed: ${content.status}`);
+
+  if (kind === 'image') {
+    const { objectUrl, bytes } = await imageResponseToObjectUrlWithBytes(content);
+    return { kind, objectUrl, bytes };
+  }
+
+  if (kind === 'pdf') {
+    const bytes = await readPdfBytes(content);
+    return {
+      kind,
+      objectUrl: URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' })),
+      bytes: bytes.byteLength,
+    };
+  }
+
+  const fullText = await content.text();
+  return {
+    kind,
+    fullText,
+    bodyPreview: fullText.slice(0, 400),
+    lineCount: fullText ? fullText.split('\n').length : 0,
+    bytes: new TextEncoder().encode(fullText).byteLength,
+  };
+}
+
+/**
+ * Load a library preview on demand. Concurrent callers for the same stable key
+ * share both the signed-URL request and the content fetch.
+ */
+export function loadLibraryPreview(request: PreviewRequest): Promise<LibraryPreviewResult> {
+  const normalized = { ...request, key: request.key.replace(/^s3:\/\//, '') };
+  const key = cacheKey(normalized);
+  const cached = completed.get(key);
+  if (cached) return Promise.resolve(cached);
+
+  const pending = inFlight.get(key);
+  if (pending) return pending;
+
+  const generation = cacheGeneration;
+  const requestPromise = fetchPreview(normalized)
+    .then((result) => {
+      if (generation === cacheGeneration) completed.set(key, result);
+      return result;
+    })
+    .finally(() => {
+      inFlight.delete(key);
+    });
+  inFlight.set(key, requestPromise);
+  return requestPromise;
+}
+
+/** Release a completed preview and its object URL, if it owns one. */
+export function releaseLibraryPreview(request: PreviewRequest): void {
+  const key = cacheKey({ ...request, key: request.key.replace(/^s3:\/\//, '') });
+  const result = completed.get(key);
+  if (result && (result.kind === 'image' || result.kind === 'pdf')) URL.revokeObjectURL(result.objectUrl);
+  completed.delete(key);
+}
+
+/** Clear all completed previews owned by a Library view instance. */
+export function releaseAllLibraryPreviews(): void {
+  completed.forEach((result) => {
+    if (result.kind === 'image' || result.kind === 'pdf') URL.revokeObjectURL(result.objectUrl);
+  });
+  completed.clear();
+}
+
+/** Fetch an uncached PDF preview for a chat-owned object URL. */
+export async function fetchLibraryPdfPreview(
+  request: Omit<PreviewRequest, 'kind'>,
+): Promise<{ objectUrl: string; bytes: number }> {
+  const normalized = { ...request, key: request.key.replace(/^s3:\/\//, '') };
+  const result = await fetchPreview({ ...normalized, kind: 'pdf' });
+  if (result.kind !== 'pdf') throw new Error('Unexpected preview kind');
+  return result;
+}
+
+/**
+ * Fetch just the bytes of a library PDF (no object URL to own or revoke) —
+ * for rendering a thumbnail with pdf.js rather than handing it to a viewer.
+ */
+export async function fetchLibraryPdfBytes(
+  request: Omit<PreviewRequest, 'kind'>,
+): Promise<Uint8Array> {
+  const key = request.key.replace(/^s3:\/\//, '');
+  const response = await getFileDownloadUrl(key, request.groupId);
+  if (!response.success || !response.downloadUrl) {
+    throw new Error('Preview URL unavailable');
+  }
+  const content = await fetch(response.downloadUrl);
+  if (!content.ok) throw new Error(`Preview request failed: ${content.status}`);
+  return readPdfBytes(content);
+}
+
+/** Test-only reset; does not cancel requests already in progress. */
+export function resetLibraryPreviewCache(): void {
+  releaseAllLibraryPreviews();
+  cacheGeneration += 1;
+  inFlight.clear();
+}

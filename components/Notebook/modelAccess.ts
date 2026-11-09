@@ -1,5 +1,5 @@
 import { useContext } from 'react';
-import HomeContext from '@/pages/api/home/home.context';
+import HomeContext from '@/components/Home/home.context';
 
 // Admin-managed feature flag controlling whether a user may pick a chat model
 // in the notebook (chat panels + the Ask tab) instead of just running on the

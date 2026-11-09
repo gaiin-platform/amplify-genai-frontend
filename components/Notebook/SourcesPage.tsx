@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
+    LucideAlertTriangle,
     LucideAlignLeft,
-    LucideArrowDown,
-    LucideArrowUp,
-    LucideArrowUpDown,
     LucideFileText,
     LucideLink,
     LucideLoader2,
@@ -16,8 +14,16 @@ import {
     SourceListItem,
     SourceSortField,
 } from '@/services/notebookService';
-import { ConfirmModal } from '@/components/ReusableComponents/ConfirmModal';
+import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
+import { SortableHeader } from '@/components/NewUI/shared/SortableHeader';
 import { formatDistanceToNow } from './relativeTime';
+import { secondaryBadgeClass } from './notebookUI';
+import {
+    getSourceActivity,
+    getSourceFailureCode,
+    getSourceFailureMessage,
+    isSourceInFlight,
+} from './sourceStatus';
 
 const PAGE_SIZE = 30;
 
@@ -119,6 +125,33 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
         el.addEventListener('scroll', onScroll);
         return () => el.removeEventListener('scroll', onScroll);
     }, [fetchPage]);
+
+    // While any source is still being processed, quietly re-fetch the loaded
+    // window and merge updated rows in by id. Without this the table never
+    // reflects a source finishing or *failing* (e.g. a site that blocks automated
+    // access) and sits on "Processing..." until the user reloads. Merging by id
+    // (rather than replacing the list) keeps pagination offsets and scroll intact.
+    const hasInFlightSources = sources.some(isSourceInFlight);
+    useEffect(() => {
+        if (!hasInFlightSources) return;
+        const interval = setInterval(async () => {
+            if (document.visibilityState !== 'visible') return;
+            try {
+                const fresh = await listSources({
+                    // The API caps a page at 100.
+                    limit: Math.min(Math.max(offsetRef.current, PAGE_SIZE), 100),
+                    offset: 0,
+                    sortBy,
+                    sortOrder,
+                });
+                const byId = new Map(fresh.map((s) => [s.id, s]));
+                setSources((prev) => prev.map((s) => byId.get(s.id) ?? s));
+            } catch {
+                // Transient; the next tick retries.
+            }
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [hasInFlightSources, sortBy, sortOrder]);
 
     const scrollToSelectedRow = (index: number) => {
         const container = scrollRef.current;
@@ -240,33 +273,21 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
         setPendingDelete(null);
     };
 
-    const sortHeader = (field: SortBy, label: string, align: 'left' | 'center' = 'left') => {
-        const active = sortBy === field;
-        const SortIcon = active
-            ? sortOrder === 'asc'
-                ? LucideArrowUp
-                : LucideArrowDown
-            : LucideArrowUpDown;
-        return (
-            <button
-                onClick={() => toggleSort(field)}
-                className={`inline-flex h-8 items-center rounded-md px-2 text-sm font-medium transition-colors hover:bg-gray-100 dark:hover:bg-neutral-700 ${
-                    align === 'center' ? 'mx-auto' : ''
-                }`}
-            >
-                {label}
-                <SortIcon
-                    size={12}
-                    className={`ml-2 ${active ? 'opacity-100' : 'opacity-30'}`}
-                />
-            </button>
-        );
-    };
+    const sortHeader = (field: SortBy, label: string, align: 'left' | 'center' = 'left') => (
+        <SortableHeader
+            label={label}
+            sortKey={field}
+            activeKey={sortBy}
+            direction={sortOrder}
+            onSort={toggleSort}
+            className={align === 'center' ? 'mx-auto' : ''}
+        />
+    );
 
     if (loading && sources.length === 0) {
         return (
             <div className="flex h-full items-center justify-center">
-                <LucideLoader2 size={24} className="animate-spin text-gray-400" />
+                <LucideLoader2 size={24} className="animate-spin text-[--text-muted]" />
             </div>
         );
     }
@@ -274,7 +295,7 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
     if (error && sources.length === 0) {
         return (
             <div className="flex h-full items-center justify-center">
-                <p className="text-red-500">{error}</p>
+                <p className="text-[--text-error]">{error}</p>
             </div>
         );
     }
@@ -284,12 +305,12 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
             <div className="py-12 text-center">
                 <LucideFileText
                     size={48}
-                    className="mx-auto mb-4 text-gray-400/60 dark:text-gray-500/60"
+                    className="mx-auto mb-4 text-[--text-muted] opacity-60"
                 />
-                <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-gray-100">
+                <h3 className="mb-2 text-lg font-medium text-[--text-primary]">
                     No sources yet
                 </h3>
-                <p className="text-gray-500 dark:text-gray-400">
+                <p className="text-[--text-muted]">
                     View all your sources here.
                 </p>
             </div>
@@ -300,7 +321,7 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
         <div className="flex h-full flex-col">
             <div
                 ref={scrollRef}
-                className="flex-1 overflow-auto rounded-md border border-gray-200 bg-white dark:border-neutral-700 dark:bg-[#2b2c36]"
+                className="flex-1 overflow-auto rounded-md border border-[--border-subtle] bg-[--bg-raised]"
             >
                 <table className="w-full min-w-[920px] table-fixed outline-none" tabIndex={0}>
                     <colgroup>
@@ -312,27 +333,27 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
                         <col className="w-[100px]" />
                         <col className="w-[100px]" />
                     </colgroup>
-                    <thead className="sticky top-0 z-10 bg-white dark:bg-[#2b2c36]">
-                        <tr className="border-b border-gray-200 bg-gray-50/50 dark:border-neutral-700 dark:bg-neutral-800/50">
-                            <th className="h-12 px-4 text-left align-middle font-medium text-gray-500 dark:text-gray-400">
+                    <thead className="sticky top-0 z-10 bg-[--bg-raised]">
+                        <tr className="border-b border-[--border-subtle] bg-[--bg-sidebar]/50">
+                            <th className="h-12 px-4 text-left align-middle font-medium text-[--text-muted]">
                                 {sortHeader('type', 'Type')}
                             </th>
-                            <th className="h-12 px-4 text-left align-middle font-medium text-gray-500 dark:text-gray-400">
+                            <th className="h-12 px-4 text-left align-middle font-medium text-[--text-muted]">
                                 {sortHeader('title', 'Title')}
                             </th>
-                            <th className="hidden h-12 px-4 text-left align-middle font-medium text-gray-500 dark:text-gray-400 sm:table-cell">
+                            <th className="hidden h-12 px-4 text-left align-middle font-medium text-[--text-muted] sm:table-cell">
                                 {sortHeader('created', 'Created')}
                             </th>
-                            <th className="hidden h-12 px-4 text-left align-middle font-medium text-gray-500 dark:text-gray-400 sm:table-cell">
+                            <th className="hidden h-12 px-4 text-left align-middle font-medium text-[--text-muted] sm:table-cell">
                                 {sortHeader('updated', 'Updated')}
                             </th>
-                            <th className="hidden h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400 md:table-cell">
+                            <th className="hidden h-12 px-4 text-center align-middle font-medium text-[--text-muted] md:table-cell">
                                 {sortHeader('insights_count', 'Insights', 'center')}
                             </th>
-                            <th className="hidden h-12 px-4 text-center align-middle font-medium text-gray-500 dark:text-gray-400 lg:table-cell">
+                            <th className="hidden h-12 px-4 text-center align-middle font-medium text-[--text-muted] lg:table-cell">
                                 {sortHeader('embedded', 'Embedded', 'center')}
                             </th>
-                            <th className="h-12 px-4 text-right align-middle text-sm font-medium text-gray-500 dark:text-gray-400">
+                            <th className="h-12 px-4 text-right align-middle text-sm font-medium text-[--text-muted]">
                                 Actions
                             </th>
                         </tr>
@@ -341,23 +362,28 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
                         {sources.map((s, index) => {
                             const kind = sourceKind(s);
                             const isOpening = openingId === s.id;
+                            const activity = getSourceActivity(s);
+                            const failureMessage =
+                                activity === 'failed'
+                                    ? getSourceFailureMessage(getSourceFailureCode(s))
+                                    : '';
                             return (
                                 <tr
                                     key={s.id}
                                     onClick={() => handleRowClick(s)}
                                     onMouseEnter={() => setSelectedIndex(index)}
-                                    className={`border-b border-gray-200 transition-colors dark:border-neutral-700 ${
+                                    className={`border-b border-[--border-subtle] transition-colors ${
                                         onOpenSource ? 'cursor-pointer' : ''
                                     } ${
                                         selectedIndex === index
-                                            ? 'bg-gray-100 dark:bg-neutral-700/60'
-                                            : 'hover:bg-gray-50 dark:hover:bg-neutral-700/30'
+                                            ? 'bg-[--bg-active]'
+                                            : 'hover:bg-[--bg-hover]'
                                     } ${isOpening ? 'opacity-60' : ''}`}
                                 >
                                     <td className="h-12 px-4">
                                         <div className="flex items-center gap-2">
                                             <KindIcon kind={kind} />
-                                            <span className="inline-flex items-center rounded-md border border-transparent bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-800 dark:bg-neutral-700 dark:text-gray-200">
+                                            <span className={secondaryBadgeClass}>
                                                 {KIND_LABELS[kind]}
                                             </span>
                                         </div>
@@ -365,27 +391,58 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
                                     <td className="h-12 px-4">
                                         <div className="flex items-center gap-2 overflow-hidden">
                                             <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
-                                                <span className="truncate font-medium">
-                                                    {s.title || 'Untitled Source'}
-                                                </span>
+                                                <div className="flex min-w-0 items-center gap-2">
+                                                    <span className="truncate font-medium">
+                                                        {/* "Processing..." is the backend's placeholder
+                                                            title; once failed it will never be replaced. */}
+                                                        {activity === 'failed' && s.title === 'Processing...'
+                                                            ? 'Untitled Source'
+                                                            : s.title || 'Untitled Source'}
+                                                    </span>
+                                                    {activity === 'processing' && (
+                                                        <span
+                                                            className={`flex-none gap-1 ${secondaryBadgeClass}`}
+                                                        >
+                                                            <LucideLoader2
+                                                                size={12}
+                                                                className="animate-spin"
+                                                            />
+                                                            Processing
+                                                        </span>
+                                                    )}
+                                                    {activity === 'failed' && (
+                                                        <span className="inline-flex flex-none items-center gap-1 rounded-md bg-[--bg-active] px-2 py-0.5 text-xs font-medium text-[--text-error]">
+                                                            <LucideAlertTriangle size={12} />
+                                                            Failed
+                                                        </span>
+                                                    )}
+                                                </div>
                                                 {s.asset?.url && (
-                                                    <span className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                                    <span className="truncate text-xs text-[--text-muted]">
                                                         {s.asset.url}
+                                                    </span>
+                                                )}
+                                                {activity === 'failed' && (
+                                                    <span
+                                                        className="truncate text-xs text-[--text-error]"
+                                                        title={failureMessage}
+                                                    >
+                                                        {failureMessage}
                                                     </span>
                                                 )}
                                             </div>
                                             {isOpening && (
                                                 <LucideLoader2
                                                     size={16}
-                                                    className="flex-none animate-spin text-gray-400"
+                                                    className="flex-none animate-spin text-[--text-muted]"
                                                 />
                                             )}
                                         </div>
                                     </td>
-                                    <td className="hidden h-12 px-4 text-sm text-gray-500 dark:text-gray-400 sm:table-cell">
+                                    <td className="hidden h-12 px-4 text-sm text-[--text-muted] sm:table-cell">
                                         {formatDistanceToNow(s.created)}
                                     </td>
-                                    <td className="hidden h-12 px-4 text-sm text-gray-500 dark:text-gray-400 sm:table-cell">
+                                    <td className="hidden h-12 px-4 text-sm text-[--text-muted] sm:table-cell">
                                         {formatDistanceToNow(s.updated)}
                                     </td>
                                     <td className="hidden h-12 px-4 text-center md:table-cell">
@@ -397,8 +454,8 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
                                         <span
                                             className={`inline-flex items-center rounded-md border border-transparent px-2 py-0.5 text-xs font-medium ${
                                                 s.embedded
-                                                    ? 'bg-purple-500 text-white'
-                                                    : 'bg-gray-100 text-gray-800 dark:bg-neutral-700 dark:text-gray-200'
+                                                    ? 'bg-[--accent] text-[--accent-fg]'
+                                                    : 'bg-[--bg-active] text-[--text-primary]'
                                             }`}
                                         >
                                             {s.embedded ? 'Yes' : 'No'}
@@ -411,7 +468,7 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
                                                 setPendingDelete(s);
                                             }}
                                             title="Delete Source"
-                                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-red-600 transition-colors hover:bg-gray-100 dark:text-red-400 dark:hover:bg-neutral-700"
+                                            className="inline-flex h-9 w-9 items-center justify-center rounded-md text-[--text-error] transition-colors hover:bg-[--bg-hover]"
                                         >
                                             <LucideTrash2 size={16} />
                                         </button>
@@ -426,9 +483,9 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
                                     <div className="flex items-center justify-center">
                                         <LucideLoader2
                                             size={16}
-                                            className="animate-spin text-gray-400"
+                                            className="animate-spin text-[--text-muted]"
                                         />
-                                        <span className="ml-2 text-gray-500 dark:text-gray-400">
+                                        <span className="ml-2 text-[--text-muted]">
                                             Loading more...
                                         </span>
                                     </div>
@@ -439,27 +496,27 @@ export const SourcesPage = ({ onOpenSource }: Props) => {
                 </table>
 
                 {error && sources.length > 0 && (
-                    <div className="m-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-300">
+                    <div className="m-4 rounded-lg border border-[--border-subtle] bg-[--bg-raised] p-3 text-sm text-[--text-error]">
                         {error}
                     </div>
                 )}
             </div>
 
-            {pendingDelete && (
-                <ConfirmModal
-                    title="Delete Source"
-                    message={
-                        <span>
-                            Are you sure you want to delete &quot;
-                            <b>{pendingDelete.title || 'Untitled Source'}</b>&quot;?
-                        </span>
-                    }
-                    confirmLabel={deleting ? 'Deleting…' : 'Delete'}
-                    denyLabel="Cancel"
-                    onConfirm={confirmDelete}
-                    onDeny={() => setPendingDelete(null)}
-                />
-            )}
+            <ConfirmDialog
+                isOpen={!!pendingDelete}
+                title="Delete Source"
+                message={
+                    <span>
+                        Are you sure you want to delete &quot;
+                        <b>{pendingDelete?.title || 'Untitled Source'}</b>&quot;?
+                    </span>
+                }
+                confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+                cancelLabel="Cancel"
+                variant="danger"
+                onConfirm={confirmDelete}
+                onCancel={() => setPendingDelete(null)}
+            />
         </div>
     );
 };
