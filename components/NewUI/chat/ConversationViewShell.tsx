@@ -40,7 +40,7 @@ import { NewUITranscriptPreviewLayer } from './NewUITranscriptPreviewLayer';
 import { NewUISelectionReplyLayer } from './NewUISelectionReplyLayer';
 import { NewUISourcesLayer } from './NewUISourcesLayer';
 import { NewUIToolStepsLayer } from './NewUIToolStepsLayer';
-import { NewUIStatusExitLayer } from './NewUIStatusExitLayer';
+import { NewUIStatusExitLayer, isInStatusGhost } from './NewUIStatusExitLayer';
 import { ChatStatusIndicator } from './ChatStatusIndicator';
 import { NewUITruncationNoticeLayer } from './NewUITruncationNoticeLayer';
 import { ArtifactPanelLayer } from './ArtifactPanelLayer';
@@ -341,8 +341,15 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
 
   useEffect(() => {
     const INDICATOR_CLASS = 'new-ui-awaiting-answer';
+    // NewUIStatusExitLayer leaves a clone of a removed indicator behind (same class). Those are
+    // not ours: adopting or removing one re-triggers the exit layer, which clones again — a
+    // synchronous mutation loop that freezes the tab.
+    const liveIndicators = () =>
+      Array.from(document.querySelectorAll<HTMLElement>(`.${INDICATOR_CLASS}`)).filter(
+        (el) => !isInStatusGhost(el),
+      );
     const removeAll = () => {
-      document.querySelectorAll<HTMLElement>(`.${INDICATOR_CLASS}`).forEach((el) => el.remove());
+      liveIndicators().forEach((el) => el.remove());
       setAwaitingHost(null);
     };
 
@@ -362,7 +369,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       const target = assistants[assistants.length - 1];
       const host = target?.querySelector<HTMLElement>('#chatHover') ?? target;
       if (!host) return;
-      const existing = document.querySelector<HTMLElement>(`.${INDICATOR_CLASS}`);
+      const existing = liveIndicators()[0];
       if (existing && existing.parentElement === host) return;
       existing?.remove();
       const el = document.createElement('div');
@@ -1544,6 +1551,8 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
         '[data-new-ui="true"] .rounded-xl.shadow-lg .mt-0.ml-3',
       );
       rows.forEach((row) => {
+        // A leaving copy of a status card is scenery, never a host.
+        if (isInStatusGhost(row)) return;
         // Idempotent: skip if already injected
         if (row.querySelector(`.${LOADING_TEXT_CLASS}`)) return;
         const span = document.createElement('span');
@@ -1564,6 +1573,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       document
         .querySelectorAll<HTMLElement>(`.${LOADING_TEXT_CLASS}`)
         .forEach((el) => {
+          if (isInStatusGhost(el)) return; // a leaving copy removes itself
           if (!el.closest('[data-new-ui="true"] .rounded-xl.shadow-lg')) {
             el.remove();
           }
@@ -1574,7 +1584,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
     const syncHosts = () => {
       const next = Array.from(
         document.querySelectorAll<HTMLElement>(`.${LOADING_TEXT_CLASS}`),
-      );
+      ).filter((el) => !isInStatusGhost(el));
       setLoadingHosts((prev) =>
         prev.length === next.length && prev.every((h, i) => h === next[i]) ? prev : next,
       );

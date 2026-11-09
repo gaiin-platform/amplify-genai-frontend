@@ -26,6 +26,19 @@ import React, { useEffect } from 'react';
 /** Keep in sync with `.nui-status-ghost` in styles/conversation-view.css. */
 const EXIT_MS = 180;
 const GHOST_ATTR = 'data-nui-status-ghost';
+
+/**
+ * Is `el` a leaving copy, or inside one?
+ *
+ * A copy is a deep clone of the removed indicator, so it carries the SAME classes as the real
+ * one (`new-ui-awaiting-answer`, `new-ui-loading-text`, `[data-nui-status]`). Every other effect
+ * that looks those nodes up by class (ConversationViewShell) must skip copies, or it will adopt,
+ * move or remove one — and that removal is itself a mutation this layer would answer with yet
+ * another copy: an endless chain of MutationObserver callbacks that never yields to React and
+ * freezes the tab. Copies are scenery only.
+ */
+export const isInStatusGhost = (el: Element | null | undefined): boolean =>
+  !!el && !!el.closest(`[${GHOST_ATTR}]`);
 const INDICATOR = '[data-nui-status]';
 /** A qualifying unit is tiny. Anything with more elements than this is some other component. */
 const MAX_UNIT_ELEMENTS = 40;
@@ -46,7 +59,7 @@ const isIndicatorUnit = (node: HTMLElement): boolean => {
 };
 
 const liveIndicatorExists = (root: ParentNode): boolean =>
-  Array.from(root.querySelectorAll(INDICATOR)).some((el) => !el.closest(`[${GHOST_ATTR}]`));
+  Array.from(root.querySelectorAll(INDICATOR)).some((el) => !isInStatusGhost(el));
 
 export const NewUIStatusExitLayer: React.FC = () => {
   useEffect(() => {
@@ -114,6 +127,9 @@ export const NewUIStatusExitLayer: React.FC = () => {
       for (const rec of records) {
         const parent = rec.target;
         if (!(parent instanceof Element) || !parent.isConnected) continue;
+        // Something was removed from inside a leaving copy (or the copy itself is going): a copy
+        // never gets a copy of its own.
+        if (isInStatusGhost(parent)) continue;
         for (const node of Array.from(rec.removedNodes)) {
           if (node instanceof HTMLElement && isIndicatorUnit(node)) {
             leave(node, parent, rec.nextSibling);
