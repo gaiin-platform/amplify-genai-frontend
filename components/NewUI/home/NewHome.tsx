@@ -78,6 +78,12 @@ import { getUserDefaultEffort, USER_DEFAULT_EFFORT_CHANGED_EVENT } from '@/compo
 import { maxTokensForRequest } from '@/components/NewUI/shared/outputTokenBudget';
 import { CONVERSATION_CONNECTOR_ACTIONS_KEY } from '@/components/NewUI/shared/conversationConnectorActions';
 import {
+  CONVERSATION_WORKFLOW_KEY,
+  type ConversationWorkflow,
+  getConversationWorkflow,
+  withConversationWorkflow,
+} from '@/components/NewUI/shared/conversationWorkflow';
+import {
   getConversationSkillSelection,
   withConversationSkillSelection,
 } from '@/components/NewUI/shared/conversationSkillSelection';
@@ -146,6 +152,21 @@ export const NewHome: React.FC = () => {
     selectedSkillIdsRef.current = next;
     setSelectedSkillIds(next);
   }, [selectedConversation?.id, selectedConversation?.data?.nuiSkillIds]);
+
+  // Workflow attached to the first message; carried into the chat on conversation.data.
+  const [selectedWorkflow, setSelectedWorkflow] = useState<ConversationWorkflow | null>(() => getConversationWorkflow(selectedConversation));
+  const selectedWorkflowRef = useRef(selectedWorkflow);
+  selectedWorkflowRef.current = selectedWorkflow;
+  useEffect(() => {
+    const next = getConversationWorkflow(selectedConversation);
+    selectedWorkflowRef.current = next;
+    setSelectedWorkflow(next);
+  }, [selectedConversation?.id, selectedConversation?.data?.nuiWorkflow]);
+  const updateSelectedWorkflow = useCallback((workflow: ConversationWorkflow | null) => {
+    selectedWorkflowRef.current = workflow;
+    setSelectedWorkflow(workflow);
+    if (selectedConversation) handleUpdateSelectedConversation(withConversationWorkflow(selectedConversation, workflow));
+  }, [handleUpdateSelectedConversation, selectedConversation]);
 
   const updateSelectedSkillIds = useCallback((skillIds: string[]) => {
     const next = getConversationSkillSelection(withConversationSkillSelection({}, skillIds)).skillIds;
@@ -738,8 +759,11 @@ export const NewHome: React.FC = () => {
           [CONVERSATION_CONNECTOR_ACTIONS_KEY]: selectedActions,
           nuiSkillIds: selectedSkillIdsRef.current,
           nuiSkillSelectionMode: 'manual',
+          ...(selectedWorkflowRef.current ? { [CONVERSATION_WORKFLOW_KEY]: selectedWorkflowRef.current } : {}),
         },
       };
+      // A workflow detached on the landing page must not linger on the stored conversation.
+      if (!selectedWorkflowRef.current) delete (convBase.data as Record<string, unknown>)[CONVERSATION_WORKFLOW_KEY];
 
       // Output-token ceiling for the first send: useChatSendService falls back to
       // half the model limit when the conversation has none, and the composer's
@@ -797,6 +821,7 @@ export const NewHome: React.FC = () => {
       data: {
         reasoningLevel: selectedEffort,
         [CONVERSATION_CONNECTOR_ACTIONS_KEY]: selectedActions,
+        ...(selectedWorkflowRef.current ? { [CONVERSATION_WORKFLOW_KEY]: selectedWorkflowRef.current } : {}),
       },
       ...(optimisticMessage ? { messages: [optimisticMessage] } : {}),
       temperature: DEFAULT_TEMPERATURE,
@@ -1011,6 +1036,8 @@ export const NewHome: React.FC = () => {
                 onActionsChange={setSelectedActions}
                 selectedSkillIds={selectedSkillIds}
                 onSkillIdsChange={updateSelectedSkillIds}
+                selectedWorkflow={selectedWorkflow}
+                onWorkflowChange={updateSelectedWorkflow}
                 chatEndpoint={chatEndpoint ?? undefined}
                 composerRef={composerRef}
               />
@@ -1023,6 +1050,8 @@ export const NewHome: React.FC = () => {
                 onRemoveActions={() => setSelectedActions([])}
                 selectedSkillIds={selectedSkillIds}
                 onRemoveSkills={() => updateSelectedSkillIds([])}
+                selectedWorkflow={selectedWorkflow}
+                onRemoveWorkflow={() => updateSelectedWorkflow(null)}
               />
             </div>
 

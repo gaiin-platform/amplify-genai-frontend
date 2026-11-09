@@ -110,6 +110,12 @@ import {
   withConversationSkillSelection,
 } from '@/components/NewUI/shared/conversationSkillSelection';
 import {
+  type ConversationWorkflow,
+  getConversationWorkflow,
+  withConversationWorkflow,
+  workflowMessageData,
+} from '@/components/NewUI/shared/conversationWorkflow';
+import {
   type LibraryFileSelection,
   createLibraryUIAttachment,
   hydrateLibraryAttachmentPreview,
@@ -261,6 +267,27 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     },
     [handleUpdateSelectedConversation],
   );
+  // Workflow attached to this chat; same conversation-scoped storage as the skills.
+  const [selectedWorkflow, setSelectedWorkflow] = useState<ConversationWorkflow | null>(
+    () => getConversationWorkflow(selectedConversation),
+  );
+  const selectedWorkflowRef = useRef(selectedWorkflow);
+  selectedWorkflowRef.current = selectedWorkflow;
+  const updateSelectedWorkflow = useCallback(
+    (workflow: ConversationWorkflow | null) => {
+      selectedWorkflowRef.current = workflow;
+      setSelectedWorkflow(workflow);
+      const conversation = selectedConversationRef.current;
+      if (conversation)
+        handleUpdateSelectedConversation(withConversationWorkflow(conversation, workflow));
+    },
+    [handleUpdateSelectedConversation],
+  );
+  useEffect(() => {
+    const next = getConversationWorkflow(selectedConversationRef.current);
+    selectedWorkflowRef.current = next;
+    setSelectedWorkflow(next);
+  }, [selectedConversation?.id, selectedConversation?.data?.nuiWorkflow]);
   const selectedActionsRef = useRef(selectedActions);
   selectedActionsRef.current = selectedActions;
   const updateSelectedActions = useCallback(
@@ -643,6 +670,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       'Has Pasted Text': pastedAttachments.length > 0,
       'Connector Action Count': selectedActions.length,
       'Skill Count': selectedSkillIdsRef.current.length,
+      'Has Workflow': !!selectedWorkflowRef.current,
       'Has Assistant': !!activeAssistant,
     });
     const pastedMessage = buildPastedTextMessage(msgText, pastedAttachments);
@@ -680,6 +708,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       (mergedDocs.length > 0 ||
         pastedAttachments.length > 0 ||
         selectedActions.length > 0 ||
+        !!selectedWorkflowRef.current ||
         selectedSkillIdsRef.current.length > 0) &&
       selectedConversation
     ) {
@@ -700,6 +729,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
         type: MessageType.PROMPT,
         data: {
           ...pastedMessage.data,
+          // The backend picks the workflow up from the last message's data.
+          ...workflowMessageData(selectedWorkflowRef.current),
           ...(docsWithKeys.length > 0
             ? {
                 dataSources: docsWithKeys.map((d) => ({
@@ -716,6 +747,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           ? {
               data: {
                 ...pastedMessage.data,
+                ...workflowMessageData(selectedWorkflowRef.current),
                 skills: selectedSkillIdsRef.current,
                 skillSelectionMode: 'manual',
                 ...(docsWithKeys.length > 0
@@ -1337,6 +1369,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 onActionsChange={updateSelectedActions}
                 selectedSkillIds={selectedSkillIds}
                 onSkillIdsChange={updateSelectedSkillIds}
+                selectedWorkflow={selectedWorkflow}
+                onWorkflowChange={updateSelectedWorkflow}
                 chatEndpoint={chatEndpoint ?? undefined}
                 composerRef={composerRef}
               />
@@ -1347,6 +1381,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 onRemoveActions={() => updateSelectedActions([])}
                 selectedSkillIds={selectedSkillIds}
                 onRemoveSkills={() => updateSelectedSkillIds([])}
+                selectedWorkflow={selectedWorkflow}
+                onRemoveWorkflow={() => updateSelectedWorkflow(null)}
               />
             </div>
 

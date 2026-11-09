@@ -30,6 +30,7 @@ import {
   IconRobot,
   IconSearch,
   IconBrain,
+  IconGitBranch,
 } from '@tabler/icons-react';
 import {
   autoUpdate,
@@ -79,6 +80,9 @@ import {
   type PickedLibraryFile,
 } from './DataSourceLibraryPicker';
 import { SkillAttachSubmenu } from './SkillAttachSubmenu';
+import { WorkflowAttachSubmenu } from './WorkflowAttachSubmenu';
+import { useChatWorkflowTemplates } from './useChatWorkflowTemplates';
+import { type ConversationWorkflow, workflowBlockReason } from './conversationWorkflow';
 import { NEW_UI_SETTINGS_EVENT } from './newUISettingsEvents';
 import { useStableFeatureFlags } from './useStableFeatureFlags';
 
@@ -207,6 +211,9 @@ export interface AttachMenuProps {
   onActionsChange?: (actions: SelectedAction[]) => void;
   selectedSkillIds?: string[];
   onSkillIdsChange?: (skillIds: string[]) => void;
+  /** Workflow attached to this chat. The "Add workflow" row only exists when the caller can store one. */
+  selectedWorkflow?: ConversationWorkflow | null;
+  onWorkflowChange?: (workflow: ConversationWorkflow | null) => void;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1462,7 +1469,9 @@ export const AttachMenuChips: React.FC<{
   onRemoveActions?: () => void;
   selectedSkillIds?: string[];
   onRemoveSkills?: () => void;
-}> = ({ assistantName, onRemoveAssistant, selectedActions, onRemoveActions, selectedSkillIds, onRemoveSkills }) => {
+  selectedWorkflow?: ConversationWorkflow | null;
+  onRemoveWorkflow?: () => void;
+}> = ({ assistantName, onRemoveAssistant, selectedActions, onRemoveActions, selectedSkillIds, onRemoveSkills, selectedWorkflow, onRemoveWorkflow }) => {
   const chips: React.ReactNode[] = [];
 
   if (assistantName && onRemoveAssistant) {
@@ -1504,6 +1513,18 @@ export const AttachMenuChips: React.FC<{
         <IconBrain size={14} style={{ color: 'var(--accent)' }} />
         <span>{selectedSkillIds.length} skills</span>
         <button type="button" onClick={onRemoveSkills} className="flex items-center justify-center w-[22px] h-full rounded-r-[6px]" style={{ color: 'var(--text-muted)' }} aria-label="Remove skills">
+          <IconX size={12} />
+        </button>
+      </div>,
+    );
+  }
+
+  if (selectedWorkflow && onRemoveWorkflow) {
+    chips.push(
+      <div key="workflow" className="flex items-center gap-1 pl-2 rounded-[6px] text-[12.5px] flex-shrink-0" style={{ height: 26, background: 'var(--bg-active)', color: 'var(--text-primary)' }} title={`Workflow: ${selectedWorkflow.name}`}>
+        <IconGitBranch size={14} style={{ color: 'var(--accent)' }} />
+        <span className="max-w-[140px] truncate">{selectedWorkflow.name || 'Workflow'}</span>
+        <button type="button" onClick={onRemoveWorkflow} className="flex items-center justify-center w-[22px] h-full rounded-r-[6px]" style={{ color: 'var(--text-muted)' }} aria-label="Remove workflow">
           <IconX size={12} />
         </button>
       </div>,
@@ -1563,6 +1584,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   onActionsChange,
   selectedSkillIds = [],
   onSkillIdsChange,
+  selectedWorkflow = null,
+  onWorkflowChange,
 }) => {
   const {
     state: { prompts, selectedAssistant, layeredAssistants, groups, availableModels, defaultModelId },
@@ -1573,7 +1596,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const featureFlags = useStableFeatureFlags();
 
   const [primaryOpen, setPrimaryOpen] = useState(false);
-  const [submenu, setSubmenu] = useState<'connectors' | 'library' | 'assistant' | 'skills' | null>(null);
+  const [submenu, setSubmenu] = useState<'connectors' | 'library' | 'assistant' | 'skills' | 'workflows' | null>(null);
   // A clicked submenu stays open even if the pointer leaves its trigger row. This
   // prevents the hover-close timer from dismissing an option the user selected.
   const submenuPinnedRef = useRef(false);
@@ -1675,7 +1698,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   };
 
   // Badge: any active toggle, non-default assistant, or connector actions
-  const anyToggleActive = !isDefaultAssistant || selectedActions.length > 0 || selectedSkillIds.length > 0;
+  const anyToggleActive = !isDefaultAssistant || selectedActions.length > 0 || selectedSkillIds.length > 0 || !!selectedWorkflow;
 
   // Feature gates
   const showFiles = featureFlags.uploadDocuments;
@@ -1689,8 +1712,27 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const showSkills = !!featureFlags.skills && Boolean(chatEndpoint) && Boolean(onSkillIdsChange);
   // Backend routing owns optional chat tools; only explicit connectors remain here.
   const showConnectors = featureFlags.integrations;
+  // Workflows: only for people who have some. The list is the user's own templates, loaded once and cached.
+  const { templates: workflowTemplates, refresh: refreshWorkflows } = useChatWorkflowTemplates(!!featureFlags.assistantWorkflows && Boolean(onWorkflowChange));
+  const showWorkflows = !!featureFlags.assistantWorkflows && Boolean(onWorkflowChange) && (workflowTemplates?.length ?? 0) > 0;
+  const workflowBlocked = workflowBlockReason({
+    assistantData: isDefaultAssistant ? null : selectedAssistant?.definition?.data,
+    hasConnectorActions: selectedActions.length > 0,
+  });
   const hasGroup1 = showFiles || showLibrary || showAssistant || showSkills;
-  const hasGroup2 = showConnectors;
+  const hasGroup2 = showConnectors || showWorkflows;
+
+  // A workflow can't coexist with an assistant's own workflow/actions or with connector actions
+  // (the classic input blocks the combination). If either appears after one is attached, drop it.
+  useEffect(() => {
+    if (!selectedWorkflow || !onWorkflowChange || !workflowBlocked) return;
+    onWorkflowChange(null);
+    toast(`Workflow removed: ${workflowBlocked.charAt(0).toLowerCase()}${workflowBlocked.slice(1)}.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflowBlocked, selectedWorkflow?.templateId]);
+
+  // Opening the menu re-checks the list (cheap: cached for a couple of minutes).
+  useEffect(() => { if (primaryOpen) refreshWorkflows(); }, [primaryOpen, refreshWorkflows]);
 
   // Floating UI — same flip pattern as model picker
   const placement = isNewChat ? 'bottom-start' : 'top-start';
@@ -1759,6 +1801,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const connectorsRowRef = useRef<HTMLButtonElement>(null);
   const assistantRowRef = useRef<HTMLButtonElement>(null);
   const skillsRowRef = useRef<HTMLButtonElement>(null);
+  const workflowsRowRef = useRef<HTMLButtonElement>(null);
   const primaryPanelRef = useRef<HTMLDivElement | null>(null);
 
   // ── Submenu positioning (Phase 48 / Fix 3) ────────────────────────────────
@@ -1795,6 +1838,13 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     whileElementsMounted: autoUpdate,
   } as any);
 
+  const workflowsFloating = useFloating({
+    open: submenu === 'workflows',
+    placement: SUBMENU_PLACEMENT,
+    middleware: submenuMiddleware(),
+    whileElementsMounted: autoUpdate,
+  } as any);
+
   // Bind each submenu's reference to its trigger row when that submenu opens.
   // Done in an effect rather than an inline callback ref: an inline ref would be
   // invoked with (null, node) on every render and thrash setReference's state.
@@ -1803,6 +1853,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     if (submenu === 'connectors') connectorsFloating.refs.setReference(connectorsRowRef.current);
     if (submenu === 'assistant') assistantFloating.refs.setReference(assistantRowRef.current);
     if (submenu === 'skills') skillsFloating.refs.setReference(skillsRowRef.current);
+    if (submenu === 'workflows') workflowsFloating.refs.setReference(workflowsRowRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submenu]);
 
@@ -1967,6 +2018,18 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     }}
                   />
                 )}
+                {showWorkflows && (
+                  <SubmenuRowEl
+                    ref={workflowsRowRef}
+                    icon={<IconGitBranch size={18} />}
+                    label={workflowBlocked && !selectedWorkflow ? `Workflows · ${workflowBlocked}` : 'Workflows'}
+                    isOpen={submenu === 'workflows'}
+                    disabled={!!workflowBlocked}
+                    onMouseEnter={() => { if (!workflowBlocked) openSubmenu('workflows'); }}
+                    onMouseLeave={scheduleClose}
+                    onClick={() => { if (!workflowBlocked) toggleSubmenuFromClick('workflows'); }}
+                  />
+                )}
               </>
             )}
 
@@ -2031,6 +2094,28 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                   chatEndpoint={chatEndpoint}
                   selectedSkillIds={selectedSkillIds}
                   onSelectionChange={onSkillIdsChange}
+                  onClose={closeAll}
+                />
+              </div>
+            )}
+
+            {/* ── Workflows submenu ── */}
+            {submenu === 'workflows' && onWorkflowChange && workflowTemplates && !workflowBlocked && (
+              <div
+                ref={workflowsFloating.refs.setFloating}
+                role="presentation"
+                style={submenuStyle(workflowsFloating, 'attachMenuEnter')}
+                onMouseEnter={cancelClose}
+                onMouseLeave={scheduleClose}
+              >
+                <WorkflowAttachSubmenu
+                  templates={workflowTemplates}
+                  selected={selectedWorkflow}
+                  onSelect={(workflow) => {
+                    track('Attach Menu Used', { 'Option': 'workflow', 'Is New Chat': isNewChat, 'Attached': !!workflow });
+                    onWorkflowChange(workflow);
+                    if (workflow) closeAll();
+                  }}
                   onClose={closeAll}
                 />
               </div>

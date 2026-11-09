@@ -73,6 +73,7 @@ import {
 } from '@/components/NewUI/shared/openAtLatest';
 import type { AttachedDocument } from '@/types/attacheddocument';
 import { skillSelectionOptions, getConversationSkillSelection } from '@/components/NewUI/shared/conversationSkillSelection';
+import { getConversationWorkflow, workflowMessageData } from '@/components/NewUI/shared/conversationWorkflow';
 
 interface ConversationViewShellProps {
   stopConversationRef: MutableRefObject<boolean>;
@@ -724,7 +725,10 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       // *second* user message: the transcript then showed the seeded message
       // (with the paste chip) and ChatInput's plain copy stacked under it, and
       // the pasted text never reached the model at all.
-      if ((docsWithKeys.length > 0 || optimistic || pendingActions.length > 0) && conversation) {
+      // A workflow attached on the landing page rides on the first message's data (PATH B, the old
+      // input's DOM bridge, would drop it).
+      const pendingWorkflow = getConversationWorkflow(conversation);
+      if ((docsWithKeys.length > 0 || optimistic || pendingActions.length > 0 || !!pendingWorkflow) && conversation) {
         hasFiredRef.current = true;
         clearPending();
 
@@ -762,6 +766,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
           ? resolvedAssistantRef.current
           : DEFAULT_ASSISTANT;
         msg = setAssistantInMsg(msg, sendAssistant);
+        if (pendingWorkflow) msg = { ...msg, data: { ...(msg.data ?? {}), ...workflowMessageData(pendingWorkflow) } };
 
         // Attach tools to the message so the backend can execute them: the assistant's
         // own (the backend never reads definition.tools, and ChatInput on PATH B is the
