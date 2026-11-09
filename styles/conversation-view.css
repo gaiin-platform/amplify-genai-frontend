@@ -381,14 +381,6 @@
   padding-bottom: 28px !important;
 }
 
-/* A message that ends with "Reasoning / Actions" puts the action row --nui-agentlog-gap
-   below that block (NewUIMessageActionsLayer reads the block's computed margin-top)
-   rather than the usual 4px below the text, so reserve gap + the 24px row instead of
-   the 28px above (4 + 24). Keeps the next turn's clearance unchanged. */
-[data-new-ui="true"] .enhanced-chat-message.assistant-message:has(.mt-3.pointer-events-none > .pointer-events-auto.max-w-full.overflow-hidden) {
-  padding-bottom: calc(var(--nui-agentlog-gap, 0.75rem) + 24px) !important;
-}
-
 [data-new-ui="true"] .enhanced-chat-message::before {
   display: none !important;
 }
@@ -5507,17 +5499,19 @@
   display: none !important;
 }
 
-/* The classic "Reasoning / Actions" disclosure (AgentLogBlock) repeats every tool call the step rows
-   already show — now with their results too. The layer sets data-agentlog-takeover="true" only while
-   the message's agent-log calls all have rows, and only the disclosure is hidden: the generated-files
-   list that shares AgentLogBlock's wrapper stays. With no files, the (empty) wrapper goes too, so its
-   top margin leaves no gap. (The files list is `wrapper > .pointer-events-auto > ul > li`; the
-   disclosure never has a direct <ul>.) Scheduled Tasks run logs have no step rows and are untouched. */
-[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-agentlog-takeover="true"])
-  .mt-3.pointer-events-none > .pointer-events-auto.max-w-full.overflow-hidden {
+/* The classic "Reasoning / Actions" disclosure (AgentLogBlock) is never shown in the new UI: the step
+   rows above the message already show every tool call, with parameters AND result ("Raw log" holds
+   the rest). This is unconditional on purpose — keyed on whether the log had visible steps, a log of
+   only hidden tools (terminate / think) left the disclosure on screen, and it flashed in before the
+   tool-steps layer's first scan. Only the disclosure is hidden: the generated-files list that shares
+   AgentLogBlock's wrapper stays. With no files, the (empty) wrapper goes too, so its top margin leaves
+   no gap. (The files list is `wrapper > .pointer-events-auto > ul > li`; the disclosure never has a
+   direct <ul>.) Scoped to #chatHover (chat messages); the Scheduled Tasks run viewer no longer renders
+   AgentLogBlock at all. */
+[data-new-ui="true"] #chatHover .mt-3.pointer-events-none > .pointer-events-auto.max-w-full.overflow-hidden {
   display: none !important;
 }
-[data-new-ui="true"] #chatHover:has(> [data-nui-tools-host][data-agentlog-takeover="true"])
+[data-new-ui="true"] #chatHover
   .mt-3.pointer-events-none:has(> .pointer-events-auto.max-w-full.overflow-hidden):not(:has(> .pointer-events-auto > ul > li)) {
   display: none !important;
 }

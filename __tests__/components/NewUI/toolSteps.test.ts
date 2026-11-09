@@ -22,6 +22,7 @@ import {
   withRunningMcpSteps,
   parseLegacyToolStatus,
   plainErrorMessage,
+  finalMessageFromAgentLog,
   stepsFromAgentLog,
   stepsFromInterpreterRuns,
   summarizeResult,
@@ -714,5 +715,33 @@ describe('a message that used a connector and an MCP tool', () => {
     expect(groupTitle(all)).toBe('Used Outlook and GitHub · 2 steps');
     expect(describeStep(all[0]).connector).toBe('microsoft_outlook');
     expect(describeStep(all[1]).category).toBe('mcp');
+  });
+});
+
+// The reported bug: a tool is attached but the model never calls it, so the saved agent log holds only
+// hidden "plumbing" calls. It has no step rows — and the classic "Reasoning / Actions" disclosure must
+// still not appear (see the unconditional hide rule in conversation-view.css).
+describe('an agent log with no visible tool calls', () => {
+  const log = [
+    { role: 'user', content: 'what tools do you see?' },
+    { role: 'assistant', content: { tool: 'think', args: { thought: 'hmm' } } },
+    { role: 'assistant', content: { tool: 'terminate', args: { message: 'I see these tools: …' } } },
+    { role: 'environment', content: { total_token_cost: 0.002 } },
+  ];
+
+  it('produces no step rows', () => {
+    expect(stepsFromAgentLog(log)).toEqual([]);
+  });
+
+  it('still yields the final message, for surfaces that have no message body of their own', () => {
+    expect(finalMessageFromAgentLog(log)).toBe('I see these tools: …');
+    expect(finalMessageFromAgentLog({ data: { result: log } })).toBe('I see these tools: …');
+  });
+
+  it('yields nothing when there is no terminate message, or the log is junk', () => {
+    expect(finalMessageFromAgentLog([{ role: 'assistant', content: { tool: 'terminate', args: {} } }])).toBeUndefined();
+    expect(finalMessageFromAgentLog([{ role: 'assistant', content: { tool: 'microsoftListMessages', args: { message: 'x' } } }])).toBeUndefined();
+    expect(finalMessageFromAgentLog('nope')).toBeUndefined();
+    expect(finalMessageFromAgentLog(undefined)).toBeUndefined();
   });
 });

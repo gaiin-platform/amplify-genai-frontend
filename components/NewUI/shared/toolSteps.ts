@@ -282,6 +282,30 @@ export const stepsFromAgentLog = (agentLog: unknown): ToolStep[] => {
   return steps;
 };
 
+/**
+ * The run's final answer from a decompressed agent log: the `message` of its last `terminate`-style
+ * call (a hidden tool, so it never gets a step row), or undefined when there is none. Lets a surface
+ * that has no message body of its own (Scheduled Tasks run logs) still show what the run produced
+ * when the log has no visible tool steps — without the classic "Reasoning / Actions" disclosure.
+ */
+export const finalMessageFromAgentLog = (agentLog: unknown): string | undefined => {
+  const entries: unknown = Array.isArray(agentLog)
+    ? agentLog
+    : isRecord(agentLog)
+      ? (isRecord(agentLog.data) ? agentLog.data.result : undefined) ?? agentLog.result
+      : undefined;
+  if (!Array.isArray(entries)) return undefined;
+
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (!isRecord(entry) || entry.role !== 'assistant' || !isRecord(entry.content)) continue;
+    const { tool, args } = entry.content;
+    if (typeof tool !== 'string' || !isHiddenTool(tool) || !isRecord(args)) continue;
+    if (typeof args.message === 'string' && args.message.trim() !== '') return args.message;
+  }
+  return undefined;
+};
+
 // ─── Saved: rebuild from code-interpreter runs ───────────────────────────────
 
 /** More than the backend ever sends (it loops at most a handful of times) — a guard, not a limit users meet. */

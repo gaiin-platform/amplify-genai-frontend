@@ -30,11 +30,13 @@
  *      wrapper. With nothing to show (e.g. a plain chat before any tool call)
  *      the classic "● Thinking…" row is left alone.
  *
- * The classic "Reasoning / Actions" log (AgentLogBlock) is NOT edited. Once a message's
- * agent-log calls have rows here (each with its parameters AND result), the host is flagged
- * `data-agentlog-takeover="true"` and a `:has()` rule hides only that disclosure — the
- * generated-files list beside it stays. The token cost moves to the message action row
- * (NewUIMessageActionsLayer); the user prompt / terminate / notes live in "Raw log".
+ * The classic "Reasoning / Actions" log (AgentLogBlock) is NOT edited, and it is never shown in the
+ * new UI: a `#chatHover`-scoped rule in conversation-view.css hides that disclosure unconditionally —
+ * it does not wait for this layer, and does not depend on the log having visible steps (a log of only
+ * hidden tools such as `terminate` has none, yet must not resurface it). The generated-files list
+ * beside it stays. Each call appears once here, with its parameters AND result; the user prompt /
+ * terminate / notes live in "Raw log". The token cost moves to the message action row
+ * (NewUIMessageActionsLayer).
  *
  * ── Live region ──────────────────────────────────────────────────────────────
  * One persistent `aria-live="polite"` region (rendered by this component, so it
@@ -236,12 +238,10 @@ interface SlotViewProps {
 const SlotView: React.FC<SlotViewProps> = ({ slot, message, live, analysis, isLiveSlot, mcpOn }) => {
   const steps = stepsToShow(savedSteps(message, mcpOn), live, slot.key);
   const mcpCovered = mcpCardIsCovered(message, mcpOn);
-  // The classic "Reasoning / Actions" disclosure shows the same calls again; hide it only while
-  // its calls have rows of their own. Anything it held that has no row (the user prompt,
-  // terminate, notes) stays reachable through "Raw log".
+  // Anything the (always hidden) classic "Reasoning / Actions" disclosure held that has no row
+  // (the user prompt, terminate, notes) stays reachable through "Raw log".
   const decoded = decodedAgentLog(message);
-  const agentLogCovered = !!decoded && decoded.steps.length > 0;
-  const rawLog = agentLogCovered ? decoded.log : undefined;
+  const rawLog = decoded && decoded.steps.length > 0 ? decoded.log : undefined;
 
   const showThinking = isLiveSlot && analysis.hasReasoning;
   const takeOver = steps.length > 0 || showThinking;
@@ -280,14 +280,6 @@ const SlotView: React.FC<SlotViewProps> = ({ slot, message, live, analysis, isLi
       slot.host.setAttribute('data-mcp-takeover', 'false');
     };
   }, [slot.host, mcpCovered]);
-
-  // The classic Reasoning / Actions disclosure is hidden only while its calls have rows (see above).
-  useLayoutEffect(() => {
-    slot.host.setAttribute('data-agentlog-takeover', agentLogCovered ? 'true' : 'false');
-    return () => {
-      slot.host.setAttribute('data-agentlog-takeover', 'false');
-    };
-  }, [slot.host, agentLogCovered]);
 
   // While the answer hasn't started, the CSS collapses the (empty) reply block so
   // the "Thinking…" row sits an even distance from the "Reasoning / Actions" block.

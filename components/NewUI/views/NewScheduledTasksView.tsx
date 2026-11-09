@@ -84,7 +84,6 @@ import { ActionSetList } from '@/components/Agent/ActionSets';
 import CompositeActionsPanel from '@/components/Agent/CompositeActionsPanel';
 import { ApiItemSelector } from '@/components/AssistantApi/ApiSelector';
 import { ApiParameterBindingEditor } from '@/components/AssistantApi/ApiParameterBindingEditor';
-import AgentLogBlock from '@/components/Chat/ChatContentBlocks/AgentLogBlock';
 import { NewUIAgentLog } from '@/components/NewUI/chat/NewUIAgentLog';
 import { saveActionSet, ActionItem } from '@/services/actionSetsService';
 import { splitEmailList, looksLikeEmail } from '@/components/NewUI/shared/emailSuggestions';
@@ -1273,42 +1272,12 @@ export const NewScheduledTasksView: React.FC = () => {
 
                                 {selectedLogDetails.details?.result && (
                                     // The run's tool calls as the same step rows the chat uses (parameters, Result, Raw / Raw log).
-                                    // A log with no tool steps falls back to the classic panel inside data-nui-agentlog, which
-                                    // scopes its restyle (conversation-view.css), so such a run shows what it always did.
+                                    // A log with no tool steps shows just its final message — the classic
+                                    // "Reasoning / Actions" disclosure is never rendered in the new UI.
                                     <div className="text-neutral-900 dark:text-white">
                                         <NewUIAgentLog
                                             result={selectedLogDetails.details.result}
                                             executedAt={selectedLogDetails.executedAt}
-                                            fallback={
-                                                <div data-nui-agentlog="true">
-                                                    {(() => {
-                                                        try {
-                                                            return (
-                                                                <AgentLogBlock
-                                                                    messageIsStreaming={false}
-                                                                    message={{
-                                                                        id: selectedLogDetails.executionId,
-                                                                        data: { state: { agentLog: { data: { handled: true, result: selectedLogDetails.details.result } } } },
-                                                                        role: 'assistant',
-                                                                        content: '',
-                                                                        type: 'execution-log',
-                                                                    }}
-                                                                    conversationId={selectedLogDetails.details.sessionId || 'unknown-session'}
-                                                                    width={() => window.innerWidth * 0.5}
-                                                                />
-                                                            );
-                                                        } catch {
-                                                            return (
-                                                                <div className="text-[12.5px] whitespace-pre-wrap overflow-auto max-h-[300px]">
-                                                                    {typeof selectedLogDetails.details.result === 'object'
-                                                                        ? JSON.stringify(selectedLogDetails.details.result, null, 2)
-                                                                        : selectedLogDetails.details.result}
-                                                                </div>
-                                                            );
-                                                        }
-                                                    })()}
-                                                </div>
-                                            }
                                         />
                                     </div>
                                 )}

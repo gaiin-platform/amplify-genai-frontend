@@ -38,13 +38,22 @@ describe('NewUIAgentLog', () => {
     expect(() => html(<NewUIAgentLog result={result} executedAt="not a date" />)).not.toThrow();
   });
 
-  it('renders the fallback when the log has no tool steps, and for junk', () => {
-    const fb = <div id="fb">classic</div>;
+  it('with no tool steps, shows only the final message — never the classic Reasoning / Actions card', () => {
     const onlyTerminate = [
-      { role: 'assistant', content: { tool: 'terminate', args: { message: 'done' } } },
+      { role: 'user', content: 'summarize my inbox' },
+      { role: 'assistant', content: { tool: 'think', args: { thought: 'private reasoning' } } },
+      { role: 'assistant', content: { tool: 'terminate', args: { message: 'Nothing new today.' } } },
+      { role: 'environment', content: { total_token_cost: 0.01 } },
     ];
-    expect(html(<NewUIAgentLog result={onlyTerminate} fallback={fb} />)).toContain('classic');
-    expect(html(<NewUIAgentLog result={'plain text'} fallback={fb} />)).toContain('classic');
+    const out = html(<NewUIAgentLog result={onlyTerminate} />);
+    expect(out).toContain('Nothing new today.');
+    expect(out).not.toMatch(/Reasoning \/ Actions|User Prompt|Total Token Cost|private reasoning|summarize my inbox/);
+  });
+
+  it('renders nothing when there are no tool steps and no final message, and for junk', () => {
+    const noMessage = [{ role: 'assistant', content: { tool: 'terminate', args: {} } }];
+    expect(html(<NewUIAgentLog result={noMessage} />)).toBe('');
+    expect(html(<NewUIAgentLog result={'plain text'} />)).toBe('');
     expect(html(<NewUIAgentLog result={undefined} />)).toBe('');
   });
 });
