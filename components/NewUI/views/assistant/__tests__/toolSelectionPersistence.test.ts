@@ -83,13 +83,14 @@ describe('describeToolSelection', () => {
     new Set(COMPOSITE_FUNCTION_CATEGORIES.flatMap((c) => c.functions.flatMap((f) => f.operations))),
   ).map(outlookOp);
 
-  it('reports the Read Email task once, not its two ops', () => {
-    const saved = [outlookOp('microsoftListMessages'), outlookOp('microsoftGetMessageDetails')];
+  it('reports the Read Email task once, not its three ops', () => {
+    const saved = [outlookOp('microsoftListFolders'), outlookOp('microsoftListMessages'), outlookOp('microsoftGetMessageDetails')];
     expect(describeToolSelection(saved, catalogue, 0)).toBe('1 task');
   });
 
   it('counts ops no task explains as individual tools', () => {
     const saved = [
+      outlookOp('microsoftListFolders'),
       outlookOp('microsoftListMessages'),
       outlookOp('microsoftGetMessageDetails'),
       outlookOp('microsoftListEvents'),
