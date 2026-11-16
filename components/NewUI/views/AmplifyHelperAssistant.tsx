@@ -8,13 +8,10 @@ import {
   IconX,
 } from '@tabler/icons-react';
 import {
-  AMPLIFY_HELPER_DATA_CLASSIFICATION_URL,
   AMPLIFY_HELPER_GUIDE_SECTIONS,
-  AMPLIFY_HELPER_RESOURCES_URL,
-  AMPLIFY_HELPER_SUPPORT_EMAIL,
   type AmplifyHelperGuideSection,
 } from '@/components/NewUI/shared/amplifyHelperGuide';
-import { getBrandName, isCustomOrganization } from '@/utils/whiteLabel/branding';
+import { getBrandName, getDataPolicyUrl, getResourcesUrl, getSupportEmail } from '@/utils/whiteLabel/branding';
 
 export type AmplifyHelperDestination =
   | { kind: 'settings'; value: string }
@@ -186,12 +183,12 @@ export const AmplifyHelperAssistant: React.FC<AmplifyHelperAssistantProps> = ({
 }) => {
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [query, setQuery] = useState('');
-  // A white-labeled deployment (NEXT_PUBLIC_ORGANIZATION_NAME) must not fall back to the
-  // Vanderbilt contact and links: it shows only what its admin configured.
-  const custom = isCustomOrganization();
+  // Contact and links come only from admin settings or the NEXT_PUBLIC_* deployment config;
+  // nothing organization-specific is built in.
   const brandName = getBrandName();
-  const support = supportEmail?.trim() || (custom ? '' : AMPLIFY_HELPER_SUPPORT_EMAIL);
-  const docs = documentationUrl?.trim() || (custom ? '' : AMPLIFY_HELPER_RESOURCES_URL);
+  const support = supportEmail?.trim() || getSupportEmail() || '';
+  const docs = documentationUrl?.trim() || getResourcesUrl() || '';
+  const dataPolicyUrl = getDataPolicyUrl();
   const filteredSections = useMemo(
     () => filterAmplifyHelperSections(AMPLIFY_HELPER_GUIDE_SECTIONS, query),
     [query],
@@ -257,17 +254,17 @@ export const AmplifyHelperAssistant: React.FC<AmplifyHelperAssistantProps> = ({
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-1 text-[11px]" style={{ color: 'var(--text-muted)' }}>
-          <span className="mr-1 inline-flex items-center gap-1 px-1 py-1" title={custom ? `Guide for all ${brandName} users` : 'Guide for all Vanderbilt Amplify users'}>
+          <span className="mr-1 inline-flex items-center gap-1 px-1 py-1" title={`Guide for all ${brandName} users`}>
             <IconBook size={13} aria-hidden="true" />
-            {custom ? `Guide for all ${brandName} users` : 'Guide for all Vanderbilt Amplify users'}
+            {`Guide for all ${brandName} users`}
           </span>
           {docs && (
             <a className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 hover:bg-[--bg-hover] hover:text-[--text-primary] hover:underline hover:underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]" href={docs} target="_blank" rel="noreferrer">
               Resources <IconExternalLink size={12} aria-hidden="true" />
             </a>
           )}
-          {!custom && (
-            <a className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 hover:bg-[--bg-hover] hover:text-[--text-primary] hover:underline hover:underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]" href={AMPLIFY_HELPER_DATA_CLASSIFICATION_URL} target="_blank" rel="noreferrer">
+          {dataPolicyUrl && (
+            <a className="inline-flex items-center gap-1 rounded-[6px] px-2 py-1 hover:bg-[--bg-hover] hover:text-[--text-primary] hover:underline hover:underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[--accent]" href={dataPolicyUrl} target="_blank" rel="noreferrer">
               Data classification <IconExternalLink size={12} aria-hidden="true" />
             </a>
           )}

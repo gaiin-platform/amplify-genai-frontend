@@ -40,7 +40,7 @@ interface Props {
     textareaId?: string;
 }
 
-// Ported from open-notebook-vanderbilt's components/ui/markdown-editor.tsx —
+// Ported from the open-notebook project's components/ui/markdown-editor.tsx —
 // live-preview markdown editor (toolbar + GFM) in place of a plain textarea.
 // data-color-mode tracks this app's theme instead of upstream's hardcoded
 // "light".

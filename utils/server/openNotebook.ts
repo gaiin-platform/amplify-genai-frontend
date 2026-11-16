@@ -10,8 +10,8 @@
 // The base URL is derived from API_BASE_URL rather than a separate env var:
 // per-stage, the Amplify API custom domain and the Open Notebook ALB domain
 // share the same parent domain and differ only in the leftmost hostname
-// label -- e.g. dev-api.dev-amplify.vanderbilt.ai -> open-notebook.dev-amplify.vanderbilt.ai
-// and prod-api.vanderbilt.ai -> open-notebook.vanderbilt.ai. Swapping that
+// label -- e.g. dev-api.dev-amplify.example.com -> open-notebook.dev-amplify.example.com
+// and prod-api.example.com -> open-notebook.example.com. Swapping that
 // label generically (instead of literally replacing the substring "dev-api",
 // which only matched in dev) makes the derivation work for every stage.
 export const getOpenNotebookBase = (): string | null => {

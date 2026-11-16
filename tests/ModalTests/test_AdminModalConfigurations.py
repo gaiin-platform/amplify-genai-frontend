@@ -148,7 +148,7 @@ class AdminConfigurationsModalTests(BaseTest):
         email_value = self.wait.until(
             EC.presence_of_element_located((By.ID, "emailSupport-email"))
         )
-        self.assertEqual(email_value.get_attribute("value"), "amplify@vanderbilt.edu", "Email value should match expected")
+        self.assertEqual(email_value.get_attribute("value"), "amplify@example.com", "Email value should match expected")
         
         rate_limit_select_elem = self.wait.until(EC.presence_of_element_located((By.ID, "rateLimitType")))
         self.assertIsNotNone(rate_limit_select_elem, "Rate Limit Selection Menu is visible")

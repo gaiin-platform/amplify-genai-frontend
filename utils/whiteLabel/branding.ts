@@ -27,8 +27,7 @@ export function getBrandName(): string {
 /**
  * The deploying organization, or `null` for the stock Amplify deployment.
  *
- * Setting it marks the deployment as white-labeled for institution-specific content: the
- * Amplify Helper drops the Vanderbilt-only policy section, links and contact details.
+ * Used to name the deploying organization in generated guide and prompt text.
  */
 export function getOrganizationName(): string | null {
   return process.env.NEXT_PUBLIC_ORGANIZATION_NAME?.trim() || null;
@@ -37,6 +36,30 @@ export function getOrganizationName(): string | null {
 /** True when this deployment is branded for an organization other than the stock one. */
 export function isCustomOrganization(): boolean {
   return getOrganizationName() !== null;
+}
+
+/**
+ * Support contact shown in the Amplify Helper, or `null` when none is configured.
+ * Nothing organization-specific ships in the code: set `NEXT_PUBLIC_SUPPORT_EMAIL`.
+ */
+export function getSupportEmail(): string | null {
+  return process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || null;
+}
+
+/**
+ * Documentation / training resources link (account menu, API keys page, Amplify Helper),
+ * or `null` when none is configured. Set `NEXT_PUBLIC_RESOURCES_URL`.
+ */
+export function getResourcesUrl(): string | null {
+  return process.env.NEXT_PUBLIC_RESOURCES_URL?.trim() || null;
+}
+
+/**
+ * Data-classification / data-handling policy link for the Amplify Helper, or `null`.
+ * Set `NEXT_PUBLIC_DATA_POLICY_URL`.
+ */
+export function getDataPolicyUrl(): string | null {
+  return process.env.NEXT_PUBLIC_DATA_POLICY_URL?.trim() || null;
 }
 
 /**
