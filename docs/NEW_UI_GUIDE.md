@@ -1,7 +1,7 @@
 # Amplify New UI — Implementation Guide
 
 > Read this before writing any code. Update the Component Registry when you add a component.
-> Branch: `new-ui` — Repo: `/Users/maxmoundas/Amplify/amplify-genai-frontend`
+> Branch: `new-ui` — Repo: `amplify-genai-frontend`
 
 ---
 
