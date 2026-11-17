@@ -860,7 +860,7 @@ If people need help with prompt engineering, which is how you converse effective
                                             <div>
                                                 <h4 className="mb-6 text-lg font-normal text-gray-500 lg:text-xl dark:text-gray-400">
                                                     We asked GPT-4 to think of prompts that would be helpful to
-                                                    your organization's faculty and staff.</h4>
+                                                    your organization&apos;s faculty and staff.</h4>
                                             </div>
                                             <div>
                                             <h4 className="mb-6 text-lg font-normal text-gray-500 lg:text-xl dark:text-gray-400">
