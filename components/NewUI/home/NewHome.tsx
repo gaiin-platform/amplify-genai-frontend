@@ -57,6 +57,19 @@ import {
   getHalloweenPartEnabled,
   USER_HALLOWEEN_EFFECTS_CHANGED_EVENT,
 } from '@/components/NewUI/shared/userHalloweenEffects';
+import { activeSeasonalTheme } from '@/components/NewUI/home/seasonalTheme';
+import {
+  ThanksgivingBackdrop,
+  ThanksgivingGreeting,
+  THANKSGIVING_PLACEHOLDER,
+} from '@/components/NewUI/home/ThanksgivingHero';
+import { releaseLeafGust } from '@/components/NewUI/home/leafGust';
+import { SeasonalControls } from '@/components/NewUI/home/SeasonalControls';
+import { THANKSGIVING_CONTROLS } from '@/components/NewUI/home/seasonalControlsConfig';
+import {
+  getThanksgivingPartEnabled,
+  USER_THANKSGIVING_EFFECTS_CHANGED_EVENT,
+} from '@/components/NewUI/shared/userThanksgivingEffects';
 import {
   UIAttachment,
   createUIAttachmentFromDoc,
@@ -137,6 +150,19 @@ export const NewHome: React.FC = () => {
     window.addEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
     return () => window.removeEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
   }, [halloweenFlag]);
+  // Thanksgiving — same pattern, gated by the `thanksgiving` feature flag.
+  const thanksgivingFlag = activeSeasonalTheme(stableFlags) === 'thanksgiving';
+  const [isThanksgiving, setIsThanksgiving] = useState(false);
+  const [leafGustOn, setLeafGustOn] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      setIsThanksgiving(thanksgivingFlag && getThanksgivingPartEnabled('theme'));
+      setLeafGustOn(getThanksgivingPartEnabled('gust'));
+    };
+    sync();
+    window.addEventListener(USER_THANKSGIVING_EFFECTS_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(USER_THANKSGIVING_EFFECTS_CHANGED_EVENT, sync);
+  }, [thanksgivingFlag]);
   const [hasContent, setHasContent] = useState(false);
 
   useEffect(() => {
@@ -612,6 +638,8 @@ export const NewHome: React.FC = () => {
     // Halloween: bats burst from the composer and sweep over the transition to
     // the chat view. Fire-and-forget on document.body — never delays the send.
     if (isHalloween && batSwarmOn) releaseBatSwarm();
+    // Thanksgiving: a gust of leaves (and a hurrying turkey) sweeps over the same transition.
+    if (isThanksgiving && leafGustOn) releaseLeafGust();
     const pastedAttachments = readyAttachments.filter((a) => a.kind === 'paste');
     const pastedMessage = buildPastedTextMessage(trimmed, pastedAttachments);
     // Docs whose S3 upload finished (doc.key set by handleFile's onSetKey).
@@ -901,13 +929,16 @@ export const NewHome: React.FC = () => {
       // space left under the announcement banner). If the composer ever can't fit
       // even after shrinking, the pane scrolls rather than clipping the toolbar.
       ref={paneRef}
-      className={`relative flex-1 min-h-0 flex flex-col items-center justify-start bg-[--bg-app] overflow-x-hidden overflow-y-auto${isHalloween ? ' hw-active' : ''}`}
+      className={`relative flex-1 min-h-0 flex flex-col items-center justify-start bg-[--bg-app] overflow-x-hidden overflow-y-auto${isHalloween ? ' hw-active' : ''}${isThanksgiving ? ' tg-active' : ''}`}
       style={{ fontFamily: 'Inter, sans-serif' }}
       {...dropHandlers}
     >
       {isHalloween && <HalloweenBackdrop />}
       {/* Visible opt-out — stays in October even after the theme is turned off */}
       {inHalloweenSeason && <HalloweenControls />}
+      {isThanksgiving && <ThanksgivingBackdrop />}
+      {/* Visible opt-out — stays while the flag is on, even after the theme is turned off */}
+      {thanksgivingFlag && <SeasonalControls config={THANKSGIVING_CONTROLS} />}
       {/* Drop anywhere on the landing pane → attaches to the composer */}
       {isFileDragOver && (
         <FileDropOverlay
@@ -953,6 +984,8 @@ export const NewHome: React.FC = () => {
             <div ref={headingInnerRef}>
               {isHalloween ? (
                 <HalloweenGreeting />
+              ) : isThanksgiving ? (
+                <ThanksgivingGreeting />
               ) : (
                 <div className="flex items-center gap-3 mb-8 justify-center">
                   <AmplifyLogo size={40} radius={6} />
@@ -1019,7 +1052,7 @@ export const NewHome: React.FC = () => {
             }}
             onLargePaste={handleLargePaste}
             onImagePaste={addFileToRail}
-            placeholder={isHalloween ? HALLOWEEN_PLACEHOLDER : 'Ask anything…'}
+            placeholder={isHalloween ? HALLOWEEN_PLACEHOLDER : isThanksgiving ? THANKSGIVING_PLACEHOLDER : 'Ask anything…'}
             // No fixed cap: the editor grows with its content and is limited only
             // by the space left in the pane (card shrinks → this scrolls). With
             // attachments present keep up to ~3 lines of usable editing room —
