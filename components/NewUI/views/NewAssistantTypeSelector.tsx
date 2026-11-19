@@ -35,7 +35,7 @@ import { IconX, IconLock, IconShare, IconUsers, IconLoader2 } from '@tabler/icon
 import HomeContext from '@/components/Home/home.context';
 import { Group, GroupAccessType } from '@/types/groups';
 import { AstPathData } from '@/components/Promptbar/components/AssistantModalComponents/AssistantPathEditor';
-import { createAstAdminGroup, updateGroupMembers } from '@/services/groupsService';
+import { collectOtherMembers, createGroupWithMembers } from '@/components/NewUI/views/assistant/groupCreationModel';
 import { useSession } from 'next-auth/react';
 import { getUserIdentifier } from '@/utils/app/data';
 
@@ -407,50 +407,27 @@ export const NewAssistantTypeSelector: React.FC<Props> = ({ onClose, onConfirm }
                 setTeamCreating(true);
                 setTeamError('');
                 try {
-                    const result = await createAstAdminGroup({
-                        name: newTeamName.trim(),
-                        groupTypes: [],
-                        amplifyGroups: [],
-                        systemUsers: [],
-                    });
+                    // Members entered as emails join with write access; the current user is the admin.
+                    const memberEmails = newTeamMembers
+                        .split(',')
+                        .map((e) => e.trim())
+                        .filter(Boolean);
 
-                    if (!result || !result.id) {
-                        setTeamError('Failed to create team. Please try again.');
+                    // One request checks the name and creates the group with its creator and
+                    // members already in it.
+                    const outcome = await createGroupWithMembers({
+                        name: newTeamName,
+                        creator: userIdentifier,
+                        otherMembers: collectOtherMembers(memberEmails, userIdentifier, amplifyUsers),
+                        existingGroups: adminGroups,
+                    });
+                    if (!outcome.ok) {
+                        setTeamError(outcome.message);
                         setTeamCreating(false);
                         return;
                     }
 
-                    // Add members if any emails were entered
-                    if (newTeamMembers.trim()) {
-                        const memberEmails = newTeamMembers
-                            .split(',')
-                            .map((e) => e.trim())
-                            .filter(Boolean);
-
-                        // Build members map: current user = admin, others = write
-                        const members: Record<string, string> = {};
-                        if (userIdentifier) {
-                            members[userIdentifier] = GroupAccessType.ADMIN;
-                        }
-                        memberEmails.forEach((email) => {
-                            // Try to find username from amplifyUsers (email→username reverse lookup)
-                            const username =
-                                Object.keys(amplifyUsers).find(
-                                    (k) =>
-                                        (amplifyUsers as Record<string, string>)[k] === email
-                                ) || email;
-                            if (username !== userIdentifier) {
-                                members[username] = GroupAccessType.WRITE;
-                            }
-                        });
-
-                        await updateGroupMembers({
-                            groupId: result.id,
-                            members,
-                        });
-                    }
-
-                    onConfirm(null, null, result.id);
+                    onConfirm(null, null, outcome.group.id);
                 } catch (err) {
                     setTeamError('An error occurred while creating the team. Please try again.');
                     setTeamCreating(false);

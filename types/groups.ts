@@ -33,6 +33,16 @@ export interface Members {
   [key: string]: GroupAccessType;
 }
 
+// Body of POST /groups/create. The key names are the backend's
+// (amplify-genai-backend object-access/schemata/create_admin_group_schema.py).
+export interface CreateAdminGroupRequest {
+  group_name: string;
+  members: Members;
+  types?: string[];
+  amplify_groups?: string[];
+  system_users?: string[];
+}
+
 export interface Group {
   id: string;
   name: string;

@@ -76,7 +76,8 @@ import { deleteScheduledTask, getScheduledTask } from '@/services/scheduledTasks
 import { cronToDriveRescanSchedule, determineDriveScanCron, determineWebsiteScanCron, manageScheduledTasks } from '@/utils/app/scheduledTasks';
 import type { DriveRescanSchedule } from '@/components/Promptbar/components/AssistantModalComponents/AssistantDriveDataSources';
 import { Filter } from 'bad-words';
-import { createAstAdminGroup, updateGroupMembers, updateGroupAssistants } from '@/services/groupsService';
+import { updateGroupAssistants } from '@/services/groupsService';
+import { collectOtherMembers, createGroupWithMembers } from '@/components/NewUI/views/assistant/groupCreationModel';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { checkSlugSystemTerms, cleanSlug, validateSlug } from '@/components/NewUI/views/assistant/assistantPathRules';
 import { buildThinkingFields, readEnforcedEffort } from '@/components/NewUI/views/assistant/enforcedEffortModel';
@@ -110,7 +111,6 @@ import { getOpsForUser } from '@/services/opsService';
 import { filterSupportedIntegrationOps } from '@/utils/app/ops';
 import { createAssistantPrompt, handleUpdateAssistantPrompt } from '@/utils/app/assistants';
 import { getUserIdentifier } from '@/utils/app/data';
-import { resolveUsernameForEmail } from '@/components/NewUI/shared/emailSuggestions';
 import { shareAssistantWithEmails, AssistantShareResult } from '@/components/NewUI/shared/shareAssistantWithEmails';
 import { joinEmails } from '@/components/NewUI/shared/shareOutcome';
 import toast from 'react-hot-toast';
@@ -1398,56 +1398,18 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
         }
 
         if (!userIdentifier) throw new Error('Sign in before creating a group.');
-        const result = await createAstAdminGroup({
-            name: newTeamName.trim(),
-            groupTypes: [],
-            amplifyGroups: [],
-            systemUsers: [],
+
+        // One request checks the name and creates the group with its creator (Admin) and
+        // members already in it.
+        const outcome = await createGroupWithMembers({
+            name: newTeamName,
+            creator: userIdentifier,
+            otherMembers: collectOtherMembers(selectedMemberEmails, userIdentifier, amplifyUsers, newMemberAccessMap),
+            existingGroups: adminGroups,
         });
+        if (!outcome.ok) throw new Error(outcome.message);
 
-        if (!result || !result.id) {
-            throw new Error('Failed to create team. Please try again.');
-        }
-
-        const members: Record<string, GroupAccessType> = {
-            [userIdentifier]: GroupAccessType.ADMIN,
-        };
-        selectedMemberEmails.forEach((email: string) => {
-            const username = resolveUsernameForEmail(email, amplifyUsers);
-            if (username !== userIdentifier) {
-                members[username] = newMemberAccessMap[email] ?? GroupAccessType.WRITE;
-            }
-        });
-
-        const createdGroup: Group = {
-            ...result,
-            id: result.id,
-            name: result.name ?? newTeamName.trim(),
-            members: { ...(result.members ?? {}), ...members },
-            assistants: result.assistants ?? [],
-            layeredAssistants: result.layeredAssistants ?? [],
-            groupTypes: result.groupTypes ?? [],
-            amplifyGroups: result.amplifyGroups ?? [],
-            systemUsers: result.systemUsers ?? [],
-        };
-        const membersUpdated = await updateGroupMembers({
-            group_id: result.id,
-            update_type: 'ADD',
-            members,
-        });
-        if (!membersUpdated) {
-            // The group itself exists, so retain it locally and offer a clear retry path.
-            createdGroupRef.current = createdGroup;
-            homeDispatch({
-                field: 'groups',
-                value: groups.some((group: Group) => group.id === createdGroup.id)
-                    ? groups.map((group: Group) => group.id === createdGroup.id ? createdGroup : group)
-                    : [...groups, createdGroup],
-            });
-            throw new Error('The group was created, but its members could not be saved. Please try again.');
-        }
-
-        // Publish the group only after the creator's Admin membership is saved.
+        const createdGroup = outcome.group;
         createdGroupRef.current = createdGroup;
         homeDispatch({
             field: 'groups',
@@ -1455,8 +1417,12 @@ export const NewUIAssistantCreationModal: React.FC<NewUIAssistantCreationModalPr
                 ? groups.map((group: Group) => group.id === createdGroup.id ? createdGroup : group)
                 : [...groups, createdGroup],
         });
+        // The group exists from here on. If a later save step fails, the dialog now shows it as
+        // the selected existing group, so saving again uses it instead of creating a second one.
+        setTeamMode('existing');
+        setSelectedGroupId(createdGroup.id);
 
-        return result.id;
+        return createdGroup.id;
     };
 
     // ── Main save handler ─────────────────────────────────────────────────

@@ -7,7 +7,7 @@ import { Prompt } from '@/types/prompt';
 import { Group, GroupAccessType, AstGroupTypeData, GroupUpdateType, Members } from '@/types/groups';
 import { createEmptyPrompt, savePrompts } from '@/utils/app/prompts';
 import { useSession } from 'next-auth/react';
-import { createAstAdminGroup, fetchAstAdminGroups, updateGroupAssistants, saveGroupLayeredAssistant, deleteGroupLayeredAssistant } from '@/services/groupsService';
+import { createAstAdminGroup, groupFromCreateResult, fetchAstAdminGroups, updateGroupAssistants, saveGroupLayeredAssistant, deleteGroupLayeredAssistant } from '@/services/groupsService';
 import { LayeredAssistant, LayeredAssistantNode, isLeafNode, createLayeredAssistant } from '@/types/layeredAssistant';
 import { TagsList } from '../Chat/TagsList';
 import ExpansionComponent from '../Chat/ExpansionComponent';
@@ -406,7 +406,7 @@ export const AssistantAdminUI: FC<Props> = ({ open, openToGroup, openToAssistant
             return;
         } else {
             statsService.createAstAdminGroupEvent(group);
-            const resultData = await createAstAdminGroup(group);
+            const resultData = groupFromCreateResult(await createAstAdminGroup(group));
             if (!resultData) {
                 alert("We are unable to create the group at this time. Please try again later.");
                 setShowCreateNewGroup(true);
