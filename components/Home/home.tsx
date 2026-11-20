@@ -107,7 +107,6 @@ import { NewLogin } from '@/components/NewUI/home/NewLogin';
 import { ChatsListView } from '@/components/NewUI/views/ChatsListView';
 import { NewLibraryView } from '@/components/NewUI/views/NewLibraryView';
 import { ConversationViewShell } from '@/components/NewUI/chat/ConversationViewShell';
-import { NewSettingsModal } from '@/components/NewUI/settings/NewSettingsModal';
 import { PromptTemplateDialogHost } from '@/components/NewUI/shared/PromptTemplateDialogHost';
 import { LayeredBuilderHost } from '@/components/NewUI/shared/LayeredBuilderHost';
 import { AssistantAdminUIHost } from '@/components/NewUI/shared/AssistantAdminUIHost';
@@ -174,19 +173,6 @@ const Home = ({
     // Initialize after mount so localStorage is available
     useEffect(() => {
         setUiPreference(getUIPreference());
-    }, []);
-
-    // New UI ⌘, shortcut — opens settings modal
-    const [newUiSettingsSection, setNewUiSettingsSection] = useState<string | null>(null);
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => {
-            if ((e.metaKey || e.ctrlKey) && e.key === ',') {
-                e.preventDefault();
-                setNewUiSettingsSection('general');
-            }
-        };
-        document.addEventListener('keydown', handler);
-        return () => document.removeEventListener('keydown', handler);
     }, []);
 
     const [dataDisclosure, setDataDisclosure] = useState<{url: string, html: string | null}|null>(null);
@@ -1963,14 +1949,6 @@ const Home = ({
                                         <NotebookFeatureGate />
                                     )}
                                 </div>
-
-                                {/* ⌘, global settings shortcut for new UI */}
-                                {newUiSettingsSection !== null && (
-                                    <NewSettingsModal
-                                        openToSection={newUiSettingsSection}
-                                        onClose={() => setNewUiSettingsSection(null)}
-                                    />
-                                )}
 
                                 {/* "Use this prompt template" popup. Mounted here, as a
                                     sibling of the settings modal rather than inside it, so

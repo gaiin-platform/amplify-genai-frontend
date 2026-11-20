@@ -3,7 +3,7 @@
  * Shows avatar + name + org, opens an upward popover on click.
  *
  * Menu items:
- *   Settings (⌘,)
+ *   Settings
  *   Appearance (Light / Dark)
  *   Documentation (external link)
  *   Switch to Classic UI
@@ -160,7 +160,6 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
           >
             <IconSettings size={15} />
             Settings
-            <span className="ml-auto text-[11px] text-[--text-muted]">⌘,</span>
           </button>
 
           {/* Admin Panel — only shown when featureFlags.adminInterface is true */}
