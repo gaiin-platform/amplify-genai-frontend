@@ -307,7 +307,6 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
 | File | Purpose |
 |------|---------|
 | `NewAssistantsView.tsx` | Assistants gallery: My / Shared with Me / Teams / Layered / feature-gated Amplify Helper tabs. An `InfoTooltip` (i) at the right end of the tab bar explains the kinds of assistants (`ASSISTANT_TYPES_INFO`) |
-| `NewAssistantTypeSelector.tsx` | Step-0 type picker (Private/Managed/Team) before AssistantModal |
 | `NewUIAssistantCreationModal.tsx` | Unified assistant creation form (access type + fields inline) |
 | `NewUIPromptCreationModal.tsx` | Prompt template creation modal |
 | `ChatsListView.tsx` | Chats & Tasks full-pane list with search |
