@@ -429,8 +429,8 @@ export const VariableModal: FC<Props> = ({
             .map((line, index) => "Line "+index+": "+line).join("\n") : text;
         text = (options.escape) ? text.replaceAll("\"", "\\\"")
             .replaceAll("\n","\\n") : text;
-        text = (options.truncate) ? text.slice(0, options.truncate) : text;
-        text = (options.truncateFromEnd) ? text.slice(-1 * options.truncate) : text;
+        text = (options.truncate && options.truncate > 0) ? text.slice(0, options.truncate) : text;
+        text = (options.truncateFromEnd && options.truncateFromEnd > 0) ? text.slice(-1 * options.truncateFromEnd) : text;
         return text;
     }
 

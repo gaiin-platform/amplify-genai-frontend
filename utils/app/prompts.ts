@@ -376,7 +376,7 @@ export const variableTypeOptions = {
       title: "Truncate from End",
       default: -1,
       description: "If the text is longer than the max characters, truncate it start from the end.",
-      function: (options:VariableOptions, text:string) => text.slice(-1 * options.truncate)
+      function: (options:VariableOptions, text:string) => text.slice(-1 * options.truncateFromEnd)
     },
   },
   "conversation": {
@@ -456,7 +456,7 @@ export const variableTypeOptions = {
       title: "Truncate from End",
       default: -1,
       description: "If the text is longer than the max characters, truncate it start from the end.",
-      function: (options:VariableOptions, text:string) => text.slice(-1 * options.truncate)
+      function: (options:VariableOptions, text:string) => text.slice(-1 * options.truncateFromEnd)
     },
     regex: {
       stage: "validate",
