@@ -1,4 +1,5 @@
 import { AssistantDefinition } from "@/types/assistant";
+import { CreateAdminGroupRequest } from "@/types/groups";
 import { LayeredAssistant } from "@/types/layeredAssistant";
 import { doRequestOp } from "./doRequestOp";
 
@@ -6,7 +7,14 @@ const URL_PATH = "/groups";
 const UPDATE_URL_PATH =  URL_PATH + "/update";
 const SERVICE_NAME = "groups";
 
-export const createAstAdminGroup = async (data: any) => {
+export interface CreateAdminGroupResult {
+    success: boolean;
+    data?: any;       // the created group, when success is true
+    message?: string; // the backend's (or the request's) reason, when it is false
+}
+
+// Returns the whole response, not just `data`, so a caller can show why a create failed.
+export const createAstAdminGroup = async (data: CreateAdminGroupRequest): Promise<CreateAdminGroupResult> => {
     const op = {
         method: 'POST',
         path: URL_PATH,
@@ -14,9 +22,12 @@ export const createAstAdminGroup = async (data: any) => {
         data: data,
         service: SERVICE_NAME
     };
-    const result = await doRequestOp(op);
-    return result.success ? result.data : null;
+    return await doRequestOp(op);
 }
+
+// The group a create response carries, or null when the create failed.
+export const groupFromCreateResult = (result: CreateAdminGroupResult | null | undefined) =>
+    result?.success ? result.data : null;
 
 export const updateGroupTypes = async (data: any) => {
     const op = {
