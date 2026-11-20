@@ -30,7 +30,7 @@ import { blockIfOtherChatGenerating } from '@/hooks/useChatSendService';
 import { RichComposer, type RichComposerHandle } from '@/components/NewUI/shared/RichComposer';
 import { handleFile } from '@/components/Chat/AttachFile';
 import { FileDropOverlay, useFileDropTarget } from '@/components/NewUI/shared/FileDropZone';
-import { getFileExtension, processDragDropFiles, validateFile } from '@/utils/fileHandler';
+import { getFileExtension, normalizePastedFile, processDragDropFiles, validateFile } from '@/utils/fileHandler';
 import { COMMON_DISALLOWED_FILE_EXTENSIONS, DEFAULT_SYSTEM_PROMPT, DEFAULT_TEMPERATURE } from '@/utils/app/const';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { AttachedDocument } from '@/types/attacheddocument';
@@ -339,6 +339,8 @@ export const NewHome: React.FC = () => {
   }, [attachmentCount, scheduleFitHeading]);
   // thumbUrl object-URLs to revoke on remove/send
   const thumbUrlsRef = useRef<Record<string, string>>({});
+  // Original File per doc id, so a failed upload can be retried.
+  const originalFilesRef = useRef<Record<string, File>>({});
   // Backing AttachedDocuments (for send payload)
   const [attachedDocs, setAttachedDocs] = useState<AttachedDocument[]>([]);
 
@@ -386,6 +388,17 @@ export const NewHome: React.FC = () => {
 
   const handleSetMetadata = useCallback((doc: AttachedDocument, metadata: any) => {
     setAttachedDocs((prev) => prev.map((d) => (d.id === doc.id ? { ...d, metadata } : d)));
+  }, []);
+
+  // handleFile calls this when an upload/processing step fails for good. Without it
+  // the card would sit at "uploading" forever and its S3 key — set before the PUT
+  // finishes — would still look sendable.
+  const handleUploadFailed = useCallback((doc: AttachedDocument | undefined, message: string) => {
+    if (!doc) return;
+    setAttachedDocs((prev) => prev.filter((d) => d.id !== doc.id));
+    setUIAttachments((prev) =>
+      prev.map((a) => (a.id === doc.id ? { ...a, status: 'failed' as const, error: message } : a)),
+    );
   }, []);
 
   const handleRemoveAttachment = (id: string) => {
@@ -539,14 +552,25 @@ export const NewHome: React.FC = () => {
         intercepted = true;
         const thumbUrl = makethumbUrl(file);
         if (thumbUrl) thumbUrlsRef.current[doc.id] = thumbUrl;
+        originalFilesRef.current[doc.id] = file; // kept so a failed upload can be retried
       }
       addDocument(doc);
     };
     handleFile(
       file, wrappedAdd, handleUploadProgress, handleSetKey, handleSetMetadata,
       () => {}, featureFlags.uploadDocuments ?? false, undefined, false, {}, [],
+      undefined, handleUploadFailed,
     );
-  }, [addDocument, handleUploadProgress, handleSetKey, handleSetMetadata, featureFlags.uploadDocuments]);
+  }, [addDocument, handleUploadProgress, handleSetKey, handleSetMetadata, handleUploadFailed, featureFlags.uploadDocuments]);
+
+  /** Retry a failed upload: drop the failed card and re-submit the original file. */
+  const handleRetryAttachment = (id: string) => {
+    const file = originalFilesRef.current[id];
+    if (!file) return;
+    delete originalFilesRef.current[id];
+    handleRemoveAttachment(id);
+    addFileToRail(file);
+  };
 
   /**
    * Intake for a batch of files, from the picker or from a drop onto the pane.
@@ -630,6 +654,18 @@ export const NewHome: React.FC = () => {
     const trimmed = markdown.trim();
     const readyAttachments = uiAttachments.filter((a) => a.status !== 'failed');
     if (!trimmed && readyAttachments.length === 0) return;
+    // Enter calls this directly, bypassing the Send button's canSend gate. An
+    // attachment's S3 key exists before its upload finishes, so sending now would
+    // reference a file that isn't in S3 yet (the backend then hits NoSuchKey and
+    // the model never sees the image). Hold the draft instead.
+    if (uiAttachments.some((a) => a.status === 'uploading')) {
+      toast.error('Please wait for attachments to finish uploading.');
+      return false; // RichComposer keeps the draft only on an explicit false
+    }
+    if (uiAttachments.some((a) => a.status === 'failed')) {
+      toast.error('An attachment failed to upload. Retry or remove it to send.');
+      return false;
+    }
     // Another chat is still answering: keep the draft and ask the user to wait.
     if (blockIfOtherChatGenerating(selectedConversation?.id)) return false; // RichComposer keeps the draft only on an explicit false
     // Halloween: bats burst from the composer and sweep over the transition to
@@ -1028,6 +1064,7 @@ export const NewHome: React.FC = () => {
             attachments={uiAttachments}
             onRemove={handleRemoveAttachment}
             onEdit={handleEditPastedAttachment}
+            onRetry={handleRetryAttachment}
             onPreview={(id, rect) => {
               setPreviewId(id);
               setPreviewOriginRect(rect);
@@ -1043,7 +1080,10 @@ export const NewHome: React.FC = () => {
               scheduleFitHeading();
             }}
             onLargePaste={handleLargePaste}
-            onImagePaste={addFileToRail}
+            onImagePaste={(file) => {
+              // Pasted files often arrive with no name or a wrong/empty type.
+              void normalizePastedFile(file).then(addFileToRail);
+            }}
             placeholder={isHalloween ? HALLOWEEN_PLACEHOLDER : isThanksgiving ? THANKSGIVING_PLACEHOLDER : 'Ask anything…'}
             // No fixed cap: the editor grows with its content and is limited only
             // by the space left in the pane (card shrinks → this scrolls). With

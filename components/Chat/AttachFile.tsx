@@ -53,7 +53,12 @@ export const handleFile = async (file: any,
     ragEnabled: boolean,
     props: any = {},
     tags: string[] = [],
-    onSensitivityBlock?: (fileName: string, labelName: string) => void
+    onSensitivityBlock?: (fileName: string, labelName: string) => void,
+    // Called when the file will never become usable (upload threw, backend processing failed,
+    // or the file was blocked). `doc` is undefined if the failure happened before the document
+    // was attached. Callers that render a per-attachment state use this to show a persistent
+    // failure + retry instead of leaving the attachment looking like it is still uploading.
+    onUploadFailed?: (doc: AttachedDocument | undefined, message: string) => void
 ) => {
 
     try {
@@ -78,6 +83,7 @@ export const handleFile = async (file: any,
                         `Level 4 (Critical/Confidential) files are restricted for security compliance.`
                     );
                 }
+                onUploadFailed?.(undefined, `${file.name} is marked "${sensitivityInfo.labelName}" and can't be uploaded.`);
                 return; // Exit immediately - do not upload
             }
         }
@@ -209,7 +215,8 @@ export const handleFile = async (file: any,
 
                     onUploadProgress(document, 100);
                 } else if (!abortController?.signal?.aborted) {
-                    alert("Upload failed");
+                    if (onUploadFailed) onUploadFailed(document, 'Upload failed. Tap Retry.');
+                    else alert("Upload failed");
                     safeCleanUp(key);
                 }
             }
@@ -220,6 +227,7 @@ export const handleFile = async (file: any,
                     window.dispatchEvent(new CustomEvent(UPLOAD_ERROR_EVENT, {
                         detail: { message: 'Upload file aborted' },
                     }));
+                    onUploadFailed?.(document, 'Upload failed. Tap Retry.');
                     if (docKey) safeCleanUp(docKey);
                 }
             }
@@ -232,6 +240,7 @@ export const handleFile = async (file: any,
 
     } catch (error) {
         console.error("Failed to handle file:", error);
+        onUploadFailed?.(undefined, 'Could not process this file.');
     }
 }
 

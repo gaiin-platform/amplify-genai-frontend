@@ -51,6 +51,7 @@ import { getActivePlugins } from '@/utils/app/plugin';
 import { getSettings } from '@/utils/app/settings';
 import {
   getFileExtension,
+  normalizePastedFile,
   processDragDropFiles,
   validateFile,
 } from '@/utils/fileHandler';
@@ -1078,6 +1079,35 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           handleDocSetAbortController({ ...doc, id: resolvedId }, abort);
         };
 
+        // handleFile reports a failed upload/processing here so the card flips to
+        // 'failed' (with Retry) right away instead of waiting for the stall timeout.
+        const handleUploadFailed = (
+          doc: AttachedDocument | undefined,
+          message: string,
+        ) => {
+          const id = doc?.id ?? sentinelToDocRef.current[sentinelId] ?? sentinelId;
+          if (
+            cancelledUploadsRef.current.has(id) ||
+            cancelledUploadsRef.current.has(sentinelId)
+          )
+            return;
+          [id, sentinelId].forEach((timerId) => {
+            if (uploadTimeoutsRef.current[timerId]) {
+              clearTimeout(uploadTimeoutsRef.current[timerId]);
+              delete uploadTimeoutsRef.current[timerId];
+            }
+          });
+          delete abortUploadsRef.current[id];
+          setAttachedDocs((prev) => prev.filter((d) => d.id !== id));
+          setUIAttachments((prev) =>
+            prev.map((a) =>
+              a.id === id && a.status === 'uploading'
+                ? { ...a, status: 'failed' as const, error: message }
+                : a,
+            ),
+          );
+        };
+
         handleFile(
           file,
           wrappedAttach,
@@ -1090,6 +1120,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
           false, // chat uploads are never RAG'd
           {}, // extra props
           [], // tags
+          undefined, // onSensitivityBlock (falls back to alert)
+          handleUploadFailed,
         );
       } catch {
         // silently ignore — user sees no card but the file isn't lost
@@ -1340,7 +1372,10 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 createPasteAttachment(pastedText),
               ]);
             }}
-            onImagePaste={addFileToRail}
+            onImagePaste={(file) => {
+              // Pasted files often arrive with no name or a wrong/empty type.
+              void normalizePastedFile(file).then(addFileToRail);
+            }}
             placeholder="Write a message…"
             hasExternalContent={uiAttachments.some((a) => a.status === 'ready')}
             editorClassName="max-h-[288px] overflow-y-auto"

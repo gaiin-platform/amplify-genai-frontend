@@ -346,11 +346,76 @@ export function resolveRagConfiguration(
 ): boolean {
     return !!featureFlags?.ragEnabled && disableRag === false;
 }
+export interface SniffedFileType {
+    mime: string;
+    ext: string;
+}
+
+const startsWithBytes = (bytes: Uint8Array, signature: number[], offset = 0) =>
+    signature.every((b, i) => bytes[offset + i] === b);
+
 /**
- * Generate a filename for pasted files that don't have names
+ * Identify a file from its leading bytes (magic numbers). Clipboard sources such as
+ * screenshot tools and RDP sessions can hand us a File with an empty or generic
+ * `type`, so the declared MIME type alone can't be trusted. Returns null when the
+ * bytes aren't a recognised image/PDF signature.
  */
-export function generatePastedFileName(file: File): string {
-    return file.name || `pasted-${Date.now()}.${file.type.split('/')[1] || 'txt'}`;
+export function sniffFileType(bytes: Uint8Array): SniffedFileType | null {
+    if (startsWithBytes(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return { mime: 'image/png', ext: 'png' };
+    if (startsWithBytes(bytes, [0xff, 0xd8, 0xff])) return { mime: 'image/jpeg', ext: 'jpg' };
+    if (startsWithBytes(bytes, [0x47, 0x49, 0x46, 0x38])) return { mime: 'image/gif', ext: 'gif' };
+    // RIFF....WEBP
+    if (startsWithBytes(bytes, [0x52, 0x49, 0x46, 0x46]) && startsWithBytes(bytes, [0x57, 0x45, 0x42, 0x50], 8)) {
+        return { mime: 'image/webp', ext: 'webp' };
+    }
+    if (startsWithBytes(bytes, [0x42, 0x4d])) return { mime: 'image/bmp', ext: 'bmp' };
+    // II*\0 or MM\0*
+    if (startsWithBytes(bytes, [0x49, 0x49, 0x2a, 0x00]) || startsWithBytes(bytes, [0x4d, 0x4d, 0x00, 0x2a])) {
+        return { mime: 'image/tiff', ext: 'tiff' };
+    }
+    if (startsWithBytes(bytes, [0x25, 0x50, 0x44, 0x46])) return { mime: 'application/pdf', ext: 'pdf' };
+    return null;
+}
+
+const hasFileExtension = (name: string) => /\.[A-Za-z0-9]{1,8}$/.test(name);
+
+const MIME_SUBTYPE_EXTENSIONS: Record<string, string> = { jpeg: 'jpg', plain: 'txt' };
+
+/** Extension for a declared MIME type, e.g. `image/svg+xml` -> `svg`; null when unusable. */
+const extensionFromMime = (mime: string): string | null => {
+    const subtype = (mime.split('/')[1] || '').split(';')[0].split('+')[0].trim().toLowerCase();
+    if (!/^[a-z0-9.-]{1,10}$/.test(subtype)) return null;
+    return MIME_SUBTYPE_EXTENSIONS[subtype] || subtype;
+};
+
+/**
+ * Generate a filename for pasted files. Keeps a real name when it already has an
+ * extension; otherwise adds one from the sniffed type, then the declared MIME type,
+ * and finally falls back to `txt`.
+ */
+export function generatePastedFileName(file: File, sniffed?: SniffedFileType | null): string {
+    const ext = sniffed?.ext || extensionFromMime(file.type || '') || 'txt';
+    if (file.name) return hasFileExtension(file.name) ? file.name : `${file.name}.${ext}`;
+    return `pasted-${Date.now()}.${ext}`;
+}
+
+/**
+ * Prepare a clipboard-pasted File for upload: detect its real type from the file
+ * signature and make sure it has both a usable name and the right MIME type.
+ * Never rejects; if the bytes can't be read the file is named from its declared type.
+ */
+export async function normalizePastedFile(file: File): Promise<File> {
+    let sniffed: SniffedFileType | null = null;
+    try {
+        const head = new Uint8Array(await file.slice(0, 16).arrayBuffer());
+        sniffed = sniffFileType(head);
+    } catch {
+        // fall through to the declared type
+    }
+    const name = generatePastedFileName(file, sniffed);
+    const type = sniffed?.mime || file.type;
+    if (name === file.name && type === file.type) return file;
+    return new File([file], name, { type, lastModified: file.lastModified });
 }
 /**
  * Process a single file through the validation and attachment workflow
@@ -457,11 +522,14 @@ export function processPastedFiles(
     files: File[] | FileList,
     options: Omit<FileProcessorOptions, 'generateFileName' | 'allowedExtensions'>
 ): void {
-    processFiles(files, {
-        ...options,
-        allowedExtensions: undefined,
-        generateFileName: generatePastedFileName
-    });
+    // Names/types are resolved from the file signature first, so this is async; the
+    // order of the pasted files is preserved.
+    Promise.all(Array.from(files).map(normalizePastedFile))
+        .then((normalized) => processFiles(normalized, {
+            ...options,
+            allowedExtensions: undefined
+        }))
+        .catch((error) => console.error('Failed to process pasted files:', error));
 }
 /**
  * Process files from file input elements with ZIP support
