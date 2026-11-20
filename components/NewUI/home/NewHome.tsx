@@ -52,7 +52,6 @@ import {
 } from '@/components/NewUI/home/HalloweenHero';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { releaseBatSwarm } from '@/components/NewUI/home/batSwarm';
-import { HalloweenControls } from '@/components/NewUI/home/HalloweenControls';
 import {
   getHalloweenPartEnabled,
   USER_HALLOWEEN_EFFECTS_CHANGED_EVENT,
@@ -65,7 +64,7 @@ import {
 } from '@/components/NewUI/home/ThanksgivingHero';
 import { releaseLeafGust } from '@/components/NewUI/home/leafGust';
 import { SeasonalControls } from '@/components/NewUI/home/SeasonalControls';
-import { THANKSGIVING_CONTROLS } from '@/components/NewUI/home/seasonalControlsConfig';
+import { HALLOWEEN_CONTROLS, THANKSGIVING_CONTROLS } from '@/components/NewUI/home/seasonalControlsConfig';
 import {
   getThanksgivingPartEnabled,
   USER_THANKSGIVING_EFFECTS_CHANGED_EVENT,
@@ -130,20 +129,18 @@ export const NewHome: React.FC = () => {
   const enforcedModelId = activeAssistant?.definition?.data?.model as string | undefined;
 
   const composerRef = useRef<RichComposerHandle>(null);
-  // Seasonal theme — gated by the `halloween` feature flag (off unless an admin enables it).
-  // Users can opt out in Settings → General (or via the corner pill).
+  // Seasonal themes — each gated by its own feature flag (`halloween` / `thanksgiving`),
+  // off unless an admin enables it (see seasonalTheme.ts). Users can opt out in
+  // Settings → General (or via the corner pill).
   const stableFlags = useStableFeatureFlags();
   // Upload gating must agree with the ⊕ menu (stable flags), not raw `{}`-until-loaded state.
   const featureFlags = stableFlags;
   const halloweenFlag = isHalloweenSeason(stableFlags);
-  const [inHalloweenSeason, setInHalloweenSeason] = useState(false);
   const [isHalloween, setIsHalloween] = useState(false);
   const [batSwarmOn, setBatSwarmOn] = useState(false);
   useEffect(() => {
     const sync = () => {
-      const season = halloweenFlag;
-      setInHalloweenSeason(season);
-      setIsHalloween(season && getHalloweenPartEnabled('theme'));
+      setIsHalloween(halloweenFlag && getHalloweenPartEnabled('theme'));
       setBatSwarmOn(getHalloweenPartEnabled('swarm'));
     };
     sync();
@@ -934,8 +931,8 @@ export const NewHome: React.FC = () => {
       {...dropHandlers}
     >
       {isHalloween && <HalloweenBackdrop />}
-      {/* Visible opt-out — stays in October even after the theme is turned off */}
-      {inHalloweenSeason && <HalloweenControls />}
+      {/* Visible opt-out — stays while the flag is on, even after the theme is turned off */}
+      {halloweenFlag && <SeasonalControls config={HALLOWEEN_CONTROLS} />}
       {isThanksgiving && <ThanksgivingBackdrop />}
       {/* Visible opt-out — stays while the flag is on, even after the theme is turned off */}
       {thanksgivingFlag && <SeasonalControls config={THANKSGIVING_CONTROLS} />}
@@ -963,7 +960,14 @@ export const NewHome: React.FC = () => {
           space before anything else is squeezed. 24px is the minimum top gap. */}
       <div
         aria-hidden="true"
-        style={{ flex: `0 1000 max(72px, 26vh)`, minHeight: PANE_EDGE_MARGIN }}
+        style={{
+          // Thanksgiving's greeting is ~4x taller than the default (turkey + headline +
+          // subtitle), so a fixed 26vh offset pushes the group toward the bottom edge.
+          // Instead share the leftover space above/below it (see the bottom spacer),
+          // keeping the same slight lift above true centre. Still shrinks first.
+          flex: isThanksgiving ? '1 1000 0px' : `0 1000 max(72px, 26vh)`,
+          minHeight: PANE_EDGE_MARGIN,
+        }}
       />
 
       {/* Content column — flex child that shrinks to the height left in the
@@ -1142,6 +1146,9 @@ export const NewHome: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Bottom spacer — Thanksgiving only; pairs with the top spacer to centre the group. */}
+      {isThanksgiving && <div aria-hidden="true" style={{ flex: '1.3 0 0px' }} />}
 
       {/* Attachment preview overlay */}
       {previewId && (
