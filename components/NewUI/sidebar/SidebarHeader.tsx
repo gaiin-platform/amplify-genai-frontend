@@ -41,7 +41,11 @@ export const SidebarHeader: React.FC<SidebarHeaderProps> = ({
       {/* Right actions */}
       <div className="flex items-center gap-1">
         {onSearch && (
-          <IconButton onClick={onSearch} title="Search (⌘K)" aria-label="Search conversations">
+          <IconButton
+            onClick={onSearch}
+            title="Search"
+            aria-label="Search conversations"
+          >
             <IconSearch size={16} />
           </IconButton>
         )}

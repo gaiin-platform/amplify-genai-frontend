@@ -896,18 +896,6 @@ export const NewHome: React.FC = () => {
   );
   const canSend = (hasContent || uiAttachments.some((a) => a.status === 'ready')) && allUploaded;
 
-  // ⌘U global shortcut
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      if (e.metaKey && e.key === 'u') {
-        e.preventDefault();
-        fileInputRef.current?.click();
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, []);
-
   // Wire openNewUISettingsSection event (dispatched by AttachMenu connectors/skills)
   useEffect(() => {
     const handler = (e: Event) => {

@@ -237,10 +237,9 @@ const MenuDivider: React.FC = () => (
 const ActionRow: React.FC<{
   icon: React.ReactNode;
   label: string;
-  shortcut?: string;
   disabled?: boolean;
   onClick: () => void;
-}> = ({ icon, label, shortcut, disabled, onClick }) => (
+}> = ({ icon, label, disabled, onClick }) => (
   <button
     type="button"
     role="menuitem"
@@ -274,18 +273,6 @@ const ActionRow: React.FC<{
       {icon}
     </span>
     <span style={{ flex: 1 }}>{label}</span>
-    {shortcut && (
-      <span
-        style={{
-          fontSize: 12,
-          color: 'var(--text-muted)',
-          flexShrink: 0,
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {shortcut}
-      </span>
-    )}
   </button>
 );
 
@@ -1957,7 +1944,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                   <ActionRow
                     icon={<IconPaperclip size={18} />}
                     label="Add files or photos"
-                    shortcut="⌘U"
                     onClick={() => { track('Attach Menu Used', { 'Option': 'upload', 'Is New Chat': isNewChat }); onAddFiles(); closeAll(); }}
                   />
                 )}
