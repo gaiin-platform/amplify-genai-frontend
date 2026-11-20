@@ -85,7 +85,7 @@ const SharedItemsList: FC<{}> = () => {
     const handleSWYDelete = async (e: React.MouseEvent<HTMLButtonElement>) => {
         e.stopPropagation();
         if (deletingItem) {
-            alert("Not ready yet, in progess - karely ")
+            alert("Not ready yet, in progress")
             // if (confirm("If you have imported this item, you will no longer have access to this item. \n\nWould you like to continue?")) await deleteShareItem(deletingItem);
             // Remove from local starage and dispatch!! 
             // pull data to see items that need to be removed 

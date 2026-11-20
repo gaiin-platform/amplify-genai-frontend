@@ -275,7 +275,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         onChange={(e) => {
                                             if(e.target.value === 'pptx' && powerPointTemplateOptions.length > 0){
                                                 setTemplateOptions(powerPointTemplateOptions);
-                                                const defaultTemplate = powerPointTemplateOptions.includes("vanderbilt_1.pptx") ? "vanderbilt_1.pptx" : powerPointTemplateOptions[0];
+                                                const defaultTemplate = powerPointTemplateOptions[0];
                                                 setTemplateSelection(defaultTemplate);
                                             }
                                             else {

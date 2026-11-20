@@ -16,8 +16,9 @@ import React, { FC, useId, useState } from 'react';
 import { IconExternalLink } from '@tabler/icons-react';
 import { DisclosureChevron } from '@/components/NewUI/shared/DisclosureChevron';
 import { InfoCallout } from '@/components/NewUI/shared/InfoCallout';
+import { getResourcesUrl } from '@/utils/whiteLabel/branding';
 
-export const API_RESOURCES_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
+export const API_RESOURCES_URL = getResourcesUrl();
 /** Id of the callout, so the disabled "Create key" button can point at it. */
 export const BILLING_CALLOUT_ID = 'nui-api-billing-callout';
 
@@ -79,9 +80,11 @@ export const ApiKeysIntro: FC<ApiKeysIntroProps> = ({ hasBillingAccount, onOpenA
       )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 16px', marginTop: 12 }}>
-        <a href={API_RESOURCES_URL} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>
-          API documentation <IconExternalLink size={13} aria-hidden="true" />
-        </a>
+        {API_RESOURCES_URL && (
+          <a href={API_RESOURCES_URL} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>
+            API documentation <IconExternalLink size={13} aria-hidden="true" />
+          </a>
+        )}
         <button
           type="button"
           aria-expanded={typesOpen}

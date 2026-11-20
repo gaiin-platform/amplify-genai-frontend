@@ -109,7 +109,7 @@ The New UI is off until `newUi` is on. The backend serves the flag, so the backe
 | Next.js | **14 to 15** (`next ^15.5.27`, resolved 15.5.29). Vitest 4 and `@types/node` 22 for tests. Run a clean `npm ci`. |
 | Node.js | Use **Node 20 or newer**. `amplify.yml` runs `nvm install 20`. The `Dockerfile` uses `node:lts-alpine3.20`. `package.json` has no `engines` field. |
 | Console output | Production builds **remove `console.log`, `console.info` and `console.debug`**. `console.error` and `console.warn` are kept. Plan your production debugging around that. |
-| Environment variables | **No new runtime variables.** `.env.local.example` is unchanged. The only new variable is the build-time `NEXT_PUBLIC_ORGANIZATION_NAME` (next section). |
+| Environment variables | **No new runtime variables.** `.env.local.example` is unchanged. The new variables are the build-time `NEXT_PUBLIC_ORGANIZATION_NAME`, `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_RESOURCES_URL` and `NEXT_PUBLIC_DATA_POLICY_URL` (next section). |
 | CI | In `.github/workflows/ecr-build-push.yml`, AWS credentials and ECR login are skipped on pull-request runs. The workflow passes **no build arguments**, so the image it publishes is unbranded. |
 | Sessions | The 3-hour absolute session limit was removed. Sessions still expire after 3 hours of inactivity (rolling). Token refresh retries twice, then signs the user out after 3 consecutive temporary failures, or at once on a permanent error. |
 | Browser data | **No migration.** IndexedDB (version 1) is unchanged. New per-user settings (chat font, default model, reasoning effort, storage choice) are saved in the server-side user settings. Local chats are not moved to the cloud automatically. |
@@ -123,13 +123,14 @@ White-label settings are `NEXT_PUBLIC_*` variables. Next.js copies them into the
 | `NEXT_PUBLIC_CUSTOM_LOGO` | A **filename** (no folder, no `/`) of a file in `public/logos/`. Used in the sidebar, the home greeting and the login page. Falls back to the stock Amplify mark, then to a one-letter tile. Square or icon-style logos look best (24 px sidebar, 40 px home, about 58 px login); wide logos are scaled, not stretched. |
 | `NEXT_PUBLIC_BRAND_NAME` | Sidebar wordmark, login heading ("Welcome to ..."), startup message, logo alt text, iOS home-screen title and the "... Helper" names. Default in the New UI: `Amplify` (the Classic UI default is `Amplify GenAI`). |
 | `NEXT_PUBLIC_DEFAULT_THEME` | First-visit theme (`light` or `dark`). A user's saved choice wins. |
-| `NEXT_PUBLIC_ORGANIZATION_NAME` | **New.** Set it on any deployment that is not run by Vanderbilt. It removes Vanderbilt policy text, links and contact details from the Amplify Helper's in-app guide. |
+| `NEXT_PUBLIC_ORGANIZATION_NAME` | Names the deploying organization in the Amplify Helper and Amplify Expert prompts. |
+| `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_RESOURCES_URL`, `NEXT_PUBLIC_DATA_POLICY_URL` | **New.** Support contact and links for the Amplify Helper, account menu and API keys page. Nothing organization-specific is built in; unset links are hidden. |
 
 Must know:
 - **Colors are different in the New UI.** The `--color-primary-*` variables from the Classic UI do nothing here. Edit `--accent`, `--accent-fg`, the `--bg-*` and `--text-*` tokens at the top of `styles/globals.css`, once in `:root` (light) and once in `.dark`. Details: `docs/WHITE_LABEL.md`.
-- **Amplify Helper prompt.** If you enable the `amplifyHelper` flag on a white-labeled deployment, replace the default prompt in **Admin, System Prompts, Amplify Helper**. The backend's built-in default names Vanderbilt and `amplify@vanderbilt.edu`, and the text box in the Admin panel starts with that default.
+- **Amplify Helper prompt.** If you enable the `amplifyHelper` flag on a white-labeled deployment, replace the default prompt in **Admin, System Prompts, Amplify Helper**. The backend's built-in default is neutral, and the text box in the Admin panel starts with that default.
 - **Not rebranded**: product terms such as "Amplify Groups", messages saying users must have "signed in to Amplify", and the default chat system prompt ("You are Amplify..."). You can change the chat prompt in System Prompts.
-- With none of these set, the output is the same as before.
+- With none of these set, no organization name, support contact or resource links are shown, and the Amplify Helper and Amplify Expert prompts are generic. Existing deployments should set `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_RESOURCES_URL` and `NEXT_PUBLIC_DATA_POLICY_URL` (and, if wanted, an `amplifyHelper.base` prompt in Admin) to keep them.
 
 ### Build and run a branded image
 
@@ -143,6 +144,7 @@ Must know:
      --build-arg NEXT_PUBLIC_BRAND_NAME="Acme AI" \
      --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
      --build-arg NEXT_PUBLIC_ORGANIZATION_NAME="Acme Corporation" \
+     --build-arg NEXT_PUBLIC_SUPPORT_EMAIL="help@acme.example" \
      -t acme-amplify:v0.9.5 .
    ```
 3. Run it with your usual runtime environment file (see `README.md` and `.env.local.example`; these are runtime values such as `API_BASE_URL` and the auth settings):

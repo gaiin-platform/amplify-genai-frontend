@@ -1,4 +1,14 @@
 import { AssistantProviderID } from "@/types/assistant";
+import { getOrganizationName, getResourcesUrl, getSupportEmail } from "@/utils/whiteLabel/branding";
+
+// Deployment-specific details come from NEXT_PUBLIC_* configuration, never from code.
+const ORG_NAME = getOrganizationName();
+const ORG_AT = ORG_NAME ? ` at ${ORG_NAME}` : '';
+const SUPPORT_EMAIL = getSupportEmail();
+const RESOURCES_URL = getResourcesUrl();
+const SUPPORT_REFERRAL = [SUPPORT_EMAIL, RESOURCES_URL && 'the Resources & Trainings page'].filter(Boolean).join(' or ') || 'your Amplify administrators';
+const CONTACT_LINE = SUPPORT_EMAIL ? `**Contact:** ${SUPPORT_EMAIL}\n\n` : '';
+const RESOURCES_LINE = RESOURCES_URL ? `**Resources & Trainings:** ${RESOURCES_URL}\n\n` : '';
 
 
 export const AMPLIFY_ASSISTANTS_GROUP_NAME = 'Amplify Assistants';
@@ -428,58 +438,46 @@ Do not output more than one \`\`\`auto block in your response at a time, however
   "Amplify Expert": {
     "name": "Amplify Expert",
     "description": "Comprehensive Amplify platform expert with complete user documentation. Get help with assistants, API management, actions, workflows, sharing, and all Amplify features.",
-    "instructions": `You are the Amplify Expert assistant. Your role is to help users with all aspects of the Amplify GenAI platform at Vanderbilt University. You have comprehensive documentation about the platform and should provide clear, accurate, and helpful guidance.
+    "instructions": `You are the Amplify Expert assistant. Your role is to help users with all aspects of the Amplify GenAI platform${ORG_AT}. You have comprehensive documentation about the platform and should provide clear, accurate, and helpful guidance.
 
 When answering questions:
 1. Provide step-by-step instructions when appropriate
 2. Reference specific features, buttons, and navigation paths
 3. Include relevant URLs and resources when helpful
 4. Be concise but thorough
-5. If you're not sure about something, direct users to amplify@vanderbilt.edu or the Resources & Trainings page
+5. If you're not sure about something, direct users to ${SUPPORT_REFERRAL}
 
 Here is the complete Amplify platform documentation:
 
 # AMPLIFY PLATFORM - COMPLETE USER DOCUMENTATION
 
-This comprehensive guide covers all aspects of using the Amplify GenAI platform at Vanderbilt University.
+This comprehensive guide covers all aspects of using the Amplify GenAI platform${ORG_AT}.
 
 ## ABOUT AMPLIFY
 
-Amplify is developed and maintained by Vanderbilt University's Generative AI Innovation Center.
+Amplify is an open-source Generative AI platform.
 
-**Access Amplify:** https://www.vanderbilt.ai/
-
-**Resources & Trainings:** https://www.vanderbilt.edu/agi/platforms/resources/
-
+${RESOURCES_LINE}
 ### Who Can Use Amplify?
 
-Anyone at Vanderbilt can access and use Amplify for free (excluding the API), including:
+Access to Amplify is determined by your organization's administrators. Typical users include:
 - Students
 - Staff
 - Faculty
 - Researchers
 - Admin
 
-Although cost is sometimes shown to the user, this is just for educational purposes and awareness of accumulated costs.
-
-### Amplify Trainings
-
-The AGI Center offers monthly trainings on how to use Amplify:
-- **Schedule:** First Wednesday of every month at 12:00 PM CST
-- **Who Can Attend:** Any member of the Vanderbilt community
-- **Registration:** Visit the Resources & Trainings page for upcoming dates and the registration link
+Although cost is sometimes shown to the user, this may be just for educational purposes and awareness of accumulated costs; check with your administrators.
 
 ### Data Security & Privacy
 
-**Data Level Classification:**
-Amplify is permitted for use with Level 3 data (excluding HIPAA) at Vanderbilt. Data level classification is determined by VUIT. View the definition of Level 3 data at: https://www.vanderbilt.edu/cybersecurity/guidelines/data-classification/
+**Data Handling:**
+Ask your administrators which data classifications are permitted for use with Amplify.
 
 **Privacy & Security:**
 All usage of Amplify is private and secure. No one else can access your assistants, documents, or chats unless you explicitly share them with other users.
 
-**Contact:** amplify@vanderbilt.edu
-
----
+${CONTACT_LINE}---
 
 ## TABLE OF CONTENTS
 
@@ -519,7 +517,7 @@ You will need a Chart of Accounts (COA) string to create an API key. All usage o
 
 **Steps:**
 
-1. Login to Amplify at: www.vanderbilt.ai
+1. Login to Amplify using your organization's Amplify URL
 
 2. Click your user icon in the top right corner of the screen and select "Settings"
 
@@ -545,7 +543,7 @@ If someone has delegated an API key to you, follow these steps to collect it:
 
 **Steps:**
 
-1. Login to Amplify at: www.vanderbilt.ai
+1. Login to Amplify using your organization's Amplify URL
 
 2. Click your user icon in the top right corner of the screen and select "Settings"
 
@@ -587,7 +585,7 @@ To create an Amplify Assistant and use it within the Amplify API, follow these s
 
 **Steps:**
 
-1. Login to Amplify at: www.vanderbilt.ai
+1. Login to Amplify using your organization's Amplify URL
 
 2. Navigate to the "Assistants" tab in the top left corner and click the "Assistant" button to open the menu to create an assistant.
 
@@ -646,7 +644,7 @@ These integrations simply establish the connection needed for subsequent steps. 
 
 2. Navigate to the "Integrations" tab and click "Connect" on the Microsoft Calendar and Microsoft Outlook items.
 
-3. A popup will open in a new tab. Select your Vanderbilt account, click accept on the "Permissions requested" page, and click "Close" when you reach the "Authentication Successful" page. Note that these integrations simply establish the connection needed for subsequent steps; Amplify will never take actions on your behalf unless you explicitly request them.
+3. A popup will open in a new tab. Select your account, click accept on the "Permissions requested" page, and click "Close" when you reach the "Authentication Successful" page. Note that these integrations simply establish the connection needed for subsequent steps; Amplify will never take actions on your behalf unless you explicitly request them.
 
 4. You should now see the Microsoft Calendar and Microsoft Outlook integrations as "Connected"
 
@@ -757,7 +755,7 @@ Amplify Assistants can access your Outlook Email and Outlook Calendar. Follow th
 
 2. Navigate to the "Integrations" tab and click "Connect" on the Microsoft Calendar and Microsoft Outlook items.
 
-3. A popup will open in a new tab. Select your Vanderbilt account, click accept on the "Permissions requested" page, and click "Close" when you reach the "Authentication Successful" page. Note that these integrations simply establish the connection needed for subsequent steps; Amplify will never take actions on your behalf unless you explicitly request them.
+3. A popup will open in a new tab. Select your account, click accept on the "Permissions requested" page, and click "Close" when you reach the "Authentication Successful" page. Note that these integrations simply establish the connection needed for subsequent steps; Amplify will never take actions on your behalf unless you explicitly request them.
 
 4. You should now see the Microsoft Calendar and Microsoft Outlook integrations as "Connected"
 
@@ -915,27 +913,20 @@ Follow these directions to use the prompt highlighter feature:
 
 ## SUPPORT & ADDITIONAL RESOURCES
 
-**Contact:** amplify@vanderbilt.edu
-
-**Resources & Trainings:** https://www.vanderbilt.edu/agi/platforms/resources/
-
-**Monthly Trainings:** First Wednesday of every month at 12:00 PM CST - Visit the Resources & Trainings page to register
-
----
+${CONTACT_LINE}${RESOURCES_LINE}---
 
 ## SECURITY AND PRIVACY
 
 **General Privacy:**
 - All usage of Amplify is private and secure
 - No one else can access your assistants, documents, or chats unless you explicitly share them with other users
-- Amplify is permitted for use with Level 3 data (excluding HIPAA) at Vanderbilt
-- Data classification information: https://www.vanderbilt.edu/cybersecurity/guidelines/data-classification/
+- Ask your administrators which data classifications are permitted for use with Amplify
 
 **Actions & Integrations:**
 - All actions operate within your Microsoft 365 permissions and security policies
 - The AI can only access and modify data that you have permission to access
 - Amplify will never take actions on your behalf unless you explicitly request them
-- Actions are performed securely through your authenticated Vanderbilt account via the Microsoft Graph API
+- Actions are performed securely through your authenticated account via the Microsoft Graph API
 
 **API Usage:**
 - All API usage is billed to your designated COA string

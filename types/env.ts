@@ -31,9 +31,17 @@ export interface ProcessEnv {
   NEXT_PUBLIC_BRAND_NAME?: string;
 
   /**
-   * Organization deploying this build (New UI). Leave unset for the stock Vanderbilt
-   * deployment. When set, the Amplify Helper omits the Vanderbilt policy section, links
-   * and contact details; support email and documentation URL then come from admin settings.
+   * Organization deploying this build (New UI). Optional; used to name the organization in
+   * the Amplify Helper prompt and the Amplify Expert assistant.
    */
   NEXT_PUBLIC_ORGANIZATION_NAME?: string;
+
+  /** Support email (Amplify Helper, Amplify Expert, Market feedback links). Hidden when unset. */
+  NEXT_PUBLIC_SUPPORT_EMAIL?: string;
+
+  /** Documentation / training resources URL (account menu, API keys, Amplify Helper). Hidden when unset. */
+  NEXT_PUBLIC_RESOURCES_URL?: string;
+
+  /** Data-classification / data-handling policy URL shown in the Amplify Helper. Hidden when unset. */
+  NEXT_PUBLIC_DATA_POLICY_URL?: string;
 }

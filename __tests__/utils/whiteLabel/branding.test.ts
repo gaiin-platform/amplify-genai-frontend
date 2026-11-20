@@ -6,7 +6,10 @@ import {
   getBrandName,
   getCustomLogoSrc,
   getLogoSources,
+  getDataPolicyUrl,
   getOrganizationName,
+  getResourcesUrl,
+  getSupportEmail,
   isCustomOrganization,
 } from '@/utils/whiteLabel/branding';
 
@@ -73,5 +76,22 @@ describe('getBrandInitial', () => {
   it('handles non-ASCII and empty names', () => {
     expect(getBrandInitial('éclair')).toBe('É');
     expect(getBrandInitial('')).toBe('A');
+  });
+});
+
+describe('Deployment contact and links', () => {
+  it('are null when nothing is configured', () => {
+    expect(getSupportEmail()).toBeNull();
+    expect(getResourcesUrl()).toBeNull();
+    expect(getDataPolicyUrl()).toBeNull();
+  });
+
+  it('read the configured values and trim them', () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPPORT_EMAIL', ' help@example.com ');
+    vi.stubEnv('NEXT_PUBLIC_RESOURCES_URL', 'https://example.com/resources');
+    vi.stubEnv('NEXT_PUBLIC_DATA_POLICY_URL', ' ');
+    expect(getSupportEmail()).toBe('help@example.com');
+    expect(getResourcesUrl()).toBe('https://example.com/resources');
+    expect(getDataPolicyUrl()).toBeNull();
   });
 });

@@ -1,7 +1,7 @@
 # Amplify New UI — Implementation Guide
 
 > Read this before writing any code. Update the Component Registry when you add a component.
-> Branch: `new-ui` — Repo: `/Users/maxmoundas/Amplify/amplify-genai-frontend`
+> Branch: `new-ui` — Repo: `amplify-genai-frontend`
 
 ---
 
@@ -765,8 +765,9 @@ Everything that exists in `components/NewUI/`. Check here before building anythi
     Deployments are white-labeled at build time (`docs/WHITE_LABEL.md`). In chrome that names the product
     (logo, wordmark, login heading, loading text, tab titles, alt text) use `getBrandName()` and
     `AmplifyLogo`; do not write "Amplify" or import `/amplify-logo.png` directly. Anything that states
-    Vanderbilt policy, links or contacts (the Amplify Helper guide is the only place today) must be dropped
-    when `isCustomOrganization()` is true, not reworded. Product terms ("Amplify Groups") and
+    organization policy, links or contacts must come from configuration (`getSupportEmail()`,
+    `getResourcesUrl()`, `getDataPolicyUrl()`, `getOrganizationName()`) and be hidden when unset; never
+    hardcode an institution's name, email or URL. Product terms ("Amplify Groups") and
     admin-editable prompts are not chrome and stay as they are. Colors: use the design tokens in §3 only;
     the classic `--color-primary-*` variables do not reach the New UI.
 

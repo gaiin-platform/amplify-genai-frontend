@@ -6,18 +6,10 @@ export const AMPLIFY_HELPER_ASSISTANT_ID = 'amplify-helper';
 export const AMPLIFY_HELPER_MARKER = 'amplifyHelper';
 
 /*
- * The values below are the stock (Vanderbilt) deployment's. A white-labeled deployment sets
- * NEXT_PUBLIC_ORGANIZATION_NAME (see utils/whiteLabel/branding): the guide then drops the
- * Vanderbilt policy section and contact details, and the page hides the Vanderbilt links.
- * Support email and documentation URL for such a deployment come from the admin settings.
+ * Nothing organization-specific is built in. Support email, documentation URL and data-policy
+ * URL come from the admin settings or the NEXT_PUBLIC_SUPPORT_EMAIL, NEXT_PUBLIC_RESOURCES_URL
+ * and NEXT_PUBLIC_DATA_POLICY_URL deployment variables (see utils/whiteLabel/branding).
  */
-export const AMPLIFY_HELPER_RESOURCES_URL =
-  'https://www.vanderbilt.edu/agi/platforms/resources/';
-export const AMPLIFY_HELPER_DATA_CLASSIFICATION_URL =
-  'https://www.vanderbilt.edu/cybersecurity/guidelines/data-classification/';
-export const AMPLIFY_HELPER_SUPPORT_EMAIL = 'amplify@vanderbilt.edu';
-
-const DATA_POLICY_SECTION_TITLE = 'Data classification and cost';
 
 export interface AmplifyHelperGuideSection {
   title: string;
@@ -26,13 +18,12 @@ export interface AmplifyHelperGuideSection {
 }
 
 /**
- * @param organizationName `null` for the stock Vanderbilt guide; otherwise the deploying
- *   organization, which gets generic support wording and no Vanderbilt policy section.
+ * @param _organizationName The deploying organization, if any. The guide text is generic, so
+ *   it does not currently change the wording; kept so callers can pass the configured name.
  */
 export function buildAmplifyHelperGuideSections(
-  organizationName: string | null = null,
+  _organizationName: string | null = null,
 ): AmplifyHelperGuideSection[] {
-  const custom = organizationName !== null;
   const sections: AmplifyHelperGuideSection[] = [
     {
       title: 'Start a conversation',
@@ -105,27 +96,14 @@ export function buildAmplifyHelperGuideSections(
       steps: [
         'General controls appearance, chat font, default model/effort, web-search preference, and storage. Account shows account and billing context; API Access manages API keys when available.',
         'Deployment and feature availability are controlled by administrators. A feature may be absent or read-only when disabled for your deployment.',
-        custom
-          ? 'For help, contact your administrator or support team. Training material and user guides, if your organization provides them, are linked from the Resources link above.'
-          : `For help, email ${AMPLIFY_HELPER_SUPPORT_EMAIL}. Vanderbilt training recordings, user guides, and videos are available in the AGI resources page.`,
-      ],
-    },
-    {
-      title: DATA_POLICY_SECTION_TITLE,
-      summary: 'Use Amplify within Vanderbilt policy and distinguish UI access from API billing.',
-      steps: [
-        'Amplify is approved for Level 3 data excluding HIPAA data. Review VUIT’s current data-classification definition before submitting sensitive material.',
-        'Amplify through the web interface is free for Vanderbilt staff, students, faculty, and researchers.',
-        'The API is available after providing a COA and is billed quarterly for AI token cost/consumption. Ask the Amplify team if you are unsure which path applies.',
+        'For help, contact your administrator or support team. Training material and user guides, if your organization provides them, are linked from the Resources link above when it is shown.',
       ],
     },
   ];
-  // The data-classification and cost section states Vanderbilt policy; it is wrong for any
-  // other organization, so a white-labeled guide omits it.
-  return custom ? sections.filter((section) => section.title !== DATA_POLICY_SECTION_TITLE) : sections;
+  return sections;
 }
 
-/** The guide for the build's configured organization (stock Vanderbilt when none is set). */
+/** The guide for the build's configured organization. */
 export const AMPLIFY_HELPER_GUIDE_SECTIONS: readonly AmplifyHelperGuideSection[] =
   buildAmplifyHelperGuideSections(getOrganizationName());
 
@@ -133,27 +111,20 @@ export const AMPLIFY_HELPER_GUIDE_SECTIONS: readonly AmplifyHelperGuideSection[]
  * Baseline guidance used when the administrator has not configured a custom prompt.
  * Keep this provider-neutral and concise; the backend owns the authoritative copy.
  *
- * @param organizationName `null` for the stock Vanderbilt prompt; otherwise generic wording
- *   with no Vanderbilt contact details or policy claims.
+ * @param organizationName The deploying organization, when configured.
  */
 export function buildAmplifyHelperPrompt(
   organizationName: string | null = null,
   brandName: string = 'Amplify',
 ): string {
-  const custom = organizationName !== null;
   return [
-    custom
-      ? `You are ${brandName} Helper, the administrator-controlled guide to using ${brandName}.`
-      : 'You are Amplify Helper, the administrator-controlled guide to Vanderbilt Amplify.',
-    `Explain how to use the current ${custom ? brandName : 'Amplify'} interface accurately and concisely. Give navigation steps using the New UI labels.`,
+    organizationName
+      ? `You are ${brandName} Helper, the administrator-controlled guide to using ${brandName} at ${organizationName}.`
+      : `You are ${brandName} Helper, the administrator-controlled guide to using ${brandName}.`,
+    `Explain how to use the current ${brandName} interface accurately and concisely. Give navigation steps using the New UI labels.`,
     'Explain the difference between My, Shared, Group/Team, and Layered Assistants; group assistants can be collaboratively edited by authorized members, while shared assistants remain controlled by the owner.',
     'For scheduling questions, direct users to Scheduled in the sidebar. For email, explain that they should connect Outlook and attach the relevant action, such as read email.',
-    custom
-      ? 'Do not claim a feature is enabled if deployment flags may disable it. Direct support questions to the deployment administrators.'
-      : 'Do not claim a feature is enabled if deployment flags may disable it. Direct users to amplify@vanderbilt.edu for support and the Vanderbilt AGI resources page for training materials.',
-    ...(custom
-      ? []
-      : ['State carefully that Amplify is approved for Level 3 data excluding HIPAA, web UI access is free to the Vanderbilt community, and API access requires a COA with quarterly token-consumption billing.']),
+    'Do not claim a feature is enabled if deployment flags may disable it. Direct support questions to the deployment administrators.',
   ].join(' ');
 }
 

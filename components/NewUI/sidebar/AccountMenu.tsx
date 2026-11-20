@@ -25,11 +25,12 @@ import { signOut } from 'next-auth/react';
 import HomeContext from '@/components/Home/home.context';
 import { setUIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
+import { getResourcesUrl } from '@/utils/whiteLabel/branding';
 import { useUiSwitchPolicy } from '@/components/NewUI/shared/useUiSwitchPolicy';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import toast from 'react-hot-toast';
 
-const DOCS_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
+const DOCS_URL = getResourcesUrl();
 
 interface AccountMenuProps {
   name?: string | null;
@@ -205,18 +206,20 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
 
           <div className="h-px bg-[--border-subtle] mx-2 my-1" />
 
-          {/* Documentation */}
-          <a
-            role="menuitem"
-            href={DOCS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
-            className={`${menuItem} no-underline`}
-          >
-            <IconExternalLink size={15} />
-            Documentation
-          </a>
+          {/* Documentation (only when the deployment configures NEXT_PUBLIC_RESOURCES_URL) */}
+          {DOCS_URL && (
+            <a
+              role="menuitem"
+              href={DOCS_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className={`${menuItem} no-underline`}
+            >
+              <IconExternalLink size={15} />
+              Documentation
+            </a>
+          )}
 
           {/* Switch to Classic UI — hidden and guarded by deployment policy. */}
           {classicAllowed && (

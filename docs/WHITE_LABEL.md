@@ -89,21 +89,34 @@ NEXT_PUBLIC_BRAND_NAME=My Company AI Assistant
 
 ### NEXT_PUBLIC_ORGANIZATION_NAME
 
-**Purpose:** Marks the build as deployed by an organization other than the stock Vanderbilt Amplify deployment. Used by the New UI's Amplify Helper.
+**Purpose:** Names the deploying organization in the Amplify Helper's generated prompt and the "Amplify Expert" built-in assistant.
 
 **Type:** String (optional)
 
-**Default:** unset (stock Vanderbilt deployment)
+**Default:** unset (no organization is named)
 
 **Example:**
 ```bash
 NEXT_PUBLIC_ORGANIZATION_NAME=Acme Corporation
 ```
 
+### NEXT_PUBLIC_SUPPORT_EMAIL, NEXT_PUBLIC_RESOURCES_URL, NEXT_PUBLIC_DATA_POLICY_URL
+
+**Purpose:** Deployment contact and links used by the Amplify Helper, the account menu, the API keys page and the "Amplify Expert" assistant. **No organization-specific value is built into the code.**
+
+**Type:** String (optional, each)
+
+**Default:** unset. A link or contact that is not configured is simply not shown.
+
+**Example:**
+```bash
+NEXT_PUBLIC_SUPPORT_EMAIL=help@example.com
+NEXT_PUBLIC_RESOURCES_URL=https://example.com/amplify/resources
+NEXT_PUBLIC_DATA_POLICY_URL=https://example.com/data-policy
+```
+
 **Notes:**
-- Leave it unset for the stock deployment; nothing changes.
-- When set, the Amplify Helper drops Vanderbilt-specific content: the "Data classification and cost" policy section, the data-classification link, the Vanderbilt resources link and the `amplify@vanderbilt.edu` contact.
-- Your support email and documentation URL are then taken from the admin settings, and the Resources and email links appear only if you have set them.
+- The support email and documentation URL set in the admin settings take precedence in the Amplify Helper.
 - See [New UI](#new-ui) for the one thing an admin must also do for the Helper's AI prompt.
 
 ## Logo Configuration
@@ -148,13 +161,15 @@ docker build --no-cache \
   --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
   --build-arg NEXT_PUBLIC_BRAND_NAME="My Company" \
   --build-arg NEXT_PUBLIC_ORGANIZATION_NAME="My Company" \
+  --build-arg NEXT_PUBLIC_SUPPORT_EMAIL="help@example.com" \
+  --build-arg NEXT_PUBLIC_RESOURCES_URL="https://example.com/amplify/resources" \
   -t my-app:latest \
   .
 
 docker run -p 3000:3000 my-app:latest
 ```
 
-**Note:** Environment variables must be passed as build arguments for Docker builds since they are baked into the application at build time. A **build argument** is a value you give `docker build` with `--build-arg NAME=value`. The `Dockerfile` accepts exactly these four: `NEXT_PUBLIC_CUSTOM_LOGO`, `NEXT_PUBLIC_DEFAULT_THEME`, `NEXT_PUBLIC_BRAND_NAME` and `NEXT_PUBLIC_ORGANIZATION_NAME`. Values in `.env.local` do not reach a Docker build (`.dockerignore` excludes it), and values given at `docker run` come too late. Put the logo file in `public/logos/` **before** you build. If the result does not look branded, see [Docker builds: branding does not show up](#docker-builds-branding-does-not-show-up).
+**Note:** Environment variables must be passed as build arguments for Docker builds since they are baked into the application at build time. A **build argument** is a value you give `docker build` with `--build-arg NAME=value`. The `Dockerfile` accepts exactly these seven: `NEXT_PUBLIC_CUSTOM_LOGO`, `NEXT_PUBLIC_DEFAULT_THEME`, `NEXT_PUBLIC_BRAND_NAME`, `NEXT_PUBLIC_ORGANIZATION_NAME`, `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_RESOURCES_URL` and `NEXT_PUBLIC_DATA_POLICY_URL`. Values in `.env.local` do not reach a Docker build (`.dockerignore` excludes it), and values given at `docker run` come too late. Put the logo file in `public/logos/` **before** you build. If the result does not look branded, see [Docker builds: branding does not show up](#docker-builds-branding-does-not-show-up).
 
 ### Logo Examples
 
@@ -328,7 +343,7 @@ All existing UI components automatically use your custom colors. For example:
 
 ## New UI
 
-The New UI honors the same three build-time variables as the classic UI, plus `NEXT_PUBLIC_ORGANIZATION_NAME`. Colors work differently.
+The New UI honors the same three build-time variables as the classic UI, plus the organization, support and link variables below. Colors work differently.
 
 ### What each setting changes in the New UI
 
@@ -337,7 +352,7 @@ The New UI honors the same three build-time variables as the classic UI, plus `N
 | `NEXT_PUBLIC_CUSTOM_LOGO` | Sidebar header, new-chat greeting, login page. Falls back to the stock Amplify mark, then to a one-letter tile. |
 | `NEXT_PUBLIC_BRAND_NAME` | Sidebar wordmark, login heading ("Welcome to ..."), startup loading message, logo alt text and letter tile, iOS home-screen title, and the "... Helper" tab and page names. |
 | `NEXT_PUBLIC_DEFAULT_THEME` | First-visit theme. A user's saved choice still wins. |
-| `NEXT_PUBLIC_ORGANIZATION_NAME` | Removes Vanderbilt-specific content from the Amplify Helper (see above). |
+| `NEXT_PUBLIC_ORGANIZATION_NAME`, `NEXT_PUBLIC_SUPPORT_EMAIL`, `NEXT_PUBLIC_RESOURCES_URL`, `NEXT_PUBLIC_DATA_POLICY_URL` | Organization name, support contact and links used by the Amplify Helper and related pages (see above). |
 
 **Logo shape.** The New UI shows the logo in a square slot (24 px in the sidebar, 40 px on the home screen, about 58 px on login). A square or icon-style logo looks best. A wide logo is scaled to fit, not stretched. Put the file in `public/logos/` and give only the filename (no folders).
 
@@ -359,8 +374,8 @@ Typical rebrand: change `--accent` in both `:root` and `.dark` (keep text on it 
 
 The Helper is off unless an admin enables the `amplifyHelper` feature flag. Two things to know on a white-labeled deployment:
 
-1. Set `NEXT_PUBLIC_ORGANIZATION_NAME` so the in-app guide has no Vanderbilt content.
-2. The Helper's AI prompt (`amplifyHelper.base`) has a default written on the backend that names Vanderbilt and `amplify@vanderbilt.edu`. Before enabling the Helper, an admin should replace it in **Admin → System Prompts → Amplify Helper**.
+1. Set `NEXT_PUBLIC_SUPPORT_EMAIL` and `NEXT_PUBLIC_RESOURCES_URL` (optional) so the in-app guide shows your contact and links.
+2. The Helper's AI prompt (`amplifyHelper.base`) has a neutral default written on the backend. An admin can replace it with organization-specific text in **Admin → System Prompts → Amplify Helper**.
 
 ### What is not rebranded
 
@@ -645,6 +660,7 @@ project/
      --build-arg NEXT_PUBLIC_DEFAULT_THEME="dark" \
      --build-arg NEXT_PUBLIC_BRAND_NAME="Acme AI Assistant" \
      --build-arg NEXT_PUBLIC_ORGANIZATION_NAME="Acme Corporation" \
+     --build-arg NEXT_PUBLIC_SUPPORT_EMAIL="help@acme.example" \
      -t acme-ai:latest \
      .
    ```
