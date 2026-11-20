@@ -207,7 +207,12 @@ export const doRequestOp = async (opData: opData, abortSignal: AbortSignal | nul
             }
         } else {
             console.log(`Error calling.\n ${request}: ${response.statusText}.`);
-            return { success: false, message: `Error calling ${request}: ${response.statusText}.` }
+            // /api/requestOp includes the backend's reason when it rejected the request (a 4xx).
+            const reason = await response.json().then(
+                (body) => (typeof body?.message === 'string' && body.message.trim() ? body.message : undefined),
+                () => undefined,
+            );
+            return { success: false, message: reason ?? `Error calling ${request}: ${response.statusText}.` }
         }
     } catch (error) {
         console.log(`Network Error calling ${request}: ${error}.`);
