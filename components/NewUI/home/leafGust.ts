@@ -14,7 +14,11 @@
  * pointer-events: none throughout. No-op under prefers-reduced-motion.
  */
 import type { AnimationItem } from 'lottie-web';
-import { getReadyAnimationData, type ThanksgivingAnimation } from '@/components/NewUI/home/thanksgivingLottie';
+import {
+  getReadyAnimationData,
+  isAnimationReady,
+  type ThanksgivingAnimation,
+} from '@/components/NewUI/home/thanksgivingLottie';
 
 const ROOT_ID = 'tg-leaf-gust';
 const TOTAL_MS = 2600;
@@ -57,7 +61,7 @@ export function releaseLeafGust(origin?: { x: number; y: number }): void {
   if (document.getElementById(ROOT_ID)) return; // already gusting
   if (typeof Element === 'undefined' || !('animate' in Element.prototype)) return;
   // Never wait on the network during a send.
-  if (!getReadyAnimationData('falling-leaves')) return;
+  if (!isAnimationReady('falling-leaves')) return;
 
   const { x: ox, y: oy } = origin ?? defaultOrigin();
   const vw = window.innerWidth;
@@ -117,7 +121,7 @@ export function releaseLeafGust(origin?: { x: number; y: number }): void {
   });
 
   // The walking turkey hurries across, chasing the leaves.
-  if (getReadyAnimationData('turkey-walking')) {
+  if (isAnimationReady('turkey-walking')) {
     const rw = Math.min(vh * 0.46, 420);
     const run = document.createElement('div');
     run.className = 'tgg-runner';

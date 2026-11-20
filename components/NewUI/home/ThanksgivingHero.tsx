@@ -10,7 +10,7 @@
  * prefers-reduced-motion the turkey and leaves show as still frames and the
  * walking turkey is hidden.
  */
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { AnimationItem } from 'lottie-web';
 import {
   mountAnimation,
@@ -23,6 +23,20 @@ export const THANKSGIVING_PLACEHOLDER = "Ask anything… there's always room for
 
 const prefersReducedMotion = () =>
   typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+/** Tracks the OS reduced-motion setting live, so toggling it mid-session takes effect without a reload. */
+const usePrefersReducedMotion = () => {
+  const [reduced, setReduced] = useState(prefersReducedMotion);
+  useEffect(() => {
+    const mq = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+    if (!mq) return;
+    const onChange = () => setReduced(mq.matches);
+    onChange();
+    mq.addEventListener?.('change', onChange);
+    return () => mq.removeEventListener?.('change', onChange);
+  }, []);
+  return reduced;
+};
 
 /** Mounts one Lottie animation into a div for the lifetime of the component. */
 const Lottie = ({
@@ -42,12 +56,13 @@ const Lottie = ({
   label?: string;
 }) => {
   const ref = useRef<HTMLDivElement>(null);
+  const reduced = usePrefersReducedMotion();
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     let cancelled = false;
     let anim: AnimationItem | null = null;
-    const opts = prefersReducedMotion() ? { stillFrame } : options;
+    const opts = reduced ? { stillFrame } : options;
     void mountAnimation(el, name, opts, () => cancelled).then((a) => {
       if (cancelled) a?.destroy();
       else anim = a;
@@ -58,7 +73,7 @@ const Lottie = ({
     };
     // Options are static per call site.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [name]);
+  }, [name, reduced]);
   return (
     <div
       ref={ref}
@@ -74,10 +89,11 @@ const Lottie = ({
 /** Bashir Ahmad's turkey strutting along the bottom: turns at each edge, pauses now and then to peck. */
 const WalkingTurkey = () => {
   const ref = useRef<HTMLDivElement>(null);
+  const reduced = usePrefersReducedMotion();
   useEffect(() => {
     const el = ref.current;
     const pane = el?.parentElement;
-    if (!el || !pane || prefersReducedMotion()) return;
+    if (!el || !pane || reduced) return;
     const SIZE = 110;
     let x = 24;
     let dir = 1;
@@ -100,7 +116,7 @@ const WalkingTurkey = () => {
     };
     raf = requestAnimationFrame(step);
     return () => cancelAnimationFrame(raf);
-  }, []);
+  }, [reduced]);
   return (
     <div ref={ref} className="tg-walker">
       <Lottie name="turkey-walking" className="tg-fill" stillFrame={0} />

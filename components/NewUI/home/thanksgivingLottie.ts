@@ -63,6 +63,11 @@ export function preloadThanksgivingAssets(): void {
 let readyPlayer: LottiePlayer | null = null;
 const readyText = new Map<ThanksgivingAnimation, string>();
 
+/** Cheap readiness check (no JSON parse) for guards that only need to know whether data is available. */
+export function isAnimationReady(name: ThanksgivingAnimation): boolean {
+  return !!readyPlayer && readyText.has(name);
+}
+
 export function getReadyAnimationData(name: ThanksgivingAnimation): { lottie: LottiePlayer; data: unknown } | null {
   const text = readyText.get(name);
   if (!readyPlayer || !text) return null;
