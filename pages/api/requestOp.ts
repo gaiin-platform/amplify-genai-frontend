@@ -3,6 +3,7 @@ import { getServerAccessToken } from "@/utils/server/accessToken";
 import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 import { validateUrlForSSRF } from "@/utils/app/urlValidation";
+import { readBackendClientError } from "@/utils/server/backendError";
 
 export const config = {
     api: {
@@ -123,7 +124,17 @@ const requestOp =
         try {
             const response = await fetch(apiUrl, reqPayload);
 
-            if (!response.ok) throw new Error(`Request to ${apiUrl} failed with status: ${response.status}`);
+            if (!response.ok) {
+                // Keep answering 500 (doRequestOp's polling path treats any non-OK first response
+                // the same way), but say why when the backend rejected the request as invalid.
+                const message = await readBackendClientError(response);
+                console.error(`Error in requestOp: ${apiUrl} failed with status: ${response.status}`);
+                return res.status(500).json({
+                    error: `Could not perform requestOp`,
+                    backendStatus: response.status,
+                    ...(message ? { message } : {}),
+                });
+            }
 
             const responseData = await response.json();
 
