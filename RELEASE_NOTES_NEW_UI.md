@@ -78,6 +78,7 @@ The New UI is off until `newUi` is on. The backend serves the flag, so the backe
 | `amplifyHelper` | Feature Flags | off | A base flag. Shows the Amplify Helper tab under Assistants. See `docs/AMPLIFY_HELPER_GUIDE.md`. |
 | `notebook` | Feature Flags | not present | **Not** a backend base flag: an admin must create it with **Add Feature**. Only an explicit `true` turns it on. |
 | `halloween` | Feature Flags | not present | **Not** a base flag: create it with **Add Feature**. Seasonal theme. Only an explicit `true` turns it on. |
+| `thanksgiving` | Feature Flags | not present | **Not** a base flag: create it with **Add Feature**. Seasonal theme. Only an explicit `true` turns it on. If both seasonal flags are on, November shows Thanksgiving and other months show Halloween. |
 | `mcp`, `skills`, `webSearch`, `artifacts`, `scheduledTasks`, `createAssistantWorkflows` and other existing flags | Feature Flags | per backend | The New UI honors them. For example, the Workflows sidebar item appears only with `createAssistantWorkflows`, and Scheduled tasks need `scheduledTasks`. |
 | `deploymentFeatures` | Admin, Deployment tab | see below | Deployment-wide availability and UI policy (new). |
 | `systemPrompts` | Admin, System Prompts tab | built-in prompts | Editable system prompts (new). |
@@ -246,7 +247,7 @@ These descriptions come from the commit history and the code. Items behind a fea
 
 ### Rollout, themes and mobile
 - The `newUi` flag, a first-run UI choice, and switches between the two UIs (see Part 1).
-- Dark, light and system appearance; a seasonal Halloween theme behind the `halloween` flag.
+- Dark, light and system appearance; seasonal Halloween and Thanksgiving themes behind the `halloween` and `thanksgiving` flags.
 - The sidebar collapses below 768 px. There is no installable-app (PWA) manifest or service worker.
 
 ### Reliability

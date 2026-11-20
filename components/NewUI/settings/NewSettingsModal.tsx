@@ -64,12 +64,8 @@ import { DEFAULT_STORAGE_SELECTION, getChatFont, saveDisplayPrefsToServer, syncD
 import { getUserWebSearchEnabled, setUserWebSearchEnabled, WEB_SEARCH_LEVEL3_INFO } from '@/components/NewUI/shared/userWebSearch';
 import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { ToggleSwitch } from '@/components/NewUI/shared/ToggleSwitch';
-import { isHalloweenSeason } from '@/components/NewUI/home/HalloweenHero';
-import {
-  getHalloweenPartEnabled,
-  setHalloweenPartEnabled,
-  USER_HALLOWEEN_EFFECTS_CHANGED_EVENT,
-} from '@/components/NewUI/shared/userHalloweenEffects';
+import { activeSeasonalTheme } from '@/components/NewUI/home/seasonalTheme';
+import { HALLOWEEN_CONTROLS, THANKSGIVING_CONTROLS } from '@/components/NewUI/home/seasonalControlsConfig';
 import { useTrack } from '@/components/NewUI/shared/UiAnalytics';
 import {
   NewUILoadingStatus,
@@ -237,19 +233,23 @@ const GeneralSection: FC = () => {
     void saveDisplayPrefsToServer({ webSearchEnabled: enabled });
   };
 
-  // ── Halloween effects (rows only shown when the `halloween` feature flag is on) ──
-  const showHalloweenToggle = isHalloweenSeason(featureFlags);
-  const [halloweenEnabled, setHalloweenEnabledState] = useState<boolean>(() => getHalloweenPartEnabled('theme'));
-  const [batSwarmEnabled, setBatSwarmEnabledState] = useState<boolean>(() => getHalloweenPartEnabled('swarm'));
-  // Stay in sync with the corner control on the home page.
+  // ── Seasonal effects (rows only shown while that holiday's feature flag is on) ──
+  const seasonalTheme = activeSeasonalTheme(featureFlags);
+  const seasonalConfig =
+    seasonalTheme === 'halloween' ? HALLOWEEN_CONTROLS : seasonalTheme === 'thanksgiving' ? THANKSGIVING_CONTROLS : null;
+  const [seasonalThemeEnabled, setSeasonalThemeEnabled] = useState(true);
+  const [seasonalSendEnabled, setSeasonalSendEnabled] = useState(true);
+  // Read on mount / theme change, and stay in sync with the corner control on the home page.
   useEffect(() => {
+    if (!seasonalConfig) return;
     const sync = () => {
-      setHalloweenEnabledState(getHalloweenPartEnabled('theme'));
-      setBatSwarmEnabledState(getHalloweenPartEnabled('swarm'));
+      setSeasonalThemeEnabled(seasonalConfig.getEnabled('theme'));
+      setSeasonalSendEnabled(seasonalConfig.getEnabled('send'));
     };
-    window.addEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
-    return () => window.removeEventListener(USER_HALLOWEEN_EFFECTS_CHANGED_EVENT, sync);
-  }, []);
+    sync();
+    window.addEventListener(seasonalConfig.changedEvent, sync);
+    return () => window.removeEventListener(seasonalConfig.changedEvent, sync);
+  }, [seasonalConfig]);
 
   // ── Appearance (system / light / dark) ───────────────────────────────
   // The theme actually applied (`lightMode`, kept current by every writer incl. the
@@ -923,25 +923,25 @@ const GeneralSection: FC = () => {
           </div>
         )}
 
-        {/* Halloween effects row (seasonal) */}
-        {showHalloweenToggle && (
+        {/* Seasonal effects rows (Halloween / Thanksgiving) */}
+        {seasonalConfig && (
           <>
             {[
               {
                 part: 'theme' as const,
-                id: 'settings-halloween-label',
-                label: 'Halloween theme 🎃',
-                hint: 'Spooky home page: pumpkin, bats, cobweb and fog.',
-                checked: halloweenEnabled,
+                id: `settings-${seasonalConfig.idPrefix}-theme-label`,
+                label: seasonalConfig.settings.themeLabel,
+                hint: seasonalConfig.settings.themeHint,
+                checked: seasonalThemeEnabled,
                 disabled: false,
               },
               {
-                part: 'swarm' as const,
-                id: 'settings-bat-swarm-label',
-                label: 'Bat swarm on send 🦇',
-                hint: 'Bats fly across the screen when you send from the home page.',
-                checked: halloweenEnabled && batSwarmEnabled,
-                disabled: !halloweenEnabled,
+                part: 'send' as const,
+                id: `settings-${seasonalConfig.idPrefix}-send-label`,
+                label: seasonalConfig.settings.sendLabel,
+                hint: seasonalConfig.settings.sendHint,
+                checked: seasonalThemeEnabled && seasonalSendEnabled,
+                disabled: !seasonalThemeEnabled,
               },
             ].map(({ part, id, label, hint, checked, disabled }) => (
               <div
@@ -966,7 +966,7 @@ const GeneralSection: FC = () => {
                 <ToggleSwitch
                   checked={checked}
                   disabled={disabled}
-                  onChange={(v) => setHalloweenPartEnabled(part, v)}
+                  onChange={(v) => seasonalConfig.setEnabled(part, v)}
                   aria-labelledby={id}
                 />
               </div>

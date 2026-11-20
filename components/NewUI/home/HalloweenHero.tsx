@@ -7,14 +7,16 @@
  * and all motion is disabled under prefers-reduced-motion.
  */
 import React from 'react';
+import { activeSeasonalTheme } from '@/components/NewUI/home/seasonalTheme';
 
 /**
  * Master gate for ALL Halloween UI (theme, controls pill, settings rows, bat swarm).
  * Driven by the `halloween` feature flag (admin → Feature Flags). Unset/false = OFF,
- * so nothing renders until the flag is explicitly enabled.
+ * so nothing renders until the flag is explicitly enabled. Yields to Thanksgiving
+ * in November when both flags are on (see seasonalTheme.ts).
  */
 export const isHalloweenSeason = (featureFlags?: { [key: string]: boolean } | null) =>
-  featureFlags?.halloween === true;
+  activeSeasonalTheme(featureFlags) === 'halloween';
 
 export const HALLOWEEN_PLACEHOLDER = 'Ask anything… if you dare 🕯️';
 
