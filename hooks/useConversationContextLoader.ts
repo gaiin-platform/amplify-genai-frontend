@@ -1,15 +1,13 @@
 import { useState, useCallback } from 'react';
 import { Conversation } from '@/types/chat';
 import { conversationWithUncompressedMessages, isLocalConversation } from '@/utils/app/conversation';
-import { messagesToCached } from '@/utils/app/contextConversations';
+import { fetchAndCacheConversationContext, messagesToCached } from '@/utils/app/contextConversations';
 import {
     CachedConversationMessage,
     ContextCacheEntry,
     isContextCacheValid,
     loadContextCache,
-    saveContextCache,
 } from '@/utils/app/storage';
-import { fetchRemoteConversation } from '@/services/remoteConversationService';
 
 export type FetchStatus = 'idle' | 'loading' | 'loaded' | 'error';
 
@@ -110,7 +108,7 @@ export const useConversationContextLoader = () => {
         allConversations: Conversation[],
         forceRefresh = false,
     ) => {
-        const { id: conversationId, name: conversationName } = conv;
+        const { id: conversationId } = conv;
         setConvState(conversationId, { status: 'loading', error: undefined });
 
         try {
@@ -138,19 +136,7 @@ export const useConversationContextLoader = () => {
             }
 
             // Remote fetch (cache miss, stale, or force refresh)
-            const remote = await fetchRemoteConversation(conversationId);
-            if (!remote) {
-                throw new Error('Failed to fetch conversation from cloud.');
-            }
-
-            const messages = messagesToCached(remote.messages ?? []);
-
-            await saveContextCache({
-                conversationId,
-                conversationName,
-                messages,
-                fetchedAt: Date.now(),
-            });
+            const messages = await fetchAndCacheConversationContext(conv);
 
             setConvState(conversationId, { status: 'loaded', messages, fromCache: false, fetchedAt: Date.now() });
         } catch (err: any) {

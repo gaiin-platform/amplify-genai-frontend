@@ -66,6 +66,7 @@ import {
   type ConfiguredToolEntry,
 } from '@/components/NewUI/shared/assistantConfiguredTools';
 import type { SelectedAction } from '@/components/NewUI/shared/AttachMenu';
+import { getAttachedArtifacts } from '@/components/NewUI/shared/savedChatContext';
 import {
   nextOpenAtLatestTop,
   OPEN_AT_LATEST_MAX_FRAMES,
@@ -728,7 +729,8 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       // A workflow attached on the landing page rides on the first message's data (PATH B, the old
       // input's DOM bridge, would drop it).
       const pendingWorkflow = getConversationWorkflow(conversation);
-      if ((docsWithKeys.length > 0 || optimistic || pendingActions.length > 0 || !!pendingWorkflow) && conversation) {
+      if (conversation && (docsWithKeys.length > 0 || optimistic || pendingActions.length > 0 || !!pendingWorkflow ||
+          getAttachedArtifacts(conversation).length > 0 || (conversation.contextConversations?.length ?? 0) > 0)) {
         hasFiredRef.current = true;
         clearPending();
 

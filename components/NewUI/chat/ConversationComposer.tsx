@@ -101,6 +101,7 @@ import {
   getConversationConnectorActions,
   withConversationConnectorActions,
 } from '@/components/NewUI/shared/conversationConnectorActions';
+import { useSavedChatContext } from '@/components/NewUI/shared/useSavedChatContext';
 import {
   getAssistantConfiguredTools,
   mergeConfiguredTools,
@@ -240,6 +241,10 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
 
   const selectedConversationRef = useRef(selectedConversation);
   selectedConversationRef.current = selectedConversation;
+  const savedContext = useSavedChatContext(selectedConversation, (conversation) => {
+    selectedConversationRef.current = conversation;
+    handleUpdateSelectedConversation(conversation);
+  });
 
   // Optional web-search, artifact, and interpreter selection is owned by backend routing.
   // Connector selection is stored on this conversation's data so it survives the
@@ -640,6 +645,11 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
 
     if (!hasContentToSend && notReadyAttachments.length === 0) return true;
     if (messageIsStreaming) return false;
+    const contextBlock = savedContext.getBlockReason();
+    if (contextBlock) {
+      toast.error(contextBlock);
+      return false;
+    }
     // Another chat is still answering: keep the draft and ask the user to wait.
     if (blockIfOtherChatGenerating(selectedConversation?.id)) return false;
     if (notReadyAttachments.length > 0) {
@@ -718,6 +728,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
       (mergedDocs.length > 0 ||
         pastedAttachments.length > 0 ||
         selectedActions.length > 0 ||
+        savedContext.artifactChips.length > 0 ||
+        savedContext.conversationEntries.length > 0 ||
         !!selectedWorkflowRef.current ||
         selectedSkillIdsRef.current.length > 0) &&
       selectedConversation
@@ -846,6 +858,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
     selectedModelId,
     availableModels,
     selectedActions,
+    savedContext,
     featureFlags,
     handleUpdateConversation,
     priorDataSources,
@@ -1267,6 +1280,7 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   // Keep Send available for pending attachments so the user can see why it is blocked.
   const hasContent = richHasContent || uiAttachments.length > 0;
   const canSend = !messageIsStreaming && hasContent;
+  const savedContextBlock = savedContext.getBlockReason();
 
   return (
     <div
@@ -1396,8 +1410,9 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
             }}
           >
             {/* Left: attach + chips */}
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <AttachMenu
+                savedContext={messageIsStreaming ? undefined : savedContext}
                 isNewChat={false}
                 onAddFiles={() => {
                   // Use the composer's own input, not ChatInput's hidden
@@ -1418,20 +1433,24 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 chatEndpoint={chatEndpoint ?? undefined}
                 composerRef={composerRef}
               />
-              <AttachMenuChips
-                assistantName={activeAssistantName}
-                onRemoveAssistant={detachAssistant}
-                selectedActions={selectedActions}
-                onRemoveActions={() => updateSelectedActions([])}
-                selectedSkillIds={selectedSkillIds}
-                onRemoveSkills={() => updateSelectedSkillIds([])}
-                selectedWorkflow={selectedWorkflow}
-                onRemoveWorkflow={() => updateSelectedWorkflow(null)}
-              />
+              <div className="flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:thin]">
+                <AttachMenuChips
+                  savedContext={savedContext}
+                  savedContextReadOnly={messageIsStreaming}
+                  assistantName={activeAssistantName}
+                  onRemoveAssistant={detachAssistant}
+                  selectedActions={selectedActions}
+                  onRemoveActions={() => updateSelectedActions([])}
+                  selectedSkillIds={selectedSkillIds}
+                  onRemoveSkills={() => updateSelectedSkillIds([])}
+                  selectedWorkflow={selectedWorkflow}
+                  onRemoveWorkflow={() => updateSelectedWorkflow(null)}
+                />
+              </div>
             </div>
 
             {/* Right: send/stop + model picker at the composer edge */}
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <ModelPicker
                 selectedModelId={selectedModelId}
                 selectedEffort={selectedEffort}
@@ -1464,17 +1483,18 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                   {/* Send — idle + has content */}
                   <button
                     type="button"
+                    disabled={!!savedContextBlock}
                     className="absolute inset-0 flex items-center justify-center rounded-[8px] transition-all duration-[120ms]"
                     style={{
                       background: 'var(--accent)',
                       color: 'var(--accent-fg)',
-                      opacity: !messageIsStreaming && canSend ? 1 : 0,
+                      opacity: !messageIsStreaming && canSend ? (savedContextBlock ? 0.5 : 1) : 0,
                       pointerEvents:
                         !messageIsStreaming && canSend ? 'auto' : 'none',
                       cursor: 'pointer',
                     }}
                     onClick={handleSend}
-                    title="Send (Enter)"
+                    title={savedContextBlock || 'Send (Enter)'}
                     aria-label="Send message"
                   >
                     <IconArrowUp size={18} strokeWidth={2.5} />

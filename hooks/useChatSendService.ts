@@ -44,6 +44,7 @@ import { calculatePromptCostDetailed, formatCost } from '@/utils/app/costEstimat
 import { getFullTimestamp } from '@/utils/app/date';
 import { getContinuationCarryOver } from '@/utils/app/mcpContinuation';
 import { buildExistingArtifactsPrompt } from '@/components/NewUI/shared/autoArtifactStream';
+import { addAttachedArtifactDetails, buildAttachedArtifactContext } from '@/components/NewUI/shared/savedChatContext';
 import { getEnabledMCPToolsForLLM, handleMCPToolCall } from '@/services/mcpToolExecutor';
 
 export type ChatRequest = {
@@ -353,6 +354,10 @@ export function useSendService() {
                         options,
                         conversationId
                     } = request;
+                    const allowAttachedArtifacts = stableFeatureFlags.artifacts === true && deploymentAvailability.artifacts;
+                    if (allowAttachedArtifacts && message.role === 'user') {
+                        message = addAttachedArtifactDetails(message, selectedConversation);
+                    }
                     messageTimestampRef.current = new Date().toISOString();
 
                     const featureOptions = getSettings(stableFeatureFlags).featureOptions;
@@ -627,7 +632,8 @@ export function useSendService() {
                     // Resolve context from other conversations (local or cached cloud)
                     // and prepend as a silent user message. This never touches the
                     // displayed conversation — it only exists in the outgoing request.
-                    const contextEntries = updatedConversation.contextConversations ?? [];
+                    const contextEntries = (updatedConversation.contextConversations ?? [])
+                        .filter(entry => entry.conversationId !== updatedConversation.id);
                     let messagesForRequest = filteredMessages;
                     if (contextEntries.length > 0) {
                         const contextStr = await resolveContextString(
@@ -643,6 +649,18 @@ export function useSendService() {
                                 data: {},
                             };
                             messagesForRequest = [contextMessage, ...filteredMessages];
+                        }
+                    }
+                    if (allowAttachedArtifacts) {
+                        const artifactContext = buildAttachedArtifactContext(updatedConversation, updatedConversation.model.inputContextWindow);
+                        if (artifactContext) {
+                            messagesForRequest = [{
+                                id: `artifact-context-${message.id}`,
+                                role: 'user',
+                                content: artifactContext,
+                                type: 'context',
+                                data: {},
+                            }, ...messagesForRequest];
                         }
                     }
                     // ─────────────────────────────────────────────────────────
