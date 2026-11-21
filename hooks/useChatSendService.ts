@@ -1918,7 +1918,8 @@ export function useSendService() {
         },
         [
             conversationsRef.current,
-            selectedConversation
+            selectedConversation,
+            stableFeatureFlags,
         ],
     );
 
