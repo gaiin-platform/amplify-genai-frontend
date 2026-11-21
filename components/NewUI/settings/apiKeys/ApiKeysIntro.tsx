@@ -3,7 +3,7 @@
  * compete with the Create / Your API keys cards below it).
  *
  * One muted sentence, a billing-account callout ONLY when the user has none, then one row of
- * links: "API documentation ↗" and a collapsed-by-default "About key types" disclosure whose
+ * links: optional Documentation and a collapsed-by-default "About key types" disclosure whose
  * panel shows the three key types as small side-by-side cards (they stack on narrow widths).
  *
  * "A key is shown only once" is deliberately not here — the rotate confirm and the
@@ -16,8 +16,8 @@ import React, { FC, useId, useState } from 'react';
 import { IconExternalLink } from '@tabler/icons-react';
 import { DisclosureChevron } from '@/components/NewUI/shared/DisclosureChevron';
 import { InfoCallout } from '@/components/NewUI/shared/InfoCallout';
+import { normalizeDocumentationUrl } from '@/utils/app/deploymentContact';
 
-export const API_RESOURCES_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
 /** Id of the callout, so the disabled "Create key" button can point at it. */
 export const BILLING_CALLOUT_ID = 'nui-api-billing-callout';
 
@@ -54,12 +54,18 @@ const linkStyle: React.CSSProperties = {
 export interface ApiKeysIntroProps {
   /** False ⇒ show the "you need a billing account" callout. */
   hasBillingAccount: boolean;
+  documentationUrl?: string;
   onOpenAccountSettings: () => void;
 }
 
-export const ApiKeysIntro: FC<ApiKeysIntroProps> = ({ hasBillingAccount, onOpenAccountSettings }) => {
+export const ApiKeysIntro: FC<ApiKeysIntroProps> = ({
+  hasBillingAccount,
+  documentationUrl,
+  onOpenAccountSettings,
+}) => {
   const [typesOpen, setTypesOpen] = useState(false);
   const panelId = useId();
+  const documentationLink = normalizeDocumentationUrl(documentationUrl);
 
   return (
     <div>
@@ -79,9 +85,11 @@ export const ApiKeysIntro: FC<ApiKeysIntroProps> = ({ hasBillingAccount, onOpenA
       )}
 
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '6px 16px', marginTop: 12 }}>
-        <a href={API_RESOURCES_URL} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>
-          API documentation <IconExternalLink size={13} aria-hidden="true" />
-        </a>
+        {documentationLink && (
+          <a href={documentationLink} target="_blank" rel="noopener noreferrer" className={linkClass} style={linkStyle}>
+            Documentation <IconExternalLink size={13} aria-hidden="true" />
+          </a>
+        )}
         <button
           type="button"
           aria-expanded={typesOpen}

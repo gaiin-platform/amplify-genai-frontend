@@ -88,6 +88,7 @@ export const Market = ({items}: Props) => {
             statsService,
             featureFlags: {marketItemDelete},
             availableModels,
+            supportEmail,
         },
         handleNewConversation,
         dispatch: homeDispatch,
@@ -302,12 +303,7 @@ export const Market = ({items}: Props) => {
     }
 
     function getSectionImage(index: number) {
-        const sectionImages: string[] = [
-            "https://www.vanderbilt.edu/wp-content/uploads/sites/3/2021/04/bronson-ingram.jpeg",
-            "https://www.goodyclancy.com/wp-content/uploads/2023/06/Vanderbilt_Warren-and-Moore_exterior-1_Goody-Clancy.jpg",
-            "https://cdn.vanderbilt.edu/vu-URL/wp-content/uploads/sites/97/2021/09/19231133/Local-Color-campus-shot.jpg",
-            "https://cdn.vanderbilt.edu/vu-URL/wp-content/uploads/sites/97/2021/09/19231133/Local-Color-campus-shot.jpg",
-        ];
+        const sectionImages = ['/bg-1.png', '/bg-2.png', '/bg-3.png', '/bg-4.png'];
 
         // use mod to safely lookup and return a seciton iamge
         return sectionImages[index % sectionImages.length];
@@ -379,7 +375,7 @@ export const Market = ({items}: Props) => {
     }
 
     const startTutorial = () => {
-        const rootPromptContent = `Act as a intelligent guide helping the user to figure out "Amplify", which is a new interface to Generative AI. The tool is open source and maintained at Vanderbilt by Jules White, Allen Karns, and Max Moundas in the Chancellor's Office. Amplify is based on the fantastic open source Chatbot UI created by Mckay Wrigley. Please direct any questions or issues with the tool to amplify@vanderbilt.edu.
+        const rootPromptContent = `Guide the user through Amplify, an open-source interface for generative AI. Amplify is based on the fantastic open source Chatbot UI created by Mckay Wrigley. Direct deployment-specific questions or issues to the user's administrator or support team.
 
 In general, you should not open Amplify in multiple browser tabs. If you would like to open it in different browser tabs, do it in separate "private browsing" or "incognito tabs". 
 
@@ -708,7 +704,7 @@ If people need help with prompt engineering, which is how you converse effective
 
 
                         <section
-                            className="bg-center bg-no-repeat bg-[url('https://www.vanderbilt.edu/undergraduate-education/wp-content/uploads/sites/407/2023/11/1159c2beb1aa091607931130aa8bf659-1200x900-c-default.jpg')] bg-gray-700 bg-blend-multiply">
+                            className="bg-center bg-no-repeat bg-cover bg-[url('/bg-5.png')] bg-gray-700 bg-blend-multiply">
                             <div className="px-4 mx-auto max-w-screen-xl text-center py-24 lg:py-56">
                                 <h1 className="mb-4 text-4xl font-extrabold tracking-tight leading-none text-white md:text-5xl lg:text-6xl">
                                     Examples
@@ -853,12 +849,11 @@ If people need help with prompt engineering, which is how you converse effective
                                         <div
                                             className="w-full lg:max-w-xl p-6 space-y-8 sm:p-8 bg-white rounded-lg shadow-xl dark:bg-gray-800">
                                             <h2 className="text-2xl font-bold text-gray-900 dark:text-white text-center">
-                                                AI-Generated Prompts & Tools for Vanderbilt
+                                                AI-Generated Prompts & Tools
                                             </h2>
                                             <div>
                                                 <h4 className="mb-6 text-lg font-normal text-gray-500 lg:text-xl dark:text-gray-400">
-                                                    We asked GPT-4 to think of prompts that would be helpful to Vanderbilt
-                                                    faculty and staff.</h4>
+                                                    We asked GPT-4 to suggest prompts for common tasks.</h4>
                                             </div>
                                             <div>
                                             <h4 className="mb-6 text-lg font-normal text-gray-500 lg:text-xl dark:text-gray-400">
@@ -895,18 +890,20 @@ If people need help with prompt engineering, which is how you converse effective
                                                 {/*    </select>*/}
                                                 {/*</div>*/}
 
+                                                {supportEmail && <>
                                                 <div>
-                                                <a href="mailto:jules.white@vanderbilt.edu?subject=AI-Generated%40Prompts"
+                                                <a href={`mailto:${supportEmail}?subject=AI-Generated%20Prompts`}
                                                         className="w-full px-5 py-3 text-base font-medium text-center text-white bg-blue-700 rounded-lg hover:bg-blue-800 focus:ring-4 focus:ring-blue-300 sm:w-auto dark:bg-blue-600 dark:hover:bg-blue-700 dark:focus:ring-blue-800">
                                                     Send Feedback
                                                 </a>
                                                 </div>
                                                 <div>
-                                                <a href="mailto:jules.white@vanderbilt.edu?subject=AI-Generated%40Prompts"
+                                                <a href={`mailto:${supportEmail}?subject=New%20Marketplace%20Category`}
                                                    className="w-full px-5 py-3 text-base font-medium text-center text-white bg-purple-700 rounded-lg hover:bg-purple-800 focus:ring-4 focus:ring-purple-300 sm:w-auto dark:bg-purple-600 dark:hover:bg-purple-700 dark:focus:ring-purple-800">
                                                     Request a New Category
                                                 </a>
                                                 </div>
+                                                </>}
                                             </form>
                                         </div>
                                     </div>
@@ -998,7 +995,7 @@ If people need help with prompt engineering, which is how you converse effective
                                                             <div className="relative max-w-sm">
                                                                 <div className="w-full h-full">
                                                                     <img className="rounded-t-lg"
-                                                                         src="https://admissions.vanderbilt.edu/wp-content/uploads/sites/4/2021/06/20181108JR003-scaled.jpg"
+                                                                         src="/bg-6.png"
                                                                          alt=""/>
                                                                 </div>
                                                                 <div
@@ -1124,7 +1121,7 @@ If people need help with prompt engineering, which is how you converse effective
                                                             <div className="relative max-w-sm">
                                                                 <div className="w-full h-full">
                                                                     <img className="rounded-t-lg"
-                                                                         src="https://admissions.vanderbilt.edu/wp-content/uploads/sites/4/2021/06/20181108JR003-scaled.jpg"
+                                                                         src="/bg-6.png"
                                                                          alt=""/>
                                                                 </div>
                                                                 <div

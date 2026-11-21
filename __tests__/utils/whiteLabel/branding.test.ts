@@ -7,7 +7,6 @@ import {
   getCustomLogoSrc,
   getLogoSources,
   getOrganizationName,
-  isCustomOrganization,
 } from '@/utils/whiteLabel/branding';
 
 afterEach(() => {
@@ -19,7 +18,6 @@ describe('New UI branding (unbranded deployment)', () => {
     expect(getBrandName()).toBe(DEFAULT_BRAND_NAME);
     expect(getBrandName()).toBe('Amplify');
     expect(getOrganizationName()).toBeNull();
-    expect(isCustomOrganization()).toBe(false);
     expect(getCustomLogoSrc()).toBeNull();
     expect(getLogoSources()).toEqual([DEFAULT_LOGO_SRC]);
   });
@@ -40,7 +38,6 @@ describe('New UI branding (white-labeled deployment)', () => {
     vi.stubEnv('NEXT_PUBLIC_ORGANIZATION_NAME', 'Acme Corporation');
     expect(getBrandName()).toBe('Acme AI');
     expect(getOrganizationName()).toBe('Acme Corporation');
-    expect(isCustomOrganization()).toBe(true);
   });
 
   it('tries the custom logo first, then the stock mark', () => {

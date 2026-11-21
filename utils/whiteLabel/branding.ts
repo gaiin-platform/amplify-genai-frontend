@@ -24,19 +24,9 @@ export function getBrandName(): string {
   return process.env.NEXT_PUBLIC_BRAND_NAME?.trim() || DEFAULT_BRAND_NAME;
 }
 
-/**
- * The deploying organization, or `null` for the stock Amplify deployment.
- *
- * Setting it marks the deployment as white-labeled for institution-specific content: the
- * Amplify Helper drops the Vanderbilt-only policy section, links and contact details.
- */
+/** Optional organization name shown in the Amplify Helper introduction. */
 export function getOrganizationName(): string | null {
   return process.env.NEXT_PUBLIC_ORGANIZATION_NAME?.trim() || null;
-}
-
-/** True when this deployment is branded for an organization other than the stock one. */
-export function isCustomOrganization(): boolean {
-  return getOrganizationName() !== null;
 }
 
 /**

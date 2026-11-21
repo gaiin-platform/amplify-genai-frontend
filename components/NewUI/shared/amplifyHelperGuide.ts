@@ -1,23 +1,10 @@
+import { DEFAULT_BRAND_NAME, getBrandName } from '@/utils/whiteLabel/branding';
+
 import { Assistant, AssistantProviderID } from '@/types/assistant';
-import { getBrandName, getOrganizationName } from '@/utils/whiteLabel/branding';
 
 /** Stable identity for the built-in, administrator-controlled helper. */
 export const AMPLIFY_HELPER_ASSISTANT_ID = 'amplify-helper';
 export const AMPLIFY_HELPER_MARKER = 'amplifyHelper';
-
-/*
- * The values below are the stock (Vanderbilt) deployment's. A white-labeled deployment sets
- * NEXT_PUBLIC_ORGANIZATION_NAME (see utils/whiteLabel/branding): the guide then drops the
- * Vanderbilt policy section and contact details, and the page hides the Vanderbilt links.
- * Support email and documentation URL for such a deployment come from the admin settings.
- */
-export const AMPLIFY_HELPER_RESOURCES_URL =
-  'https://www.vanderbilt.edu/agi/platforms/resources/';
-export const AMPLIFY_HELPER_DATA_CLASSIFICATION_URL =
-  'https://www.vanderbilt.edu/cybersecurity/guidelines/data-classification/';
-export const AMPLIFY_HELPER_SUPPORT_EMAIL = 'amplify@vanderbilt.edu';
-
-const DATA_POLICY_SECTION_TITLE = 'Data classification and cost';
 
 export interface AmplifyHelperGuideSection {
   title: string;
@@ -25,18 +12,12 @@ export interface AmplifyHelperGuideSection {
   steps: string[];
 }
 
-/**
- * @param organizationName `null` for the stock Vanderbilt guide; otherwise the deploying
- *   organization, which gets generic support wording and no Vanderbilt policy section.
- */
-export function buildAmplifyHelperGuideSections(
-  organizationName: string | null = null,
-): AmplifyHelperGuideSection[] {
-  const custom = organizationName !== null;
-  const sections: AmplifyHelperGuideSection[] = [
+export const AMPLIFY_HELPER_GUIDE_SECTIONS: readonly AmplifyHelperGuideSection[] =
+  [
     {
       title: 'Start a conversation',
-      summary: 'Use New chat or the landing-page composer for general questions and tasks.',
+      summary:
+        'Use New chat or the landing-page composer for general questions and tasks.',
       steps: [
         'Select a model and reasoning effort when needed; an assistant can enforce its own model.',
         'Use the plus menu to attach local files, add files from Library, select connector actions, select skills, or turn on web search.',
@@ -45,7 +26,8 @@ export function buildAmplifyHelperGuideSections(
     },
     {
       title: 'Assistants and sharing',
-      summary: 'Assistants are reusable instructions, tools, and knowledge configurations.',
+      summary:
+        'Assistants are reusable instructions, tools, and knowledge configurations.',
       steps: [
         'My Assistants contains assistants you own or have copied. Open Assistants in the sidebar, then choose New Assistant to create one.',
         'Shared with Me contains assistants another user shared with you. The owner controls the prompt and knowledge base; copy one if you need your own editable version.',
@@ -55,7 +37,8 @@ export function buildAmplifyHelperGuideSections(
     },
     {
       title: 'Prompt Templates and Custom Instructions',
-      summary: 'Customize is the home for reusable prompt starters and personal defaults.',
+      summary:
+        'Customize is the home for reusable prompt starters and personal defaults.',
       steps: [
         'Open Customize in the sidebar, then Prompt Templates to create, edit, share, or use a reusable template.',
         'Use Custom Instructions to save named personal instructions and choose which one is active for new conversations.',
@@ -74,7 +57,8 @@ export function buildAmplifyHelperGuideSections(
     },
     {
       title: 'Library, files, and data sources',
-      summary: 'Library stores uploaded files and generated artifacts for later use.',
+      summary:
+        'Library stores uploaded files and generated artifacts for later use.',
       steps: [
         'Open Library to upload, search, preview, tag, reprocess, rename, download, or delete files and artifacts.',
         'Attach an existing Library file from the composer instead of uploading a duplicate copy.',
@@ -83,7 +67,8 @@ export function buildAmplifyHelperGuideSections(
     },
     {
       title: 'Scheduled Tasks and Workflows',
-      summary: 'Automate recurring assistant, action, API, or workflow work when the deployment enables these features.',
+      summary:
+        'Automate recurring assistant, action, API, or workflow work when the deployment enables these features.',
       steps: [
         'Open Scheduled in the sidebar, choose New Task, select the task type, set a schedule such as daily at 9:00 AM, and save it.',
         'Use the task detail pane to edit, execute, disable, or inspect execution logs.',
@@ -101,63 +86,35 @@ export function buildAmplifyHelperGuideSections(
     },
     {
       title: 'Settings, privacy, and support',
-      summary: 'Use Settings for personal preferences and contact the Amplify team for help.',
+      summary:
+        'Use Settings for personal preferences and contact your support team for help.',
       steps: [
         'General controls appearance, chat font, default model/effort, web-search preference, and storage. Account shows account and billing context; API Access manages API keys when available.',
         'Deployment and feature availability are controlled by administrators. A feature may be absent or read-only when disabled for your deployment.',
-        custom
-          ? 'For help, contact your administrator or support team. Training material and user guides, if your organization provides them, are linked from the Resources link above.'
-          : `For help, email ${AMPLIFY_HELPER_SUPPORT_EMAIL}. Vanderbilt training recordings, user guides, and videos are available in the AGI resources page.`,
-      ],
-    },
-    {
-      title: DATA_POLICY_SECTION_TITLE,
-      summary: 'Use Amplify within Vanderbilt policy and distinguish UI access from API billing.',
-      steps: [
-        'Amplify is approved for Level 3 data excluding HIPAA data. Review VUIT’s current data-classification definition before submitting sensitive material.',
-        'Amplify through the web interface is free for Vanderbilt staff, students, faculty, and researchers.',
-        'The API is available after providing a COA and is billed quarterly for AI token cost/consumption. Ask the Amplify team if you are unsure which path applies.',
+        'For help, contact your administrator or support team. If your organization provides documentation, open Resources at the top of the guide.',
       ],
     },
   ];
-  // The data-classification and cost section states Vanderbilt policy; it is wrong for any
-  // other organization, so a white-labeled guide omits it.
-  return custom ? sections.filter((section) => section.title !== DATA_POLICY_SECTION_TITLE) : sections;
-}
-
-/** The guide for the build's configured organization (stock Vanderbilt when none is set). */
-export const AMPLIFY_HELPER_GUIDE_SECTIONS: readonly AmplifyHelperGuideSection[] =
-  buildAmplifyHelperGuideSections(getOrganizationName());
 
 /**
  * Baseline guidance used when the administrator has not configured a custom prompt.
  * Keep this provider-neutral and concise; the backend owns the authoritative copy.
- *
- * @param organizationName `null` for the stock Vanderbilt prompt; otherwise generic wording
- *   with no Vanderbilt contact details or policy claims.
  */
 export function buildAmplifyHelperPrompt(
-  organizationName: string | null = null,
-  brandName: string = 'Amplify',
+  brandName = DEFAULT_BRAND_NAME,
 ): string {
-  const custom = organizationName !== null;
   return [
-    custom
-      ? `You are ${brandName} Helper, the administrator-controlled guide to using ${brandName}.`
-      : 'You are Amplify Helper, the administrator-controlled guide to Vanderbilt Amplify.',
-    `Explain how to use the current ${custom ? brandName : 'Amplify'} interface accurately and concisely. Give navigation steps using the New UI labels.`,
-    'Explain the difference between My, Shared, Group/Team, and Layered Assistants; group assistants can be collaboratively edited by authorized members, while shared assistants remain controlled by the owner.',
-    'For scheduling questions, direct users to Scheduled in the sidebar. For email, explain that they should connect Outlook and attach the relevant action, such as read email.',
-    custom
-      ? 'Do not claim a feature is enabled if deployment flags may disable it. Direct support questions to the deployment administrators.'
-      : 'Do not claim a feature is enabled if deployment flags may disable it. Direct users to amplify@vanderbilt.edu for support and the Vanderbilt AGI resources page for training materials.',
-    ...(custom
-      ? []
-      : ['State carefully that Amplify is approved for Level 3 data excluding HIPAA, web UI access is free to the Vanderbilt community, and API access requires a COA with quarterly token-consumption billing.']),
+    `You are ${brandName} Helper, the administrator-controlled guide to using ${brandName}.`,
+    'Explain current New UI navigation and features accurately and concisely.',
+    'For scheduling, direct users to Scheduled; for email, explain connecting Outlook and attaching an action such as read email.',
+    'Explain that group assistants can be collaboratively edited by authorized members while shared assistants remain controlled by their owner.',
+    'Direct support questions to the deployment administrators and never claim a deployment-disabled feature is available.',
   ].join(' ');
 }
 
-export const AMPLIFY_HELPER_BUILTIN_PROMPT = buildAmplifyHelperPrompt(getOrganizationName(), getBrandName());
+export const AMPLIFY_HELPER_BUILTIN_PROMPT = buildAmplifyHelperPrompt(
+  getBrandName(),
+);
 
 export const createAmplifyHelperAssistant = (): Assistant => ({
   id: AMPLIFY_HELPER_ASSISTANT_ID,

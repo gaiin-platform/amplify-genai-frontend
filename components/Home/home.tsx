@@ -35,6 +35,7 @@ import {
 import { getArchiveNumOfDays, getHiddenGroupFolders, saveFolders } from '@/utils/app/folders';
 import { savePrompts } from '@/utils/app/prompts';
 import { getSettings, saveSettings } from '@/utils/app/settings';
+import { getActiveSupportEmail, normalizeDocumentationUrl } from '@/utils/app/deploymentContact';
 import { storageGet, storageGetStrict, storageSet } from '@/utils/app/storage';
 import { getAccounts } from "@/services/accountService";
 
@@ -943,10 +944,10 @@ const Home = ({
                 const response = await getUserAppConfigs();
                 if (response.success) {
                     const data = response.data;
-                    if (AdminConfigTypes.EMAIL_SUPPORT in data) {
-                        const emailData = data[AdminConfigTypes.EMAIL_SUPPORT];
-                        if (emailData && emailData.isActive && emailData.email) dispatch({ field: 'supportEmail', value: emailData.email});  
-                    }
+                    dispatch({
+                        field: 'supportEmail',
+                        value: getActiveSupportEmail(data[AdminConfigTypes.EMAIL_SUPPORT]),
+                    });
                     if (AdminConfigTypes.AI_EMAIL_DOMAIN in data) {
                         const emailDomain = data[AdminConfigTypes.AI_EMAIL_DOMAIN];
                         dispatch({ field: 'aiEmailDomain', value: emailDomain});  
@@ -978,12 +979,10 @@ const Home = ({
                         }
                         
                     }
-                    if (AdminConfigTypes.USER_DOCUMENTATION_URL in data) {
-                        const docUrl = data[AdminConfigTypes.USER_DOCUMENTATION_URL];
-                        if (docUrl) {
-                            dispatch({ field: 'userDocumentationUrl', value: docUrl });
-                        }
-                    }
+                    dispatch({
+                        field: 'userDocumentationUrl',
+                        value: normalizeDocumentationUrl(data[AdminConfigTypes.USER_DOCUMENTATION_URL]) ?? '',
+                    });
                     if (AdminConfigTypes.DEFAULT_TIMEZONE in data) {
                         const tz = data[AdminConfigTypes.DEFAULT_TIMEZONE];
                         if (tz) {
