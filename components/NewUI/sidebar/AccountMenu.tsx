@@ -202,7 +202,9 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
             </div>
           </div>
 
-          <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+          {(documentationUrl || classicAllowed) && (
+            <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+          )}
 
           {documentationUrl && (
             <a
