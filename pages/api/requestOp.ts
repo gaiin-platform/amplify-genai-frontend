@@ -4,6 +4,8 @@ import { transformPayload } from "@/utils/app/data";
 import { lzwCompress } from "@/utils/app/lzwCompression";
 import { validateUrlForSSRF } from "@/utils/app/urlValidation";
 import { readBackendClientError } from "@/utils/server/backendError";
+import { AdminConfigTypes } from "@/types/admin";
+import { DOCUMENTATION_URL_ERROR, normalizeDocumentationUrl } from "@/utils/app/deploymentContact";
 
 export const config = {
     api: {
@@ -49,6 +51,21 @@ const validateMCPPayloadUrl = (path: string, op: string, payload: any): string |
     return null;
 };
 
+const normalizeAdminDocumentationUpdate = (apiUrl: string, payload: any): string | null => {
+    if (!Array.isArray(payload?.configurations)) return null;
+
+    const { pathname } = new URL(apiUrl, 'http://localhost');
+    if (!pathname.replace(/\/+$/, '').endsWith('/amplifymin/configs/update')) return null;
+
+    for (const config of payload.configurations) {
+        if (config?.type !== AdminConfigTypes.USER_DOCUMENTATION_URL) continue;
+        const url = normalizeDocumentationUrl(config.data);
+        if (url === null) return DOCUMENTATION_URL_ERROR;
+        config.data = url;
+    }
+    return null;
+};
+
 
 const requestOp =
     async (req: NextApiRequest, res: NextApiResponse) => {
@@ -72,6 +89,18 @@ const requestOp =
         if (ssrfError) {
             console.warn(`Blocked unsafe MCP URL for path=${reqPath} op=${reqOp}: ${ssrfError}`);
             return res.status(400).json({ error: ssrfError });
+        }
+
+        const apiUrl = constructUrl(reqData);
+
+        if (!apiUrl) {
+            console.warn(`Blocked request: constructed URL failed origin validation`);
+            return res.status(400).json({ error: 'Invalid request URL' });
+        }
+
+        const documentationError = normalizeAdminDocumentationUpdate(apiUrl, payload);
+        if (documentationError) {
+            return res.status(400).json({ error: documentationError, message: documentationError });
         }
 
         let reqPayload: reqPayload = {
@@ -112,13 +141,6 @@ const requestOp =
                 console.log(`Including pollRequestId in backend request: ${pollRequestId}`);
             }
             reqPayload.body = JSON.stringify(bodyData);
-        }
-
-        const apiUrl = constructUrl(reqData);
-
-        if (!apiUrl) {
-            console.warn(`Blocked request: constructed URL failed origin validation`);
-            return res.status(400).json({ error: 'Invalid request URL' });
         }
 
         try {
