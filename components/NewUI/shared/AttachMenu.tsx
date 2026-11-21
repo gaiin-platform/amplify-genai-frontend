@@ -31,6 +31,9 @@ import {
   IconSearch,
   IconBrain,
   IconGitBranch,
+  IconWorld,
+  IconFileText,
+  IconCode,
 } from '@tabler/icons-react';
 import {
   autoUpdate,
@@ -85,6 +88,8 @@ import { useChatWorkflowTemplates } from './useChatWorkflowTemplates';
 import { type ConversationWorkflow, workflowBlockReason } from './conversationWorkflow';
 import { NEW_UI_SETTINGS_EVENT } from './newUISettingsEvents';
 import { useStableFeatureFlags } from './useStableFeatureFlags';
+import { getAvailableManualChatTools, type ManualChatTool } from './conversationChatTools';
+import { getUserWebSearchEnabled } from './userWebSearch';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Integration display helpers
@@ -176,6 +181,12 @@ export interface SelectedAction {
   ops: Array<{ name: string; operation: any }>;
 }
 
+const MANUAL_CHAT_TOOL_DETAILS = {
+  webSearch: { label: 'Web search', Icon: IconWorld },
+  artifacts: { label: 'Artifacts', Icon: IconFileText },
+  codeInterpreter: { label: 'Code interpreter', Icon: IconCode },
+} satisfies Record<ManualChatTool, { label: string; Icon: typeof IconWorld }>;
+
 export interface AttachMenuProps {
   /** Whether the composer is on the landing (opens downward) vs docked (opens upward) */
   isNewChat?: boolean;
@@ -209,6 +220,8 @@ export interface AttachMenuProps {
    * Receives the full updated list (caller may replace state directly).
    */
   onActionsChange?: (actions: SelectedAction[]) => void;
+  selectedChatTools?: ManualChatTool[];
+  onToggleChatTool?: (tool: ManualChatTool) => void;
   selectedSkillIds?: string[];
   onSkillIdsChange?: (skillIds: string[]) => void;
   /** Workflow attached to this chat. The "Add workflow" row only exists when the caller can store one. */
@@ -238,11 +251,15 @@ const ActionRow: React.FC<{
   icon: React.ReactNode;
   label: string;
   disabled?: boolean;
+  checked?: boolean;
+  title?: string;
   onClick: () => void;
-}> = ({ icon, label, disabled, onClick }) => (
+}> = ({ icon, label, disabled, checked, title, onClick }) => (
   <button
     type="button"
-    role="menuitem"
+    role={checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
+    aria-checked={checked}
+    title={title}
     disabled={disabled}
     onClick={onClick}
     className="w-full flex items-center gap-3 px-[10px] h-[35px] rounded-[8px] text-left transition-colors"
@@ -273,6 +290,7 @@ const ActionRow: React.FC<{
       {icon}
     </span>
     <span style={{ flex: 1 }}>{label}</span>
+    {checked && <IconCheck size={16} aria-hidden="true" style={{ color: 'var(--accent)' }} />}
   </button>
 );
 
@@ -1454,11 +1472,14 @@ export const AttachMenuChips: React.FC<{
   onRemoveAssistant?: () => void;
   selectedActions?: SelectedAction[];
   onRemoveActions?: () => void;
+  selectedChatTools?: ManualChatTool[];
+  onToggleChatTool?: (tool: ManualChatTool) => void;
   selectedSkillIds?: string[];
   onRemoveSkills?: () => void;
   selectedWorkflow?: ConversationWorkflow | null;
   onRemoveWorkflow?: () => void;
-}> = ({ assistantName, onRemoveAssistant, selectedActions, onRemoveActions, selectedSkillIds, onRemoveSkills, selectedWorkflow, onRemoveWorkflow }) => {
+}> = ({ assistantName, onRemoveAssistant, selectedActions, onRemoveActions, selectedChatTools, onToggleChatTool, selectedSkillIds, onRemoveSkills, selectedWorkflow, onRemoveWorkflow }) => {
+  const { state: { featureFlags } } = useContext(HomeContext);
   const chips: React.ReactNode[] = [];
 
   if (assistantName && onRemoveAssistant) {
@@ -1550,6 +1571,22 @@ export const AttachMenuChips: React.FC<{
     );
   }
 
+  if (onToggleChatTool) {
+    for (const tool of getAvailableManualChatTools(featureFlags)) {
+      if (!selectedChatTools?.includes(tool) || (tool === 'webSearch' && !getUserWebSearchEnabled())) continue;
+      const { label, Icon } = MANUAL_CHAT_TOOL_DETAILS[tool];
+      chips.push(
+        <div key={tool} className="flex items-center gap-1 pl-2 rounded-[6px] text-[12.5px] flex-shrink-0" style={{ height: 26, background: 'var(--bg-active)', color: 'var(--text-primary)' }}>
+          <Icon size={14} aria-hidden="true" style={{ color: 'var(--accent)' }} />
+          <span>{label}</span>
+          <button type="button" onClick={() => onToggleChatTool(tool)} className="flex items-center justify-center w-[22px] h-full rounded-r-[6px]" style={{ color: 'var(--text-muted)' }} aria-label={`Remove ${label}`}>
+            <IconX size={12} />
+          </button>
+        </div>,
+      );
+    }
+  }
+
   if (chips.length === 0) return null;
 
   return <>{chips}</>;
@@ -1569,13 +1606,15 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   onAddIntegrationFile,
   selectedActions = [],
   onActionsChange,
+  selectedChatTools = [],
+  onToggleChatTool,
   selectedSkillIds = [],
   onSkillIdsChange,
   selectedWorkflow = null,
   onWorkflowChange,
 }) => {
   const {
-    state: { prompts, selectedAssistant, layeredAssistants, groups, availableModels, defaultModelId },
+    state: { prompts, selectedAssistant, layeredAssistants, groups, availableModels, defaultModelId, featureFlags: liveFeatureFlags },
     dispatch,
     handleUpdateConversation,
   } = useContext(HomeContext);
@@ -1685,7 +1724,10 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   };
 
   // Badge: any active toggle, non-default assistant, or connector actions
-  const anyToggleActive = !isDefaultAssistant || selectedActions.length > 0 || selectedSkillIds.length > 0 || !!selectedWorkflow;
+  const manualTools = onToggleChatTool ? getAvailableManualChatTools(liveFeatureFlags) : [];
+  const userAllowsWebSearch = getUserWebSearchEnabled();
+  const manualToolActive = manualTools.some((tool) => selectedChatTools.includes(tool) && (tool !== 'webSearch' || userAllowsWebSearch));
+  const anyToggleActive = !isDefaultAssistant || selectedActions.length > 0 || selectedSkillIds.length > 0 || !!selectedWorkflow || manualToolActive;
 
   // Feature gates
   const showFiles = featureFlags.uploadDocuments;
@@ -1697,7 +1739,6 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   // endpoint; the skill picker handles an empty/error response without making the
   // plus menu option vanish.
   const showSkills = !!featureFlags.skills && Boolean(chatEndpoint) && Boolean(onSkillIdsChange);
-  // Backend routing owns optional chat tools; only explicit connectors remain here.
   const showConnectors = featureFlags.integrations;
   // Workflows: only for people who have some. The list is the user's own templates, loaded once and cached.
   const { templates: workflowTemplates, refresh: refreshWorkflows } = useChatWorkflowTemplates(!!featureFlags.assistantWorkflows && Boolean(onWorkflowChange));
@@ -1706,7 +1747,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     assistantData: isDefaultAssistant ? null : selectedAssistant?.definition?.data,
   });
   const hasGroup1 = showFiles || showLibrary || showAssistant || showSkills;
-  const hasGroup2 = showConnectors || showWorkflows;
+  const hasGroup2 = showConnectors || showWorkflows || manualTools.length > 0;
 
   // A workflow can't coexist with an assistant's own workflow/actions (the classic input blocks it too).
   // If such an assistant is picked after a workflow is attached, drop the workflow. Connector actions are
@@ -1988,9 +2029,23 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
               </>
             )}
 
-            {/* Explicit connectors remain available; tool modes are backend-routed. */}
             {hasGroup2 && (
               <>
+                {manualTools.map((tool) => {
+                  const { label, Icon } = MANUAL_CHAT_TOOL_DETAILS[tool];
+                  const disabled = tool === 'webSearch' && !userAllowsWebSearch;
+                  return (
+                    <ActionRow
+                      key={tool}
+                      icon={<Icon size={18} aria-hidden="true" />}
+                      label={label}
+                      checked={!disabled && selectedChatTools.includes(tool)}
+                      disabled={disabled}
+                      title={disabled ? 'Web search is off in Settings → General' : undefined}
+                      onClick={() => { onToggleChatTool?.(tool); closeAll(); }}
+                    />
+                  );
+                })}
                 {showConnectors && (
                   <SubmenuRowEl
                     ref={connectorsRowRef}

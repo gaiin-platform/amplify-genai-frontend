@@ -200,8 +200,8 @@ export const DeploymentFeaturesTab: FC<DeploymentFeaturesTabProps> = ({
         <ToggleRow
           id="dep-feat-routing"
           label="Automatic Ordinary-Chat Routing"
-          description="When enabled, the backend may select web search, artifacts, or code interpreter for eligible ordinary-chat requests. Missing values default to off."
-          checked={config.routingEnabled ?? false}
+          description="On by default. The backend may select web search, artifacts, or code interpreter for eligible ordinary chats. When off, users can select available tools in the attach menu."
+          checked={config.routingEnabled ?? true}
           onChange={(v) => setTopLevel('routingEnabled', v)}
         />
         <div style={{ padding: '14px 0 2px' }}>
@@ -217,7 +217,7 @@ export const DeploymentFeaturesTab: FC<DeploymentFeaturesTabProps> = ({
           <SelectControl
             id="dep-feat-routing-model"
             value={routingModelSelectValue(config.routingModelId)}
-            disabled={!(config.routingEnabled ?? false)}
+            disabled={!(config.routingEnabled ?? true)}
             onChange={(e) => setRoutingModel(e.target.value)}
           >
             <option value="">Default ({DEFAULT_ROUTING_MODEL_NAME})</option>

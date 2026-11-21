@@ -325,7 +325,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
         memory: false,
       },
       allowClassicUiSwitch: true,
-      routingEnabled: false,
+      routingEnabled: true,
     });
   const [astGroups, setAstGroups] = useState<Ast_Group_Data[]>([]);
   const [changedAstGroups, setChangedAstGroups] = useState<string[]>([]);

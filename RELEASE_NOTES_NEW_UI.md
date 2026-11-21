@@ -93,9 +93,11 @@ The New UI is off until `newUi` is on. The backend serves the flag, so the backe
 | `availability.webSearch` | on | Web search. |
 | `availability.codeInterpreter` | on | Code interpreter. |
 | `allowClassicUiSwitch` | on | Whether users may use the Classic UI. |
-| `routingEnabled` | off | Automatic model routing for ordinary chat (not network routing). |
+| `routingEnabled` | on | Automatic feature routing for ordinary chat. A saved `false` stays off. |
 | `routingModelId` | empty | Model the router uses; empty uses the built-in default. |
 | `announcement` | none | Site-wide banner (message up to 500 characters in the Admin UI, optional expiry, users can dismiss it). |
+
+**Automatic Ordinary-Chat Routing is on by default.** Open **Admin panel → Deployment** and scroll down to find it. If your deployment already saved `routingEnabled: false`, it stays off until an admin turns it on. While routing is off, users can choose Web search, Artifacts, and Code interpreter from the New UI attach menu when those tools are available.
 
 **Behavior changes admins will notice**
 - **Prompt highlighter and memory default to OFF** when no `deploymentFeatures` record exists, including on existing deployments. Turn them on in Admin, Deployment if you want them.

@@ -679,7 +679,6 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       // attachment-only send (no amplify_pending_message) still works.
       const pendingText = pendingMessage ?? optimistic?.content ?? '';
 
-      // Optional chat tool preferences are no longer read or written here.
       // ── Read pending connector actions (written by NewHome, cleared below) ──
       const pendingActionsRaw = sessionStorage.getItem('amplify_pending_actions');
       let pendingActions: SelectedAction[] = [];

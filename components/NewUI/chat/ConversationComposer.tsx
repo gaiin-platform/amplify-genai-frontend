@@ -101,6 +101,7 @@ import {
   getConversationConnectorActions,
   withConversationConnectorActions,
 } from '@/components/NewUI/shared/conversationConnectorActions';
+import { getConversationChatTools, toggleManualChatTool, withConversationChatTools, type ManualChatTool } from '@/components/NewUI/shared/conversationChatTools';
 import {
   getAssistantConfiguredTools,
   mergeConfiguredTools,
@@ -241,7 +242,16 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
   const selectedConversationRef = useRef(selectedConversation);
   selectedConversationRef.current = selectedConversation;
 
-  // Optional web-search, artifact, and interpreter selection is owned by backend routing.
+  const selectedChatTools = getConversationChatTools(selectedConversation);
+  const toggleChatTool = (tool: ManualChatTool) => {
+    const conversation = selectedConversationRef.current;
+    if (conversation) {
+      const next = withConversationChatTools(conversation, toggleManualChatTool(getConversationChatTools(conversation), tool));
+      selectedConversationRef.current = next;
+      handleUpdateSelectedConversation(next);
+    }
+  };
+
   // Connector selection is stored on this conversation's data so it survives the
   // one-shot home→chat bridge and never leaks into another chat. NewHome writes the
   // destination conversation metadata before the bridge sends the first message.
@@ -1411,6 +1421,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 onAddIntegrationFile={(file) => attachFiles([file])}
                 selectedActions={selectedActions}
                 onActionsChange={updateSelectedActions}
+                selectedChatTools={selectedChatTools}
+                onToggleChatTool={toggleChatTool}
                 selectedSkillIds={selectedSkillIds}
                 onSkillIdsChange={updateSelectedSkillIds}
                 selectedWorkflow={selectedWorkflow}
@@ -1423,6 +1435,8 @@ export const ConversationComposer: React.FC<ConversationComposerProps> = ({
                 onRemoveAssistant={detachAssistant}
                 selectedActions={selectedActions}
                 onRemoveActions={() => updateSelectedActions([])}
+                selectedChatTools={selectedChatTools}
+                onToggleChatTool={toggleChatTool}
                 selectedSkillIds={selectedSkillIds}
                 onRemoveSkills={() => updateSelectedSkillIds([])}
                 selectedWorkflow={selectedWorkflow}
