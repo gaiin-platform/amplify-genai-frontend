@@ -30,6 +30,7 @@ import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatur
 import { isBasePrompt } from '@/utils/app/basePrompts';
 import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { getUserWebSearchEnabled } from '@/components/NewUI/shared/userWebSearch';
+import { getManualChatToolOptions } from '@/components/NewUI/shared/conversationChatTools';
 import { promptForData } from '@/utils/app/llm';
 import {
     buildExtractFactsPrompt,
@@ -55,7 +56,7 @@ export type ChatRequest = {
     rootPrompt?: string | null;
     documents?: AttachedDocument[] | null;
     uri?: string | null;
-    options?: { [key: string]: any };
+    options?: { enableWebSearch?: boolean; skipRag?: boolean; [key: string]: any };
     assistantId?: string;
     prompt?: Prompt;
     conversationId?: string;
@@ -353,6 +354,9 @@ export function useSendService() {
                         options,
                         conversationId
                     } = request;
+                    // Both New UI composers send through this service, including the
+                    // hidden text-only input and first sends with attachments.
+                    options = { ...getManualChatToolOptions(selectedConversation, featureFlags), ...options };
                     messageTimestampRef.current = new Date().toISOString();
 
                     const featureOptions = getSettings(stableFeatureFlags).featureOptions;
@@ -662,15 +666,6 @@ export function useSendService() {
                         conversationId
                     };
 
-                    // Backend routing owns optional web-search selection. Do not
-                    // send user preference fields that could bias that decision —
-                    // the one exception is the user's explicit opt-out (Settings →
-                    // General, for Level 3 data), which is a hard veto the backend
-                    // must honour. Absence means "no veto" (web search defaults ON).
-                    if (!getUserWebSearchEnabled()) {
-                        chatBody.disableWebSearch = true;
-                    }
-
                     // MCP is gated by the admin feature flag alone. The per-send `plugins`
                     // list is a snapshot some callers cache (Chat.tsx's local state is built
                     // once from the raw flags at mount), so a stale snapshot silently dropped
@@ -879,6 +874,11 @@ export function useSendService() {
                         if (mcpEnabledValue !== undefined) {
                             (chatBody as any).mcpEnabled = mcpEnabledValue;
                         }
+                    }
+                    // The user's privacy setting applies to manual and automatic search.
+                    if (!getUserWebSearchEnabled()) chatBody.disableWebSearch = true;
+                    if (chatBody.disableWebSearch === true || !deploymentAvailability.webSearch) {
+                        delete chatBody.enableWebSearch;
                     }
 
                     // console.log("Chatbody:", chatBody);
@@ -1900,7 +1900,9 @@ export function useSendService() {
         },
         [
             conversationsRef.current,
-            selectedConversation
+            selectedConversation,
+            featureFlags,
+            stableFeatureFlags,
         ],
     );
 

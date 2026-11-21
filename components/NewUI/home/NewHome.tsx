@@ -89,6 +89,7 @@ import { getUserDefaultModelId, USER_DEFAULT_MODEL_CHANGED_EVENT } from '@/compo
 import { getUserDefaultEffort, USER_DEFAULT_EFFORT_CHANGED_EVENT } from '@/components/NewUI/shared/userDefaultEffort';
 import { maxTokensForRequest } from '@/components/NewUI/shared/outputTokenBudget';
 import { CONVERSATION_CONNECTOR_ACTIONS_KEY } from '@/components/NewUI/shared/conversationConnectorActions';
+import { getConversationChatTools, toggleManualChatTool, withConversationChatTools, type ManualChatTool } from '@/components/NewUI/shared/conversationChatTools';
 import {
   CONVERSATION_WORKFLOW_KEY,
   type ConversationWorkflow,
@@ -627,6 +628,16 @@ export const NewHome: React.FC = () => {
   }, []);
 
   const [selectedActions, setSelectedActions] = useState<SelectedAction[]>([]);
+  const [draftChatTools, setDraftChatTools] = useState<ManualChatTool[]>([]);
+  const draftConversation = page === 'chat' ? selectedConversation : null;
+  const selectedChatTools = draftConversation ? getConversationChatTools(draftConversation) : draftChatTools;
+  const toggleChatTool = (tool: ManualChatTool) => {
+    if (draftConversation) {
+      handleUpdateSelectedConversation(withConversationChatTools(draftConversation, toggleManualChatTool(selectedChatTools, tool)));
+    } else {
+      setDraftChatTools((current) => toggleManualChatTool(current, tool));
+    }
+  };
   const selectedActionsRef = useRef(selectedActions);
   selectedActionsRef.current = selectedActions;
   // A chat carries a workflow OR connector actions, never both: attaching one detaches the other.
@@ -873,7 +884,7 @@ export const NewHome: React.FC = () => {
       // { field: 'selectedConversation', value: convBase } atomically.
       // ConversationComposer's sync effects on model.id and data.reasoningLevel
       // will immediately see the user's landing-page choices.
-      handleUpdateSelectedConversation(convBase);
+      handleUpdateSelectedConversation(withConversationChatTools(convBase, selectedChatTools));
 
       composerRef.current?.clear();
       setHasContent(false);
@@ -883,7 +894,7 @@ export const NewHome: React.FC = () => {
       thumbUrlsRef.current = {};
       return;
     }
-    handleNewConversation({
+    handleNewConversation(withConversationChatTools({
       prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
       ...(selectedModelId && availableModels[selectedModelId]
         ? { model: availableModels[selectedModelId] }
@@ -892,8 +903,6 @@ export const NewHome: React.FC = () => {
       // off `selectedConversation.data?.reasoningLevel` (:629-644) and turns it
       // into `options.reasoningLevel` / `disableReasoning`. Set it here or the
       // picker is decorative and the backend applies its own default.
-      // ConversationViewShell's applyWebSearch spreads `conversation.data`, so
-      // this survives the web-search/skills write that follows.
       data: {
         reasoningLevel: selectedEffort,
         [CONVERSATION_CONNECTOR_ACTIONS_KEY]: selectedActions,
@@ -916,7 +925,8 @@ export const NewHome: React.FC = () => {
       // silently detaches the assistant the user tagged on this composer — the
       // chip disappeared and the first message was sent as a plain chat.
       ...(activeAssistant ? { assistant: activeAssistant } : {}),
-    });
+    }, selectedChatTools));
+    setDraftChatTools([]);
     composerRef.current?.clear();
     setHasContent(false);
     setAttachedDocs([]);
@@ -1114,6 +1124,8 @@ export const NewHome: React.FC = () => {
                 onAddIntegrationFile={(file) => addFileToRail(file)}
                 selectedActions={selectedActions}
                 onActionsChange={updateSelectedActions}
+                selectedChatTools={selectedChatTools}
+                onToggleChatTool={toggleChatTool}
                 selectedSkillIds={selectedSkillIds}
                 onSkillIdsChange={updateSelectedSkillIds}
                 selectedWorkflow={selectedWorkflow}
@@ -1128,6 +1140,8 @@ export const NewHome: React.FC = () => {
                 onRemoveAssistant={() => dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
                 selectedActions={selectedActions}
                 onRemoveActions={() => setSelectedActions([])}
+                selectedChatTools={selectedChatTools}
+                onToggleChatTool={toggleChatTool}
                 selectedSkillIds={selectedSkillIds}
                 onRemoveSkills={() => updateSelectedSkillIds([])}
                 selectedWorkflow={selectedWorkflow}

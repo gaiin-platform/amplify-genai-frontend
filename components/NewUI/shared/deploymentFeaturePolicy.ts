@@ -12,6 +12,7 @@ export interface DeploymentFeatureFlags {
   deploymentFeatures?: {
     availability?: Partial<Record<DeploymentFeatureKey, boolean>>;
     allowClassicUiSwitch?: boolean;
+    routingEnabled?: boolean;
   };
 }
 
