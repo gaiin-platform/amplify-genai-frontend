@@ -44,7 +44,7 @@ import { NewMcpServersSection } from '@/components/NewUI/settings/NewMcpServersS
 import { NewApiKeysSection } from '@/components/NewUI/settings/NewApiKeysSection';
 import type { LeaveGuard } from '@/components/NewUI/settings/leaveGuard';
 import { getAccounts } from '@/services/accountService';
-import { noCoaAccount } from '@/types/accounts';
+import { getDefaultAccount, noCoaAccount } from '@/types/accounts';
 import { Account } from '@/types/accounts';
 import { NewAdminModal } from '@/components/NewUI/settings/NewAdminModal';
 import { NewAccountSection } from '@/components/NewUI/settings/NewAccountSection';
@@ -1192,11 +1192,8 @@ const ApiKeysSection: FC<{
           return;
         }
 
-        const loadedAccounts: Account[] = result.data;
-        setAccounts(loadedAccounts);
-        setDefaultAccount(
-          loadedAccounts.find((account) => account.isDefault) ?? loadedAccounts[0] ?? noCoaAccount,
-        );
+        setAccounts(result.data);
+        setDefaultAccount(getDefaultAccount(result.data));
       })
       .catch(() => {
         if (requestId.current === currentRequest) setAccountsError(true);

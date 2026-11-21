@@ -94,7 +94,7 @@ export const ApiKeys: FC<Props> = ({ setUnsavedChanges, accounts, defaultAccount
     const [includeExpiration, setIncludeExpiration] = useState<boolean>(false);
     const [systemUse, setSystemUse] = useState<boolean>(false);
     
-    const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.name === noCoaAccount.name ? validAccounts[0] || null : defaultAccount);
+    const [selectedAccount, setSelectedAccount] = useState<Account | null>(defaultAccount.id === noCoaAccount.id ? validAccounts[0] || null : defaultAccount);
 
     const editedKeysRef = useRef<any>({});
     const delegateWrapperRef = useRef<HTMLDivElement>(null);

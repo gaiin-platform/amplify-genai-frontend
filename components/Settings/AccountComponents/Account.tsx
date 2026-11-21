@@ -2,8 +2,8 @@ import React, { FC, useContext, useEffect, useRef, useState, useCallback } from 
 import { useTranslation } from 'next-i18next';
 import { IconTrashX, IconPlus, IconCheck, IconX, IconEdit, IconLoader2} from "@tabler/icons-react";
 import HomeContext from '@/components/Home/home.context';
-import { getAccounts, saveAccounts } from "@/services/accountService";
-import { Account, noCoaAccount } from "@/types/accounts";
+import { AccountsVersion, saveAccounts } from "@/services/accountService";
+import { Account, getDefaultAccount, noCoaAccount, normalizeAccounts } from "@/types/accounts";
 import { RateLimiter } from './RateLimit';
 import { formatRateLimit, noRateLimit, PeriodType, RateLimit, rateLimitObj, UNLIMITED } from '@/types/rateLimit';
 import ActionButton from '@/components/ReusableComponents/ActionButton';
@@ -18,7 +18,8 @@ interface Props {
     defaultAccount: Account; 
     setDefaultAccount: (s:Account) => void;
     setUnsavedChanged: (b: boolean) => void;
-    isLoading: boolean;
+    accountsVersion?: AccountsVersion;
+    setAccountsVersion: (version?: AccountsVersion) => void;
 }
 
 interface AccountCostData {
@@ -41,7 +42,9 @@ export const isValidCOA = (coa: any) => {
     return coa !== null && coa !== undefined;
 }
 
-export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, setDefaultAccount, setUnsavedChanged, isLoading}) => {
+export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, setDefaultAccount, setUnsavedChanged, accountsVersion, setAccountsVersion }) => {
+    const isSavingRef = useRef(false);
+    const [isSaving, setIsSaving] = useState(false);
     const { state: {}, dispatch: homeDispatch } = useContext(HomeContext);
     const { data: session } = useSession();
     const user = session?.user;
@@ -124,13 +127,13 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         const newAccountId = accountIdRef.current?.value;
         const newAccountName = accountNameRef.current?.value;
         if (newAccountId && newAccountName && validateCOA(newAccountId)) {
-            if (accounts.find((a:Account) => a.name === newAccountName)) {
-                alert("Account name must be unique.\n\nPlease rename the current account you are trying to add.");
+            if (accounts.some(account => account.id === newAccountId)) {
+                alert("An account with this COA string already exists.");
                 return 
             }
             const updatedAccounts = [...accounts, { id: newAccountId, name: newAccountName, rateLimit: rateLimitObj(accountRateLimitPeriod, accountRateLimitRate)}];
             setAccounts(updatedAccounts);
-            setAddedAccounts([...addedAccounts, newAccountName]);
+            setAddedAccounts([...addedAccounts, newAccountId]);
 
             // Clear input fields after adding an account
             if (accountIdRef.current) accountIdRef.current.value = '';
@@ -158,61 +161,56 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         setUnsavedChanged(!(addedAccounts.length === 0 && !hasEdits));
     }, [addedAccounts, hasEdits]);
 
-    const handleDeleteAccount = (accountToDelete: string) => {
-        // Prevent deletion of "No COA" account
-        if (accountToDelete === noCoaAccount.id) {
-            alert('The "No COA" account cannot be deleted.');
-            return;
-        }
-        if (addedAccounts.includes(accountToDelete)) {
-            setAddedAccounts(addedAccounts.filter((name:string) => name !== accountToDelete));
+    const handleDeleteAccount = (account: Account, index: number) => {
+        if (account.id === noCoaAccount.id) return;
+        if (addedAccounts.includes(account.id)) {
+            setAddedAccounts(addedAccounts.filter(id => id !== account.id));
         } else {
-            // old acct is deleted
             setHasEdits(true);
         }
-        const updatedAccounts = accounts.filter(account => account.name !== accountToDelete);
-        setAccounts(updatedAccounts);
-
+        const remaining = normalizeAccounts(accounts.filter((_, row) => row !== index), defaultAccount.id);
+        setAccounts(remaining);
+        setDefaultAccount(getDefaultAccount(remaining));
     };
-    const handleEdit = (accountName: string, rateLimit: RateLimit) => {
+    const handleEdit = (account: Account, rateLimit: RateLimit) => {
         setHasEdits(true);
-        setAccounts(accounts.map((a: Account) => {
-            if (a.name === accountName) return {...a, rateLimit: rateLimit}
-            return a;
-        }));
+        setAccounts(accounts.map(row => row === account ? { ...row, rateLimit } : row));
     }
 
     const handleSave = async () => {
-        if (accounts.length === 0) {
-            alert("You must have at least one account.");
-            return;
-        }
-        toast("Saving Account changes..."); 
+        if (isSavingRef.current || (!hasEdits && addedAccounts.length === 0)) return;
 
-        let updatedAccounts = accounts.map(account => {
-            return { ...account, isDefault: account.name === defaultAccount.name };
-        });
-
-        let updatedDefaultAccount = updatedAccounts.find((account: any) => account.isDefault);
-
-        const result = await saveAccounts(updatedAccounts);
-
-        if (!result.success) {
-            alert("Unable to save accounts. Please try again.");
-        } else {
-            homeDispatch({ field: 'defaultAccount', value: updatedDefaultAccount || accounts[0] });
+        isSavingRef.current = true;
+        setIsSaving(true);
+        toast("Saving Account changes...");
+        try {
+            const updatedAccounts = normalizeAccounts(accounts, defaultAccount.id);
+            const result = await saveAccounts(updatedAccounts, accountsVersion);
+            if (!result.success) {
+                alert(result.message || "Unable to save accounts. Please try again.");
+                return;
+            }
+            const updatedDefault = getDefaultAccount(updatedAccounts);
+            setAccounts(updatedAccounts);
+            setDefaultAccount(updatedDefault);
+            setAccountsVersion(result.version);
+            homeDispatch({ field: 'defaultAccount', value: updatedDefault });
             setUnsavedChanged(false);
             setHasEdits(false);
             setAddedAccounts([]);
             toast("Account changes saved.");
+        } catch {
+            alert("Unable to save accounts. Please try again.");
+        } finally {
+            isSavingRef.current = false;
+            setIsSaving(false);
         }
-        
-    }
+    };
 
     useEffect(() => {
         window.addEventListener('settingsSave', handleSave);
         return () => window.removeEventListener('settingsSave', handleSave);
-    }, [accounts, defaultAccount, addedAccounts, hasEdits]);
+    }, [accounts, accountsVersion, defaultAccount, addedAccounts, hasEdits, homeDispatch, setAccounts, setDefaultAccount, setAccountsVersion, setUnsavedChanged]);
 
     // Compute rate limit warning for the user: find any account where spend >= 80% of limit
     const rateLimitWarning = (() => {
@@ -233,7 +231,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
         return null;
     })();
 
-    return <div className='accounts-settings-container'>
+    return <fieldset disabled={isSaving} className='accounts-settings-container'>
             <div className="accounts-info-banner">
                 <div className="accounts-info-content">
                     <h3 className="accounts-info-title flex flex-row items-center gap-3">Account Management 
@@ -336,11 +334,6 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                 </div>
             </div>
 
-            {isLoading ? <div className="flex items-center justify-center py-8">
-                            <IconLoader2 size={24} className="animate-spin text-gray-500 mr-2" />
-                            <span>{"Loading Accounts..."}</span>
-                        </div> :
-            <>
             <div className="settings-card">
                 <div className="settings-card-header flex flex-row items-center gap-4">
                     <h3 className="settings-card-title">Default Account</h3>
@@ -352,7 +345,9 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                         defaultAccount={defaultAccount}
                         setDefaultAccount={(a:Account) => {
                             setHasEdits(true);
-                            setDefaultAccount(a);
+                            const updated = normalizeAccounts(accounts, a.id);
+                            setAccounts(updated);
+                            setDefaultAccount(getDefaultAccount(updated));
                         }}
                     />
                 </div>
@@ -430,7 +425,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                                                     id="deleteAccount"
                                                     disabled={account.id === noCoaAccount.id}
                                                     className={`ml-6 mt-4 accounts-delete-button ${account.id === noCoaAccount.id ? 'invisible' : 'visible'}`}
-                                                    onClick={() => handleDeleteAccount(account.name)}
+                                                    onClick={() => handleDeleteAccount(account, index)}
                                                     title="Delete Account"
                                                     style={{ transform: 'translateX(-8px)' }}
                                                 >
@@ -448,8 +443,7 @@ export const Accounts: FC<Props> = ({ accounts, setAccounts, defaultAccount, set
                 </>
                 )}
             </div>
-            </>}
-        </div>
+        </fieldset>
                         
 };
 
@@ -470,16 +464,16 @@ export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDef
         {accounts.length > 0 ? 
         <select className={cn}
             id="accountSelect"
-            value={defaultAccount.name}
+            value={defaultAccount.id}
             onChange={(event) => {
-                const selectedAccount = accounts.find(acc => acc.name === event.target.value);
+                const selectedAccount = accounts.find(acc => acc.id === event.target.value);
                 if (selectedAccount) {
                     setDefaultAccount(selectedAccount);
                 }
             }}
         > 
-            {accounts.map((account) => (
-                <option key={account.name} value={account.name}>
+            {accounts.map((account, index) => (
+                <option key={`${account.id}-${index}`} value={account.id}>
                     {`${account.name}${showId ? ` - ${account.id}`:""}`}
                 </option>
             ))}
@@ -498,7 +492,7 @@ export const AccountSelect: FC<SelectProps> = ({accounts, defaultAccount, setDef
 
 interface LabelProps {
     account: Account;
-    handleAccountEdit: (name: string, rateLimit: RateLimit) => void;
+    handleAccountEdit: (account: Account, rateLimit: RateLimit) => void;
     showEdit: boolean;
 }
 
@@ -514,7 +508,7 @@ const EditableRateLimit: FC<LabelProps> = ({ account, handleAccountEdit, showEdi
 
     const handleEdit = () => {
         const updatedRateLimit = rateLimitObj(rateLimitPeriod, rateLimitRate);
-        handleAccountEdit(account.name, updatedRateLimit);
+        handleAccountEdit(account, updatedRateLimit);
         setDisplayLabel(formatRateLimit(updatedRateLimit));
         setIsEditing(false);
     }
