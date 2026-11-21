@@ -81,8 +81,8 @@ import {killRequest as killReq} from "@/services/chatService";
 import { addDateAttribute, getFullTimestamp, getDateName } from '@/utils/app/date';
 import HomeContext, {  ClickContext, Processor } from './home.context';
 import { ReservedTags } from '@/types/tags';
-import { noCoaAccount } from '@/types/accounts';
-import { noRateLimit, normalizeRateLimits } from '@/types/rateLimit';
+import { getDefaultAccount, noCoaAccount } from '@/types/accounts';
+import { normalizeRateLimits } from '@/types/rateLimit';
 import { fetchAstAdminGroups } from '@/services/groupsService';
 import { contructGroupData } from '@/utils/app/groups';
 import { getAllArtifacts } from '@/services/artifactsService';
@@ -904,9 +904,7 @@ const Home = ({
             try {
                 const response = await getAccounts();
                 if (response.success) {
-                    const defaultAccount = response.data.find((account: any) => account.isDefault);
-                    if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
-                    dispatch({ field: 'defaultAccount', value: defaultAccount || noCoaAccount});  
+                    dispatch({ field: 'defaultAccount', value: getDefaultAccount(response.data) });
                     return;
                 } else {
                     console.log("Failed to fetch accounts.");

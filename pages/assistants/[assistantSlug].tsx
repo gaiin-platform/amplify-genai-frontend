@@ -29,8 +29,7 @@ import {
   IconMail
 } from '@tabler/icons-react';
 import styled from 'styled-components';
-import { Account, noCoaAccount } from '@/types/accounts';
-import { noRateLimit } from '@/types/rateLimit';
+import { Account, getDefaultAccount } from '@/types/accounts';
 import { getAccounts } from '@/services/accountService';
 import { AttachedDocument } from '@/types/attacheddocument';
 import { getFileDownloadUrl } from '@/services/fileService';
@@ -404,9 +403,7 @@ const AssistantPage = ({
         setLoadingMessage('Loading account...');
         const accountResponse = await accountRequest;
         if (accountResponse.success) {
-            const defaultAccount = accountResponse.data.find((account: any) => account.isDefault);
-            if (defaultAccount && !defaultAccount.rateLimit) defaultAccount.rateLimit = noRateLimit; 
-            setDefaultAccount(defaultAccount || noCoaAccount);
+            setDefaultAccount(getDefaultAccount(accountResponse.data));
         } else {
             console.log("Failed to fetch accounts.");
         }

@@ -26,9 +26,9 @@ import {
   IconInfoCircle,
 } from '@tabler/icons-react';
 import HomeContext from '@/components/Home/home.context';
-import { getAccounts, saveAccounts } from '@/services/accountService';
+import { AccountsVersion, getAccounts, saveAccounts } from '@/services/accountService';
 import { getAdminConfigs } from '@/services/adminService';
-import { Account, noCoaAccount } from '@/types/accounts';
+import { Account, getDefaultAccount, noCoaAccount, normalizeAccounts } from '@/types/accounts';
 import {
   formatRateLimit,
   PeriodType,
@@ -50,6 +50,7 @@ import { formatCurrency } from '@/utils/app/data';
 import toast from 'react-hot-toast';
 import { ConfirmDialog } from '@/components/NewUI/shared/ConfirmDialog';
 import { InfoTooltip } from '@/components/NewUI/shared/InfoTooltip';
+import { NewUILoadingStatus } from '@/components/NewUI/shared/NewUILoadingStatus';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Inline new-UI styled RateLimiter
@@ -146,8 +147,12 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
 
   // ── Account state
   const [accounts, setAccounts] = useState<Account[]>([]);
-  const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
-  const [isLoading, setIsLoading] = useState(true);
+  const defaultAccount = getDefaultAccount(accounts);
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [accountsVersion, setAccountsVersion] = useState<AccountsVersion | undefined>();
+  const [savedBillingAccountCount, setSavedBillingAccountCount] = useState(0);
+  const [deletedSavedAccountCount, setDeletedSavedAccountCount] = useState(0);
 
   // ── MTD cost state
   const [mtdData, setMtdData] = useState<UserMtdCosts | null>(null);
@@ -167,6 +172,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
   const [editPeriod, setEditPeriod] = useState<PeriodType>(UNLIMITED);
   const [editRate, setEditRate] = useState<string>('');
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const isSavingRef = useRef(false);
 
@@ -199,23 +205,29 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
     onUnsavedChange?.(unsaved);
   }, [onUnsavedChange, unsaved]);
 
-  // ── Load accounts on mount
+  // ── Load accounts on mount and when the user retries a failed read
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
-      setIsLoading(true);
-      const result = await getAccounts();
-      if (!result.success) {
-        alert('Unable to fetch accounts. Please try again.');
-      } else if (result.data) {
-        const loaded: Account[] = result.data;
-        setAccounts(loaded);
-        const def = loaded.find((a: Account) => a.isDefault) ?? loaded[0] ?? noCoaAccount;
-        setDefaultAccount(def);
+      setLoadStatus('loading');
+      try {
+        const result = await getAccounts();
+        if (cancelled) return;
+        if (!result.success) {
+          setLoadStatus('failed');
+          return;
+        }
+        setAccounts(result.data);
+        setAccountsVersion(result.version);
+        setSavedBillingAccountCount(result.data.filter(account => account.id !== noCoaAccount.id).length);
+        setLoadStatus('ready');
+      } catch {
+        if (!cancelled) setLoadStatus('failed');
       }
-      setIsLoading(false);
     };
     load();
-  }, []);
+    return () => { cancelled = true; };
+  }, [loadAttempt]);
 
   // ── Load month-to-date costs (and the user's keys, for attribution) when the section opens
   useEffect(() => {
@@ -261,8 +273,8 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
       setValidationMessage('Please enter both an account name and COA string before adding the account.');
       return;
     }
-    if (accounts.find((a) => a.name === newName)) {
-      setValidationMessage('Account name must be unique. Please rename the account you are trying to add.');
+    if (accounts.some((a) => a.id === newId)) {
+      setValidationMessage('An account with this COA string already exists.');
       return;
     }
     const newAccount: Account = {
@@ -271,7 +283,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
       rateLimit: rateLimitObj(addPeriod, addRate),
     };
     setAccounts([...accounts, newAccount]);
-    setAddedAccounts([...addedAccounts, newName]);
+    setAddedAccounts([...addedAccounts, newId]);
     setAccountNameDraft('');
     setAccountIdDraft('');
     setAddPeriod(UNLIMITED);
@@ -279,19 +291,19 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
   };
 
   // ── Delete account
-  const handleDeleteAccount = (accountName: string) => {
-    const account = accounts.find((a) => a.name === accountName);
-    if (!account) return;
+  const handleDeleteAccount = (account: Account, index: number) => {
     if (account.id === noCoaAccount.id) {
       alert('The "No COA" account cannot be deleted.');
       return;
     }
-    if (addedAccounts.includes(accountName)) {
-      setAddedAccounts(addedAccounts.filter((n) => n !== accountName));
+    if (addedAccounts.includes(account.id)) {
+      setAddedAccounts(addedAccounts.filter((id) => id !== account.id));
     } else {
+      setDeletedSavedAccountCount(count => count + 1);
       setHasEdits(true);
     }
-    setAccounts(accounts.filter((a) => a.name !== accountName));
+    setAccounts(normalizeAccounts(accounts.filter((_, row) => row !== index)));
+    setEditingIndex(current => current !== null && current > index ? current - 1 : current);
   };
 
   // ── Inline rate-limit editing
@@ -318,32 +330,41 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
 
   // ── Save (same logic as original handleSave)
   const handleSave = async () => {
-    if (isSavingRef.current) return;
-    if (accounts.length === 0) {
-      alert('You must have at least one account.');
+    if (loadStatus !== 'ready' || isSavingRef.current) return;
+    if (addFormHasIncompleteDraft) {
+      setValidationMessage('Please enter both an account name and COA string before adding the account.');
+      return;
+    }
+    if (!hasPersistableChanges) return;
+    if (
+      accounts.every(account => account.id === noCoaAccount.id) &&
+      deletedSavedAccountCount < savedBillingAccountCount
+    ) {
+      setSaveError('Some saved accounts are missing. Reload Accounts before saving.');
       return;
     }
 
     isSavingRef.current = true;
     setIsSaving(true);
+    setSaveError(null);
     toast('Saving Account changes...');
     try {
-      const updatedAccounts = accounts.map((acc) => ({
-        ...acc,
-        isDefault: acc.name === defaultAccount.name,
-      }));
-      const updatedDefault = updatedAccounts.find((a) => a.isDefault);
-      const result = await saveAccounts(updatedAccounts);
+      const updatedAccounts = normalizeAccounts(accounts);
+      const result = await saveAccounts(updatedAccounts, accountsVersion);
       if (!result.success) {
-        alert('Unable to save accounts. Please try again.');
+        setSaveError(result.message || 'Unable to save accounts. Please try again.');
       } else {
-        homeDispatch({ field: 'defaultAccount', value: updatedDefault ?? accounts[0] });
+        homeDispatch({ field: 'defaultAccount', value: getDefaultAccount(updatedAccounts) });
+        setAccounts(updatedAccounts);
+        setAccountsVersion(result.version);
+        setSavedBillingAccountCount(updatedAccounts.filter(account => account.id !== noCoaAccount.id).length);
+        setDeletedSavedAccountCount(0);
         setHasEdits(false);
         setAddedAccounts([]);
         toast.success('Account changes saved.');
       }
     } catch {
-      alert('Unable to save accounts. Please try again.');
+      setSaveError('Unable to save accounts. Please try again.');
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);
@@ -355,7 +376,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
     window.addEventListener('settingsSave', handleSave);
     return () => window.removeEventListener('settingsSave', handleSave);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [accounts, defaultAccount, addedAccounts, hasEdits]);
+  }, [accounts, accountsVersion, loadStatus, addFormHasIncompleteDraft, hasPersistableChanges, savedBillingAccountCount, deletedSavedAccountCount]);
 
   // ── Rate-limit warning (ported from original)
   const rateLimitWarning = (() => {
@@ -404,8 +425,22 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
   // ─────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────
+  if (loadStatus === 'loading') {
+    return <NewUILoadingStatus open message="Loading billing accounts…" variant="inline" />;
+  }
+  if (loadStatus === 'failed') {
+    return (
+      <div style={{ ...card, color: 'var(--text-error)' }} role="alert">
+        <p>Unable to load billing accounts.</p>
+        <button type="button" className="mt-2 underline" onClick={() => setLoadAttempt(attempt => attempt + 1)}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    <fieldset disabled={isSaving} style={{ display: 'flex', flexDirection: 'column', gap: '16px', border: 0, padding: 0, minWidth: 0 }}>
       <ConfirmDialog
         isOpen={validationMessage !== null}
         title="Account details required"
@@ -549,7 +584,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
       </div>
 
       {/* ─── Default account selector ─── */}
-      {!isLoading && accounts.length > 0 && (
+      {accounts.length > 0 && (
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
             <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text-primary)', margin: 0 }}>
@@ -565,13 +600,10 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
           </p>
           <select
             id="accountSelect"
-            value={defaultAccount.name}
+            value={defaultAccount.id}
             onChange={(e) => {
-              const sel = accounts.find((a) => a.name === e.target.value);
-              if (sel) {
-                setDefaultAccount(sel);
-                setHasEdits(true);
-              }
+              setAccounts(normalizeAccounts(accounts, e.target.value));
+              setHasEdits(true);
             }}
             style={{
               width: '100%',
@@ -587,8 +619,8 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
               boxSizing: 'border-box',
             }}
           >
-            {accounts.map((a) => (
-              <option key={a.name} value={a.name}>
+            {accounts.map((a, index) => (
+              <option key={`${a.id}-${index}`} value={a.id}>
                 {`${a.name} — ${a.id}`}
               </option>
             ))}
@@ -605,19 +637,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
           Manage your existing accounts and their settings
         </p>
 
-        {isLoading ? (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            color: 'var(--text-muted)',
-            fontSize: '13px',
-            padding: '16px 0',
-          }}>
-            <IconLoader2 size={16} className="motion-safe:animate-spin motion-reduce:animate-none" />
-            Loading accounts…
-          </div>
-        ) : accounts.length === 0 ? (
+        {accounts.length === 0 ? (
           <p style={{
             fontSize: '13px',
             color: 'var(--text-muted)',
@@ -632,7 +652,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
               const isHovered = hoverAccount === index;
               const cost = accountCosts.get(account.id);
               const isEditing = editingIndex === index;
-              const isDefault = account.name === defaultAccount.name;
+              const isDefault = account.isDefault;
 
               return (
                 <div
@@ -790,7 +810,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
                   {account.id !== noCoaAccount.id && isHovered && !isEditing && (
                     <button
                       title="Delete account"
-                      onClick={() => handleDeleteAccount(account.name)}
+                      onClick={() => handleDeleteAccount(account, index)}
                       style={{
                         background: 'none',
                         border: 'none',
@@ -818,6 +838,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
         )}
       </div>
 
+      {saveError && <p role="alert" style={{ color: 'var(--text-error)' }}>{saveError}</p>}
       {/* ─── Save button ─── */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '4px' }}>
         <button
@@ -844,7 +865,7 @@ export const NewAccountSection: FC<NewAccountSectionProps> = ({ onUnsavedChange 
           ) : 'Save Changes'}
         </button>
       </div>
-    </div>
+    </fieldset>
   );
 };
 

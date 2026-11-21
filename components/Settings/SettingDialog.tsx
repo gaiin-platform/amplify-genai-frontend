@@ -25,9 +25,8 @@ import { IntegrationTabs } from '../Integrations/IntegrationsTab';
 import { ApiKeys } from './AccountComponents/ApiKeys';
 import { Accounts } from './AccountComponents/Account';
 import { MCPServersTab } from './MCPServersTab';
-import { Account, noCoaAccount } from '@/types/accounts';
-import { getAccounts } from '@/services/accountService';
-import { noRateLimit } from '@/types/rateLimit';
+import { Account, getDefaultAccount, noCoaAccount } from '@/types/accounts';
+import { AccountsVersion, getAccounts } from '@/services/accountService';
 import { DataDisclosureViewer } from './DataDisclosureViewer';
 
   interface Props {
@@ -273,7 +272,9 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     }
 
 
-    const [isLoadingAccounts, setIsLoadingAccounts] = useState(false);
+    const [accountsLoadStatus, setAccountsLoadStatus] = useState<'loading' | 'ready' | 'failed'>('loading');
+    const [accountsLoadAttempt, setAccountsLoadAttempt] = useState(0);
+    const [accountsVersion, setAccountsVersion] = useState<AccountsVersion | undefined>();
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [defaultAccount, setDefaultAccount] = useState<Account>(noCoaAccount);
 
@@ -305,35 +306,34 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
     }
 
     useEffect(() => {
+        if (!open) {
+            setAccountsLoadStatus('loading');
+            return;
+        }
+
+        let cancelled = false;
         const fetchAccounts = async () => {
-            const result = await getAccounts();
-            if (!result.success) {
-                alert("Unable to fetch accounts. Please try again.");
-            } else {
-                // Add "No COA" account to the list if not present
-                if (!result.data.some((account: any) => account.id === noCoaAccount.id)) {
-                    result.data.unshift(noCoaAccount);
+            setAccountsLoadStatus('loading');
+            setAccounts([]);
+            setDefaultAccount(noCoaAccount);
+            try {
+                const result = await getAccounts();
+                if (cancelled) return;
+                if (!result.success) {
+                    setAccountsLoadStatus('failed');
+                    return;
                 }
-
-                result.data.forEach((account: any) => {
-                    if (!account.rateLimit) account.rateLimit =  noRateLimit;
-                })
                 setAccounts(result.data);
-
-                const updatedDefaultAccount = result.data.find((account: Account) => account.isDefault) || result.data[0];
-
-                if (updatedDefaultAccount) {
-                    setDefaultAccount(updatedDefaultAccount);
-                }
+                setDefaultAccount(getDefaultAccount(result.data));
+                setAccountsVersion(result.version);
+                setAccountsLoadStatus('ready');
+            } catch {
+                if (!cancelled) setAccountsLoadStatus('failed');
             }
-            setIsLoadingAccounts(false);
-        }
-        if (open) {
-            console.log("fetching accounts");
-            setIsLoadingAccounts(true);
-            fetchAccounts();
-        }
-    }, [open]);
+        };
+        fetchAccounts();
+        return () => { cancelled = true; };
+    }, [open, accountsLoadAttempt]);
 
     // Removed cleanup event from tab switch - only cleanup on modal close
     // useEffect(() => {
@@ -521,14 +521,26 @@ export const SettingDialog: FC<Props> = ({ open, onClose, openToTab }) => {
                 ...(featureFlags.accounts ? [{label: `Accounts${accountsUnsavedChanges ? " *" : ""}`, 
                   title: "Manage your accounts",
                   content:
-                  <Accounts
-                      accounts={accounts}
-                      setAccounts={setAccounts}
-                      defaultAccount={defaultAccount}
-                      setDefaultAccount={setDefaultAccount}
-                      setUnsavedChanged={setAccountsUnsavedChanges}
-                      isLoading={isLoadingAccounts}
-                  />
+                  accountsLoadStatus === 'ready' ? (
+                    <Accounts
+                        accounts={accounts}
+                        setAccounts={setAccounts}
+                        defaultAccount={defaultAccount}
+                        setDefaultAccount={setDefaultAccount}
+                        setUnsavedChanged={setAccountsUnsavedChanges}
+                        accountsVersion={accountsVersion}
+                        setAccountsVersion={setAccountsVersion}
+                    />
+                  ) : accountsLoadStatus === 'failed' ? (
+                    <div className="settings-card" role="alert">
+                        <p>Unable to load billing accounts.</p>
+                        <button type="button" className="mt-2 underline" onClick={() => setAccountsLoadAttempt(attempt => attempt + 1)}>
+                            Try again
+                        </button>
+                    </div>
+                  ) : (
+                    <div className="py-8 text-center" role="status">Loading accounts…</div>
+                  ),
                   }] : [] ),
               ///////////////////////////////////////////////////////////////////////////////
               // API Access Tab
