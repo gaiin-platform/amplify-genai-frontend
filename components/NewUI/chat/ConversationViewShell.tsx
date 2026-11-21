@@ -1686,7 +1686,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       {...dropHandlers}
     >
       {/* Chat fills the entire shell — CSS handles height:100% on .chatcontainer */}
-      <Chat stopConversationRef={stopConversationRef} />
+      <Chat stopConversationRef={stopConversationRef} isNewUI />
 
       {/* Drop anywhere in the pane → attaches to the composer below */}
       {isFileDragOver && (
@@ -1830,9 +1830,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
           Double-click resets to the default 50/50 split. */}
       <ArtifactSplitterLayer shellRef={shellRef} />
 
-      {/* Inline artifact card layer — replaces "Creating Your Artifact…" boxes
-          with polished generating/completed/error cards, and adds data attributes
-          to ArtifactsBlock completed cards for CSS restyling. */}
+      {/* Fallback cards for older artifact generation markup. */}
       <ArtifactInlineCardLayer />
     </div>
   );

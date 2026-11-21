@@ -4,7 +4,9 @@ import { ChatMessage, Props } from "./ChatMessage";
 export const MemoizedChatMessage: FC<Props> = memo(
     ChatMessage,
     (prevProps, nextProps) => (
+        prevProps.isNewUI === nextProps.isNewUI &&
         prevProps.message.content === nextProps.message.content &&
+        prevProps.message.data?.artifacts === nextProps.message.data?.artifacts &&
         prevProps.message.data?.mcpToolResults === nextProps.message.data?.mcpToolResults &&
         prevProps.message.data?.state === nextProps.message.data?.state &&
         prevProps.message.codeInterpreterMessageData === nextProps.message.codeInterpreterMessageData

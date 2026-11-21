@@ -30,6 +30,7 @@ import { downloadDataSourceFile } from '@/utils/app/files';
 import { Stars } from './Stars';
 import { saveUserRating } from '@/services/groupAssistantService';
 import { ArtifactsBlock } from './ChatContentBlocks/ArtifactsBlock';
+import { SavedArtifactCards } from './ChatContentBlocks/AutoArtifactBlock';
 import { Amplify, User } from './Avatars';
 import AssistantMessageHighlight from './ChatContentBlocks/AssistantMessageHighlight';
 import { getSettings } from '@/utils/app/settings';
@@ -52,6 +53,7 @@ import ModelRateLimitBlock from './ChatContentBlocks/ModelRateLimitBlock';
 export interface Props {
     message: Message;
     messageIndex: number;
+    isNewUI?: boolean;
     onEdit?: (editedMessage: Message) => void,
     onSendPrompt: (prompt: Prompt) => void,
     onChatRewrite: (message: Message, updateIndex: number, requestedRewrite: string, prefix: string, suffix: string, feedback: string) => void,
@@ -62,6 +64,7 @@ export interface Props {
 export const ChatMessage: FC<Props> = memo(({
                                                 message,
                                                 messageIndex,
+                                                isNewUI,
                                                 onEdit,
                                                 onSendPrompt,
                                                 handleCustomLinkClick,
@@ -730,10 +733,9 @@ export const ChatMessage: FC<Props> = memo(({
                                         )}
 
                                         {artifactsAvailable && featureFlags.artifacts && !isActionResult &&
-                                            <ArtifactsBlock
-                                              message={message}
-                                              messageIndex={messageIndex}
-                                            />}
+                                            (isNewUI ? <SavedArtifactCards message={message} /> : (
+                                                <ArtifactsBlock message={message} messageIndex={messageIndex} />
+                                            ))}
                                     </div>
                                     <div className="flex flex-row">
                                         {(isEditing || messageIsStreaming) ? null : (
@@ -886,7 +888,7 @@ export const ChatMessage: FC<Props> = memo(({
                                             </div>
                                           )}
 
-                                          {artifactsAvailable && featureFlags.artifacts &&
+                                          {!isNewUI && artifactsAvailable && featureFlags.artifacts &&
                                             <ArtifactsBlock
                                               message={message}
                                               messageIndex={messageIndex}
