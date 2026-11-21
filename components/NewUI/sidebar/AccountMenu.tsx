@@ -25,11 +25,10 @@ import { signOut } from 'next-auth/react';
 import HomeContext from '@/components/Home/home.context';
 import { setUIPreference } from '@/components/NewUI/UIPreferenceBanner';
 import { ThemeService } from '@/utils/whiteLabel/themeService';
+import { normalizeDocumentationUrl } from '@/utils/app/deploymentContact';
 import { useUiSwitchPolicy } from '@/components/NewUI/shared/useUiSwitchPolicy';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import toast from 'react-hot-toast';
-
-const DOCS_URL = 'https://www.vanderbilt.edu/agi/platforms/resources/';
 
 interface AccountMenuProps {
   name?: string | null;
@@ -47,7 +46,8 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
   onOpenSettings,
   collapsed = false,
 }) => {
-  const { state: { lightMode, statsService }, dispatch } = useContext(HomeContext);
+  const { state: { lightMode, statsService, userDocumentationUrl }, dispatch } = useContext(HomeContext);
+  const documentationUrl = normalizeDocumentationUrl(userDocumentationUrl);
   // Cached-fallback flags, not raw state: `state.featureFlags` is `{}` until /feature_flags
   // lands (and for the whole session if it fails), which hid Admin Panel from admins.
   const featureFlags = useStableFeatureFlags();
@@ -202,20 +202,23 @@ export const AccountMenu: React.FC<AccountMenuProps> = ({
             </div>
           </div>
 
-          <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+          {(documentationUrl || classicAllowed) && (
+            <div className="h-px bg-[--border-subtle] mx-2 my-1" />
+          )}
 
-          {/* Documentation */}
-          <a
-            role="menuitem"
-            href={DOCS_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setOpen(false)}
-            className={`${menuItem} no-underline`}
-          >
-            <IconExternalLink size={15} />
-            Documentation
-          </a>
+          {documentationUrl && (
+            <a
+              role="menuitem"
+              href={documentationUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setOpen(false)}
+              className={`${menuItem} no-underline`}
+            >
+              <IconExternalLink size={15} />
+              Documentation
+            </a>
+          )}
 
           {/* Switch to Classic UI — hidden and guarded by deployment policy. */}
           {classicAllowed && (

@@ -89,22 +89,18 @@ NEXT_PUBLIC_BRAND_NAME=My Company AI Assistant
 
 ### NEXT_PUBLIC_ORGANIZATION_NAME
 
-**Purpose:** Marks the build as deployed by an organization other than the stock Vanderbilt Amplify deployment. Used by the New UI's Amplify Helper.
+**Purpose:** Shows the organization name in the New UI's Amplify Helper introduction.
 
 **Type:** String (optional)
 
-**Default:** unset (stock Vanderbilt deployment)
+**Default:** unset
 
 **Example:**
 ```bash
 NEXT_PUBLIC_ORGANIZATION_NAME=Acme Corporation
 ```
 
-**Notes:**
-- Leave it unset for the stock deployment; nothing changes.
-- When set, the Amplify Helper drops Vanderbilt-specific content: the "Data classification and cost" policy section, the data-classification link, the Vanderbilt resources link and the `amplify@vanderbilt.edu` contact.
-- Your support email and documentation URL are then taken from the admin settings, and the Resources and email links appear only if you have set them.
-- See [New UI](#new-ui) for the one thing an admin must also do for the Helper's AI prompt.
+The guide and its built-in prompt are organization-neutral by default. Set documentation and support links in the Admin Panel. [New UI configuration](#new-ui)
 
 ## Logo Configuration
 
@@ -337,7 +333,7 @@ The New UI honors the same three build-time variables as the classic UI, plus `N
 | `NEXT_PUBLIC_CUSTOM_LOGO` | Sidebar header, new-chat greeting, login page. Falls back to the stock Amplify mark, then to a one-letter tile. |
 | `NEXT_PUBLIC_BRAND_NAME` | Sidebar wordmark, login heading ("Welcome to ..."), startup loading message, logo alt text and letter tile, iOS home-screen title, and the "... Helper" tab and page names. |
 | `NEXT_PUBLIC_DEFAULT_THEME` | First-visit theme. A user's saved choice still wins. |
-| `NEXT_PUBLIC_ORGANIZATION_NAME` | Removes Vanderbilt-specific content from the Amplify Helper (see above). |
+| `NEXT_PUBLIC_ORGANIZATION_NAME` | Optional organization name in the Amplify Helper introduction. |
 
 **Logo shape.** The New UI shows the logo in a square slot (24 px in the sidebar, 40 px on the home screen, about 58 px on login). A square or icon-style logo looks best. A wide logo is scaled to fit, not stretched. Put the file in `public/logos/` and give only the filename (no folders).
 
@@ -357,10 +353,11 @@ Typical rebrand: change `--accent` in both `:root` and `.dark` (keep text on it 
 
 ### Amplify Helper (optional feature)
 
-The Helper is off unless an admin enables the `amplifyHelper` feature flag. Two things to know on a white-labeled deployment:
+Enable the `amplifyHelper` feature flag to show the Helper. Use the Admin Panel to configure deployment-specific information.
 
-1. Set `NEXT_PUBLIC_ORGANIZATION_NAME` so the in-app guide has no Vanderbilt content.
-2. The Helper's AI prompt (`amplifyHelper.base`) has a default written on the backend that names Vanderbilt and `amplify@vanderbilt.edu`. Before enabling the Helper, an admin should replace it in **Admin → System Prompts → Amplify Helper**.
+- Set **Admin Panel → Application Variables → Documentation URL** to an absolute `https://` URL without credentials. This supplies Documentation in the New UI account menu and API Access, and Resources in the Helper. Clear the field to hide those links. The Classic UI also requires the `userDocumentation` feature flag.
+- Enable **Admin Panel → Configurations → Support Email** and enter an address to show it in the Helper.
+- Include deployment-specific policies in your documentation. You can also customize the Helper's AI guidance under **Admin Panel → System Prompts → Amplify Helper — All-Users Prompt**.
 
 ### What is not rebranded
 

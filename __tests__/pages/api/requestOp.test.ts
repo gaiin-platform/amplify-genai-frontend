@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { transformPayload } from '@/utils/app/data';
+import { DOCUMENTATION_URL_ERROR } from '@/utils/app/deploymentContact';
+import { lzwUncompress } from '@/utils/app/lzwCompression';
 
 const mocks = vi.hoisted(() => ({ getServerAccessToken: vi.fn() }));
 vi.mock('@/utils/server/accessToken', () => ({ getServerAccessToken: mocks.getServerAccessToken }));
@@ -13,16 +15,20 @@ const makeRes = () => {
     return res;
 };
 
-const call = async () => {
+const call = async ({ path = '/groups', op = '/create', payload = { group_name: 'x' } }: {
+    path?: string;
+    op?: string;
+    payload?: unknown;
+} = {}) => {
     const res = makeRes();
     await requestOp(
         {
             body: {
                 data: {
                     method: 'POST',
-                    path: '/groups',
-                    op: '/create',
-                    data: transformPayload.encode({ group_name: 'x' }),
+                    path,
+                    op,
+                    data: transformPayload.encode(payload),
                 },
             },
         } as any,
@@ -44,6 +50,55 @@ beforeEach(() => {
     mocks.getServerAccessToken.mockResolvedValue('token');
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'log').mockImplementation(() => {});
+});
+
+describe('documentation URL updates through /api/requestOp', () => {
+    const callConfigsUpdate = (url: unknown) => call({
+        path: '/amplifymin',
+        op: '/configs/update',
+        payload: {
+            configurations: [
+                { type: 'defaultTimezone', data: 'UTC' },
+                { type: 'userDocumentationUrl', data: url },
+            ],
+        },
+    });
+
+    it.each([
+        'http://docs.example.com',
+        'javascript:alert(1)',
+        '/docs',
+        'https://user:password@docs.example.com',
+    ])('rejects %s before forwarding any admin changes', async (url) => {
+        const fetchBackend = backend(200, { success: true });
+        vi.stubGlobal('fetch', fetchBackend);
+
+        const res = await callConfigsUpdate(url);
+
+        expect(res.statusCode).toBe(400);
+        expect(res.body.message).toBe(DOCUMENTATION_URL_ERROR);
+        expect(fetchBackend).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        [' https://docs.example.com/guide ', 'https://docs.example.com/guide'],
+        ['  ', ''],
+    ])('forwards the normalized setting and preserves other configurations', async (url, expected) => {
+        const fetchBackend = backend(200, { success: true });
+        vi.stubGlobal('fetch', fetchBackend);
+
+        const res = await callConfigsUpdate(url);
+
+        expect(res.statusCode).toBe(200);
+        expect(fetchBackend).toHaveBeenCalledOnce();
+        const [backendUrl, request] = fetchBackend.mock.calls[0];
+        expect(backendUrl).toBe('https://api.example.com/amplifymin/configs/update');
+        const forwarded = JSON.parse(lzwUncompress(JSON.parse(request.body).data));
+        expect(forwarded.configurations).toEqual([
+            { type: 'defaultTimezone', data: 'UTC' },
+            { type: 'userDocumentationUrl', data: expected },
+        ]);
+    });
 });
 
 afterEach(() => {

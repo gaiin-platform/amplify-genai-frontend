@@ -53,6 +53,11 @@ import {
 import { checkActiveIntegrations } from '@/services/oauthIntegrationsService';
 
 import { adminTabHasChanges } from '@/utils/app/admin';
+import {
+  DOCUMENTATION_URL_ERROR,
+  getActiveSupportEmail,
+  normalizeDocumentationUrl,
+} from '@/utils/app/deploymentContact';
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from '@/utils/app/amplifyAssistants';
 
 import {
@@ -300,6 +305,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
   const [appVars, setAppVars] = useState<{ [key: string]: string }>({});
   const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});
   const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
+  const documentationUrl = normalizeDocumentationUrl(userDocumentationUrl);
   const [defaultTimezone, setDefaultTimezone] =
     useState<string>('America/Chicago');
   const [smartMessagesEnabled, setSmartMessagesEnabled] =
@@ -777,7 +783,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
         return cfg;
       }
       case AdminConfigTypes.USER_DOCUMENTATION_URL:
-        return userDocumentationUrl;
+        return documentationUrl;
       case AdminConfigTypes.DEFAULT_TIMEZONE:
         return defaultTimezone;
       case AdminConfigTypes.DEFAULT_SMART_MESSAGES:
@@ -795,6 +801,13 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
 
   // ── Validate + Save ───────────────────────────────────────────────────────
   const validateSavedData = () => {
+    if (
+      unsavedConfigs.has(AdminConfigTypes.USER_DOCUMENTATION_URL) &&
+      documentationUrl === null
+    ) {
+      alert(DOCUMENTATION_URL_ERROR);
+      return false;
+    }
     const models = Object.values(availableModels);
     if (
       models.filter(
@@ -905,7 +918,10 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
       homeDispatch({ field: 'powerPointTemplateOptions', value: pptx });
     });
     act([AdminConfigTypes.EMAIL_SUPPORT], () =>
-      homeDispatch({ field: 'supportEmail', value: emailSupport.email }),
+      homeDispatch({
+        field: 'supportEmail',
+        value: getActiveSupportEmail(emailSupport),
+      }),
     );
     act([AdminConfigTypes.AI_EMAIL_DOMAIN], () =>
       homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain }),
@@ -926,7 +942,7 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
     act([AdminConfigTypes.USER_DOCUMENTATION_URL], () =>
       homeDispatch({
         field: 'userDocumentationUrl',
-        value: userDocumentationUrl,
+        value: documentationUrl ?? '',
       }),
     );
     act([AdminConfigTypes.DEFAULT_SMART_MESSAGES], () =>
@@ -1281,17 +1297,20 @@ export const NewAdminModal: FC<NewAdminModalProps> = ({
               <div className="admin-style-settings-card-header">
                 <div className="flex flex-row items-center gap-3 mb-2">
                   <h3 className="admin-style-settings-card-title">
-                    User Documentation URL
+                    <label htmlFor="new-documentation-url">Documentation URL</label>
                   </h3>
                 </div>
                 <p className="admin-style-settings-card-description">
-                  Configure the URL for user documentation
+                  Enter an HTTPS link to your documentation. Leave it blank to
+                  hide the link.
                 </p>
               </div>
               <div className="mx-4">
                 <input
-                  type="text"
-                  placeholder="https://your-documentation-url.com"
+                  id="new-documentation-url"
+                  type="url"
+                  placeholder="https://docs.example.com"
+                  aria-invalid={documentationUrl === null}
                   value={userDocumentationUrl}
                   onChange={(e) => {
                     setUserDocumentationUrl(e.target.value);

@@ -200,7 +200,7 @@ const KeyList: FC<{
 
 export const NewApiKeysSection: FC<NewApiKeysSectionProps> = ({ accounts, defaultAccount, onLeaveGuardChange }) => {
   const {
-    state: { statsService, amplifyUsers },
+    state: { statsService, amplifyUsers, userDocumentationUrl },
   } = useContext(HomeContext);
   const { data: session } = useSession();
   const userId = getUserIdentifier(session?.user);
@@ -432,6 +432,7 @@ export const NewApiKeysSection: FC<NewApiKeysSectionProps> = ({ accounts, defaul
       {/* Intro: page-level description, no card */}
       <ApiKeysIntro
         hasBillingAccount={hasBillingAccount}
+        documentationUrl={userDocumentationUrl}
         onOpenAccountSettings={() =>
           window.dispatchEvent(new CustomEvent('openNewUISettingsSection', { detail: { section: 'account' } }))
         }

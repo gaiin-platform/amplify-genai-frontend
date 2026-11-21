@@ -275,8 +275,7 @@ export const DownloadModal: FC<DownloadModalProps> = (
                                         onChange={(e) => {
                                             if(e.target.value === 'pptx' && powerPointTemplateOptions.length > 0){
                                                 setTemplateOptions(powerPointTemplateOptions);
-                                                const defaultTemplate = powerPointTemplateOptions.includes("vanderbilt_1.pptx") ? "vanderbilt_1.pptx" : powerPointTemplateOptions[0];
-                                                setTemplateSelection(defaultTemplate);
+                                                setTemplateSelection(powerPointTemplateOptions[0]);
                                             }
                                             else {
                                                 // Word, or PowerPoint with no templates available (pandoc's default deck is used).

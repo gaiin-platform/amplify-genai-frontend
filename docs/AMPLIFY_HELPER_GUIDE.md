@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Amplify Helper is the administrator-controlled, all-users guide to Vanderbilt Amplify. It explains what each New UI feature is for, where to find it, and how to use it without claiming that a deployment-enabled feature is available when it is not.
+Amplify Helper is the administrator-controlled guide to using Amplify. It explains what New UI features do, where to find them, and how to use the features your deployment enables.
 
 ## Quick answers
 
@@ -75,7 +75,7 @@ Open **Workflows** to browse workflow templates. When workflow creation is enabl
 Personal Settings include:
 
 - **General** — appearance, chat font, default model, reasoning effort, web-search preference, and conversation storage.
-- **Account** — account context, usage notices, and billing/COA information when configured.
+- **Account** — account context, usage notices, and billing information when configured.
 - **API Access** — API keys and related access when enabled.
 - **Connectors** — integrations and tool API keys.
 - **Skills** and **MCP Servers** — capability configuration.
@@ -83,12 +83,7 @@ Personal Settings include:
 
 Administrators may also expose an **Admin Panel** with deployment features, supported models, feature flags, integrations, application variables, user costs, and system prompts. The Amplify Helper prompt is configured under **Admin Panel → System Prompts → Amplify Helper — All-Users Prompt**. An administrator’s prompt takes effect on the next helper request; it is not a user-editable assistant prompt.
 
-## Vanderbilt policy, support, training, and cost
+## Documentation and support
 
-- Amplify is approved for **Level 3 data excluding HIPAA data**. Review [VUIT’s data-classification definition](https://www.vanderbilt.edu/cybersecurity/guidelines/data-classification/) before submitting sensitive material.
-- Amplify through the web interface at [www.vanderbilt.ai](https://www.vanderbilt.ai) is free for Vanderbilt staff, students, faculty, and researchers.
-- Amplify API access is available after providing a COA. API usage is billed quarterly for AI token cost/consumption.
-- Contact the team at [amplify@vanderbilt.edu](mailto:amplify@vanderbilt.edu).
-- Vanderbilt’s bi-monthly training recordings, user guides, and user videos are available on the [AGI platform resources page](https://www.vanderbilt.edu/agi/platforms/resources/).
-
-Feature availability, model access, data retention, and connector permissions can vary by deployment and administrator policy. When in doubt, check the relevant Settings/Admin Panel section or contact the Amplify team.
+- Open **Resources** in the Helper header to see your organization's documentation when an administrator has configured a link.
+- Use the support email in the header when available. Contact your deployment administrator with questions about access, billing, training, or policies for sensitive data.

@@ -13,6 +13,7 @@ import { OpDef } from "@/types/op";
 import { AMPLIFY_ASSISTANTS_GROUP_NAME } from "@/utils/app/amplifyAssistants";
 import { noRateLimit, normalizeRateLimits, RateLimit, RateLimits } from "@/types/rateLimit";
 import { adminTabHasChanges} from "@/utils/app/admin";
+import { DOCUMENTATION_URL_ERROR, getActiveSupportEmail, normalizeDocumentationUrl } from '@/utils/app/deploymentContact';
 import { OpenAIEndpointsTab } from "./AdminComponents/OpenAIEndpoints";
 import { FeatureFlagsTab } from "./AdminComponents/FeatureFlags";
 import { emptySupportedModel, SupportedModelsTab } from "./AdminComponents/SupportedModels";
@@ -81,6 +82,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     const [appVars, setAppVars] = useState<{ [key: string]: string }>({});
     const [appSecrets, setAppSecrets] = useState<{ [key: string]: string }>({});
     const [userDocumentationUrl, setUserDocumentationUrl] = useState<string>('');
+    const documentationUrl = normalizeDocumentationUrl(userDocumentationUrl);
     const [defaultTimezone, setDefaultTimezone] = useState<string>('America/Chicago');
     const [smartMessagesEnabled, setSmartMessagesEnabled] = useState<boolean>(false);
     const [documentRetention, setDocumentRetention] = useState<DocumentRetention>({ isActive: false, days: 90 });
@@ -212,7 +214,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 }
                 setPromptCostAlert(data[AdminConfigTypes.PROMPT_COST_ALERT || promptCostAlert]);
                 setDefaultConversationStorage(data[AdminConfigTypes.DEFAULT_CONVERSATION_STORAGE] || defaultConversationStorage);
-                setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT || emailSupport]);
+                setEmailSupport(data[AdminConfigTypes.EMAIL_SUPPORT] ?? emailSupport);
                 setCriticalErrorsConfig(data[AdminConfigTypes.CRITICAL_ERRORS] || criticalErrorsConfig);
                 setAiEmailDomain(data[AdminConfigTypes.AI_EMAIL_DOMAIN] || aiEmailDomain);
                 setDefaultModels(data[AdminConfigTypes.DEFAULT_MODELS] || {});
@@ -429,7 +431,7 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
 
                 return configData;
             case AdminConfigTypes.USER_DOCUMENTATION_URL:
-                return userDocumentationUrl;
+                return documentationUrl;
             case AdminConfigTypes.DEFAULT_TIMEZONE:
                 return defaultTimezone;
             case AdminConfigTypes.DEFAULT_SMART_MESSAGES:
@@ -555,6 +557,10 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
     }
 
     const validateSavedData = () => {
+        if (unsavedConfigs.has(AdminConfigTypes.USER_DOCUMENTATION_URL) && documentationUrl === null) {
+            alert(DOCUMENTATION_URL_ERROR);
+            return false;
+        }
         const models = Object.values(availableModels);
         if (models.filter((m:SupportedModel) => m.isAvailable && !m.id.includes('embedding'))
                   .length === 0) {
@@ -590,14 +596,14 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
         saveAction([AdminConfigTypes.FEATURE_FLAGS], saveUpdateFeatureFlags);
         saveAction([AdminConfigTypes.AVAILABLE_MODELS, AdminConfigTypes.DEFAULT_MODELS], saveUpdateAvailableModels);
         saveAction([AdminConfigTypes.PPTX_TEMPLATES], saveUpdatePptx);
-        saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: emailSupport.email}));
+        saveAction([AdminConfigTypes.EMAIL_SUPPORT], () => homeDispatch({ field: 'supportEmail', value: getActiveSupportEmail(emailSupport) }));
         saveAction([AdminConfigTypes.AI_EMAIL_DOMAIN], () => homeDispatch({ field: 'aiEmailDomain', value: aiEmailDomain}));
         saveAction([AdminConfigTypes.PROMPT_COST_ALERT], () => homeDispatch({ field: 'promptCostAlert', value: promptCostAlert}));
         saveAction([AdminConfigTypes.WEB_SEARCH], () => {
             homeDispatch({ field: 'canAddWebSearchApiKey', value: webSearchConfig?.allowUserWebSearchKeys ?? false});
             homeDispatch({ field: 'webSearchUserMessage', value: webSearchConfig?.webSearchUserMessage?.trim() ?? null});
         });
-        saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: userDocumentationUrl}));
+        saveAction([AdminConfigTypes.USER_DOCUMENTATION_URL], () => homeDispatch({ field: 'userDocumentationUrl', value: documentationUrl ?? '' }));
         saveAction([AdminConfigTypes.DEFAULT_SMART_MESSAGES], () => homeDispatch({ field: 'featureFlags', value: { ...featureFlags, smartMessages: smartMessagesEnabled }}));
         saveAction([AdminConfigTypes.RATE_LIMIT], () => {
             homeDispatch({ field: 'adminRateLimits', value: rateLimits });
@@ -872,14 +878,18 @@ export const AdminUI: FC<Props> = ({ open, onClose }) => {
                 <div className="admin-style-settings-card">
                     <div className="admin-style-settings-card-header">
                         <div className="flex flex-row items-center gap-3 mb-2">
-                            <h3 className="admin-style-settings-card-title">User Documentation URL</h3>
+                            <h3 className="admin-style-settings-card-title">
+                                <label htmlFor="classic-documentation-url">Documentation URL</label>
+                            </h3>
                         </div>
-                        <p className="admin-style-settings-card-description">Configure the URL for user documentation (displayed when userDocumentation feature flag is enabled)</p>
+                        <p className="admin-style-settings-card-description">Enter an HTTPS link to your documentation. Leave it blank to hide the link.</p>
                     </div>
                     <div className="mx-4">
                         <input
-                            type="text"
-                            placeholder="https://your-documentation-url.com"
+                            id="classic-documentation-url"
+                            type="url"
+                            placeholder="https://docs.example.com"
+                            aria-invalid={documentationUrl === null}
                             value={userDocumentationUrl}
                             onChange={(e) => {
                                 setUserDocumentationUrl(e.target.value);

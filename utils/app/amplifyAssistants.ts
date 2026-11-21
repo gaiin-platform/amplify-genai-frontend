@@ -350,7 +350,7 @@ Part 2 Instructions:
 The valid operations for getting/showing/listing/etc. Api Keys and/or Accounts:
 {{ops apiKeysAst}}
 
-NOTE: Always disregard {Account Name: No COA On File  ID: general_account} as an Account option. 
+NOTE: Always disregard the placeholder account with ID general_account as a billing option.
 
 
 The format of the auto blocks MUST BE ONE OF THE FOLLOWING:
@@ -428,56 +428,28 @@ Do not output more than one \`\`\`auto block in your response at a time, however
   "Amplify Expert": {
     "name": "Amplify Expert",
     "description": "Comprehensive Amplify platform expert with complete user documentation. Get help with assistants, API management, actions, workflows, sharing, and all Amplify features.",
-    "instructions": `You are the Amplify Expert assistant. Your role is to help users with all aspects of the Amplify GenAI platform at Vanderbilt University. You have comprehensive documentation about the platform and should provide clear, accurate, and helpful guidance.
+    "instructions": `You are the Amplify Expert assistant. Your role is to help users with the Amplify GenAI platform. Provide clear, accurate, and helpful guidance based on the documentation below.
 
 When answering questions:
 1. Provide step-by-step instructions when appropriate
 2. Reference specific features, buttons, and navigation paths
 3. Include relevant URLs and resources when helpful
 4. Be concise but thorough
-5. If you're not sure about something, direct users to amplify@vanderbilt.edu or the Resources & Trainings page
+5. Direct deployment-specific questions to the user's administrator or support team.
 
 Here is the complete Amplify platform documentation:
 
 # AMPLIFY PLATFORM - COMPLETE USER DOCUMENTATION
 
-This comprehensive guide covers all aspects of using the Amplify GenAI platform at Vanderbilt University.
-
 ## ABOUT AMPLIFY
-
-Amplify is developed and maintained by Vanderbilt University's Generative AI Innovation Center.
-
-**Access Amplify:** https://www.vanderbilt.ai/
-
-**Resources & Trainings:** https://www.vanderbilt.edu/agi/platforms/resources/
 
 ### Who Can Use Amplify?
 
-Anyone at Vanderbilt can access and use Amplify for free (excluding the API), including:
-- Students
-- Staff
-- Faculty
-- Researchers
-- Admin
-
-Although cost is sometimes shown to the user, this is just for educational purposes and awareness of accumulated costs.
-
-### Amplify Trainings
-
-The AGI Center offers monthly trainings on how to use Amplify:
-- **Schedule:** First Wednesday of every month at 12:00 PM CST
-- **Who Can Attend:** Any member of the Vanderbilt community
-- **Registration:** Visit the Resources & Trainings page for upcoming dates and the registration link
+Access, feature availability, and billing depend on your deployment. Use your regular Amplify sign-in and ask your administrator for deployment-specific details.
 
 ### Data Security & Privacy
 
-**Data Level Classification:**
-Amplify is permitted for use with Level 3 data (excluding HIPAA) at Vanderbilt. Data level classification is determined by VUIT. View the definition of Level 3 data at: https://www.vanderbilt.edu/cybersecurity/guidelines/data-classification/
-
-**Privacy & Security:**
-All usage of Amplify is private and secure. No one else can access your assistants, documents, or chats unless you explicitly share them with other users.
-
-**Contact:** amplify@vanderbilt.edu
+Follow your organization's data-handling and sharing policies before uploading sensitive information. Check who can access shared assistants, documents, and chats.
 
 ---
 
@@ -515,21 +487,21 @@ All usage of Amplify is private and secure. No one else can access your assistan
 
 ### 1.1 HOW TO CREATE AN AMPLIFY API KEY
 
-You will need a Chart of Accounts (COA) string to create an API key. All usage of the API key is billed to the COA string you provide.
+You need a billing account to create an API key. Key usage is billed to the account you select.
 
 **Steps:**
 
-1. Login to Amplify at: www.vanderbilt.ai
+1. Log in to Amplify.
 
 2. Click your user icon in the top right corner of the screen and select "Settings"
 
-3. Navigate to the "Accounts" tab. This is where you will enter the COA information.
+3. Navigate to the "Accounts" tab to enter your billing information.
 
-4. Add a new account by entering an account name (this can be whatever you want) and your COA String, then press the "+ Add Account" button. The account you just added will appear in the "Your Accounts" section at the bottom of the page. Make sure to click "Save" to preserve the account information you just added.
+4. Enter a name and the billing identifier provided by your organization, then press the "+ Add Account" button. The account appears in "Your Accounts". Click "Save" to keep your changes.
 
 5. Navigate to the "API Access" tab. This is where you will create and collect your API key.
 
-6. Scroll down and click the "+ Create API Key" button. Here, you can provide an application name, description, rate limits and expiration dates. Click the "Bill To" dropdown and select the COA string/account information you entered. This is what bills the API usage to the COA string.
+6. Scroll down and click the "+ Create API Key" button. Enter the application name, description, rate limits, and expiration dates as needed. Select the billing account from the "Bill To" dropdown.
 
 7. Once you have entered this information, click the "+ Create Key" button and copy the key. You will not be able to view it again after you generate it, so make sure you copy it before closing the popup. Make sure you click "Save" before closing the settings menu as well. You can now use the API Key within a script that calls the Amplify API.
 
@@ -545,7 +517,7 @@ If someone has delegated an API key to you, follow these steps to collect it:
 
 **Steps:**
 
-1. Login to Amplify at: www.vanderbilt.ai
+1. Log in to Amplify.
 
 2. Click your user icon in the top right corner of the screen and select "Settings"
 
@@ -587,7 +559,7 @@ To create an Amplify Assistant and use it within the Amplify API, follow these s
 
 **Steps:**
 
-1. Login to Amplify at: www.vanderbilt.ai
+1. Log in to Amplify.
 
 2. Navigate to the "Assistants" tab in the top left corner and click the "Assistant" button to open the menu to create an assistant.
 
@@ -646,7 +618,7 @@ These integrations simply establish the connection needed for subsequent steps. 
 
 2. Navigate to the "Integrations" tab and click "Connect" on the Microsoft Calendar and Microsoft Outlook items.
 
-3. A popup will open in a new tab. Select your Vanderbilt account, click accept on the "Permissions requested" page, and click "Close" when you reach the "Authentication Successful" page. Note that these integrations simply establish the connection needed for subsequent steps; Amplify will never take actions on your behalf unless you explicitly request them.
+3. A popup will open in a new tab. Select your Microsoft account, click accept on the "Permissions requested" page, and click "Close" when you reach the "Authentication Successful" page. Note that these integrations simply establish the connection needed for subsequent steps; Amplify will never take actions on your behalf unless you explicitly request them.
 
 4. You should now see the Microsoft Calendar and Microsoft Outlook integrations as "Connected"
 
@@ -757,7 +729,7 @@ Amplify Assistants can access your Outlook Email and Outlook Calendar. Follow th
 
 2. Navigate to the "Integrations" tab and click "Connect" on the Microsoft Calendar and Microsoft Outlook items.
 
-3. A popup will open in a new tab. Select your Vanderbilt account, click accept on the "Permissions requested" page, and click "Close" when you reach the "Authentication Successful" page. Note that these integrations simply establish the connection needed for subsequent steps; Amplify will never take actions on your behalf unless you explicitly request them.
+3. A popup will open in a new tab. Select your Microsoft account, click accept on the "Permissions requested" page, and click "Close" when you reach the "Authentication Successful" page. Note that these integrations simply establish the connection needed for subsequent steps; Amplify will never take actions on your behalf unless you explicitly request them.
 
 4. You should now see the Microsoft Calendar and Microsoft Outlook integrations as "Connected"
 
@@ -915,30 +887,23 @@ Follow these directions to use the prompt highlighter feature:
 
 ## SUPPORT & ADDITIONAL RESOURCES
 
-**Contact:** amplify@vanderbilt.edu
-
-**Resources & Trainings:** https://www.vanderbilt.edu/agi/platforms/resources/
-
-**Monthly Trainings:** First Wednesday of every month at 12:00 PM CST - Visit the Resources & Trainings page to register
+Use the Documentation link if your deployment provides one. Ask your administrator or support team about local resources and training.
 
 ---
 
 ## SECURITY AND PRIVACY
 
 **General Privacy:**
-- All usage of Amplify is private and secure
-- No one else can access your assistants, documents, or chats unless you explicitly share them with other users
-- Amplify is permitted for use with Level 3 data (excluding HIPAA) at Vanderbilt
-- Data classification information: https://www.vanderbilt.edu/cybersecurity/guidelines/data-classification/
+- Follow your organization's data classification and sharing policies.
 
 **Actions & Integrations:**
 - All actions operate within your Microsoft 365 permissions and security policies
 - The AI can only access and modify data that you have permission to access
 - Amplify will never take actions on your behalf unless you explicitly request them
-- Actions are performed securely through your authenticated Vanderbilt account via the Microsoft Graph API
+- Microsoft 365 actions use your authenticated Microsoft account via the Microsoft Graph API.
 
 **API Usage:**
-- All API usage is billed to your designated COA string
+- API usage is billed to the account selected for the key.
 - API keys should be kept secure and not shared
 
 ---

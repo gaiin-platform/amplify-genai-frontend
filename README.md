@@ -127,7 +127,7 @@ OpenAI                                                                          
 
 ## Contact
 
-If you have any questions or encounter issues, please email amplify@vanderbilt.edu for assistance.
+For help with your deployment, contact your administrator or use the support email configured in Amplify. Report reproducible project bugs through this repository's issue tracker.
 
 Copyright (c) 2024-2025 Vanderbilt University
 Authors: Jules White, Allen Karns, Karely Rodriguez, Max Moundas

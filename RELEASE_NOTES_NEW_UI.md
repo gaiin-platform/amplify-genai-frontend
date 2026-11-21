@@ -123,13 +123,12 @@ White-label settings are `NEXT_PUBLIC_*` variables. Next.js copies them into the
 | `NEXT_PUBLIC_CUSTOM_LOGO` | A **filename** (no folder, no `/`) of a file in `public/logos/`. Used in the sidebar, the home greeting and the login page. Falls back to the stock Amplify mark, then to a one-letter tile. Square or icon-style logos look best (24 px sidebar, 40 px home, about 58 px login); wide logos are scaled, not stretched. |
 | `NEXT_PUBLIC_BRAND_NAME` | Sidebar wordmark, login heading ("Welcome to ..."), startup message, logo alt text, iOS home-screen title and the "... Helper" names. Default in the New UI: `Amplify` (the Classic UI default is `Amplify GenAI`). |
 | `NEXT_PUBLIC_DEFAULT_THEME` | First-visit theme (`light` or `dark`). A user's saved choice wins. |
-| `NEXT_PUBLIC_ORGANIZATION_NAME` | **New.** Set it on any deployment that is not run by Vanderbilt. It removes Vanderbilt policy text, links and contact details from the Amplify Helper's in-app guide. |
+| `NEXT_PUBLIC_ORGANIZATION_NAME` | Optional organization name in the Amplify Helper introduction. |
 
 Must know:
 - **Colors are different in the New UI.** The `--color-primary-*` variables from the Classic UI do nothing here. Edit `--accent`, `--accent-fg`, the `--bg-*` and `--text-*` tokens at the top of `styles/globals.css`, once in `:root` (light) and once in `.dark`. Details: `docs/WHITE_LABEL.md`.
-- **Amplify Helper prompt.** If you enable the `amplifyHelper` flag on a white-labeled deployment, replace the default prompt in **Admin, System Prompts, Amplify Helper**. The backend's built-in default names Vanderbilt and `amplify@vanderbilt.edu`, and the text box in the Admin panel starts with that default.
+- **Documentation and support.** The Helper guide and built-in prompt are organization-neutral. Set **Documentation URL** under **Admin Panel → Application Variables** and **Support Email** under **Configurations** to show those links. Use **Admin Panel → System Prompts → Amplify Helper** to add deployment-specific guidance.
 - **Not rebranded**: product terms such as "Amplify Groups", messages saying users must have "signed in to Amplify", and the default chat system prompt ("You are Amplify..."). You can change the chat prompt in System Prompts.
-- With none of these set, the output is the same as before.
 
 ### Build and run a branded image
 

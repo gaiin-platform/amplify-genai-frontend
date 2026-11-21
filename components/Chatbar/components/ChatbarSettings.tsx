@@ -11,6 +11,7 @@ import { SidebarButton } from '../../Sidebar/SidebarButton';
 import ChatbarContext from '../Chatbar.context';
 import toast from 'react-hot-toast';
 import { getSettings } from '@/utils/app/settings';
+import { normalizeDocumentationUrl } from '@/utils/app/deploymentContact';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { isDeploymentFeatureAvailable } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 import { MemoryDialog } from '@/components/Memory/MemoryDialog';
@@ -35,6 +36,7 @@ export const ChatbarSettings = () => {
         state: { featureFlags, syncingPrompts, canAddWebSearchApiKey, userDocumentationUrl, chatEndpoint },
         dispatch: homeDispatch,
     } = useContext(HomeContext);
+    const documentationUrl = normalizeDocumentationUrl(userDocumentationUrl);
 
     const stableFeatureFlags = useStableFeatureFlags();
     const memoryAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'memory');
@@ -188,12 +190,12 @@ export const ChatbarSettings = () => {
             )}
 
             {/* User Documentation */}
-            {featureFlags.userDocumentation && userDocumentationUrl && (
+            {featureFlags.userDocumentation && documentationUrl && (
                 <SidebarButton
                     text={t('Documentation')}
                     icon={<IconBook size={18} />}
                     onClick={() => {
-                        window.open(userDocumentationUrl, '_blank', 'noopener,noreferrer');
+                        window.open(documentationUrl, '_blank', 'noopener,noreferrer');
                     }}
                 />
             )}
