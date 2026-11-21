@@ -31,6 +31,10 @@ import {
   IconSearch,
   IconBrain,
   IconGitBranch,
+  IconMessageCircle,
+  IconFileDescription,
+  IconLoader2,
+  IconRefresh,
 } from '@tabler/icons-react';
 import {
   autoUpdate,
@@ -85,6 +89,9 @@ import { useChatWorkflowTemplates } from './useChatWorkflowTemplates';
 import { type ConversationWorkflow, workflowBlockReason } from './conversationWorkflow';
 import { NEW_UI_SETTINGS_EVENT } from './newUISettingsEvents';
 import { useStableFeatureFlags } from './useStableFeatureFlags';
+import { isDeploymentFeatureAvailable } from './deploymentFeaturePolicy';
+import { ArtifactLibraryPicker, ConversationContextPicker } from './SavedContextPickers';
+import type { SavedChatContextControls } from './useSavedChatContext';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Integration display helpers
@@ -214,6 +221,7 @@ export interface AttachMenuProps {
   /** Workflow attached to this chat. The "Add workflow" row only exists when the caller can store one. */
   selectedWorkflow?: ConversationWorkflow | null;
   onWorkflowChange?: (workflow: ConversationWorkflow | null) => void;
+  savedContext?: SavedChatContextControls;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1458,7 +1466,9 @@ export const AttachMenuChips: React.FC<{
   onRemoveSkills?: () => void;
   selectedWorkflow?: ConversationWorkflow | null;
   onRemoveWorkflow?: () => void;
-}> = ({ assistantName, onRemoveAssistant, selectedActions, onRemoveActions, selectedSkillIds, onRemoveSkills, selectedWorkflow, onRemoveWorkflow }) => {
+  savedContext?: SavedChatContextControls;
+  savedContextReadOnly?: boolean;
+}> = ({ assistantName, onRemoveAssistant, selectedActions, onRemoveActions, selectedSkillIds, onRemoveSkills, selectedWorkflow, onRemoveWorkflow, savedContext, savedContextReadOnly }) => {
   const chips: React.ReactNode[] = [];
 
   if (assistantName && onRemoveAssistant) {
@@ -1550,10 +1560,47 @@ export const AttachMenuChips: React.FC<{
     );
   }
 
-  if (chips.length === 0) return null;
+  if (chips.length === 0 && !savedContext) return null;
 
-  return <>{chips}</>;
+  return <>{chips}{savedContext && <SavedContextChips controls={savedContext} readOnly={savedContextReadOnly} />}</>;
 };
+
+function SavedContextChips({ controls, readOnly }: { controls: SavedChatContextControls; readOnly?: boolean }) {
+  const { state: { conversations } } = useContext(HomeContext);
+  const chips = [
+    ...controls.artifactChips.map(({ key, name, status }) => ({
+      id: `artifact-${key}`, name, status, Icon: IconFileDescription,
+      remove: () => controls.removeArtifact(key),
+      retry: status === 'error' ? () => controls.retryArtifact(key) : undefined,
+    })),
+    ...controls.conversationEntries.map((entry) => ({
+      id: `chat-${entry.conversationId}`,
+      name: conversations?.find((chat) => chat.id === entry.conversationId)?.name || 'Previous chat',
+      status: 'ready', Icon: IconMessageCircle,
+      count: entry.mode === 'selected' ? entry.selectedMessageIds?.length : undefined,
+      remove: () => controls.removeConversation(entry.conversationId),
+    })),
+  ];
+
+  return <>{chips.map(({ id, name, status, Icon, remove, ...chip }) => (
+    <div key={id} className="flex h-[26px] shrink-0 items-center gap-1 rounded-md pl-2 text-[12.5px]" style={{
+      background: 'var(--bg-active)', color: 'var(--text-primary)',
+    }} title={name}>
+      {status === 'loading' ? <IconLoader2 size={14} className="animate-spin" aria-label="Loading" /> : <Icon size={14} aria-hidden="true" style={{ color: 'var(--accent)' }} />}
+      <span className="max-w-[110px] truncate">{name}</span>
+      {status === 'error' && <span role="status" style={{ color: 'var(--text-error)' }}>Failed</span>}
+      {'count' in chip && chip.count !== undefined && <span>({chip.count})</span>}
+      {!readOnly && 'retry' in chip && chip.retry && (
+        <button type="button" onClick={chip.retry} className="flex h-full w-[22px] items-center justify-center" aria-label={`Retry ${name}`}>
+          <IconRefresh size={13} />
+        </button>
+      )}
+      {!readOnly && <button type="button" onClick={remove} className="flex h-full w-[22px] items-center justify-center rounded-r-md" aria-label={`Remove ${name}`}>
+        <IconX size={12} />
+      </button>}
+    </div>
+  ))}</>;
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Main component
@@ -1573,9 +1620,10 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   onSkillIdsChange,
   selectedWorkflow = null,
   onWorkflowChange,
+  savedContext,
 }) => {
   const {
-    state: { prompts, selectedAssistant, layeredAssistants, groups, availableModels, defaultModelId },
+    state: { prompts, selectedAssistant, layeredAssistants, groups, availableModels, defaultModelId, conversations },
     dispatch,
     handleUpdateConversation,
   } = useContext(HomeContext);
@@ -1583,7 +1631,7 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const featureFlags = useStableFeatureFlags();
 
   const [primaryOpen, setPrimaryOpen] = useState(false);
-  const [submenu, setSubmenu] = useState<'connectors' | 'library' | 'assistant' | 'skills' | 'workflows' | null>(null);
+  const [submenu, setSubmenu] = useState<'connectors' | 'library' | 'assistant' | 'skills' | 'workflows' | 'artifacts' | 'conversations' | null>(null);
   // A clicked submenu stays open even if the pointer leaves its trigger row. This
   // prevents the hover-close timer from dismissing an option the user selected.
   const submenuPinnedRef = useRef(false);
@@ -1685,7 +1733,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   };
 
   // Badge: any active toggle, non-default assistant, or connector actions
-  const anyToggleActive = !isDefaultAssistant || selectedActions.length > 0 || selectedSkillIds.length > 0 || !!selectedWorkflow;
+  const hasSavedContext = !!(savedContext?.artifactChips.length || savedContext?.conversationEntries.length);
+  const anyToggleActive = !isDefaultAssistant || selectedActions.length > 0 || selectedSkillIds.length > 0 || !!selectedWorkflow || hasSavedContext;
 
   // Feature gates
   const showFiles = featureFlags.uploadDocuments;
@@ -1705,7 +1754,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const workflowBlocked = workflowBlockReason({
     assistantData: isDefaultAssistant ? null : selectedAssistant?.definition?.data,
   });
-  const hasGroup1 = showFiles || showLibrary || showAssistant || showSkills;
+  const showArtifacts = !!savedContext && featureFlags.artifacts === true && isDeploymentFeatureAvailable(featureFlags, 'artifacts');
+  const hasGroup1 = showFiles || showLibrary || showAssistant || showSkills || !!savedContext;
   const hasGroup2 = showConnectors || showWorkflows;
 
   // A workflow can't coexist with an assistant's own workflow/actions (the classic input blocks it too).
@@ -1789,6 +1839,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
   const assistantRowRef = useRef<HTMLButtonElement>(null);
   const skillsRowRef = useRef<HTMLButtonElement>(null);
   const workflowsRowRef = useRef<HTMLButtonElement>(null);
+  const artifactRowRef = useRef<HTMLButtonElement>(null);
+  const conversationRowRef = useRef<HTMLButtonElement>(null);
   const primaryPanelRef = useRef<HTMLDivElement | null>(null);
 
   // ── Submenu positioning (Phase 48 / Fix 3) ────────────────────────────────
@@ -1832,6 +1884,13 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     whileElementsMounted: autoUpdate,
   } as any);
 
+  const savedContextFloating = useFloating({
+    open: submenu === 'artifacts' || submenu === 'conversations',
+    placement: SUBMENU_PLACEMENT,
+    middleware: submenuMiddleware(),
+    whileElementsMounted: autoUpdate,
+  });
+
   // Bind each submenu's reference to its trigger row when that submenu opens.
   // Done in an effect rather than an inline callback ref: an inline ref would be
   // invoked with (null, node) on every render and thrash setReference's state.
@@ -1841,6 +1900,8 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
     if (submenu === 'assistant') assistantFloating.refs.setReference(assistantRowRef.current);
     if (submenu === 'skills') skillsFloating.refs.setReference(skillsRowRef.current);
     if (submenu === 'workflows') workflowsFloating.refs.setReference(workflowsRowRef.current);
+    if (submenu === 'artifacts') savedContextFloating.refs.setReference(artifactRowRef.current);
+    if (submenu === 'conversations') savedContextFloating.refs.setReference(conversationRowRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submenu]);
 
@@ -1963,6 +2024,16 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                     onClick={() => toggleSubmenuFromClick('library')}
                   />
                 )}
+                {showArtifacts && (
+                  <SubmenuRowEl ref={artifactRowRef} icon={<IconFileDescription size={18} />} label="Add artifact"
+                    isOpen={submenu === 'artifacts'} onMouseEnter={() => openSubmenu('artifacts')}
+                    onMouseLeave={cancelClose} onClick={() => toggleSubmenuFromClick('artifacts')} />
+                )}
+                {savedContext && (
+                  <SubmenuRowEl ref={conversationRowRef} icon={<IconMessageCircle size={18} />} label="Add previous chat"
+                    isOpen={submenu === 'conversations'} onMouseEnter={() => openSubmenu('conversations')}
+                    onMouseLeave={cancelClose} onClick={() => toggleSubmenuFromClick('conversations')} />
+                )}
                 {showSkills && (
                   <SubmenuRowEl
                     ref={skillsRowRef}
@@ -2064,6 +2135,15 @@ export const AttachMenu: React.FC<AttachMenuProps> = ({
                   onActionsChange={onActionsChange ?? (() => {})}
                   onNestedPanelActiveChange={handleConnectorPanelActiveChange}
                 />
+              </div>
+            )}
+
+            {savedContext && ((submenu === 'artifacts' && showArtifacts) || submenu === 'conversations') && (
+              <div ref={savedContextFloating.refs.setFloating} style={submenuStyle(savedContextFloating, 'attachMenuEnter')} onMouseEnter={cancelClose}>
+                {submenu === 'artifacts' ? <ArtifactLibraryPicker controls={savedContext} onClose={closeAll} /> : (
+                  <ConversationContextPicker controls={savedContext} conversations={conversations ?? []}
+                    currentId={savedContext.conversationId} onClose={closeAll} />
+                )}
               </div>
             )}
 

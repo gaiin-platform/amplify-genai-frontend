@@ -695,9 +695,10 @@ function typeLabel(type: string | undefined, language?: string): string {
 interface DirectCardProps {
     message: Message;
     generating: boolean;
+    savedReference?: ArtifactBlockDetail;
 }
 
-const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) => {
+const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating, savedReference }) => {
     const {
         state: { selectedConversation, selectedArtifacts, artifactIsStreaming },
         dispatch: homeDispatch,
@@ -717,11 +718,11 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
     /* ── Artifact data lookup ── */
     const findArtifact = (): { artifact: Artifact; list: Artifact[]; idx: number } | null => {
         // Primary: message.data.artifacts → conversation.artifacts[id]
-        const detail: ArtifactBlockDetail | undefined = message.data?.artifacts?.[0];
+        const detail: ArtifactBlockDetail | undefined = savedReference ?? message.data?.artifacts?.[0];
         if (detail?.artifactId && selectedConversation?.artifacts) {
-            const list: Artifact[] | undefined = (selectedConversation.artifacts as any)[detail.artifactId];
-            if (list && list.length > 0) {
-                let idx = list.length - 1;
+            const list = selectedConversation.artifacts[detail.artifactId];
+            if (Array.isArray(list) && list.length > 0) {
+                let idx = savedReference && detail.version === undefined ? 0 : list.length - 1;
                 if (detail.version) {
                     const found = list.findIndex((a: Artifact) => a.version === detail.version);
                     if (found !== -1) idx = found;
@@ -729,6 +730,7 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
                 return { artifact: list[idx], list, idx };
             }
         }
+        if (savedReference) return null;
         // Live streaming: fall back to selectedArtifacts
         if (artifactIsStreaming && selectedArtifacts && selectedArtifacts.length > 0) {
             const idx = selectedArtifacts.length - 1;
@@ -748,11 +750,13 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
     };
 
     const data = findArtifact();
+    if (savedReference && !data) return null;
     const artifact = data?.artifact ?? null;
     const isPanelOpen = isCardPanelOpen(panelState, selectedArtifacts?.[0]?.artifactId, data && { artifactId: data.artifact.artifactId, idx: data.idx });
-    const stopped = message.data?.artifactStatus === ArtifactMessageStatus.STOPPED;
-    const cancelled = message.data?.artifactStatus === ArtifactMessageStatus.CANCELLED;
-    const incomplete = message.data?.artifactStatus === ArtifactMessageStatus.INCOMPLETE;
+    const artifactStatus = savedReference ? undefined : message.data?.artifactStatus;
+    const stopped = artifactStatus === ArtifactMessageStatus.STOPPED;
+    const cancelled = artifactStatus === ArtifactMessageStatus.CANCELLED;
+    const incomplete = artifactStatus === ArtifactMessageStatus.INCOMPLETE;
     const canContinue = incomplete && !!message.data?.artifactResume && !artifactIsStreaming;
     // The artifact request itself failed (blocked, server error, dropped connection) — see getArtifactMessages' catch.
     const requestError: string | undefined = typeof message.data?.artifactError === 'string' ? message.data.artifactError : undefined;
@@ -946,3 +950,23 @@ const DirectArtifactCard: React.FC<DirectCardProps> = ({ message, generating }) 
 };
 
 export default AutoArtifactsBlock;
+
+export function SavedArtifactCards({ message }: { message: Message }) {
+    const references: unknown = message.data?.artifacts;
+    if (!Array.isArray(references) || references.length === 0) return null;
+
+    return (
+        <div className="not-prose">
+            {references.filter((reference): reference is ArtifactBlockDetail =>
+                typeof reference?.artifactId === 'string',
+            ).map(reference => (
+                <DirectArtifactCard
+                    key={JSON.stringify([reference.artifactId, reference.version])}
+                    message={message}
+                    generating={false}
+                    savedReference={reference}
+                />
+            ))}
+        </div>
+    );
+}

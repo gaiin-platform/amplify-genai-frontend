@@ -66,6 +66,7 @@ import {
   type ConfiguredToolEntry,
 } from '@/components/NewUI/shared/assistantConfiguredTools';
 import type { SelectedAction } from '@/components/NewUI/shared/AttachMenu';
+import { getAttachedArtifacts } from '@/components/NewUI/shared/savedChatContext';
 import {
   nextOpenAtLatestTop,
   OPEN_AT_LATEST_MAX_FRAMES,
@@ -728,7 +729,8 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       // A workflow attached on the landing page rides on the first message's data (PATH B, the old
       // input's DOM bridge, would drop it).
       const pendingWorkflow = getConversationWorkflow(conversation);
-      if ((docsWithKeys.length > 0 || optimistic || pendingActions.length > 0 || !!pendingWorkflow) && conversation) {
+      if (conversation && (docsWithKeys.length > 0 || optimistic || pendingActions.length > 0 || !!pendingWorkflow ||
+          getAttachedArtifacts(conversation).length > 0 || (conversation.contextConversations?.length ?? 0) > 0)) {
         hasFiredRef.current = true;
         clearPending();
 
@@ -1684,7 +1686,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       {...dropHandlers}
     >
       {/* Chat fills the entire shell — CSS handles height:100% on .chatcontainer */}
-      <Chat stopConversationRef={stopConversationRef} />
+      <Chat stopConversationRef={stopConversationRef} isNewUI />
 
       {/* Drop anywhere in the pane → attaches to the composer below */}
       {isFileDragOver && (
@@ -1828,9 +1830,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
           Double-click resets to the default 50/50 split. */}
       <ArtifactSplitterLayer shellRef={shellRef} />
 
-      {/* Inline artifact card layer — replaces "Creating Your Artifact…" boxes
-          with polished generating/completed/error cards, and adds data attributes
-          to ArtifactsBlock completed cards for CSS restyling. */}
+      {/* Fallback cards for older artifact generation markup. */}
       <ArtifactInlineCardLayer />
     </div>
   );

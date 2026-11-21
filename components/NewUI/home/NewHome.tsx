@@ -89,6 +89,7 @@ import { getUserDefaultModelId, USER_DEFAULT_MODEL_CHANGED_EVENT } from '@/compo
 import { getUserDefaultEffort, USER_DEFAULT_EFFORT_CHANGED_EVENT } from '@/components/NewUI/shared/userDefaultEffort';
 import { maxTokensForRequest } from '@/components/NewUI/shared/outputTokenBudget';
 import { CONVERSATION_CONNECTOR_ACTIONS_KEY } from '@/components/NewUI/shared/conversationConnectorActions';
+import { useSavedChatContext } from '@/components/NewUI/shared/useSavedChatContext';
 import {
   CONVERSATION_WORKFLOW_KEY,
   type ConversationWorkflow,
@@ -627,6 +628,7 @@ export const NewHome: React.FC = () => {
   }, []);
 
   const [selectedActions, setSelectedActions] = useState<SelectedAction[]>([]);
+  const savedContext = useSavedChatContext(page === 'chat' ? selectedConversation : null, handleUpdateSelectedConversation);
   const selectedActionsRef = useRef(selectedActions);
   selectedActionsRef.current = selectedActions;
   // A chat carries a workflow OR connector actions, never both: attaching one detaches the other.
@@ -654,6 +656,11 @@ export const NewHome: React.FC = () => {
     const trimmed = markdown.trim();
     const readyAttachments = uiAttachments.filter((a) => a.status !== 'failed');
     if (!trimmed && readyAttachments.length === 0) return;
+    const contextBlock = savedContext.getBlockReason();
+    if (contextBlock) {
+      toast.error(contextBlock);
+      return false;
+    }
     // Enter calls this directly, bypassing the Send button's canSend gate. An
     // attachment's S3 key exists before its upload finishes, so sending now would
     // reference a file that isn't in S3 yet (the backend then hits NoSuchKey and
@@ -884,6 +891,7 @@ export const NewHome: React.FC = () => {
       return;
     }
     handleNewConversation({
+      ...savedContext.draft,
       prompt: buildPromptWithInstruction(DEFAULT_SYSTEM_PROMPT),
       ...(selectedModelId && availableModels[selectedModelId]
         ? { model: availableModels[selectedModelId] }
@@ -895,6 +903,7 @@ export const NewHome: React.FC = () => {
       // ConversationViewShell's applyWebSearch spreads `conversation.data`, so
       // this survives the web-search/skills write that follows.
       data: {
+        ...savedContext.draft.data,
         reasoningLevel: selectedEffort,
         [CONVERSATION_CONNECTOR_ACTIONS_KEY]: selectedActions,
         ...(selectedWorkflowRef.current ? { [CONVERSATION_WORKFLOW_KEY]: selectedWorkflowRef.current } : {}),
@@ -917,6 +926,7 @@ export const NewHome: React.FC = () => {
       // chip disappeared and the first message was sent as a plain chat.
       ...(activeAssistant ? { assistant: activeAssistant } : {}),
     });
+    savedContext.clearDraft();
     composerRef.current?.clear();
     setHasContent(false);
     setAttachedDocs([]);
@@ -931,6 +941,7 @@ export const NewHome: React.FC = () => {
     (a) => a.status !== 'uploading',
   );
   const canSend = (hasContent || uiAttachments.some((a) => a.status === 'ready')) && allUploaded;
+  const savedContextBlock = savedContext.getBlockReason();
 
   // Wire openNewUISettingsSection event (dispatched by AttachMenu connectors/skills)
   useEffect(() => {
@@ -1105,8 +1116,9 @@ export const NewHome: React.FC = () => {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Left: ⊕ attach menu + active chips */}
-            <div className="flex items-center gap-2">
+            <div className="flex min-w-0 items-center gap-2">
               <AttachMenu
+                savedContext={savedContext}
                 isNewChat
                 onAddFiles={() => fileInputRef.current?.click()}
                 onAddFromLibrary={attachLibraryFiles}
@@ -1123,20 +1135,23 @@ export const NewHome: React.FC = () => {
               />
 
               {/* Active toggle chips */}
-              <AttachMenuChips
-                assistantName={activeAssistantName}
-                onRemoveAssistant={() => dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
-                selectedActions={selectedActions}
-                onRemoveActions={() => setSelectedActions([])}
-                selectedSkillIds={selectedSkillIds}
-                onRemoveSkills={() => updateSelectedSkillIds([])}
-                selectedWorkflow={selectedWorkflow}
-                onRemoveWorkflow={() => updateSelectedWorkflow(null)}
-              />
+              <div className="flex min-w-0 items-center gap-2 overflow-x-auto [scrollbar-width:thin]">
+                <AttachMenuChips
+                  savedContext={savedContext}
+                  assistantName={activeAssistantName}
+                  onRemoveAssistant={() => dispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT })}
+                  selectedActions={selectedActions}
+                  onRemoveActions={() => setSelectedActions([])}
+                  selectedSkillIds={selectedSkillIds}
+                  onRemoveSkills={() => updateSelectedSkillIds([])}
+                  selectedWorkflow={selectedWorkflow}
+                  onRemoveWorkflow={() => updateSelectedWorkflow(null)}
+                />
+              </div>
             </div>
 
             {/* Right: send button + model picker at the composer edge */}
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <ModelPicker
                 selectedModelId={selectedModelId}
                 selectedEffort={selectedEffort}
@@ -1155,7 +1170,9 @@ export const NewHome: React.FC = () => {
 
               {canSend && (
                 <button
-                  className="flex h-[32px] w-[32px] items-center justify-center rounded-[8px]"
+                  type="button"
+                  disabled={!!savedContextBlock}
+                  className="flex h-[32px] w-[32px] items-center justify-center rounded-[8px] disabled:opacity-50"
                   style={{
                     background: 'var(--accent)',
                     color: 'var(--accent-fg)',
@@ -1163,7 +1180,7 @@ export const NewHome: React.FC = () => {
                   }}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => { const md = composerRef.current?.getValue() ?? ''; handleSend(md); }}
-                  title="Send (Enter)"
+                  title={savedContextBlock || 'Send (Enter)'}
                   aria-label="Send message"
                 >
                   <IconArrowUp size={18} strokeWidth={2.5} />

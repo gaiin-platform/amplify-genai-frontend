@@ -79,10 +79,11 @@ import { Assistant } from '@/types/assistant';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
+    isNewUI?: boolean;
 }
 
 
-export const Chat = memo(({stopConversationRef}: Props) => {
+export const Chat = memo(({stopConversationRef, isNewUI}: Props) => {
         const {t} = useTranslation('chat');
         const stableFeatureFlags = useStableFeatureFlags();
         const highlighterAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'promptHighlighter');
@@ -1712,6 +1713,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                                                 key={index}
                                                 message={message}
                                                 messageIndex={index}
+                                                isNewUI={isNewUI}
                                                 onChatRewrite={handleChatRewrite}
                                                 onSendPrompt={runPrompt}
                                                 handleCustomLinkClick={handleCustomLinkClick}
