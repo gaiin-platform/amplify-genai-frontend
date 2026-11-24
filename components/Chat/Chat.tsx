@@ -79,10 +79,13 @@ import { Assistant } from '@/types/assistant';
 
 interface Props {
     stopConversationRef: MutableRefObject<boolean>;
+    /** Set only by the new UI shell. Unset means classic, which owns the plugin selector. */
+    newUi?: boolean;
 }
 
 
-export const Chat = memo(({stopConversationRef}: Props) => {
+export const Chat = memo(({stopConversationRef, newUi = false}: Props) => {
+        const classicUi = !newUi;
         const {t} = useTranslation('chat');
         const stableFeatureFlags = useStableFeatureFlags();
         const highlighterAvailable = isDeploymentFeatureAvailable(stableFeatureFlags as any, 'promptHighlighter');
@@ -419,7 +422,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 // Re-derive on server flag changes. Feature plugin options are always
                 // normalized off for permanently removed user controls.
                 if (!plugins || featureFlags.smartMessages !== undefined) {
-                    setPlugins(getActivePlugins(settingRef.current, featureFlags));
+                    setPlugins(getActivePlugins(settingRef.current, featureFlags, undefined, { classicUi }));
                 }
             }
         }, [featureFlags]);
@@ -520,6 +523,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                     message,
                     deleteCount,
                     plugins : chatPlugins, 
+                    pluginSelectorActive: classicUi,
                     existingResponse,
                     rootPrompt,
                     documents,
@@ -1812,6 +1816,7 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                             showScrollDownButton={showScrollDownButton}
                             plugins={plugins ?? []}
                             setPlugins={setPlugins}
+                            classicUi={classicUi}
                         />}
                     </>
                 )}

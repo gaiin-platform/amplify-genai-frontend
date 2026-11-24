@@ -26,6 +26,7 @@ import {
     Memory,
 } from '@/types/memory';
 import { getSettings } from '@/utils/app/settings';
+import { applyRagOptions, selectorVetoFlags } from '@/utils/app/ragOptions';
 import { useStableFeatureFlags } from '@/components/NewUI/shared/useStableFeatureFlags';
 import { isBasePrompt } from '@/utils/app/basePrompts';
 import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
@@ -51,6 +52,8 @@ export type ChatRequest = {
     endpoint?: string;
     deleteCount?: number;
     plugins?: Plugin[];
+    /** True only for classic-UI sends, where the user plugin selector is live. */
+    pluginSelectorActive?: boolean;
     existingResponse?: any;
     rootPrompt?: string | null;
     documents?: AttachedDocument[] | null;
@@ -356,10 +359,10 @@ export function useSendService() {
                     messageTimestampRef.current = new Date().toISOString();
 
                     const featureOptions = getSettings(stableFeatureFlags).featureOptions;
-                    // The user plugin selector and smart focused messages are
-                    // permanently disabled; explicit MCP/connector tools continue
-                    // through their dedicated request fields.
-                    const pluginActive = false;
+                    // The plugin selector is live only in the classic UI (request.pluginSelectorActive,
+                    // set by Chat.tsx) and only when the admin flag shows it. The new UI keeps
+                    // server-owned routing; explicit MCP/connector tools use their own fields.
+                    const pluginActive = request.pluginSelectorActive === true && stableFeatureFlags.pluginsOnInput === true;
                     const pluginIds: string[] | null = pluginActive ? plugins?.map((plugin: Plugin) => plugin.id) ?? [] : null;
 
                     const { content, label } = getPrefix(selectedConversation, message);
@@ -570,7 +573,7 @@ export function useSendService() {
 
                     let isArtifactsOn = deploymentAvailability.artifacts &&
                         // Preserve provider/base-prompt limitations; routing decides whether to use it.
-                        (!pluginIds || !pluginIds.includes(PluginID.CODE_INTERPRETER)) &&
+                        (!pluginIds || (pluginIds.includes(PluginID.ARTIFACTS) && !pluginIds.includes(PluginID.CODE_INTERPRETER))) &&
                         // turn off artifacts for base prompt templates
                         !(selectedConversation?.promptTemplate && isBasePrompt(selectedConversation.promptTemplate.id));
 
@@ -594,7 +597,8 @@ export function useSendService() {
                     }
                     // Smart focused messages are absent from the request path.
 
-                    const isMemoryOn = deploymentAvailability.memory && stableFeatureFlags.memory === true;
+                    const isMemoryOn = deploymentAvailability.memory && stableFeatureFlags.memory === true &&
+                        (!pluginIds || pluginIds.includes(PluginID.MEMORY));
                     console.log("Memory on: ", isMemoryOn)
 
                     // One memory read per turn. It is independent of the MCP tool lookup and of
@@ -667,9 +671,13 @@ export function useSendService() {
                     // the one exception is the user's explicit opt-out (Settings →
                     // General, for Level 3 data), which is a hard veto the backend
                     // must honour. Absence means "no veto" (web search defaults ON).
-                    if (!getUserWebSearchEnabled()) {
+                    const vetoes = selectorVetoFlags(pluginActive, pluginIds);
+                    if (!getUserWebSearchEnabled() || vetoes.disableWebSearch) {
                         chatBody.disableWebSearch = true;
                     }
+                    // Classic selector: Artifacts is a veto, never `artifactsMode` (see selectorVetoFlags).
+                    if (vetoes.disableArtifacts) chatBody.disableArtifacts = true;
+
 
                     // MCP is gated by the admin feature flag alone. The per-send `plugins`
                     // list is a snapshot some callers cache (Chat.tsx's local state is built
@@ -806,19 +814,9 @@ export function useSendService() {
                     }
 
 
-                    //PLUGINS before options is assigned
-                    //in case no plugins are defined, we want to keep the default behavior
-                    if (!featureFlags.ragEnabled || (plugins && pluginActive && !pluginIds?.includes(PluginID.RAG))) {
-                        options = { ...(options || {}), skipRag: true, ragOnly: false, ragEvaluation: false };
-                        console.log('skipping rag');
-                    } else if (featureFlags.ragEnabled && featureFlags.ragEvaluation && (pluginIds?.includes(PluginID.RAG) && pluginIds?.includes(PluginID.RAG_EVAL))) {
-                        options = { ...(options || {}), ragEvaluation: true };
-                    }
-                    // Document caching is always on for chat; it is off for assistant use
-                    // (assistants rely on their knowledge-base RAG).
-                    if (options?.assistantId || options?.groupId) {
-                        options = { ...(options || {}), skipDocumentCache: true };
-                    }
+                    // RAG / document-cache options. Independent of plugin selection (see ragOptions.ts).
+                    options = applyRagOptions(options, featureFlags, pluginIds);
+                    if (!featureFlags.ragEnabled) console.log('skipping rag');
 
 
                     // Do not let stale plugin settings re-enable/disable the interpreter.
@@ -826,6 +824,11 @@ export function useSendService() {
                     if (!deploymentAvailability.codeInterpreter) {
                         options = { ...(options || {}), skipCodeInterpreter: true };
                         delete options.codeInterpreterOnly;
+                    } else if (pluginActive && pluginIds?.includes(PluginID.CODE_INTERPRETER)) {
+                        // Classic selector: Code Interpreter selected for every message.
+                        chatBody.codeInterpreterRecordId = updatedConversation.codeInterpreterRecordId;
+                        options = { ...(options || {}), skipRag: true, codeInterpreterOnly: true };
+                        statsService.codeInterpreterInUseEvent();
                     } else if (options?.codeInterpreterOnly !== true) {
                         options = { ...(options || {}), codeInterpreterOnly: false };
                     }

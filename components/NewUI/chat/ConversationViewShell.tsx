@@ -1684,7 +1684,7 @@ const ConversationViewShellInner: React.FC<ConversationViewShellProps> = ({
       {...dropHandlers}
     >
       {/* Chat fills the entire shell — CSS handles height:100% on .chatcontainer */}
-      <Chat stopConversationRef={stopConversationRef} />
+      <Chat stopConversationRef={stopConversationRef} newUi />
 
       {/* Drop anywhere in the pane → attaches to the composer below */}
       {isFileDragOver && (
