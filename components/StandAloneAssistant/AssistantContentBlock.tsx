@@ -21,6 +21,7 @@ const assistantSanitizeSchema = {
     },
 };
 import { CodeBlock } from "@/components/Markdown/CodeBlock";
+import { useStableCodeRenderer } from "@/components/Markdown/useStableCodeRenderer";
 import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
@@ -51,6 +52,7 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
 }) => {
   // Check if this is the last message
   const isLastMessage = messageIndex === totalMessages - 1;
+  const stabilizeCode = useStableCodeRenderer();
 
   // Check if content contains LaTeX
   const hasLatex = useCallback((content: string) => {
@@ -189,7 +191,7 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
           remarkPlugins={[remarkGfm, remarkMath]}
           // @ts-ignore
           rehypePlugins={[rehypeRaw, [rehypeSanitize, assistantSanitizeSchema]]}
-          components={{
+          components={stabilizeCode({
             // @ts-ignore
             Mermaid,
             // Math components with conditional layout containment
@@ -288,7 +290,6 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
 
             return !inline ? (
                 <CodeBlock
-                  key={Math.random()}
                   language={(match && match[1]) || ''}
                   value={String(children).replace(/\n$/, '')}
                   {...props}
@@ -329,7 +330,7 @@ const AssistantContentBlock: React.FC<AssistantContentBlockProps> = ({
               </svg>
             );
           },
-        }}
+        })}
       >
         {`${finalContent}${
           // Never show cursor in non-streaming mode

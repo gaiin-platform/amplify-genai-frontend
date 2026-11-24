@@ -23,6 +23,7 @@ const chatSanitizeSchema = {
 import LatexBlock from "./LatexBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
+import {useStableCodeRenderer} from "@/components/Markdown/useStableCodeRenderer";
 import {Conversation, Message} from "@/types/chat";
 import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
@@ -106,6 +107,7 @@ const ChatContentBlock: React.FC<Props> = (
     } = useContext(HomeContext);
 
     const {getOutputTransformers} = usePromptFinderService();
+    const stabilizeCode = useStableCodeRenderer();
 
     const transformMessageContent = (conversation:Conversation, message:Message) => {
         try {
@@ -268,7 +270,7 @@ const ChatContentBlock: React.FC<Props> = (
     // @ts-ignore
     rehypePlugins={[rehypeRaw, [rehypeSanitize, chatSanitizeSchema], rehypeDarkModeStyles]}
     //onMouseUp={handleTextHighlight}
-    components={{
+    components={stabilizeCode({
         // @ts-ignore
         Mermaid,
         // Math components for LaTeX rendering
@@ -466,7 +468,6 @@ const ChatContentBlock: React.FC<Props> = (
 
             return !inline ? (
                 <CodeBlock
-                    key={Math.random()}
                     language={(match && match[1]) || ''}
                     value={String(children).replace(/\n$/, '')}
                     {...props}
@@ -501,7 +502,7 @@ const ChatContentBlock: React.FC<Props> = (
                 </td>
             );
         },
-    }}
+    })}
 >
     {`${finalContent}${
         messageIsStreaming && !document.querySelector('.highlight-pulse') && 

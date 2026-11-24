@@ -5,6 +5,7 @@ import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
+import {useStableCodeRenderer} from "@/components/Markdown/useStableCodeRenderer";
 import {MemoizedReactMarkdown} from "@/components/Markdown/MemoizedReactMarkdown";
 import {Status} from "@/types/workflow";
 
@@ -13,11 +14,12 @@ export interface PromptStatusDetailsProps {
 }
 
 export const PromptStatusDetails: React.FC<PromptStatusDetailsProps> = ({ status }) => {
+    const stabilizeCode = useStableCodeRenderer();
 
     return (<MemoizedReactMarkdown
         className="prose dark:prose-invert flex-1"
         remarkPlugins={[remarkGfm, remarkMath]}
-        components={{
+        components={stabilizeCode({
             // @ts-ignore
             Mermaid,
             a({href, title, children, ...props}) {
@@ -76,7 +78,6 @@ export const PromptStatusDetails: React.FC<PromptStatusDetailsProps> = ({ status
 
                 return !inline ? (
                     <CodeBlock
-                        key={Math.random()}
                         language={(match && match[1]) || ''}
                         value={String(children).replace(/\n$/, '')}
                         {...props}
@@ -109,7 +110,7 @@ export const PromptStatusDetails: React.FC<PromptStatusDetailsProps> = ({ status
                     </td>
                 );
             },
-        }}
+        })}
     >
         {status.message}
     </MemoizedReactMarkdown>)
