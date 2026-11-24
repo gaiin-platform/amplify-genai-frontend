@@ -27,6 +27,7 @@ const artifactSanitizeSchema = {
 };
 import ExpansionComponent from "@/components/Chat/ExpansionComponent";
 import {CodeBlock} from "@/components/Markdown/CodeBlock";
+import {useStableCodeRenderer} from "@/components/Markdown/useStableCodeRenderer";
 import Mermaid from "@/components/Chat/ChatContentBlocks/MermaidBlock";
 import VegaVis from "@/components/Chat/ChatContentBlocks/VegaVisBlock";
 import LatexBlock from "@/components/Chat/ChatContentBlocks/LatexBlock";
@@ -349,6 +350,7 @@ const VisualizationRenderer: React.FC<VisualizationRendererProps> = ({
 export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artifactIsStreaming, artifactId, versionIndex, artifactEndRef, showCodeView = false }) => {
 
     const { state: { featureFlags} } = useContext(HomeContext);
+    const stabilizeCode = useStableCodeRenderer();
 
     const {getOutputTransformers} = useArtifactPromptFinderService();
 
@@ -553,7 +555,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
         // @ts-ignore
         rehypePlugins={[rehypeRaw, [rehypeSanitize, artifactSanitizeSchema], rehypeDarkModeStyles]}
         //onMouseUp={handleTextHighlight}
-        components={{
+        components={stabilizeCode({
             // @ts-ignore
             Mermaid,
             // Enhanced LaTeX components with aggressive layout stability
@@ -685,7 +687,6 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
                 }
                 return !inline ? (
                     <CodeBlock
-                        key={Math.random()}
                         language={(match && match[1]) || ''}
                         value={String(children).replace(/\n$/, '')}
                         {...props}
@@ -739,7 +740,7 @@ export const ArtifactContentBlock: React.FC<Props> = ( { selectedArtifact, artif
                     </td>
                 );
             },
-        }}
+        })}
     >
         {`${processedContent}${artifactIsStreaming && !document.querySelector('.highlight-pulse') ? '`▍`' : ''}`}
     </MemoizedReactMarkdown>
