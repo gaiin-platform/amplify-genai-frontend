@@ -5,6 +5,7 @@ import HomeContext from '@/components/Home/home.context';
 import { getSettings } from '@/utils/app/settings';
 import { getActivePlugins } from '@/utils/app/plugin';
 import { Settings } from '@/types/settings';
+import { getDeploymentFeatureAvailability } from '@/components/NewUI/shared/deploymentFeaturePolicy';
 
 interface Props {
   plugins: Plugin[];
@@ -28,17 +29,20 @@ export const PluginSelector: FC<Props> = ({
   
 
   //FEATURE FLAG CONSIDERATIONS
+  // featureOptions.includeArtifacts/Memory/WebSearch are no longer populated, so these
+  // gate on the admin feature flags plus deployment availability instead.
   const filterPlugInList = () => {
+    const availability = getDeploymentFeatureAvailability(featureFlags as any);
     return PluginList.filter(plugin => {
              // RAG is only used for assistant knowledge bases; chat uploads are never RAG'd,
              // so there is no per-chat RAG toggle to offer.
               if (plugin.id === PluginID.RAG || plugin.id === PluginID.RAG_EVAL) return false;
-              if (plugin.id === PluginID.CODE_INTERPRETER && !featureFlags.codeInterpreterEnabled) return false;
-              if (plugin.id === PluginID.ARTIFACTS && (!featureFlags.artifacts || !settingRef.current?.featureOptions.includeArtifacts)) return false;
+              if (plugin.id === PluginID.CODE_INTERPRETER && (!featureFlags.codeInterpreterEnabled || !availability.codeInterpreter)) return false;
+              if (plugin.id === PluginID.ARTIFACTS && (!featureFlags.artifacts || !availability.artifacts)) return false;
               // if (plugin.id === PluginID.SMART_MESSAGES && (!featureFlags.smartMessages || !settingRef.current?.featureOptions.includeFocusedMessages)) return false;
-              if (plugin.id === PluginID.MEMORY && (!featureFlags.memory || !settingRef.current?.featureOptions.includeMemory)) return false;
+              if (plugin.id === PluginID.MEMORY && (!featureFlags.memory || !availability.memory)) return false;
               if (plugin.id === PluginID.MCP && !featureFlags.mcp) return false;
-              if (plugin.id === PluginID.WEB_SEARCH && (!featureFlags.webSearch || !settingRef.current?.featureOptions.includeWebSearch)) return false;
+              if (plugin.id === PluginID.WEB_SEARCH && (!featureFlags.webSearch || !availability.webSearch)) return false;
               if (plugin.id === PluginID.SKILLS && !featureFlags.skills) return false;
               return true; // Include the plugin in the list if no flags block it
           });
@@ -54,7 +58,7 @@ export const PluginSelector: FC<Props> = ({
   useEffect(() => {
     settingRef.current = getSettings(featureFlags);
     // we always do this in case the valid plugins change
-    const activePlugins:Plugin[] = getActivePlugins(settingRef.current, featureFlags, validPlugins);
+    const activePlugins:Plugin[] = getActivePlugins(settingRef.current, featureFlags, validPlugins, { classicUi: true });
 
     onPluginChange(activePlugins);
     // save localStorage 

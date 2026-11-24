@@ -64,6 +64,7 @@ import { PendingArtifact, ArtifactBlockDetail } from '@/types/artifacts';
 import { createQiSummary } from '@/services/qiService';
 import MessageSelectModal from './MesssageSelectModal';
 import cloneDeep from 'lodash/cloneDeep';
+import FeaturePlugin from './FeaturePluginSelector/FeaturePlugins';
 import PromptOptimizerButton from "@/components/Optimizer/PromptOptimizerButton";
 import { filterModels } from '@/utils/app/models';
 import { getSettings } from '@/utils/app/settings';
@@ -105,6 +106,8 @@ interface Props {
     showScrollDownButton: boolean;
     plugins: Plugin[];
     setPlugins: (p: Plugin[]) => void;
+    /** Classic UI owns the plugin selector; the new UI never mounts it. */
+    classicUi?: boolean;
 }
 
 // interface Project {
@@ -121,7 +124,8 @@ export const ChatInput = ({
     handleUpdateModel,
     showScrollDownButton,
     plugins,
-    setPlugins
+    setPlugins,
+    classicUi = false
 }: Props) => {
     const { t } = useTranslation('chat');
 
@@ -1313,12 +1317,63 @@ export const ChatInput = ({
         }
     }, [plugins]);
 
-    // Artifact, web-search and code-interpreter modes are selected by the server
-    // for ordinary chat; no per-message/plugin selector UI is exposed here.
+    // Classic-only plugin dependencies. In the new UI the server routes these modes,
+    // so none of this runs there.
+    const pluginsOnInput = classicUi && featureFlags.pluginsOnInput === true;
+    const selectedIsRealAssistant = !!selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id;
+
+    // Code Interpreter is not compatible with a selected Assistant.
+    useEffect(() => { // toggling code interpreter on resets the assistant to default
+        if (!pluginsOnInput) return;
+        const containsCodeInterpreter = plugins.some((p: Plugin) => p.id === PluginID.CODE_INTERPRETER);
+        if (containsCodeInterpreter && selectedIsRealAssistant) {
+            homeDispatch({ field: 'selectedAssistant', value: DEFAULT_ASSISTANT });
+        }
+    }, [plugins, pluginsOnInput]);
+
+    useEffect(() => { // selecting an assistant turns code interpreter off
+        if (!pluginsOnInput || !selectedIsRealAssistant) return;
+        if (plugins.some((p: Plugin) => p.id === PluginID.CODE_INTERPRETER)) {
+            setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.CODE_INTERPRETER));
+        }
+    }, [selectedAssistant?.id, pluginsOnInput]);
+
+    // Artifacts and added actions are mutually exclusive.
+    useEffect(() => {
+        if (!pluginsOnInput) return;
+        if (addedActions.length > 0 && plugins.some((p: Plugin) => p.id === PluginID.ARTIFACTS)) {
+            setPlugins(plugins.filter((p: Plugin) => p.id !== PluginID.ARTIFACTS));
+        }
+    }, [addedActions, pluginsOnInput]);
+
+    useEffect(() => { // turning artifacts on clears added actions
+        if (!pluginsOnInput) return;
+        if (plugins.some((p: Plugin) => p.id === PluginID.ARTIFACTS)) setAddedActions([]);
+    }, [plugins, pluginsOnInput]);
+
+    // Reset the per-conversation web search flag when the Web Search plugin is switched off.
+    useEffect(() => {
+        if (!pluginsOnInput) return;
+        const containsWebSearch = plugins.some((p: Plugin) => p.id === PluginID.WEB_SEARCH);
+        if (!containsWebSearch && selectedConversation?.data?.webSearchEnabled) {
+            handleUpdateConversation(selectedConversation, {
+                key: 'data',
+                value: { ...selectedConversation.data, webSearchEnabled: false },
+            });
+        }
+    }, [plugins, selectedConversation, handleUpdateConversation, pluginsOnInput]);
 
     return (
         <>
             <span style={{display:'none'}}>{settingsVersion}</span>
+            { pluginsOnInput &&
+                <div className='relative z-20' style={{height: 0}}>
+                    <FeaturePlugin
+                        plugins={plugins}
+                        setPlugins={setPlugins}
+                    />
+                </div>
+            }
             <div style={{width: chatContainerWidth}}
                  className="px-20 absolute bottom-0 left-0 border-transparent bg-gradient-to-b from-transparent via-white to-white pt-6 dark:border-white/20 dark:via-[#343541] dark:to-[#343541] md:pt-2">
 

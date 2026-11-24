@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, useContext, useEffect } from 'react';
 import { IconSparkles } from '@tabler/icons-react';
 import { Plugin, PluginID, PluginList } from '@/types/plugin';
+import { DEFAULT_ASSISTANT } from '@/types/assistant';
 import { PluginSelector } from './PluginSelector';
 import HomeContext from '@/components/Home/home.context';
 import React from 'react';
@@ -12,7 +13,7 @@ interface Props {
 
 const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
     const {
-        state: { pluginLocation, showPromptbar, showChatbar, }, dispatch: homeDispatch
+        state: { pluginLocation, showPromptbar, showChatbar, selectedAssistant }, dispatch: homeDispatch
     } = useContext(HomeContext);
 
     const codeInterpreterPlugin:Plugin | undefined = PluginList.find((p:Plugin) => p.id === PluginID.CODE_INTERPRETER);
@@ -150,6 +151,18 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
     }
 
 
+    // Hover text: say what is currently on. RAG/RAG_EVAL are not user-selectable, so omit them.
+    const activeNames = plugins
+        .filter((p: Plugin) => p.id !== PluginID.RAG && p.id !== PluginID.RAG_EVAL)
+        .map((p: Plugin) => p.name);
+    const assistantName = selectedAssistant && selectedAssistant.id !== DEFAULT_ASSISTANT.id
+        ? selectedAssistant.definition?.name : undefined;
+    const buttonTitle = [
+        `Select Enabled Features`,
+        `Active: ${activeNames.length ? activeNames.join(', ') : 'none'}`,
+        ...(assistantName ? [`Assistant: ${assistantName}`] : []),
+    ].join('\n');
+
     return ( hide ? <></> :
         <>
             <div className="relative inline-block z-20 max-h-full"
@@ -177,7 +190,7 @@ const FeaturePlugin = ({ plugins, setPlugins }: Props) => {
                 </div>
                 {!showPluginSelect && 
                 <button // \nNote: You will not be able to use at the same time as a selected Assistant
-                    title={`${!codeInterpreterEnabled() ? "Select Enabled Features" : codeInterpreterPlugin?.name}`}
+                    title={buttonTitle}
                     className="p-1.5 text-neutral-800 bg-neutral-100 hover:bg-neutral-200 hover:text-neutral-900 dark:bg-neutral-600 dark:text-white dark:hover:bg-neutral-500"
                     id="selectEnabledFeaturesClick" 
                     style={{
