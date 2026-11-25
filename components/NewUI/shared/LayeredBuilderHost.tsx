@@ -27,6 +27,7 @@
  * `LayeredAssistantBuilder` does not render its own Save button when the parent
  * supplies `onRegisterSave`. The host captures the builder's internal save fn
  * via `onRegisterSave` and calls it when the user clicks the header Save button.
+ * The header button's spinner follows the builder's `onSavingChange` callback.
  */
 
 import React, { useEffect, useRef, useState, useCallback } from 'react';
@@ -52,7 +53,6 @@ export const LayeredBuilderHost: React.FC = () => {
 
     /** Registered by LayeredAssistantBuilder so we can trigger save from the header button. */
     const saveFnRef = useRef<(() => void) | null>(null);
-    const isSavingRef = useRef<{ current: boolean }>({ current: false });
 
     /** Dedicated portal container — see PORTAL notes above. */
     const [container, setContainer] = useState<HTMLElement | null>(null);
@@ -94,24 +94,11 @@ export const LayeredBuilderHost: React.FC = () => {
         saveFnRef.current?.();
     }, []);
 
-    const handleRegisterSave = useCallback(
-        (fn: () => void, savingRef?: React.MutableRefObject<boolean>) => {
-            saveFnRef.current = fn;
-            if (savingRef) {
-                // Poll the builder's isSaving ref so the header button reflects save progress.
-                // We refresh our own isSaving state whenever the ref flips.
-                const poll = setInterval(() => {
-                    setIsSaving(!!savingRef.current);
-                }, 100);
-                isSavingRef.current = { current: false };
-                // Stop polling when the host unmounts (builderData gone triggers handleClose).
-                // No cleanup needed on the interval here — it's harmless and stops when builder
-                // sets isSaving back to false and then onSave closes the modal.
-                return () => clearInterval(poll);
-            }
-        },
-        [],
-    );
+    // The builder re-registers on every edit (its save fn changes), so this only stores the
+    // latest fn. Save progress for the header button comes from onSavingChange instead.
+    const handleRegisterSave = useCallback((fn: () => void) => {
+        saveFnRef.current = fn;
+    }, []);
 
     // Escape key closes the builder
     useEffect(() => {
@@ -208,6 +195,7 @@ export const LayeredBuilderHost: React.FC = () => {
                         onSave={builderData.onSave}
                         initialData={builderData.initialData}
                         onRegisterSave={handleRegisterSave}
+                        onSavingChange={setIsSaving}
                         assistants={builderData.assistants}
                         showSaveButton={true}
                     />
