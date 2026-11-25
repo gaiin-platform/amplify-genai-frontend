@@ -30,7 +30,8 @@ import AssistantBlock from "@/components/Chat/ChatContentBlocks/AssistantBlock";
 import {usePromptFinderService} from "@/hooks/usePromptFinderService";
 import {parsePartialJson} from "@/utils/app/data";
 import AutonomousBlock from "@/components/Chat/ChatContentBlocks/AutonomousBlock";
-import {useContext, useEffect, useRef, useState, useCallback} from "react";
+import {useContext, useEffect, useRef, useState, useMemo} from "react";
+import {hasLatex, processLatex} from "./latexPreprocess";
 import HomeContext from "@/components/Home/home.context";
 import OpBlock from "@/components/Chat/ChatContentBlocks/OpBlock";
 import ApiKeyBlock from "./ApiKeyBlock";
@@ -124,14 +125,6 @@ const ChatContentBlock: React.FC<Props> = (
 
     const isLast = messageIndex == (selectedConversation?.messages?.length ?? 0) - 1;
 
-    // Check if content contains LaTeX
-    const hasLatex = useCallback((content: string) => {
-        // More precise LaTeX detection that avoids code blocks
-        const codeBlockRegex = /```[\s\S]*?```|`[^`]*`/g;
-        const contentWithoutCode = content.replace(codeBlockRegex, '');
-        return /\$\$[\s\S]*?\$\$|\\\[[\s\S]*?\\\]|\\\([\s\S]*?\\\)|\$[^\s$](?:[^$]*[^\s$])?\$/.test(contentWithoutCode);
-    }, []);
-
     // Debounced LaTeX processing to reduce jitter during streaming - only for LaTeX content
     const [debouncedContent, setDebouncedContent] = useState(transformedMessageContent);
     
@@ -148,60 +141,10 @@ const ChatContentBlock: React.FC<Props> = (
         }, 100); // 100ms debounce only for LaTeX content
 
         return () => clearTimeout(timer);
-    }, [transformedMessageContent, messageIsStreaming, isLast, hasLatex]);
+    }, [transformedMessageContent, messageIsStreaming, isLast]);
 
-    // Memoized LaTeX processing function
-    const processLatex = useCallback((content: string) => {
-        // Store code blocks temporarily to avoid processing them
-        const codeBlocks: string[] = [];
-        const codeBlockPlaceholders: string[] = [];
-        
-        // Replace code blocks with placeholders
-        let processed = content.replace(/```[\s\S]*?```/g, (match, offset) => {
-            const placeholder = `__CODE_BLOCK_${codeBlocks.length}__`;
-            codeBlocks.push(match);
-            codeBlockPlaceholders.push(placeholder);
-            return placeholder;
-        });
-        
-        // Replace inline code with placeholders
-        processed = processed.replace(/`[^`]*`/g, (match, offset) => {
-            const placeholder = `__INLINE_CODE_${codeBlocks.length}__`;
-            codeBlocks.push(match);
-            codeBlockPlaceholders.push(placeholder);
-            return placeholder;
-        });
-        
-        // Replace display math $$...$$ with placeholder
-        processed = processed.replace(/\$\$(.*?)\$\$/g, (match, latex) => {
-            return `<math-display>${latex}</math-display>`;
-        });
-        
-        // Replace LaTeX display math \[ ... \] with placeholder
-        processed = processed.replace(/\\\[([\s\S]*?)\\\]/g, (match, latex) => {
-            return `<math-display>${latex}</math-display>`;
-        });
-        
-        // Replace LaTeX inline math \( ... \) with placeholder
-        processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, (match, latex) => {
-            return `<math-inline>${latex}</math-inline>`;
-        });
-
-        // Replace single-dollar inline math $...$ with placeholder, skipping plain dollar amounts
-        processed = processed.replace(/\$([^\s$](?:[^$]*[^\s$])?)\$/g, (match, latex) => {
-            if (/^[\d.,]+$/.test(latex)) return match;
-            return `<math-inline>${latex}</math-inline>`;
-        });
-
-        // Restore code blocks
-        codeBlockPlaceholders.forEach((placeholder, index) => {
-            processed = processed.replace(placeholder, codeBlocks[index]);
-        });
-        
-        return processed;
-    }, []);
-
-    const finalContent = processLatex(debouncedContent);
+    // Re-renders caused by context changes reuse the result while the text is unchanged
+    const finalContent = useMemo(() => processLatex(debouncedContent), [debouncedContent]);
 
     const promptbarRef = useRef(showPromptbar);
 
