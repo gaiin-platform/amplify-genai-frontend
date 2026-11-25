@@ -45,6 +45,7 @@ import InvokeBlock from '@/components/Chat/ChatContentBlocks/InvokeBlock';
 import { DateToggle } from "@/components/ReusableComponents/DateToggle";
 import { MCPToolResultBlock } from "./MCPToolResultBlock";
 import { JupyterNotebookBlock } from "./JupyterNotebookBlock";
+import { initialRenderedContent, shouldRemountContent } from "./contentBlockRenderKey";
 
 
 
@@ -231,7 +232,7 @@ const ChatContentBlock: React.FC<Props> = (
  
   // Add local state to trigger re-render but use more stable key
   const [renderKey, setRenderKey] = useState(0);
-  const [lastRenderContent, setLastRenderContent] = useState("");
+  const [lastRenderContent, setLastRenderContent] = useState(() => initialRenderedContent(finalContent, messageIsStreaming));
 
   useEffect(() => {
       const handleReRenderEvent = () => {
@@ -247,7 +248,7 @@ const ChatContentBlock: React.FC<Props> = (
 
   // Only update render key when content significantly changes (not during streaming jitter)
   useEffect(() => {
-      if (!messageIsStreaming && finalContent !== lastRenderContent) {
+      if (shouldRemountContent(finalContent, messageIsStreaming, lastRenderContent)) {
           setLastRenderContent(finalContent);
           setRenderKey(prev => prev + 1);
       }
