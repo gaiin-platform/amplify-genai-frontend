@@ -22,7 +22,7 @@ import {
 import {useTranslation} from 'next-i18next';
 
 import { deleteConversationCleanUp, saveConversations} from '@/utils/app/conversation';
-import {throttle} from '@/utils/data/throttle';
+import {useLatestThrottle} from '@/hooks/useLatestThrottle';
 
 import {Conversation, DataSource, Message, MessageType, newMessage} from '@/types/chat';
 import {Plugin} from '@/types/plugin';
@@ -1041,7 +1041,9 @@ export const Chat = memo(({stopConversationRef}: Props) => {
                 messagesEndRef.current?.scrollIntoView(true);
             }
         };
-        const throttledScrollDown = throttle(scrollDown, 250);
+        // One throttle for the life of the component: a new one on each render would have no
+        // memory of the last scroll, so it would never throttle anything.
+        const throttledScrollDown = useLatestThrottle(scrollDown, 250);
 
         // Track previous message count to only scroll when messages actually change
         const prevMessageCountRef = useRef<number>(0);
