@@ -45,11 +45,9 @@ import HomeContext from '@/components/Home/home.context';
 import { useDebouncedSearchTracking } from '@/components/NewUI/shared/UiAnalytics';
 import { Conversation } from '@/types/chat';
 import {
-    isLocalConversation,
     saveConversations,
     deleteConversationCleanUp,
 } from '@/utils/app/conversation';
-import { uncompressMessages } from '@/utils/app/messages';
 import { ExportFormatV4 } from '@/types/export';
 import { loadSharedItem } from '@/services/shareService';
 import { importData } from '@/utils/app/importExport';
@@ -84,6 +82,11 @@ import {
 } from '@/components/NewUI/shared/chatFilters';
 import { buildPromptWithInstruction } from '@/components/NewUI/shared/customInstructions';
 import { DEFAULT_SYSTEM_PROMPT } from '@/utils/app/const';
+import {
+    CHAT_SEARCH_DEBOUNCE_MS,
+    createChatSearchIndex,
+    searchConversations,
+} from '@/components/NewUI/views/chatSearchModel';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -197,6 +200,20 @@ export const ChatsListView: React.FC = () => {
     useDebouncedSearchTracking(search, 'Conversations Searched', { 'Source': 'chats_page' });
     const searchRef = useRef<HTMLInputElement>(null);
 
+    // The My Chats list follows the search box after typing pauses, because a
+    // content search may decompress every local conversation. Clearing the box
+    // applies at once. The index caches each conversation's searchable text.
+    const [settledSearch, setSettledSearch] = useState('');
+    useEffect(() => {
+        if (!search.trim()) {
+            setSettledSearch('');
+            return;
+        }
+        const t = setTimeout(() => setSettledSearch(search), CHAT_SEARCH_DEBOUNCE_MS);
+        return () => clearTimeout(t);
+    }, [search]);
+    const searchIndex = useMemo(() => createChatSearchIndex(), []);
+
     // ── Sort + filter state (in-memory only, same as the Library view) ─────
     const [sort, setSort] = useState<{ key: ChatSortKey; direction: 'asc' | 'desc' }>({
         key: 'date',
@@ -284,23 +301,12 @@ export const ChatsListView: React.FC = () => {
     const filteredMine = useMemo(() => {
         let list = applyChatFilters(listableConversations, filters, filterGroups);
 
-        const q = search.trim().toLowerCase();
-        if (q) {
-            list = list.filter((c) => {
-                let messages = '';
-                if (isLocalConversation(c)) {
-                    const uncompressedMs = uncompressMessages(c.compressedMessages ?? []);
-                    if (uncompressedMs) messages = uncompressedMs.map((m) => m.content).join(' ');
-                }
-                const searchable = c.name.toLowerCase() + ' ' + messages;
-                return searchable.toLowerCase().includes(q);
-            });
-        }
+        list = searchConversations(searchIndex, list, settledSearch);
 
         // Same comparator shape as NewLibraryView's sortedData: primary key, then
         // a stable name tie-break.
         return [...list].sort(compareConversations(sort.key, sort.direction));
-    }, [listableConversations, filters, filterGroups, search, sort]);
+    }, [listableConversations, filters, filterGroups, searchIndex, settledSearch, sort]);
 
     // ── "Shared with Me" tab — filter ─────────────────────────────────────
     const filteredShared = useMemo(() => {
